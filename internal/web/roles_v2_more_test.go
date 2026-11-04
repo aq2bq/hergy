@@ -7,10 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aq2bq/hergy/internal/catalog"
-	"github.com/aq2bq/hergy/internal/check"
 	"github.com/aq2bq/hergy/internal/i18n"
-	"github.com/aq2bq/hergy/internal/rules"
 	"github.com/aq2bq/hergy/internal/source"
 	"github.com/aq2bq/hergy/internal/team"
 )
@@ -46,6 +43,7 @@ type rbRolePlace struct {
 	Path string `json:"path"`
 	Hash string `json:"hash"`
 	Doc  struct {
+		Text     string `json:"text"`
 		Sections []struct {
 			Heading string `json:"heading"`
 			Rules   []struct {
@@ -86,7 +84,7 @@ func TestROLES_P16_TheAssignmentSaveTouchesOneRoleLineAndRefusesTheUndocumented(
 	path := filepath.Join(f.proj, ".hergy", "teams", "docs", "team.yaml")
 	before := readFile(t, path)
 
-	// reviewer is documented (config/hergy/roles/reviewer.yaml), so the save
+	// reviewer is documented (config/hergy/roles/reviewer.md), so the save
 	// goes through and moves the checker's role: line alone.
 	resp, body := f.api(t, server, http.MethodPut, "/api/team/docs", map[string]any{
 		"place": "project",
@@ -140,211 +138,6 @@ func TestROLES_P16_TheAssignmentSaveTouchesOneRoleLineAndRefusesTheUndocumented(
 	if got := readFile(t, path); got != after {
 		t.Errorf("the refused save wrote the file:\n%s", got)
 	}
-}
-
-// TestROLES_P18_TheYAMLTabWritesTheTypedTextAndRefusesANewProblem: a save of the
-// YAML tab's whole text writes exactly what the person typed, even when the file
-// already has a problem, and only refuses a text that adds a problem
-// (ROLES-P18).
-func TestROLES_P18_TheYAMLTabWritesTheTypedTextAndRefusesANewProblem(t *testing.T) {
-	f := rbFixtureRoles(t)
-	server := f.server(t)
-
-	// A document that already does not read: an unknown key beside a rule's
-	// text is an error rules.ReadAll — and so saveYAML — knows about.
-	legacy := "version: 1\nsections:\n  - heading: 仕事\n    rules:\n      - id: LEG-1\n        text: 何かをする。\n        nope: 1\n"
-	f.write(t, filepath.Join("roles", "legacy.yaml"), legacy)
-	path := filepath.Join(f.proj, ".hergy", "roles", "legacy.yaml")
-	if _, problems := rules.ReadAll(legacy, path); len(problems) == 0 {
-		t.Fatalf("the fixture document has no problem to keep")
-	}
-
-	// The typed text still holds the same problem, so nothing new appeared and
-	// the text is written as it is.
-	typed := strings.Replace(legacy, "何かをする。", "別のことをする。", 1)
-	resp, body := f.api(t, server, http.MethodPut, "/api/role/legacy", map[string]any{
-		"place": "project", "name": "legacy", "hash": source.Hash(legacy), "text": typed,
-	})
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("PUT /api/role/legacy answers %d, want 200: %s", resp.StatusCode, body)
-	}
-	written := readFile(t, path)
-	if !strings.Contains(written, "別のことをする。") || !strings.Contains(written, "nope: 1") {
-		t.Errorf("the save did not write the typed text's own lines:\n%s", written)
-	}
-	writtenDoc, _ := rules.ReadAll(written, path)
-	if len(writtenDoc.Rules()) == 0 || !rules.RuleIDPattern.MatchString(writtenDoc.Rules()[0].ID) {
-		t.Errorf("the saved text kept no id hergy writes:\n%s", written)
-	}
-
-	// A text that adds a problem is refused and leaves the file as it was.
-	grown := strings.Replace(written, "        nope: 1\n", "        nope: 1\n        wrong: 2\n", 1)
-	resp, body = f.api(t, server, http.MethodPut, "/api/role/legacy", map[string]any{
-		"place": "project", "name": "legacy", "hash": source.Hash(written), "text": grown,
-	})
-	if resp.StatusCode != http.StatusUnprocessableEntity {
-		t.Fatalf("a text that adds a problem answers %d, want 422: %s", resp.StatusCode, body)
-	}
-	if got := readFile(t, path); got != written {
-		t.Errorf("the refused save wrote the file:\n%s", got)
-	}
-}
-
-// TestROLES_V4_TheCheckAnswerIsTheSentenceValidateWrites: what the screen's
-// check answers for the fixture's role documents are the sentences hergy
-// validate writes — the same check.Definition findings and the same size
-// warnings — with only the definition's own head in front of a turn or size
-// warning, so the screen adds no check of its own; and FAAA, GAAA,
-// core-analyst's amount and HAAA each stand on their rule and line
-// (ROLES-V4).
-func TestROLES_V4_TheCheckAnswerIsTheSentenceValidateWrites(t *testing.T) {
-	f := rbFixtureRoles(t)
-	server := f.server(t)
-	cat := f.catalog()
-
-	defs := make([]string, 0, 4)
-	for _, listing := range cat.Definitions() {
-		defs = append(defs, listing.Name)
-	}
-
-	// Read one answer per role row, at the place its document stands.
-	type row struct {
-		name, place string
-		text        string
-		problems    []apiProblem
-		readers     []check.RoleReader
-	}
-	rows := []row{
-		{"analyst", "project", "", nil, nil},
-		{"builder", "project", "", nil, nil},
-		{"lead", "project", "", nil, nil},
-		{"scout", "project", "", nil, nil},
-		{"reviewer", "global", "", nil, nil},
-		{"writer", "global", "", nil, nil},
-	}
-	for i := range rows {
-		dir := filepath.Join(f.proj, ".hergy", "roles")
-		if rows[i].place == "global" {
-			dir = filepath.Join(f.global, "roles")
-		}
-		rows[i].text = readFile(t, filepath.Join(dir, rows[i].name+".yaml"))
-		resp, body := f.api(t, server, http.MethodPost, "/api/role/check", map[string]any{
-			"place": rows[i].place, "name": rows[i].name, "text": rows[i].text,
-		})
-		if resp.StatusCode != http.StatusOK {
-			t.Fatalf("the check of %s answers %d: %s", rows[i].name, resp.StatusCode, body)
-		}
-		var answer struct {
-			Problems []apiProblem       `json:"problems"`
-			Readers  []check.RoleReader `json:"readers"`
-		}
-		if err := json.Unmarshal([]byte(body), &answer); err != nil {
-			t.Fatalf("the check of %s is not JSON: %v: %s", rows[i].name, err, body)
-		}
-		rows[i].problems, rows[i].readers = answer.Problems, answer.Readers
-	}
-
-	for _, one := range rows {
-		if one.name == "analyst" {
-			read := false
-			for _, reader := range one.readers {
-				if reader.Definition == "core" && reader.Member == "core-analyst" {
-					read = true
-				}
-			}
-			if !read {
-				t.Errorf("the analyst document names no core-analyst reader: %+v", one.readers)
-			}
-		}
-		// What hergy validate writes for this document: the role definition's
-		// own check (d-a575). A sentence a team's turns cause is the team
-		// definition's, so it does not stand here.
-		want := map[string]bool{}
-		for _, problem := range check.Role(check.RoleInput{
-			Catalog: cat, Place: catalog.Layer(one.place), Name: one.name, Text: one.text,
-		}).Problems {
-			want[rbValidateSentence(problem.Text, defs)] = true
-		}
-		got := map[string]int{}
-		for _, problem := range one.problems {
-			got[rbValidateSentence(problem.Text, defs)]++
-		}
-		for sentence := range got {
-			if !want[sentence] {
-				t.Errorf("the check of %s shows a sentence validate does not write: %q", one.name, sentence)
-			}
-		}
-		for sentence := range want {
-			if got[sentence] == 0 {
-				t.Errorf("the check of %s does not show validate's sentence: %q", one.name, sentence)
-			}
-		}
-	}
-
-	// The one the spec names is the role document's own: the model name beside
-	// HAAA. The turn and the derived reference that only a team completes are
-	// the team definition's check now, so they do not stand here (d-a575).
-	for _, want := range []struct {
-		role, id, sev string
-		section, rule int
-		line          int
-	}{
-		{"builder", "HAAA", "warn", 1, 0, 21},
-	} {
-		var one row
-		for _, candidate := range rows {
-			if candidate.name == want.role {
-				one = candidate
-			}
-		}
-		var found *apiProblem
-		for i := range one.problems {
-			if one.problems[i].Section == want.section && one.problems[i].Rule == want.rule {
-				found = &one.problems[i]
-			}
-		}
-		if found == nil {
-			t.Errorf("the check of %s does not stand a problem on (%d, %d)", want.role, want.section, want.rule)
-			continue
-		}
-		if found.Sev != want.sev {
-			t.Errorf("%s (%d, %d) is %q, want %q", want.role, want.section, want.rule, found.Sev, want.sev)
-		}
-		if found.Line != want.line {
-			t.Errorf("%s (%d, %d) stands on line %d, want %d", want.role, want.section, want.rule, found.Line, want.line)
-		}
-		if want.id == "" {
-			continue
-		}
-		doc, _ := rules.ReadAll(one.text, cat.Display(cat.RolePath(one.place, one.name)))
-		if doc == nil || want.section >= len(doc.Sections) || want.rule >= len(doc.Sections[want.section].Rules) {
-			t.Errorf("%s has no rule at (%d, %d)", want.role, want.section, want.rule)
-			continue
-		}
-		if id := doc.Sections[want.section].Rules[want.rule].ID; id != want.id {
-			t.Errorf("%s (%d, %d) is rule %s, want %s", want.role, want.section, want.rule, id, want.id)
-		}
-	}
-}
-
-// rbValidateSentence is one sentence as both places write it without the names a
-// screen's own head already gives: the head naming the definition a turn or size
-// warning is about, and any leading file path a check.Definition sentence
-// carries. What is left is the sentence hergy validate writes.
-func rbValidateSentence(text string, defs []string) string {
-	changed := true
-	for changed {
-		changed = false
-		for _, def := range defs {
-			if after, ok := strings.CutPrefix(text, def+": "); ok {
-				text, changed = after, true
-			}
-		}
-		if head, rest, ok := strings.Cut(text, ": "); ok && strings.Contains(head, "/") {
-			text, changed = rest, true
-		}
-	}
-	return text
 }
 
 // rbHomeServer builds the fixture's working project with the shared settings
@@ -409,15 +202,15 @@ func TestROLES_V6_ThePathsReadAsTheProjectAndTheHome(t *testing.T) {
 	if !ok {
 		t.Fatalf("the list does not hold builder: %s", body)
 	}
-	if got := list.Items[at].Places["project"].Path; got != ".hergy/roles/builder.yaml" {
-		t.Errorf("builder's document reads %q, want .hergy/roles/builder.yaml", got)
+	if got := list.Items[at].Places["project"].Path; got != ".hergy/roles/builder.md" {
+		t.Errorf("builder's document reads %q, want .hergy/roles/builder.md", got)
 	}
 	at, ok = list.row("reviewer")
 	if !ok {
 		t.Fatalf("the list does not hold reviewer: %s", body)
 	}
-	if got := list.Items[at].Places["global"].Path; got != "~/.config/hergy/roles/reviewer.yaml" {
-		t.Errorf("reviewer's document reads %q, want ~/.config/hergy/roles/reviewer.yaml", got)
+	if got := list.Items[at].Places["global"].Path; got != "~/.config/hergy/roles/reviewer.md" {
+		t.Errorf("reviewer's document reads %q, want ~/.config/hergy/roles/reviewer.md", got)
 	}
 	for _, item := range list.Items {
 		for _, place := range item.Places {
@@ -439,29 +232,11 @@ func TestROLES_V6_ThePathsReadAsTheProjectAndTheHome(t *testing.T) {
 	if err := json.Unmarshal([]byte(body), &one); err != nil {
 		t.Fatalf("the one role is not JSON: %v: %s", err, body)
 	}
-	if one.Path != ".hergy/roles/builder.yaml" {
-		t.Errorf("one role's file reads %q, want .hergy/roles/builder.yaml", one.Path)
+	if one.Path != ".hergy/roles/builder.md" {
+		t.Errorf("one role's file reads %q, want .hergy/roles/builder.md", one.Path)
 	}
 	rbNoAbsolutePath(t, "the one role", body, f.proj, f.global, f.root)
 
-	// 検査: a text that repeats one of the shared team's rule ids is told with
-	// both files written as a person reads them, not as an absolute path. The
-	// repeat is the team definition's combination finding (d-a575), so the check
-	// of the team with the draft laid over its role document is the one that
-	// names both.
-	builder := readFile(t, filepath.Join(f.proj, ".hergy", "roles", "builder.yaml"))
-	draft := builder + "      - id: PAAA\n        text: 重ねて書く。\n"
-	cat := f.catalog()
-	overlay := cat.With(cat.RolePath(catalog.PlaceProject, "builder"), draft)
-	told := false
-	for _, finding := range check.Definition(check.Input{Catalog: overlay, Name: "core"}) {
-		if strings.Contains(finding.Text, ".hergy/teams/core/agreement.yaml") && strings.Contains(finding.Text, ".hergy/roles/builder.yaml") {
-			told = true
-		}
-	}
-	if !told {
-		t.Errorf("the check does not name both files as a person reads them")
-	}
 }
 
 // TestROLES_E1_ARowIsReturnedForAMarkdownOnlyRoleAndForANoDocumentRole: a role
@@ -492,11 +267,8 @@ func TestROLES_E1_ARowIsReturnedForAMarkdownOnlyRoleAndForANoDocumentRole(t *tes
 		t.Fatalf("the list does not hold the Markdown-only role: %s", body)
 	}
 	markdown := list.Items[at]
-	if want := tf("error.role_markdown", "mdonly", f.catalog().Display(filepath.Join(f.proj, ".hergy", "roles", "mdonly.md"))); markdown.Summary.Markdown != want {
-		t.Errorf("the Markdown-only row says %q, want %q", markdown.Summary.Markdown, want)
-	}
-	if len(markdown.Places) != 0 {
-		t.Errorf("the Markdown-only row carries a document a screen can edit: %+v", markdown.Places)
+	if markdown.Summary.Markdown != "" || markdown.Places["project"].Doc.Text == "" {
+		t.Fatalf("Markdown role is not editable: %+v", markdown)
 	}
 
 	at, ok = list.row("nosuch")
@@ -511,13 +283,7 @@ func TestROLES_E1_ARowIsReturnedForAMarkdownOnlyRoleAndForANoDocumentRole(t *tes
 	if !ok {
 		t.Fatalf("the new role does not stand in the project: %+v", fresh.Places)
 	}
-	if len(place.Doc.Sections) != 1 || place.Doc.Sections[0].Heading != "責務" {
-		t.Fatalf("the new role's document is %+v, want one section 責務", place.Doc.Sections)
-	}
-	if n := len(place.Doc.Sections[0].Rules); n != 1 {
-		t.Fatalf("the new role holds %d rules, want one empty rule", n)
-	}
-	if rule := place.Doc.Sections[0].Rules[0]; rule.ID != "" || rule.Text != "" {
-		t.Errorf("the new role's one rule is %+v, want it empty", rule)
+	if !strings.Contains(place.Doc.Text, "## 責務") {
+		t.Fatalf("new role: %+v", place.Doc)
 	}
 }

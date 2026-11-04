@@ -166,3 +166,15 @@ func TestRefuseInvalidPathsAndMissingSource(t *testing.T) {
 		t.Fatal("unprepared accepted")
 	}
 }
+
+func FuzzConvert(f *testing.F) {
+	f.Add("version: 1\nsections: []\n")
+	f.Add("version: 1\nsections:\n  - rules:\n      - text: hello\n")
+	f.Fuzz(func(t *testing.T, text string) {
+		first, err := Convert(text, "legacy.yaml")
+		next, again := Convert(text, "legacy.yaml")
+		if (err == nil) != (again == nil) || first != next {
+			t.Fatal("conversion is not deterministic")
+		}
+	})
+}

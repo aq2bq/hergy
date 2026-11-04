@@ -582,11 +582,7 @@ function buildIndex(): SearchEntry[] {
         out.push({ kind: 'member', group, project: label, label: `${item.name} の ${m.name}`, sub: `ロール ${m.role || ''} · プロファイル ${m.profile || ''}`, text: `${m.name} ${item.name}-${m.name} ${m.role || ''} ${m.profile || ''}`, href });
       }
       const agree = doc.agreement && doc.agreement.doc;
-      for (const sec of (agree && agree.sections) || []) {
-        for (const rule of sec.rules || []) {
-          out.push({ kind: 'rule', group, project: label, label: rule.id || '', sub: `${item.name} のルール`, text: `${rule.id || ''} ${rule.text}`, body: rule.text, href });
-        }
-      }
+      if (agree) out.push({ kind: 'def', group, project: label, label: agree.title || item.name, sub: `${item.name} の散文`, text: agree.text, body: agree.text, href: href + '&agree=' + encodeURIComponent(item.name) });
     }
   }
   for (const g of groupOf('roles')) {
@@ -594,12 +590,8 @@ function buildIndex(): SearchEntry[] {
     for (const item of ((g.list && g.list.items) || [])) {
       const doc = roleDoc(item);
       const href = `/roles?open=${encodeURIComponent(token(item.name, group))}`;
-      out.push({ kind: 'role', group, project: label, label: `${item.name} ${doc.title || ''}`.trim(), sub: '', text: `${item.name} ${doc.title || ''}`, href });
-      for (const sec of doc.sections || []) {
-        for (const rule of sec.rules || []) {
-          out.push({ kind: 'rule', group, project: label, label: rule.id || '', sub: `ロール ${item.name}`, text: `${rule.id || ''} ${rule.text}`, body: rule.text, href });
-        }
-      }
+      out.push({ kind: 'role', group, project: label, label: `${item.name} ${doc.title || ''}`.trim(), sub: '', text: `${item.name} ${doc.title || ''} ${doc.text || ''}`, body: doc.text, href });
+
     }
   }
   for (const g of groupOf('profiles')) {

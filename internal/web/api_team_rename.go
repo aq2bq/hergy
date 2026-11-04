@@ -111,7 +111,7 @@ func (s *Server) renameTeam(old string, in apiIn) (any, *apiErr) {
 		return nil, refuse(http.StatusConflict, i18n.T("web.rename.read_again"))
 	}
 	//nolint:gosec // G703: oldPath is validated above, and the second filename is constant.
-	agree, agreeErr := os.ReadFile(filepath.Join(filepath.Dir(oldPath), "agreement.yaml"))
+	agree, agreeErr := os.ReadFile(filepath.Join(filepath.Dir(oldPath), "agreement.md"))
 	if agreeErr != nil && !errors.Is(agreeErr, os.ErrNotExist) {
 		return nil, refuse(http.StatusInternalServerError, agreeErr.Error())
 	}
@@ -134,7 +134,7 @@ func (s *Server) renameTeam(old string, in apiIn) (any, *apiErr) {
 	}
 	trial := cat.With(newPath, string(edited)).Without(oldPath)
 	if agreeErr == nil {
-		trial = trial.With(filepath.Join(filepath.Dir(newPath), "agreement.yaml"), string(agree))
+		trial = trial.With(filepath.Join(filepath.Dir(newPath), "agreement.md"), string(agree))
 	}
 	def, err := trial.Definition(*in.RenameTo, catalog.Layer(in.Place))
 	if err != nil {

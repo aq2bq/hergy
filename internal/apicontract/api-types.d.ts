@@ -608,54 +608,17 @@ export interface components {
             savedLine?: boolean;
             problems: components["schemas"]["Counts"];
         };
-        /** @description ロールの文書 1 つ。節と規則だけを持ち、ファイルのハッシュと文は置き場所が持つ。 */
+        /** @description Markdown の本文をそのまま保持する文書。 */
         RoleDoc: {
-            /** @description ロール名 */
+            /** @description 文書の名前 */
             name: string;
-            /** @description 文書の題 */
+            /** @description 先頭行から得た表示用の題 */
             title: string;
-            /** @description 文書のバージョン。書いていなければ null。 */
-            revision: number | null;
-            /** @description 文書の節 */
-            sections: components["schemas"]["RoleSection"][] | null;
-        };
-        /** @description ロールの文書の節 1 つ。見出しと前書きと、その節の規則を持つ。 */
-        RoleSection: {
-            /** @description 保存されている文書でこの節が立つ節の番号。下書きが送る。 */
-            from?: number | null;
-            /** @description 節の見出し */
-            heading: string;
-            /** @description 見出しの深さ（Markdown の */
-            level: number;
-            /** @description 節の前書き */
-            intro: string;
-            /** @description この節の規則 */
-            rules: components["schemas"]["RoleRule"][] | null;
-        };
-        /** @description ロールの文書の規則 1 つ。id は hergy が書く時に付けるので、下書きは省ける。 */
-        RoleRule: {
-            /** @description 保存されている文書でこの規則が立つ場所。下書きが送る。 */
-            from?: {
-                /** @description 節の番号 */
-                section: number;
-                /** @description 節の中での規則の番号 */
-                rule: number;
-            } | null;
-            /** @description 規則の ID。hergy が書き込みのときに付け、人と画面は書かない。下書きは省ける */
-            id?: string;
-            /** @description 規則の文 */
+            /** @description Markdown の全文 */
             text: string;
-            /** @description プロンプトに含めるか */
-            in_prompt: boolean;
-            /** @description 規則を切った日。切っていなければ空。 */
-            off_since?: string;
-            /** @description 規則に添えるメモ */
-            note: string;
         };
         /** @description ロールの一覧の 1 行が読む数（spec-boundary 5）。 */
         RoleSummary: {
-            /** @description プロンプトに入る規則の数 */
-            rules: number;
             /** @description メンバー 1 人が読む文の文字数 */
             chars: number;
             /** @description 文書がまだ Markdown のままで読めないときの文 */
@@ -705,6 +668,8 @@ export interface components {
         };
         /** @description POST /api/role/check の答え（spec-boundary 5）。問題、メンバーが読む Markdown、変更が動かした行と規則の矢印、その文書を読むメンバー。 */
         RoleCheck: {
+            /** @description チームとメンバーのひな形の固定文の文字数 */
+            template_size?: number;
             /** @description 見つかった問題 */
             problems: components["schemas"]["Problem"][];
             preview: components["schemas"]["RolePreview"];
@@ -737,8 +702,6 @@ export interface components {
         /** @description 下書きが保存されている文書からどう動いたか。 */
         RoleEffect: {
             diff: components["schemas"]["RoleDiff"];
-            /** @description 規則の文が書く矢印を、その文書を読むチーム定義ごとに見たもの */
-            turns: components["schemas"]["RoleTurn"][];
         };
         /** @description メンバーが読む Markdown の、保存されている文書からの動き。 */
         RoleDiff: {
@@ -748,19 +711,6 @@ export interface components {
             removedBefore: number[] | null;
             /** @description 消えた行が最後の行より後ろに立っていた */
             removedAtEnd: boolean;
-        };
-        /** @description 規則の文が書く矢印 1 つを、その文書を読むチーム定義 1 つについて見たもの。 */
-        RoleTurn: {
-            /** @description 矢印を書いた規則がある節の番号 */
-            section: number;
-            /** @description 矢印を書いた規則の番号 */
-            rule: number;
-            /** @description 矢印を人が読む形（lead -> builder） */
-            arrow: string;
-            /** @description その矢印を見たチーム定義の名前 */
-            definition: string;
-            /** @description そのチーム定義の turns がこの矢印を持つか */
-            ok: boolean;
         };
         /** @description そのロールの文書を読むメンバー 1 人。 */
         RoleReader: {
@@ -789,53 +739,11 @@ export interface components {
                 [key: string]: string;
             };
         };
-        /** @description 欄の下書きとして送るロールの文書。書かない欄は省くか null を送る。 */
         RoleDraft: {
-            /** @description ロール名 */
-            name?: string;
-            /** @description 文書の題 */
-            title?: string;
-            /** @description 文書のバージョン */
-            revision?: number | null;
-            /** @description 文書の節 */
-            sections?: components["schemas"]["RoleDraftSection"][] | null;
-            /** @description 読んだときのファイルのハッシュ */
+            name: string;
+            title: string;
+            text: string;
             hash?: string;
-            /** @description 読んだときのファイルの文 */
-            text?: string;
-        };
-        /** @description 欄の下書きとして送る節 1 つ。 */
-        RoleDraftSection: {
-            /** @description 保存されている文書でこの節が立つ節の番号。新しい節は null。 */
-            from?: number | null;
-            /** @description 節の見出し */
-            heading?: string;
-            /** @description 見出しの深さ */
-            level?: number;
-            /** @description 節の前書き */
-            intro?: string;
-            /** @description この節の規則 */
-            rules?: components["schemas"]["RoleDraftRule"][] | null;
-        };
-        /** @description 欄の下書きとして送る規則 1 つ。 */
-        RoleDraftRule: {
-            /** @description 保存されている文書でこの規則が立つ場所。新しい規則は null。 */
-            from?: {
-                /** @description 節の番号 */
-                section: number;
-                /** @description 節の中での規則の番号 */
-                rule: number;
-            } | null;
-            /** @description 規則の ID。hergy が書き込みのときに付け、人と画面は書かない。下書きは省ける */
-            id?: string;
-            /** @description 規則の文 */
-            text?: string;
-            /** @description プロンプトに含めるか */
-            in_prompt?: boolean;
-            /** @description 規則を切った日 */
-            off_since?: string;
-            /** @description 規則に添えるメモ */
-            note?: string;
         };
         /** @description POST /api/role/check に送る本文。欄の下書き（doc）か、YAML タブの文（text）のどちらかを送る。 */
         RoleCheckRequest: {
@@ -1232,8 +1140,8 @@ export interface components {
             kind: string;
             /** @description 変更があった文書 */
             document?: string;
-            /** @description 変更があった規則の ID */
-            rule?: string;
+            /** @description 本文の行単位の差分 */
+            diff?: string;
             /** @description 変更があったターン */
             turn?: string;
             /** @description 変更があったワーカー */
@@ -1731,10 +1639,6 @@ export interface components {
             members: components["schemas"]["TeamMember"][] | null;
             /** @description チーム定義のワーカー数 */
             workers: number;
-            /** @description チームのルールにある規則の数 */
-            rules: number;
-            /** @description プロンプトに含めない規則の数 */
-            excluded?: number;
             /** @description team.yaml をチーム定義として読めなかったか */
             broken?: boolean;
             /** @description チーム定義の規則とテンプレートの文字数 */
@@ -1799,16 +1703,12 @@ export interface components {
         };
         /** @description チーム定義に属するチームのルール。 */
         TeamAgreement: {
-            /** @description agreement.yaml のパス */
+            /** @description agreement.md のパス */
             path: string;
-            /** @description agreement.yaml のハッシュ */
+            /** @description agreement.md のハッシュ */
             hash: string;
             /** @description チームのルールがあるか */
             has: boolean;
-            /** @description チームのルールにある規則の数 */
-            rules: number;
-            /** @description プロンプトに含めない規則の数 */
-            excluded?: number;
             /** @description チームのルールの文書 */
             doc?: components["schemas"]["TeamRuleDocument"];
         };
@@ -1830,7 +1730,7 @@ export interface components {
             /** @description ファイルが属するチーム定義名 */
             name?: string;
             /**
-             * @description team.yaml または agreement.yaml の区別
+             * @description team.yaml または agreement.md の区別
              * @enum {string}
              */
             kind?: "team" | "agreement";
@@ -1947,21 +1847,6 @@ export interface components {
         TeamAgreementEffect: {
             /** @description Markdown の行の変化 */
             diff: components["schemas"]["TeamDiff"];
-            /** @description 規則が書く矢印とチーム定義のターン */
-            turns: components["schemas"]["TeamRuleTurn"][] | null;
-        };
-        /** @description 規則が書く矢印をチーム定義のターンと照合した結果。 */
-        TeamRuleTurn: {
-            /** @description 規則文書の節の番号 */
-            section: number;
-            /** @description 節の中の規則の番号 */
-            rule: number;
-            /** @description 規則に書かれたターンを渡す矢印 */
-            arrow: string;
-            /** @description 照合するチーム定義名 */
-            definition: string;
-            /** @description チーム定義が矢印のターンを持つか */
-            ok: boolean;
         };
         /** @description チームのルールを読むメンバー。 */
         TeamRuleReader: {
@@ -1987,6 +1872,8 @@ export interface components {
         TeamRenamed: components["schemas"]["TeamSaved"];
         /** @description 保存済みまたは保存前のチーム定義、チームのルール、YAML 全文の検査結果。 */
         TeamCheckAnswer: {
+            /** @description チームとメンバーのひな形の固定文の文字数 */
+            template_size?: number;
             rename?: components["schemas"]["TeamRenamePreview"];
             /** @description 検査で見つかった問題 */
             problems: components["schemas"]["Problem"][] | null;
@@ -2111,7 +1998,7 @@ export interface components {
             part?: string;
             /** @description 読み取った team.yaml のハッシュ */
             hash?: string;
-            /** @description 読み取った agreement.yaml のハッシュ */
+            /** @description 読み取った agreement.md のハッシュ */
             agreement_hash?: string;
             /** @description 雛形から作るチーム定義か */
             new?: boolean;
@@ -2210,118 +2097,23 @@ export interface components {
             /** @description ワーカーを起動するメンバー名。空なら目的から決める。 */
             from?: string;
         };
-        /** @description チームのルールを検査または保存する文書。文書だけを持ち、ファイルのハッシュと文は置き場所が持つ。 */
+        /** @description Markdown の本文をそのまま保持する文書。 */
         TeamRuleDocument: {
-            /** @description チームのルールの文書名 */
+            /** @description 文書の名前 */
             name: string;
-            /** @description チームのルールの見出し */
+            /** @description 先頭行から得た表示用の題 */
             title: string;
-            /** @description チームのルールのバージョン */
-            revision: number | null;
-            /** @description チームのルールの節 */
-            sections: components["schemas"]["TeamRuleSection"][] | null;
-        };
-        /** @description 画面から送るチームのルールの編集文書。 */
-        TeamRuleDocumentRequest: {
-            /** @description チームのルールの文書名 */
-            name?: string;
-            /** @description チームのルールの見出し */
-            title?: string;
-            /** @description チームのルールのバージョン */
-            revision?: number | null;
-            /** @description チームのルールの節 */
-            sections?: components["schemas"]["TeamRuleSectionRequest"][] | null;
-            /** @description 編集元のチームのルールのハッシュ */
-            hash?: string;
-            /** @description 編集元のチームのルールの全文 */
-            text?: string;
-        };
-        /** @description チームのルールの節。 */
-        TeamRuleSection: {
-            /** @description 保存済みのチームのルールでの節の番号 */
-            from?: number | null;
-            /** @description 節の見出し */
-            heading: string;
-            /** @description 節の見出しの深さ */
-            level: number;
-            /** @description 節の導入文 */
-            intro: string;
-            /** @description 節にある規則 */
-            rules: components["schemas"]["TeamRule"][] | null;
-        };
-        /** @description 画面から送るチームのルールの節。 */
-        TeamRuleSectionRequest: {
-            /** @description 保存済みのチームのルールでの節の番号 */
-            from?: number | null;
-            /** @description 節の見出し */
-            heading?: string;
-            /** @description 節の見出しの深さ */
-            level?: number;
-            /** @description 節の導入文 */
-            intro?: string;
-            /** @description 節にある規則 */
-            rules?: components["schemas"]["TeamRuleRequest"][] | null;
-        };
-        /** @description チームのルールにある規則。id は hergy が書く時に付けるので、下書きは省ける。 */
-        TeamRule: {
-            /** @description 保存済みのチームのルールでの規則の位置 */
-            from?: {
-                /** @description 規則がある節の番号 */
-                section?: number;
-                /** @description 節にある規則の番号 */
-                rule?: number;
-            } | null;
-            /** @description 規則の ID。hergy が書き込みのときに付け、人と画面は書かない。下書きは省ける */
-            id?: string;
-            /** @description 規則の文 */
+            /** @description Markdown の全文 */
             text: string;
-            /** @description 規則をメンバーの初期プロンプトに含めるか */
-            in_prompt: boolean;
-            /** @description 規則をプロンプトに含めなくした日 */
-            off_since?: string;
-            /** @description 規則について人が残すメモ */
-            note: string;
         };
-        /** @description 画面から送るチームのルールの規則。 */
-        TeamRuleRequest: {
-            /** @description 保存済みのチームのルールでの規則の位置 */
-            from?: components["schemas"]["TeamRuleFrom"] | null;
-            /** @description 規則の ID。hergy が書き込みのときに付け、人と画面は書かない。下書きは省ける */
-            id?: string;
-            /** @description 規則の文 */
-            text?: string;
-            /** @description 規則をメンバーの初期プロンプトに含めるか */
-            in_prompt?: boolean;
-            /** @description 規則をプロンプトに含めなくした日 */
-            off_since?: string;
-            /** @description 規則について人が残すメモ */
-            note?: string;
-            /** @description 古い形式で規則に付いていた理由 */
-            why?: string;
-            /** @description 古い形式で理由を初期プロンプトに含めるか */
-            send_why?: boolean;
-            /** @description 古い形式で規則に付いていた由来 */
-            origin?: components["schemas"]["TeamRuleOriginRequest"][] | null;
-            /** @description 古い形式で規則に付いていた報告の形 */
-            report?: string;
-            /** @description 古い形式で規則に付いていた検証方法 */
-            tests?: string[] | null;
-        };
-        /** @description 古い形式で規則に付いていた由来の 1 件。 */
-        TeamRuleOriginRequest: {
-            /** @description 由来の種類 */
-            kind?: string;
-            /** @description 由来の日付 */
-            date?: string;
-            /** @description 由来が指す参照 */
-            refs?: string[] | null;
-        };
-        /** @description 保存済みのチームのルールでの規則の位置。 */
-        TeamRuleFrom: {
-            /** @description 規則がある節の番号 */
-            section: number;
-            /** @description 節にある規則の番号 */
-            rule: number;
+        /** @description Markdown の本文をそのまま保持する文書。 */
+        TeamRuleDocumentRequest: {
+            /** @description 文書の名前 */
+            name: string;
+            /** @description 先頭行から得た表示用の題 */
+            title: string;
+            /** @description Markdown の全文 */
+            text: string;
         };
     };
     responses: never;
@@ -2453,7 +2245,7 @@ export interface operations {
                 place: "project" | "global";
                 /** @description 読み取った team.yaml のハッシュ */
                 hash?: string;
-                /** @description 読み取った agreement.yaml のハッシュ */
+                /** @description 読み取った agreement.md のハッシュ */
                 agreement_hash?: string;
                 /** @description 並べたプロジェクトのパス。省略するとこの serve のプロジェクトを読む。 */
                 project?: string;

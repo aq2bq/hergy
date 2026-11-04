@@ -147,7 +147,7 @@ type apiPlace struct {
 // apiFile is one file of a kind whose files hold many names: what the YAML tab
 // draws, with the problems of the whole text. Name, Kind and Hidden belong to a
 // kind whose one name holds more than one file (a team definition's team.yaml
-// and agreement.yaml): the name the file belongs to, which of the two it is,
+// and agreement.md): the name the file belongs to, which of the two it is,
 // and whether another place's file of the same name hides it.
 type apiFile struct {
 	Place    string       `json:"place"`
@@ -217,11 +217,12 @@ type apiCheckCarry struct {
 // of the change and the people that read it. A kind that has none of the latter
 // leaves them out.
 type apiCheck struct {
-	Rename   *apiRenamePreview `json:"rename,omitempty"`
-	Problems []apiProblem      `json:"problems"`
-	Preview  any               `json:"preview,omitempty"`
-	Effect   any               `json:"effect,omitempty"`
-	Readers  any               `json:"readers,omitempty"`
+	TemplateSize int               `json:"template_size,omitempty"`
+	Rename       *apiRenamePreview `json:"rename,omitempty"`
+	Problems     []apiProblem      `json:"problems"`
+	Preview      any               `json:"preview,omitempty"`
+	Effect       any               `json:"effect,omitempty"`
+	Readers      any               `json:"readers,omitempty"`
 	// Limit is the provisional size budget the check holds this unit to, for a
 	// screen that shows a document's size against it (d-8bbf). A kind whose
 	// screen shows no budget leaves it out.

@@ -31,8 +31,6 @@ import (
 	"github.com/aq2bq/hergy/internal/profile"
 	"github.com/aq2bq/hergy/internal/prompt"
 	"github.com/aq2bq/hergy/internal/protocol"
-	"github.com/aq2bq/hergy/internal/ruleid"
-	"github.com/aq2bq/hergy/internal/rules"
 	"github.com/aq2bq/hergy/internal/scaffold"
 	"github.com/aq2bq/hergy/internal/screenlog"
 	"github.com/aq2bq/hergy/internal/source"
@@ -169,16 +167,6 @@ func fail(stderr io.Writer, err error) {
 }
 
 func dispatch(ctx context.Context, env team.Env, opts *options.Options, stdout, stderr io.Writer) error {
-	// A command that writes files hands every rule hergy reads its id first: the
-	// prompt it builds carries the ids the files will hold (d-4aab). A read-only
-	// command writes nothing; --dry is read-only even when its command writes.
-	if !opts.Dry && writesRules(opts.Kind) {
-		given, err := ruleid.Assign(env.Catalog(source.Disk{}))
-		if err != nil {
-			return err
-		}
-		ruleid.Print(stdout, given)
-	}
 	switch opts.Kind {
 	case options.Ls:
 		return runLs(env, stdout)
@@ -186,6 +174,8 @@ func dispatch(ctx context.Context, env team.Env, opts *options.Options, stdout, 
 		return runShow(env, opts, stdout)
 	case options.New:
 		return runNew(env, opts, stdout)
+	case options.Migrate:
+		return runMigrate(env, opts, stdout)
 	case options.Validate:
 		return runValidate(env, stdout)
 	case options.Serve:
@@ -214,18 +204,6 @@ func dispatch(ctx context.Context, env team.Env, opts *options.Options, stdout, 
 		return runHire(ctx, env, opts, stdout, stderr)
 	default:
 		return i18n.Errorf("error.unhandled_command")
-	}
-}
-
-// writesRules says a command hands every rule hergy reads its id before it
-// builds what it launches (d-4aab): up, apply, reprompt, refresh and hire. A
-// screen's save assigns the ids of the document it writes itself.
-func writesRules(kind options.Kind) bool {
-	switch kind {
-	case options.Up, options.Apply, options.Reprompt, options.Refresh, options.Hire:
-		return true
-	default:
-		return false
 	}
 }
 
@@ -841,23 +819,16 @@ func runNew(env team.Env, opts *options.Options, stdout io.Writer) error {
 	if err != nil {
 		return err
 	}
-	// new writes rule files, so it gives the rules their ids here, after the
-	// files stand: the template carries none, and two teams made in one project
-	// do not take each other's ids (d-4aab).
-	given, err := ruleid.Assign(cat)
-	if err != nil {
-		return err
-	}
 	field(stdout, label("definition"), name)
 	field(stdout, label("dir"), env.Display(dir))
 	for _, path := range written.Files {
-		field(stdout, label("file"), env.Display(path))
+		field(stdout, label("file"), cat.Display(path))
 	}
 	for _, path := range written.Roles {
-		field(stdout, label("role_file"), env.Display(path))
+		field(stdout, label("role_file"), cat.Display(path))
 	}
 	for _, path := range written.Kept {
-		field(stdout, label("note"), i18n.Tf("new.role_kept", env.Display(path)))
+		field(stdout, label("note"), i18n.Tf("new.role_kept", cat.Display(path)))
 	}
 	if written.Profile != "" {
 		field(stdout, label("profile"), scaffold.ProfileName)
@@ -878,7 +849,6 @@ func runNew(env team.Env, opts *options.Options, stdout io.Writer) error {
 	if madeConfig {
 		field(stdout, label("config"), env.Display(configPath))
 	}
-	ruleid.Print(stdout, given)
 	if missing {
 		printNext(stdout, "validate")
 	} else {
@@ -965,7 +935,7 @@ func effectiveTeamSize(cat *catalog.Catalog, env team.Env, row catalog.Listing, 
 // holds is still checked (the screen can open that place), but it is not in the
 // size list: the list names the effective document once (T13 R1).
 func validateRoleFile(stdout io.Writer, env team.Env, cat *catalog.Catalog, layer, path string) (int, roleSize, bool) {
-	name := strings.TrimSuffix(filepath.Base(path), ".yaml")
+	name := strings.TrimSuffix(filepath.Base(path), ".md")
 	text, err := cat.Reader().Read(source.Doc{Path: path})
 	if err != nil {
 		reportFile(stdout, env, path, err)
@@ -979,18 +949,18 @@ func validateRoleFile(stdout io.Writer, env team.Env, cat *catalog.Catalog, laye
 		// reads (T13 R4).
 		problems := make([]check.RoleProblem, 0, len(doc.Problems)+1)
 		for _, problem := range doc.Problems {
-			if problem.Sev == rules.SevError {
+			if problem.Sev == "err" {
 				problems = append(problems, problem)
 			}
 		}
 		problems = append(problems, check.RoleProblem{
-			Sev: rules.SevWarning, Section: -1, Rule: -1,
+			Sev: "warn", Section: -1, Rule: -1,
 			Text: i18n.Tf("validate.role_hidden", name),
 		})
 		return printRoleFindings(stdout, env, path, problems), roleSize{}, false
 	}
 	return printRoleFindings(stdout, env, path, doc.Problems),
-		roleSize{name: env.Display(path), chars: doc.Markdown.Chars}, true
+		roleSize{name: cat.Display(path), chars: doc.Markdown.Chars}, true
 }
 
 // runValidate reads every settings file the way up does, shows one line per
@@ -1001,10 +971,8 @@ func validateRoleFile(stdout io.Writer, env team.Env, cat *catalog.Catalog, laye
 func runValidate(env team.Env, stdout io.Writer) error {
 	cat := env.Catalog(source.Disk{})
 	checked, problems := 0, 0
-	tally := &rules.Tally{}
 	var teams []teamSize
 	var roles []roleSize
-	seenFiles := map[string]bool{}
 	ledger := &ledgerCheck{env: env}
 	report := func(path string, err error) {
 		checked++
@@ -1022,6 +990,7 @@ func runValidate(env team.Env, stdout io.Writer) error {
 			reportProfileFile(stdout, env, path, report)
 		}
 	}
+	reportLegacyProse(env, cat, report)
 	for _, doc := range cat.SharedAgreements() {
 		report(doc.Path, sharedAgreementError(cat, []source.Doc{doc}))
 	}
@@ -1054,7 +1023,6 @@ func runValidate(env team.Env, stdout io.Writer) error {
 				continue
 			}
 			printLedger(stdout, r.team.Definition, ledger)
-			collectRules(tally, seenFiles, r)
 		}
 	}
 	// Every role document is its own unit, checked once however many teams use
@@ -1062,7 +1030,7 @@ func runValidate(env team.Env, stdout io.Writer) error {
 	// team definitions' sections.
 	for _, layer := range []string{source.LayerGlobal, source.LayerLocal} {
 		dir := filepath.Join(cat.LayerDir(layer), "roles")
-		matches, _ := filepath.Glob(filepath.Join(dir, "*.yaml"))
+		matches, _ := filepath.Glob(filepath.Join(dir, "*.md"))
 		slices.Sort(matches)
 		for _, path := range matches {
 			checked++
@@ -1076,14 +1044,8 @@ func runValidate(env team.Env, stdout io.Writer) error {
 		}
 	}
 
-	if missing := ruleid.Missing(cat); missing > 0 {
-		// A rule without an id is not a problem: the next write gives it one
-		// (d-4aab). validate says the number so a person knows it is coming.
-		fmt.Fprintln(stdout, i18n.Tf("rules.ids_missing", missing))
-	}
 	field(stdout, label("checked"), strconv.Itoa(checked))
 	field(stdout, label("problems"), strconv.Itoa(problems))
-	printTally(stdout, tally)
 	printSize(stdout, teams, roles)
 	if problems > 0 {
 		return reportedError{err: errors.New("validate found problems"), code: 1}
@@ -1152,7 +1114,7 @@ func printRoleFindings(stdout io.Writer, env team.Env, path string, problems []c
 	field(stdout, label("file"), env.Display(path))
 	stops := 0
 	for _, problem := range problems {
-		if problem.Sev == rules.SevError {
+		if problem.Sev == "err" {
 			stops++
 		}
 	}
@@ -1162,7 +1124,7 @@ func printRoleFindings(stdout io.Writer, env team.Env, path string, problems []c
 		indentField(stdout, 1, label("result"), i18n.T("value.ok"))
 	}
 	for _, problem := range problems {
-		if problem.Sev == rules.SevError {
+		if problem.Sev == "err" {
 			indentField(stdout, 1, label("detail"), problem.Text)
 			continue
 		}
@@ -1242,50 +1204,6 @@ func reportProfileFile(stdout io.Writer, env team.Env, path string, report func(
 	for _, warning := range warnings {
 		indentField(stdout, 1, label("warning"), warning)
 	}
-}
-
-// collectRules adds the rule files the members of one team read to the tally.
-// seen is shared across every team, so a file that two team definitions read is
-// counted once. Within one team, a member's role file comes first, then the
-// documents it reads.
-func collectRules(tally *rules.Tally, seen map[string]bool, r *resolved) {
-	for i := range r.starts {
-		member := &r.starts[i]
-		if member.HasRole {
-			countRules(tally, seen, member.RoleDoc)
-		}
-		for _, doc := range member.Read {
-			countRules(tally, seen, doc)
-		}
-	}
-}
-
-// countRules reads and counts one rule file, once. A read that fails here is
-// left out: the team this file belongs to was built a moment ago with the same
-// reading, so the failure was already reported as a break.
-func countRules(tally *rules.Tally, seen map[string]bool, doc source.Doc) {
-	if seen[doc.Path] {
-		return
-	}
-	seen[doc.Path] = true
-	text, err := os.ReadFile(doc.Path)
-	if err != nil {
-		return
-	}
-	parsed, err := rules.Parse(string(text), doc.Path)
-	if err != nil {
-		return
-	}
-	tally.Add(parsed)
-}
-
-// printTally is the rule count, after the per-file lines. It prints nothing
-// when no rule file was read (no team definition, or every one broken).
-func printTally(w io.Writer, tally *rules.Tally) {
-	if tally.Files == 0 {
-		return
-	}
-	fmt.Fprintf(w, "%s\n", i18n.Tf("validate.rules_total", tally.Total, tally.Files))
 }
 
 // teamSize is one team definition's own size (d-00a9): the prompt part of its
@@ -2511,4 +2429,15 @@ func asSuffix(opts *options.Options) string {
 		return ""
 	}
 	return " --as " + opts.As
+}
+
+func reportLegacyProse(env team.Env, cat *catalog.Catalog, report func(string, error)) {
+	for _, dir := range []string{env.GlobalDir, env.LocalDir} {
+		for _, pattern := range []string{"roles/*.yaml", "teams/*/agreement.yaml"} {
+			paths, _ := filepath.Glob(filepath.Join(dir, pattern))
+			for _, path := range paths {
+				report(path, i18n.Errorf("error.legacy_prose", cat.Display(path)))
+			}
+		}
+	}
 }

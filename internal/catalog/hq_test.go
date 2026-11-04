@@ -25,7 +25,7 @@ func TestCountsAreOneLayersOwn(t *testing.T) {
 	local := t.TempDir()
 	for _, one := range []struct{ dir, place string }{{global, "global"}, {local, "project"}} {
 		writeFile(t, filepath.Join(one.dir, "teams", "core", "team.yaml"), "version: 1\n")
-		writeFile(t, filepath.Join(one.dir, "roles", "lead.yaml"), "version: 1\n")
+		writeFile(t, filepath.Join(one.dir, "roles", "lead.md"), "version: 1\n")
 		writeFile(t, filepath.Join(one.dir, "profiles.yaml"), "version: 1\nprofiles:\n  fast:\n    kind: claude\n")
 	}
 	writeFile(t, filepath.Join(local, "roles", "builder.md"), "# builder\n")

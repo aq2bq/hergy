@@ -62,6 +62,7 @@ test('a definition whose names do not resolve opens with its path, no revert, an
       return { problems, members: [], preview: { lines: [], diff: {} } };
     }
     if (url.startsWith('/api/team/check')) return { problems: [] };
+    if (url.includes('/context')) return { state: 'missing', errors: [], uses: [], scanned: [], path: '', problem: 'ロールがありません' };
     if (url.startsWith('/api/role')) return { items: [{ name: 'lead' }, { name: 'builder' }, { name: 'writer' }] };
     return undefined;
   });

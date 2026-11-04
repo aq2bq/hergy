@@ -18,9 +18,9 @@ import {
 import { conflictOf } from '../lib/conflict.js';
 import type { Conflict } from '../lib/conflict.js';
 import {
-  fromJSON, toDoc, rulesOf, inP, nextKey, observeKeys, openRules, openRuleKey, renameCarries,
+  fromJSON, toDoc, renameCarries,
 } from '../lib/ruledoc.js';
-import type { EditableDocument, EditableRule, RuleIssue, RulePanel } from '../lib/ruledoc.js';
+import type { EditableDocument, RuleIssue, RulePanel } from '../lib/ruledoc.js';
 import type { Answer, RawAnswer, Request, RoleRow as ApiRoleRow, TeamCard as ApiTeamCard } from '../lib/api.js';
 import type { components, operations } from '../../../apicontract/api-types';
 
@@ -67,7 +67,7 @@ type HqTeam = { id: string; group: string; members: RoleMember[] };
 type RoleState = {
   tab: 'roles' | 'assign' | 'yaml';
   open: Set<number>;
-  filter: 'off' | 'issues' | null;
+  filter: 'issues' | null;
   q: string;
   roleHi: string | null;
   confirm: Record<string, 1>;
@@ -92,7 +92,6 @@ type CheckState = {
   issues: RuleIssue[];
   markdown: components['schemas']['RolePreview'];
   diff: components['schemas']['RoleDiff'];
-  turns: components['schemas']['RoleTurn'][] | null;
   readers: components['schemas']['RoleReader'][] | null;
   size?: number;
   limit?: number;
@@ -325,7 +324,7 @@ export const projectNameOf = (key: string): string => {
   const found = HQ && ((HQ.projects || {}).projects || []).find((x) => x.path === key);
   return found ? found.name : String(key || '').split('/').filter(Boolean).pop() || '';
 };
-export const pathOf = (l: Place, d: Pick<EditableDocument, 'name'>): string => DIR[l] + (d.name || '…') + '.yaml';
+export const pathOf = (l: Place, d: Pick<EditableDocument, 'name'>): string => DIR[l] + (d.name || '…') + '.md';
 // pathOfRow is the file one panel stands behind: the answer's own path when the
 // row is another project's, and the one this project's places build.
 export const pathOfRow = (r: RoleRow, l: Place, d: Pick<EditableDocument, 'name'>): string => (r.paths && r.paths[l]) || pathOf(l, d);
@@ -385,7 +384,7 @@ export function rowOfPanel(r: RoleRow, l: Place): RulePanel | null {
   return {
     uid: r.uid, l, e, saved: e.saved, draft: e.draft,
     issues: c ? c.issues : [], markdown: c ? c.markdown : { lines: [], chars: 0 },
-    diff: c ? c.diff : { added: [], removedBefore: [], removedAtEnd: false }, turns: c ? c.turns : [],
+    diff: c ? c.diff : { added: [], removedBefore: [], removedAtEnd: false },
     savedIssues: e.__savedIssues,
   };
 }
@@ -411,7 +410,7 @@ export async function askCheck(r: RoleRow | null | undefined, l: Place, cb?: (()
       issues,
       markdown: c.preview || { lines: [], chars: 0 },
       diff: c.effect?.diff || { added: [], removedBefore: [], removedAtEnd: false },
-      turns: c.effect?.turns || [], readers: c.readers || null, size: c.size, limit: c.limit,
+      readers: c.readers || null, size: c.size, limit: c.limit,
     },
   };
   // A save's refusal under ロール名 is the same answer, older: the check speaks
@@ -458,9 +457,7 @@ export const teamErrorOf = (id: string): string => state.value.teamErrors[id] ||
 // say 0 行 · 0 文字, which is not what the row holds.
 export function openNewPanel(r: RoleRow): void {
   const l = eff(r), e = r[l];
-  const first = e && e.draft.sections[0] && e.draft.sections[0].rules[0];
-  if (!first) return;
-  openRuleKey(`${r.uid}${l}:${first._k}`);
+  if (!e) return;
   if (!checks.value[keyOf(r, l)]) askCheck(r, l, () => touch());
 }
 
@@ -471,7 +468,7 @@ export function parseURL(): void {
   const next: Partial<RoleState> = { tab };
   if (tab === 'roles') {
     const f = qs.get('filter');
-    next.filter = (f === 'off' || f === 'issues') ? f : null;
+    next.filter = (f === 'issues') ? f : null;
     next.q = qs.get('q') || '';
     const openedRaw = (qs.get('open') || '');
     const openedRows = parseOpen(openedRaw) || [];
@@ -484,28 +481,6 @@ export function parseURL(): void {
       if (!r) return;
       open.add(r.uid);
       if (r.noDoc) openNewPanel(r);
-    });
-    next.open = open;
-    // A rule is given as <role>.<place>.<id>, or as its id alone when the
-    // opening names the role (the team screen links so, d-8bbf).
-    const isPlace = (value: string | undefined): value is Place => value === 'project' || value === 'global';
-    (qs.get('rule') || '').split(',').filter(Boolean).forEach((spec) => {
-      const m = /^(.*)\.(project|global)\.(.+)$/.exec(spec);
-      const place = m && isPlace(m[2]) ? m[2] : null;
-      const wanted: Array<{ name: string; group?: string; place: Place | null; id: string }> = m && place
-        ? [{ name: m[1], group: openedRows.find((r) => r.name === m[1])?.group, place, id: m[3] }]
-        : openedRows.map(({ name, group }) => ({ name, group, place: null, id: spec }));
-      wanted.forEach(({ name, group, place, id }) => {
-        const r = group ? savedRoles().find((r) => curName(r) === name && r.group === group) : roleByName(name) || savedRoles().find((r) => curName(r) === name);
-        if (!r) return;
-        const places: Place[] = place ? [place] : [eff(r)];
-        places.forEach((l) => {
-          const entry = r[l];
-          if (!entry || !entry.saved) return;
-          const hit = rulesOf(entry.saved).find((x) => x.id === id);
-          if (hit) { open.add(r.uid); openRuleKey(`${r.uid}${l}:${hit._k}`); }
-        });
-      });
     });
     next.open = open;
   } else if (tab === 'assign') {
@@ -539,41 +514,24 @@ export function syncURL(push: boolean): void {
     if (s.q) q.set('q', s.q);
     const open = [...s.open].map((u) => { const r = byUid(u); return r ? (GROUPED ? hqToken(curName(r), r.group) : curName(r)) : ''; }).filter(Boolean);
     if (open.length) q.set('open', open.join(','));
-    const rule = [...openRules()].map((kk) => {
-      const m = /^(\d+)(project|global):(\d+)$/.exec(kk);
-      if (!m) return '';
-      const r = byUid(m[1]);
-      const place: Place = m[2] === 'project' ? 'project' : 'global';
-      const entry = r && r[place];
-      if (!r || !entry || !entry.saved) return '';
-      const hit = rulesOf(entry.saved).find((x) => x._k === Number(m[3]));
-      return hit && hit.id ? `${curName(r)}.${place}.${hit.id}` : '';
-    }).filter(Boolean);
-    if (rule.length) q.set('rule', rule.join(','));
+
   }
   const url = path + (q.toString() ? '?' + q.toString() : '');
   if (push) history.pushState(null, '', url); else history.replaceState(null, '', url);
 }
 
 // ---- the list's filters ---------------------------------------------
-export const FILTERS: Array<[RoleState['filter'], string]> = [[null, 'すべて'], ['off', 'オフがある'], ['issues', '問題・警告']];
+export const FILTERS: Array<[RoleState['filter'], string]> = [[null, 'すべて'], ['issues', '問題・警告']];
 export const allEntries = (): FileEntry[] => roles.value.flatMap((r) => PLACES.flatMap((l) => r[l] ? [{ r, l, e: r[l]! }] : []));
-export function ruleShown(x: EditableRule, issues: RuleIssue[]): boolean {
+export function ruleShown(x: EditableDocument, issues: RuleIssue[]): boolean {
   const s = state.value;
-  if (s.filter === 'off' && inP(x)) return false;
-  if (s.filter === 'issues' && !issues.some((m) => m.k === x._k)) return false;
-  if (s.q) { const q = s.q.toLowerCase(); if (![x.id, x.text, x.note].some((v) => String(v).toLowerCase().includes(q))) return false; }
-  return true;
+  return (!s.filter || issues.length > 0) && (!s.q || [x.name, x.title, x.text].some((v) => v.toLowerCase().includes(s.q.toLowerCase())));
 }
 export const filtering = (): boolean => !!(state.value.filter || state.value.q);
 export const rowIssues = (r: RoleRow): RuleIssue[] => PLACES.filter((l) => r[l]).flatMap((l) => issuesOf(r, l));
 
 export function filterCount(f: RoleState['filter']): number {
-  if (f === 'off') return roles.value.filter((r) => PLACES.some((l) => r[l] && rulesOf(r[l].draft).some((x) => !inP(x)))).length;
-  return allEntries().reduce((c, { r, l, e }) => {
-    const is = issuesOf(r, l);
-    return c + rulesOf(e.draft).filter((x) => f === null || is.some((m) => m.k === x._k)).length;
-  }, 0);
+  return roles.value.filter((r) => !f || rowIssues(r).length > 0).length;
 }
 
 // ---- the YAML tab's own state ---------------------------------------
@@ -674,7 +632,7 @@ export function pressFilter(f: RoleState['filter']): void {
 }
 
 export function pressNew(group?: string): void {
-  const d: EditableDocument = { name: '', title: '', revision: 1, sections: [{ _s: 0, heading: '責務', level: 0, intro: '', rules: [{ _k: nextKey(), id: '', text: '', note: '', in_prompt: true, off_since: '' }] }] };
+  const d: EditableDocument = { name: '', title: '', text: '## 責務\n' };
   // The head a person pressed says the place the row stands in (r-410c): the
   // row is that group's, and there is no switch inside it to move it.
   const key = group === undefined ? roleGroups()[0].key : group;
@@ -693,7 +651,6 @@ export function pressNew(group?: string): void {
   const open = new Set(state.value.open);
   open.add(nr.uid);
   patch({ open, filter: null, q: '' });
-  openRuleKey(`${nr.uid}${place}:${d.sections[0].rules[0]._k}`);
   touch();
   askCheck(nr, place, () => { askFocus(nr.uid, '[data-f=name]'); touch(); });
 }
@@ -1107,7 +1064,6 @@ export function restore(carried: CarriedRoles): void {
     const e = r[c.place];
     if (!e) return;
     if (c.hash && e.hash !== c.hash) return;
-    observeKeys(rulesOf(c.draft));
     withEntry(r.uid, c.place, (one) => ({ ...one, draft: clone(c.draft) }));
     if (c.isNew) withRow(r.uid, (one) => ({ ...one, isNew: true }));
     clearTimer(r, c.place);

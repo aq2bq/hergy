@@ -16,7 +16,7 @@ func TestWithCallsAddUp(t *testing.T) {
 	l := newLayers(t)
 	l.writeFullTeam(t, source.LayerLocal, "t", "m")
 	teamYAML := filepath.Join(l.local, "teams", "t", "team.yaml")
-	roleDoc := filepath.Join(l.local, "roles", "newrole.yaml")
+	roleDoc := filepath.Join(l.local, "roles", "newrole.md")
 	after := strings.Replace(readFile(t, teamYAML), "role: impl-role", "role: newrole", 1)
 	document := "newrole's document\n"
 
@@ -54,7 +54,7 @@ func TestWithLeavesTheCatalogItWasCalledOn(t *testing.T) {
 	l := newLayers(t)
 	l.writeFullTeam(t, source.LayerLocal, "t", "m")
 	teamYAML := filepath.Join(l.local, "teams", "t", "team.yaml")
-	roleDoc := filepath.Join(l.local, "roles", "newrole.yaml")
+	roleDoc := filepath.Join(l.local, "roles", "newrole.md")
 	after := strings.Replace(readFile(t, teamYAML), "role: impl-role", "role: newrole", 1)
 
 	was := l.catalog()
@@ -112,7 +112,7 @@ func TestRolesIsOneRowPerRole(t *testing.T) {
 		t.Fatalf("roles are not by name: %+v", roles)
 	}
 	for _, role := range roles {
-		want := filepath.Join(l.local, "roles", role.Name+".yaml")
+		want := filepath.Join(l.local, "roles", role.Name+".md")
 		if role.Path != want || !role.HasDocument {
 			t.Errorf("%s = %+v, want the document at %q", role.Name, role, want)
 		}
@@ -169,7 +169,7 @@ func TestRolesTakesARoleLeftAsMarkdown(t *testing.T) {
 	if len(roles) != 1 || roles[0].Name != "noted" {
 		t.Fatalf("roles = %+v, want the one row noted", roles)
 	}
-	if roles[0].HasDocument || roles[0].Path != "" {
+	if !roles[0].HasDocument || roles[0].Path == "" {
 		t.Errorf("noted = %+v, want a row with no .yaml document", roles[0])
 	}
 }
@@ -179,9 +179,9 @@ func TestRolesTakesARoleLeftAsMarkdown(t *testing.T) {
 // layers hold one (3.5, K1, spec/38 T2).
 func TestRolesTakesTheDocumentsTheLayersHold(t *testing.T) {
 	l := newLayers(t)
-	write(t, filepath.Join(l.global, "roles", "orphan.yaml"), "a document nobody names\n")
-	write(t, filepath.Join(l.global, "roles", "watched.yaml"), "the shared one\n")
-	write(t, filepath.Join(l.local, "roles", "watched.yaml"), "the project's one\n")
+	write(t, filepath.Join(l.global, "roles", "orphan.md"), "a document nobody names\n")
+	write(t, filepath.Join(l.global, "roles", "watched.md"), "the shared one\n")
+	write(t, filepath.Join(l.local, "roles", "watched.md"), "the project's one\n")
 	write(t, filepath.Join(l.global, "profiles.yaml"), "version: 1\nprofiles:\n  p:\n    kind: claude\n")
 	write(t, filepath.Join(l.local, "teams", "t", "team.yaml"), `version: 1
 description: m
@@ -205,14 +205,14 @@ members:
 	if !orphan.Outside || !orphan.HasDocument {
 		t.Errorf("orphan = %+v, want the outside document", orphan)
 	}
-	if want := filepath.Join(l.global, "roles", "orphan.yaml"); orphan.Path != want {
+	if want := filepath.Join(l.global, "roles", "orphan.md"); orphan.Path != want {
 		t.Errorf("orphan path = %q, want %q", orphan.Path, want)
 	}
 	watched := roles[0]
-	if want := filepath.Join(l.local, "roles", "watched.yaml"); watched.Path != want {
+	if want := filepath.Join(l.local, "roles", "watched.md"); watched.Path != want {
 		t.Errorf("watched path = %q, want %q", watched.Path, want)
 	}
-	if want := filepath.Join(l.global, "roles", "watched.yaml"); watched.UnusedPath != want {
+	if want := filepath.Join(l.global, "roles", "watched.md"); watched.UnusedPath != want {
 		t.Errorf("watched UnusedPath = %q, want %q", watched.UnusedPath, want)
 	}
 	if watched.Outside {
@@ -225,7 +225,7 @@ members:
 func TestRolesReadsTheTextAScreenIsEditing(t *testing.T) {
 	l := newLayers(t)
 	l.writeFullTeam(t, source.LayerLocal, "t", "m")
-	path := filepath.Join(l.local, "roles", "impl-role.yaml")
+	path := filepath.Join(l.local, "roles", "impl-role.md")
 	if err := os.Remove(path); err != nil {
 		t.Fatal(err)
 	}

@@ -172,7 +172,7 @@ func (c *Catalog) namedRoles() []string {
 // rolePlace is where one layer's document for a role stands, whether or not it
 // is there.
 func (c *Catalog) rolePlace(layer, name string) string {
-	return filepath.Join(c.LayerDir(layer), "roles", name+".yaml")
+	return filepath.Join(c.LayerDir(layer), "roles", name+".md")
 }
 
 // roleNames lists the role documents under one layer, by role name: the .yaml

@@ -61,7 +61,7 @@ var (
 	// --global and --local are gone (段 3): the parser still knows them, so a
 	// person who types one is stopped with the sentence that says so, rather
 	// than with "unknown option". Nothing is set; validateValues refuses them.
-	flagGlobal = &Flag{Name: "global", Set: sets(func(*Options) {})}
+	flagGlobal = &Flag{Name: "global", Set: sets(func(o *Options) { o.Global = true })}
 	flagLocal  = &Flag{Name: "local", Set: sets(func(*Options) {})}
 	// --profile is gone too (段 6b): the profile comes from the workers: entry,
 	// so a hire does not choose one. It still takes a value, so the word after

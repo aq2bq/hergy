@@ -70,7 +70,7 @@ func TestMachineLinesComeFromTheTable(t *testing.T) {
 // a member, which is the profile's (I7, 段 7). A file that writes one is stopped
 // with the sentence that says where it went.
 func TestCheatMachineDoesNotNameGoneKeys(t *testing.T) {
-	for _, gone := range []string{"--local", "--global", "docs:", "roles:", "may_spawn"} {
+	for _, gone := range []string{"--local", "docs:", "roles:", "may_spawn"} {
 		if strings.Contains(Machine, gone) {
 			t.Errorf("cheat --ai names %q, which is gone", gone)
 		}

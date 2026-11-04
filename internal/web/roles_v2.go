@@ -13,7 +13,6 @@ import (
 	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/i18n"
-	"github.com/aq2bq/hergy/internal/rules"
 	"github.com/aq2bq/hergy/internal/source"
 )
 
@@ -58,15 +57,6 @@ func (s *Server) r2Page(w http.ResponseWriter, r *http.Request, tab string) {
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_, _ = w.Write(buf.Bytes())
-}
-
-// emitNewRole writes a new role document in hergy's one format.
-func emitNewRole(doc *rules.Document) ([]byte, error) {
-	text, err := rules.Emit(doc)
-	if err != nil {
-		return nil, err
-	}
-	return []byte(text), nil
 }
 
 // r2RolesDir makes the layer's roles/ ready for a write, and stops a write that

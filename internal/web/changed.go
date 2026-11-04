@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/aq2bq/hergy/internal/profile"
-	"github.com/aq2bq/hergy/internal/rules"
 	"github.com/aq2bq/hergy/internal/source"
 )
 
@@ -100,11 +99,7 @@ func changedClock(at time.Time) string {
 // team's rules keep their draft in: what 元に戻す puts in place (r-3c77).
 func ruleDoc(display string) func(text string) any {
 	return func(text string) any {
-		doc, _ := rules.ReadAll(text, display)
-		if doc == nil {
-			return nil
-		}
-		return r2DocOf(doc)
+		return r2DocOf(text, display)
 	}
 }
 

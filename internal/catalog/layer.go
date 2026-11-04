@@ -30,8 +30,8 @@ func Layer(place string) string {
 	return source.LayerLocal
 }
 
-// RolePath is where a role document stands in one place: roles/<name>.yaml in
+// RolePath is where a role document stands in one place: roles/<name>.md in
 // that layer. A screen names the place, not the directory.
 func (c *Catalog) RolePath(place, name string) string {
-	return filepath.Join(c.LayerDir(Layer(place)), "roles", name+".yaml")
+	return filepath.Join(c.LayerDir(Layer(place)), "roles", name+".md")
 }

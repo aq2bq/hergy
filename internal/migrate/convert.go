@@ -1,5 +1,5 @@
 // Package migrate prepares the explicit conversion of legacy YAML definitions.
-// It is not connected to CLI commands or normal definition loading.
+// Normal definition loading does not use the legacy parser.
 package migrate
 
 import (

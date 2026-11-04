@@ -13,7 +13,7 @@ const team = (name, description) => ({
   name, effective: 'project',
   places: { project: { path: `.hergy/teams/${name}/team.yaml`, doc: {
     description, members: [], workers: [], turns: [],
-    agreement: { doc: { sections: [{ rules: [{ id: '', text: `${name} の ID がない規則` }] }] } },
+    agreement: { doc: { text: `${name} の散文` } },
   } } },
 });
 
@@ -28,7 +28,7 @@ test('the search draws its list from its own state, and the arrows walk it', asy
     if (url === '/api/hq/roles') return { groups: [{ project: { path: '/p/a', name: 'alpha' }, list: { items: [{
       name: 'builder', effective: 'project',
       places: { project: { path: '.hergy/roles/builder.yaml', doc: {
-        name: 'builder', title: '作り方', sections: [{ rules: [{ id: '', text: 'builder の ID がない規則' }] }],
+        name: 'builder', title: '作り方', text: 'builder の散文',
       } } },
     }] } }] };
     if (url === '/api/hq/profiles') return { groups: [] };
@@ -64,17 +64,17 @@ test('the search draws its list from its own state, and the arrows walk it', asy
 
   // An empty id in either search result is still text the screen can search:
   // the rule body remains visible, with no literal "undefined" in the row.
-  input.value = 'core の ID がない規則';
+  input.value = 'core の散文';
   input.dispatchEvent(new Event('input', { bubbles: true }));
   await settle();
   expect(rows().length).toBe(1);
-  expect(rows()[0].textContent).toContain('core の ID がない規則');
+  expect(rows()[0].textContent).toContain('core の散文');
   expect(rows()[0].textContent).not.toContain('undefined');
-  input.value = 'builder の ID がない規則';
+  input.value = 'builder の散文';
   input.dispatchEvent(new Event('input', { bubbles: true }));
   await settle();
   expect(rows().length).toBe(1);
-  expect(rows()[0].textContent).toContain('builder の ID がない規則');
+  expect(rows()[0].textContent).toContain('builder の散文');
   expect(rows()[0].textContent).not.toContain('undefined');
 
   // A text nothing matches says so, in the part's own words.

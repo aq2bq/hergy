@@ -26,10 +26,11 @@ export type CheckAnswer = ApiAnswer<'checkTeam'>;
 type TeamSaveBody = Request<'team', 'save'>;
 type TeamCheckBody = Request<'team', 'check'>;
 import {
-  fromJSON, toDoc, rulesOf, diffCount, clone, openRules, openRuleKey, observeKeys, openRule,
+  fromJSON, toDoc, diffCount, clone,
 } from '../lib/ruledoc.js';
 import { parseOpen, token as roleToken } from '../lib/hq.js';
 import { copyGroupOf, groupPlace, projectOfGroup } from '../lib/copy';
+import { roleDraftsDirty } from './role-modal.js';
 import { takeDraft, setDirty } from '../lib/nav.js';
 import { place } from './place';
 import type { Positions } from './place';
@@ -249,14 +250,13 @@ export type Issue = { sev: string; k: number; f: string; text: string; definitio
 // beside, and the server's sentence (the role and rule it names, when it does).
 export type Finding = { sev: string; field: string; node: string | null; worker: number | null; text: string; role: string; ruleID: string; ruleKey?: number };
 export type CheckDiff = Schemas['TeamDiff'];
-export type CheckTurn = Schemas['TeamRuleTurn'];
 // TeamPreview and RuleMarkdown are the check's two previews, as checkTeam answers
 // them: the team.yaml's lines and the diff (TeamPreview), and the agreement's
 // Markdown with the section and rule each line stands for (TeamRuleMarkdown).
 // They are read from the operation, not written here (n-e3de).
 export type TeamPreview = Schemas['TeamPreview'];
 export type RuleMarkdown = Schemas['TeamRuleMarkdown'];
-export type Check = { issues: Issue[]; markdown: RuleMarkdown; diff: CheckDiff; turns: CheckTurn[]; readers: Schemas['TeamRuleReader'][] };
+export type Check = { templateSize: number; issues: Issue[]; markdown: RuleMarkdown; diff: CheckDiff; readers: Schemas['TeamRuleReader'][] };
 // Pick is what the canvas has picked: a point of the figure, a worker, or a
 // line between two points.
 export type CanvasPick = { type: 'node'; id: string } | { type: 'worker'; i: number } | { type: 'edge'; k: string };
@@ -267,7 +267,7 @@ export type MemberPrompt = { name: string; segments?: PromptSegment[] | null };
 // server's answer): the sections, their rules, and the path it came from.
 export type Rule = { id?: string; _k: number; text?: string; note?: string; in_prompt?: boolean };
 export type RuleSection = { heading?: string; level?: number; intro?: string; rules: Rule[] };
-export type RuleDoc = { name?: string; title?: string; revision?: number | null; sections: RuleSection[]; __path?: string };
+export type RuleDoc = import('../lib/ruledoc.js').EditableDocument;
 
 // Sig is one field of a record: a signal, so a part that reads it draws again
 // when it changes (依頼文 1).
@@ -393,11 +393,11 @@ export function applyOps(saved: Team, ops: Op[]): Team {
 
 // emptyAgreement is the rules document a team without one opens with: no
 // sections, and the title its first save would write. A row with no
-// agreement.yaml keeps this as its draft, so 元に戻す has a document to go back
+// agreement.md keeps this as its draft, so 元に戻す has a document to go back
 // to and does not put null where a document belongs (n-e3de).
 export function emptyAgreement(name: string): RuleDoc {
   return fromJSON({
-    name: '', title: name ? `${name} チームのルール` : 'チームのルール', revision: 1, sections: [],
+    name: '', title: name, text: '',
   });
 }
 
@@ -498,7 +498,7 @@ export type DefItem = NonNullable<Answer<'team', 'list'>['items']>[number];
 
 // NO_AGREEMENT is the agreement a definition without one is read as: no file,
 // no hash, no document, and no rule (n-e3de).
-const NO_AGREEMENT: Schemas['TeamAgreement'] = { path: '', hash: '', has: false, rules: 0 };
+const NO_AGREEMENT: Schemas['TeamAgreement'] = { path: '', hash: '', has: false };
 
 function defOf(item: DefItem, project?: string, only?: Place): Rec {
   const group = project || '';
@@ -630,7 +630,6 @@ function seedDraft(r: Rec, json: CheckAnswer): void {
   r.agreeHash.value = agree.hash || '';
   if (agree.doc) {
     const d = fromJSON(agree.doc);
-    observeKeys(rulesOf(d));
     d.__path = agree.path;
     r.agreeSaved.value = d;
     r.agreeDraft.value = clone(d);
@@ -693,28 +692,23 @@ export function dropDraft(r: Rec): void {
   resetCanvas(r);
 }
 
-function ruleKeyAt(doc: RuleDoc, si: number, ri: number): number {
-  const s = doc && doc.sections[si];
-  if (!s) return 0;
-  const x = s.rules[ri];
-  return x ? x._k : 0;
-}
-const convProblems = (doc: RuleDoc, list: Schemas['Problem'][] | null | undefined): Issue[] => (list || []).map((p) => ({
-  sev: p.sev, k: p.section >= 0 ? ruleKeyAt(doc, p.section, p.rule) : 0,
+const convProblems = (_doc: RuleDoc, list: Schemas['Problem'][] | null | undefined): Issue[] => (list || []).map((p) => ({
+  sev: p.sev, k: 0,
   f: p.field || '', text: p.text || '', definition: p.definition || '',
 }));
 const buildCheck = (doc: RuleDoc, json: CheckAnswer): Check => {
   // The saved definition's answer carries the effect and the readers; the answer
   // for one that is not there yet carries its document instead (api-types). The
   // agreement's effect is the one this panel draws: its diff and its turns.
-  const effect = json.effect && 'turns' in json.effect ? json.effect : null;
+  const effect = json.effect && 'diff' in json.effect ? json.effect : null;
   return {
+    templateSize: json.template_size || 0,
     issues: convProblems(doc, json.problems || []),
     // The agreement's check answers the rule Markdown; the team part answers the
     // team.yaml preview instead, which is not this panel's.
     markdown: json.preview && !('diff' in json.preview) ? json.preview : { lines: [], chars: 0 },
     diff: (effect && effect.diff) || { added: [], removedBefore: [], removedAtEnd: false },
-    turns: (effect && effect.turns) || [], readers: json.readers || [],
+    readers: json.readers || [],
   };
 };
 
@@ -737,8 +731,8 @@ function figFindings(r: Rec, problems: Schemas['Problem'][] | null | undefined):
     else if (at.startsWith('rule:')) {
       field = at;
       const path = at.slice('rule:'.length).split('#')[0];
-      if (p.section >= 0 && path.endsWith(`/teams/${r.name.value}/agreement.yaml`)) {
-        ruleKey = ruleKeyAt(r.agreeDraft.value, p.section, p.rule);
+      if (p.section >= 0 && path.endsWith(`/teams/${r.name.value}/agreement.md`)) {
+        ruleKey = 0;
       }
     }
     else { field = ''; }
@@ -813,7 +807,7 @@ export function changeCount(r: Rec): number {
 const ownAgreement = (r: Rec, m: Finding): boolean => {
   const path = (m.field || '').replace(/^rule:/, '').split('#')[0];
   const name = r.name.value;
-  return !!r.agreePath.value && path.endsWith('/teams/' + name + '/agreement.yaml');
+  return !!r.agreePath.value && path.endsWith('/teams/' + name + '/agreement.md');
 };
 const ruleID = (m: Finding): string => ((m.field || '').split('#')[1] || '');
 export const vlistParts = (r: Rec) => {
@@ -974,7 +968,7 @@ export async function checkTeam(r: Rec) {
 // is held to (spec-teams X3).
 export async function checkAgree(r: Rec) {
   const one = checkersFor(r);
-  if (!r.agreeSaved.value && !r.agreeDraft.value.sections.length) {
+  if (!r.agreeSaved.value && !r.agreeDraft.value.text.length) {
     one.agree.abort();
     r.check.value = null;
     return;
@@ -985,7 +979,10 @@ export async function checkAgree(r: Rec) {
   r.check.value = buildCheck(r.agreeDraft.value, json);
   if (!agreeDiff(r)) r.agreeSavedIssues.value = r.check.value.issues;
 }
-export const scheduleAgree = (r: Rec) => debounce('a' + dkey(r), () => syncAgree(r));
+export const scheduleAgree = (r: Rec) => {
+  setOk('a' + dkey(r), false);
+  debounce('a' + dkey(r), () => syncAgree(r));
+};
 
 export function syncTeam(r: Rec) {
   checkTeam(r);
@@ -1075,7 +1072,6 @@ export async function saveAgree(r: Rec, over?: string) {
   r.agreeHash.value = json.hash || r.agreeHash.value;
   if (json.doc) {
     const d2 = fromJSON(json.doc);
-    observeKeys(rulesOf(d2));
     d2.__path = r.agreePath.value;
     r.agreeSaved.value = d2;
     r.agreeDraft.value = clone(d2);
@@ -1100,7 +1096,7 @@ function itemInGroup(item: DefItem, group: string): DefItem {
 }
 
 // saveFolder writes a definition that is not there yet, whole (spec-teams B2,
-// B6, C8): its team.yaml and its agreement.yaml, and, for one made from the
+// B6, C8): its team.yaml and its agreement.md, and, for one made from the
 // scaffold, the layer's role documents and the starter profile. Either tab's
 // 保存 writes the whole folder. The row becomes the saved definition in its
 // place, so the person keeps working on it.
@@ -1140,7 +1136,7 @@ async function saveFolder(r: Rec) {
   apiSaved();
 }
 // doDelete takes one definition's folder out of one place (spec-teams B6): its
-// team.yaml and its agreement.yaml, and the directory itself when the two files
+// team.yaml and its agreement.md, and the directory itself when the two files
 // were all it held. Every record of that name is read again from the answer,
 // because the other place's reading may be the one in effect now.
 export async function doDelete(r: Rec) {
@@ -1480,18 +1476,7 @@ export function syncURL() {
     if (opens.length) params.set('open', opens.join(','));
     const agrees = opens.filter((n) => { const r = byName(n); return r && dtabOf(r) === 'agree'; });
     if (agrees.length) params.set('agree', agrees.join(','));
-    const rules: string[] = [];
-    opens.forEach((n) => {
-      const r = byName(n);
-      if (!r) return;
-      openRules().forEach((kk) => {
-        const head = `${r.uid}${r.place.value}:`;
-        if (!kk.startsWith(head)) return;
-        const hit = rulesOf(r.agreeDraft.value).find((x) => x._k === Number(kk.slice(head.length)));
-        if (hit && hit.id) rules.push(`${r.name.value}.${hit.id}`);
-      });
-    });
-    if (rules.length) params.set('rule', rules.join(','));
+
   }
   const path = s.tab === 'yaml' ? '/teams/yaml' : '/teams';
   const q = params.toString();
@@ -1518,13 +1503,8 @@ export function readURL() {
     if (i < 0) return;
     const r = byRealName(spec.slice(0, i));
     if (!r) return;
-    const hit = rulesOf(r.agreeDraft.value).find((x) => x.id === spec.slice(i + 1));
-    if (hit) {
-      withOpen(r.dom, true);
-      setDtab(r.dom, 'agree');
-      openRuleKey(`${r.uid}${r.place.value}:${hit._k}`);
-      put({ wantRule: { name: r.dom, k: hit._k } });
-    }
+    withOpen(r.dom, true);
+    setDtab(r.dom, 'agree');
   });
   const file = p.get('file');
   if (file) put({ yfile: file });
@@ -1545,7 +1525,6 @@ export const rowOfPanel = (r: Rec) => {
     savedIssues: r.agreeSavedIssues.value,
     markdown: check ? check.markdown : { lines: [], chars: 0 },
     diff: check ? check.diff : { added: [], removedBefore: [], removedAtEnd: false },
-    turns: check ? check.turns : [],
   };
 };
 
@@ -1559,6 +1538,7 @@ export const savedCount = () => recs.value.filter((r: Rec) => !r.draftRow).lengt
 // 1.5), the same way it asks the other screens. main.js keeps the band's dot on
 // it.
 export function dirty() {
+  if (roleDraftsDirty()) return true;
   for (const r of recs.value) if (dirtyDef(r)) return true;
   for (const f of yfiles.value) if (fileDirty(f.file)) return true;
   return false;
@@ -1803,16 +1783,13 @@ export function pressRevert(r: Rec): void {
 export function pressToastUndo() { canvasUndoFromToast(); }
 // pressVrule opens the team's own rule a finding names (spec-teams 1.4.5,
 // 監査 R9) in the ルール tab, with the cursor in its body (監査 R12).
-export function pressVrule(r: Rec, key: string | number) {
+export function pressVrule(r: Rec, _key: string | number) {
   if (!r) return;
   withOpen(r.dom, true);
   setDtab(r.dom, 'agree');
-  const hit = typeof key === 'number'
-    ? rulesOf(r.agreeDraft.value).find((x) => x._k === key)
-    : rulesOf(r.agreeDraft.value).find((x) => String(x.id) === key);
   checkAgree(r);
   syncURL();
-  if (hit) jumpToRule(r, hit._k);
+  jumpToRule(r, 0);
 }
 // pressVpick puts the cursor in a finding's own field, or picks what it names on
 // the figure.
@@ -1925,10 +1902,10 @@ export function openAgree(r: Rec) {
 // jumpToRule opens one rule of a team's own agreement and puts the cursor in
 // its body (spec-teams 1.4.5, spec-roles 1.2.4, 監査 R12). The check's column
 // reads through this, and so does the address.
-export function jumpToRule(r: Rec, k: number) {
+export function jumpToRule(r: Rec, _k: number) {
   focusAsk.value = null;
   pressPmode(r, 'edit');
-  openRule(rowOfPanel(r), k);
+  focusAsk.value = { dom: r.dom, sel: '.prose-editor textarea' };
   syncURL();
 }
 export function jumpWantRule() {

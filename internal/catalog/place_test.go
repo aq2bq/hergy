@@ -18,7 +18,7 @@ func TestNewPlaceInsideTheProject(t *testing.T) {
 		what string
 	}{
 		{NewTeam, "t", filepath.Join(l.local, "teams", "t"), "a team definition's directory"},
-		{NewRole, "watcher", filepath.Join(l.local, "roles", "watcher.yaml"), "a role document"},
+		{NewRole, "watcher", filepath.Join(l.local, "roles", "watcher.md"), "a role document"},
 		{NewProfile, "builder", filepath.Join(l.local, "profiles.yaml"), "a profile"},
 	}
 	for _, tc := range cases {
@@ -36,7 +36,7 @@ func TestNewPlaceOutsideTheProject(t *testing.T) {
 	if got, want := cat.NewPlace(NewTeam, "t"), filepath.Join(l.global, "teams", "t"); got != want {
 		t.Errorf("NewPlace(NewTeam, t) = %q, want %q", got, want)
 	}
-	if got, want := cat.NewPlace(NewRole, "watcher"), filepath.Join(l.global, "roles", "watcher.yaml"); got != want {
+	if got, want := cat.NewPlace(NewRole, "watcher"), filepath.Join(l.global, "roles", "watcher.md"); got != want {
 		t.Errorf("NewPlace(NewRole, watcher) = %q, want %q", got, want)
 	}
 	if got, want := cat.NewPlace(NewProfile, "builder"), filepath.Join(l.global, "profiles.yaml"); got != want {

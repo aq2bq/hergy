@@ -1,5 +1,0 @@
-version: 1
-sections:
-  - rules:
-      - id: MAAA
-        text: 直した箇所を一覧にして返す。

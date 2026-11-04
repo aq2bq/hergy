@@ -34,15 +34,15 @@ func TestRoleContextResolutionAndReadStates(t *testing.T) {
 	if got := read("missing", ""); got.State != "missing" || got.Doc != nil {
 		t.Fatalf("missing: %+v", got)
 	}
-	f.write(t, "roles/broken.yaml", "[")
-	if got := read("broken", ""); got.State != "unreadable" || got.Doc != nil {
+	f.write(t, "roles/broken.md", "[")
+	if got := read("broken", ""); got.State != "readable" || got.Doc == nil || got.Doc.Text != "[" {
 		t.Fatalf("broken: %+v", got)
 	}
-	globalPath := filepath.Join(f.global, "roles", "lead.yaml")
+	globalPath := filepath.Join(f.global, "roles", "lead.md")
 	if err := os.MkdirAll(filepath.Dir(globalPath), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(globalPath, []byte("version: 1\nsections:\n  - rules:\n      - text: global role\n"), 0o644); err != nil {
+	if err := os.WriteFile(globalPath, []byte("- global role\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	global := f.catalog().LayerOnly("global")
@@ -59,8 +59,8 @@ func TestRoleModalSaveRefusesANewlyPreferredLocalFile(t *testing.T) {
 	f := newFixture(t)
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(f.root, "config"))
 	t.Setenv("XDG_STATE_HOME", filepath.Join(f.root, "state"))
-	path := filepath.Join(f.global, "roles", "shared.yaml")
-	text := "version: 1\nsections:\n  - rules:\n      - text: shared content\n"
+	path := filepath.Join(f.global, "roles", "shared.md")
+	text := "- shared content\n"
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -73,7 +73,7 @@ func TestRoleModalSaveRefusesANewlyPreferredLocalFile(t *testing.T) {
 		t.Fatalf("context: %+v", ctx)
 	}
 	// Equal contents must not make another place's hash an acceptable target.
-	f.write(t, "roles/shared.yaml", text)
+	f.write(t, "roles/shared.md", text)
 	resp, body := f.api(t, s, http.MethodPut, "/api/role/shared", map[string]any{"place": "global", "role_context": "project", "original": "shared", "hash": ctx.Hash, "doc": ctx.Doc})
 	if resp.StatusCode != http.StatusConflict {
 		t.Fatalf("%d %s", resp.StatusCode, body)

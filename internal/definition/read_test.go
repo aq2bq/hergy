@@ -4,11 +4,11 @@
 // prompt.Member's and this package must not import it.
 //
 // 段 4 moved where the documents stand (K3, K5): a team's own agreement is
-// teams/<name>/agreement.yaml, and a member's role document is roles/<role>.yaml
+// teams/<name>/agreement.md, and a member's role document is roles/<role>.md
 // in the layer's root. A test team therefore stands in a layer (the layer type
 // below), and the catalog over that layer is what a prompt reads the two
 // documents through (prompt.Sources). The agreement every team used to share
-// (agreement.yaml in the layer's root) is not read any more (d-31ad); a test
+// (agreement.md in the layer's root) is not read any more (d-31ad); a test
 // that leaves one there proves it stays out of the prompt.
 package definition_test
 
@@ -55,10 +55,10 @@ func testProfiles(dir string) map[string]profile.Profile {
 
 // layer is one test's layer: the root a team definition stands in, and that
 // definition's own directory. The layer holds the documents that are not the
-// team's own (段 4): roles/<role>.yaml, and agreement.yaml when the layer writes
+// team's own (段 4): roles/<role>.md, and agreement.md when the layer writes
 // one.
 type layer struct {
-	root string // the layer's root: roles/ and agreement.yaml stand here
+	root string // the layer's root: roles/ and agreement.md stand here
 	team string // the team definition's own directory (teams/t)
 }
 
@@ -72,9 +72,9 @@ func newLayer(t *testing.T, shared string) layer {
 	if err := os.MkdirAll(l.team, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	write(t, filepath.Join(root, "roles", "r.yaml"), oneRule("R0", "role doc"))
+	write(t, filepath.Join(root, "roles", "r.md"), oneRule("R0", "role doc"))
 	if shared != "" {
-		write(t, filepath.Join(root, "agreement.yaml"), shared)
+		write(t, filepath.Join(root, "agreement.md"), shared)
 	}
 	return l
 }
@@ -230,8 +230,8 @@ func teamText() string {
 
 // oneRule is a rule file with one section (no heading) and one rule, so a test
 // can put a known sentence into a member's prompt.
-func oneRule(id, text string) string {
-	return "version: 1\nsections:\n  - rules:\n      - id: " + id + "\n        text: |-\n          " + text + "\n"
+func oneRule(_ string, text string) string {
+	return "- " + text + "\n"
 }
 
 // TestMemberReadsTheRoleThenTheTeamAgreement: the documents reach a member's
@@ -241,13 +241,13 @@ func oneRule(id, text string) string {
 // used to share is left in the layer and is not read (d-31ad).
 func TestMemberReadsTheRoleThenTheTeamAgreement(t *testing.T) {
 	l := newLayer(t, oneRule("S1", "shared doc"))
-	write(t, filepath.Join(l.team, "agreement.yaml"), oneRule("T1", "team doc"))
+	write(t, filepath.Join(l.team, "agreement.md"), oneRule("T1", "team doc"))
 
 	got, err := parseTeam(t, l, teamText())
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "- **R0** role doc\n- **T1** team doc\n"
+	want := "- role doc\n\n- team doc\n\n"
 	if got.starts[0].Prompt != want {
 		t.Errorf("prompt = %q, want %q", got.starts[0].Prompt, want)
 	}
@@ -258,15 +258,15 @@ func TestMemberReadsTheRoleThenTheTeamAgreement(t *testing.T) {
 	for _, doc := range got.starts[0].Read {
 		read = append(read, l.rel(t, doc.Path))
 	}
-	if wantRead := "teams/t/agreement.yaml"; strings.Join(read, ",") != wantRead {
+	if wantRead := "teams/t/agreement.md"; strings.Join(read, ",") != wantRead {
 		t.Errorf("Read = %v, want %v", read, wantRead)
 	}
-	if !got.starts[0].HasRole || l.rel(t, got.starts[0].RoleDoc.Path) != "roles/r.yaml" {
-		t.Errorf("the role document is %q, %v; want roles/r.yaml, true",
+	if !got.starts[0].HasRole || l.rel(t, got.starts[0].RoleDoc.Path) != "roles/r.md" {
+		t.Errorf("the role document is %q, %v; want roles/r.md, true",
 			got.starts[0].RoleDoc.Path, got.starts[0].HasRole)
 	}
-	if !got.def.HasAgreement || l.rel(t, got.def.Agreement.Path) != "teams/t/agreement.yaml" {
-		t.Errorf("the team's agreement is %q, %v; want teams/t/agreement.yaml, true",
+	if !got.def.HasAgreement || l.rel(t, got.def.Agreement.Path) != "teams/t/agreement.md" {
+		t.Errorf("the team's agreement is %q, %v; want teams/t/agreement.md, true",
 			got.def.Agreement.Path, got.def.HasAgreement)
 	}
 }
@@ -280,8 +280,8 @@ func TestMemberReadsNoAgreement(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.starts[0].Prompt != "- **R0** role doc" {
-		t.Errorf("prompt = %q, want %q", got.starts[0].Prompt, "- **R0** role doc")
+	if got.starts[0].Prompt != "- role doc\n" {
+		t.Errorf("prompt = %q, want %q", got.starts[0].Prompt, "- role doc\n")
 	}
 	if len(got.starts[0].Read) != 0 {
 		t.Errorf("Read = %v, want none", got.starts[0].Read)
@@ -296,17 +296,13 @@ func TestMemberReadsNoAgreement(t *testing.T) {
 // rule's body. The revision and the note stay in the file.
 func TestParseRendersWhatIsSent(t *testing.T) {
 	l := newLayer(t, "")
-	write(t, filepath.Join(l.team, "agreement.yaml"), `version: 1
-title: TEAM PROTOCOL
-revision: 3
-sections:
-  - heading: 基本
-    intro: 前置きである。
-    style: ids
-    rules:
-      - id: R1
-        text: 本文である。 理由である。
-        note: 保守する人のメモ
+	write(t, filepath.Join(l.team, "agreement.md"), `# TEAM PROTOCOL
+
+## 基本
+
+前置きである。
+
+- 本文である。 理由である。
 `)
 
 	got, err := parseTeam(t, l, teamText())
@@ -315,7 +311,7 @@ sections:
 	}
 	prompt := got.starts[0].Prompt
 	for _, want := range []string{
-		"# TEAM PROTOCOL", "## 基本", "前置きである。", "- **R1** 本文である。 理由である。",
+		"# TEAM PROTOCOL", "## 基本", "前置きである。", "- 本文である。 理由である。",
 	} {
 		if !strings.Contains(prompt, want) {
 			t.Errorf("prompt is missing %q:\n%s", want, prompt)
@@ -328,21 +324,9 @@ sections:
 	}
 }
 
-// TestMemberStopsOnABreakAcrossTheDocumentsOneMemberReads: a rule id is unique
-// among the documents that go into one member's prompt: the member's role
-// document and the team's own.
-func TestMemberStopsOnABreakAcrossTheDocumentsOneMemberReads(t *testing.T) {
-	l := newLayer(t, "")
-	write(t, filepath.Join(l.root, "roles", "r.yaml"), oneRule("R1", "one"))
-	write(t, filepath.Join(l.team, "agreement.yaml"), oneRule("R1", "two"))
-	if _, err := parseTeam(t, l, teamText()); err == nil || !strings.Contains(err.Error(), "R1") {
-		t.Fatalf("a repeated rule id did not stop the member: %v", err)
-	}
-}
-
 func TestTeamYAMLDocsAndRolesAreGone(t *testing.T) {
 	cases := []struct{ name, key, want string }{
-		{"docs", "docs: [old.yaml]\n", "agreement.yaml"},
+		{"docs", "docs: [old.yaml]\n", "agreement.md"},
 		{"roles", "roles: [../roles]\n", "roles/"},
 	}
 	for _, tc := range cases {

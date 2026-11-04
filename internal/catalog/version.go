@@ -30,6 +30,7 @@ func (c *Catalog) Version() string {
 			paths = append(paths,
 				filepath.Join(dir, "teams", name, "team.yaml"),
 				filepath.Join(dir, "teams", name, "agreement.yaml"),
+				filepath.Join(dir, "teams", name, "agreement.md"),
 			)
 		}
 		for _, name := range c.roleNames(dir) {

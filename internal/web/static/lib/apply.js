@@ -33,7 +33,7 @@ import {
   openSheet,
   close,
   send
-} from "../chunk/nav-bb65tqp4.js";
+} from "../chunk/nav-7rgxqdr2.js";
 
 // lib/apply/view.tsx
 var STATE = {
@@ -87,9 +87,9 @@ function linkFor(change, group) {
   if (kind === "rule" || kind === "document") {
     const role = roleOf(change.document);
     if (role)
-      return `/roles?open=${enc(role)}${kind === "rule" && change.rule ? `&rule=${enc(change.rule)}` : ""}`;
+      return `/roles?open=${enc(role)}`;
     const team = teamOf(change.document) || group.definition || group.team;
-    const tab = kind === "rule" || /agreement\.ya?ml$/.test(baseName(change.document)) ? `&agree=${enc(team)}` : "";
+    const tab = kind === "rule" || /agreement\.(?:md|ya?ml)$/.test(baseName(change.document)) ? `&agree=${enc(team)}` : "";
     return `/teams?open=${enc(team)}${tab}`;
   }
   return "";
@@ -289,11 +289,23 @@ function Member({ m, group }) {
           const href = linkFor(c, group);
           const text = c.text || "";
           return /* @__PURE__ */ u("span", {
-            children: href ? /* @__PURE__ */ u("a", {
-              class: "apl-chg",
-              href,
-              children: text
-            }) : text
+            children: [
+              href ? /* @__PURE__ */ u("a", {
+                class: "apl-chg",
+                href,
+                children: text
+              }) : text,
+              c.diff ? /* @__PURE__ */ u("details", {
+                children: [
+                  /* @__PURE__ */ u("summary", {
+                    children: "本文の差分"
+                  }),
+                  /* @__PURE__ */ u("pre", {
+                    children: c.diff
+                  })
+                ]
+              }) : null
+            ]
           });
         })
       })

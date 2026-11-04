@@ -9,9 +9,9 @@
 // the file the write left, and every screen puts the answer's files under its
 // feet (r-b41c).
 import { test, expect } from './fixtures';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { press, q, readTo, set, there, wait } from './helpers';
+import { press, q, set, there, wait, ready } from './helpers';
 
 // save presses one 保存: the request is out, and it was taken.
 async function save(page: Parameters<typeof wait>[0], find: string, at: string): Promise<void> {
@@ -23,74 +23,31 @@ async function save(page: Parameters<typeof wait>[0], find: string, at: string):
 
 test.describe('the role screen', () => {
   test.use({ reads: 'roles' });
-
-  test('RB41C-1 a role is saved three times in a row, the master’s steps first', async ({ page, app }) => {
-    const file = path.join(app.proj, '.hergy', 'roles', 'builder.yaml');
-    const panel = '#rows .role.open .panel[data-l=project]';
-    await page.goto(`${app.base}/roles?open=builder`);
-    await wait(page, there(`${panel} [data-act=save]`));
-    const bodies = ['規則を 1 つ足した。', '規則をもう 1 つ足した。', '規則を 3 つ目まで足した。'];
-    for (const [i, body] of bodies.entries()) {
-      // ＋規則, then the words: the rule the press added is the one open.
-      await press(page, q(`${panel} .sec[data-si="0"] [data-act=rule-add]`));
-      const added = `[...document.querySelectorAll(${JSON.stringify(`${panel} .sec[data-si="0"] .rule`)})].at(-1)`;
-      await wait(page, `!!${added}`);
-      await set(page, `${added}.querySelector('[data-f=text]')`, body);
-      await wait(page, `!${q(`${panel} [data-act=save]`)}.disabled`);
-      await save(page, q(`${panel} [data-act=save]`), '/api/role/builder');
-      await wait(page, there(`${panel} .ok`));
-      // The words are still the screen's, and the file holds them: a save the
-      // screen could not hold on to would have dropped them all by now.
-      expect(readFileSync(file, 'utf8'), `the save ${i + 1} did not write ${body}`).toContain(body);
+  test('RB41C-1 a role is saved three times without stale hashes', async ({ page, app }) => {
+    await page.goto(`${app.base}/roles?open=builder`); await ready(page);
+    const panel = page.locator('.role.open .panel[data-l=project]');
+    const input = panel.getByRole('textbox', { name: '散文の全文' });
+    let text = await input.inputValue();
+    for (let i = 1; i <= 3; i++) {
+      text += `\n${i} 回目の保存。\n`;
+      await input.fill(text); await panel.locator('[data-act=save]').click();
+      await expect(panel.locator('.ok')).toBeVisible();
+      expect(readFileSync(path.join(app.proj, '.hergy/roles/builder.md'), 'utf8')).toBe(text);
     }
-    const text = readFileSync(file, 'utf8');
-    for (const body of bodies) expect(text, 'a rule a save wrote went away').toContain(body);
-    expect(text.match(/足した。/g)?.length ?? 0, 'the rules the writes gave an id to').toBe(3);
   });
-  test('RB41C-5 a save that gives another file its ids does not refuse that file’s own save', async ({ page, app }) => {
-    // The master's ありとあらゆる場所: a save gives the rules their ids in every
-    // file, so a document nobody touched moves when another one is saved. The
-    // screen takes the answer's files, and the row that moved is saved next
-    // without opening the page again.
-    const lead = path.join(app.proj, '.hergy', 'roles', 'lead.yaml');
-    const was = readFileSync(lead, 'utf8');
-    writeFileSync(lead, was.replace('id: PAAF', 'id: C1'), 'utf8');
-
-    await page.goto(`${app.base}/roles?open=builder`);
-    const builder = '#rows .role.open .panel[data-l=project]';
-    await wait(page, there(`${builder} [data-act=save]`));
-    await press(page, q(`${builder} .sec[data-si="0"] [data-act=rule-add]`));
-    const added = `[...document.querySelectorAll(${JSON.stringify(`${builder} .sec[data-si="0"] .rule`)})].at(-1)`;
-    await wait(page, `!!${added}`);
-    await set(page, `${added}.querySelector('[data-f=text]')`, 'id を配るきっかけの規則。');
-    await wait(page, `!${q(`${builder} [data-act=save]`)}.disabled`);
-    await save(page, q(`${builder} [data-act=save]`), '/api/role/builder');
-
-    // lead moved with that save: its own save is the next one, on the row the
-    // list already holds. The list draws a head per place and a row per place
-    // (r-410c), so the row is the one under the project's head, not the first row
-    // named lead.
-    const row = `(() => {
-      let on = null;
-      for (const el of document.querySelector('#rows').children) {
-        if (el.classList.contains('hq-gh')) { on = el.dataset.place || null; continue; }
-        if (on !== 'project' || !el.classList.contains('role')) continue;
-        const n = el.querySelector('.nm');
-        if (n && n.textContent.trim() === 'lead') return el;
-      }
-      return null;
-    })()`;
-    await wait(page, `!!${row}`);
-    await press(page, `${row}.querySelector('.sum')`);
-    const leadPanel = `${row}.querySelector('.panel[data-l=project]')`;
-    await wait(page, `${leadPanel}&&!!${leadPanel}.querySelector('[data-act=save]')`);
-    await press(page, `${leadPanel}.querySelector('.rule .rsum')`);
-    await wait(page, `!!${leadPanel}.querySelector('.rule.open .redit [data-f=text]')`);
-    await set(page, `${leadPanel}.querySelector('.rule.open .redit [data-f=text]')`, 'lead の規則を書き直した。');
-    await wait(page, `!${leadPanel}.querySelector('[data-act=save]').disabled`);
-    await save(page, `${leadPanel}.querySelector('[data-act=save]')`, '/api/role/lead');
-    await wait(page, `!!${leadPanel}.querySelector('.ok')`);
-    expect(readFileSync(lead, 'utf8'), 'the save on the row the other save moved did not write').toContain('lead の規則を書き直した。');
+  test('RB41C-5 saving one document leaves another document unchanged', async ({ page, app }) => {
+    const lead = path.join(app.proj, '.hergy/roles/lead.md');
+    const original = readFileSync(lead, 'utf8');
+    await page.goto(`${app.base}/roles?open=builder&open=lead`); await ready(page);
+    const builder = page.locator('.role.open').filter({ has: page.locator('.nm').filter({ hasText: /^builder$/ }) }).locator('.panel');
+    await builder.getByRole('textbox', { name: '散文の全文' }).fill('# 更新した設計担当\n');
+    await builder.locator('[data-act=save]').click(); await expect(builder.locator('.ok')).toBeVisible();
+    expect(readFileSync(lead, 'utf8')).toBe(original);
+    await page.locator('.role').filter({ has: page.locator('.nm').filter({ hasText: /^lead$/ }) }).locator('.sum').click();
+    const leadPanel = page.locator('.role.open').filter({ has: page.locator('.nm').filter({ hasText: /^lead$/ }) }).locator('.panel');
+    await leadPanel.getByRole('textbox', { name: '散文の全文' }).fill('# 更新した進行担当\n');
+    await leadPanel.locator('[data-act=save]').click(); await expect(leadPanel.locator('.ok')).toBeVisible();
+    expect(readFileSync(lead, 'utf8')).toBe('# 更新した進行担当\n');
   });
 });
 
@@ -133,23 +90,18 @@ test.describe('the team screen', () => {
     }
   });
 
-  test('RB41C-4 a team’s rules are saved three times in a row', async ({ page, app }) => {
-    const file = path.join(app.proj, '.hergy', 'teams', 'core', 'agreement.yaml');
-    await page.goto(`${app.base}/teams?open=core`);
-    await wait(page, there(`${shape} [data-act=t-save]`));
-    await press(page, q('.tdef[data-name="core"] .dtab[data-t=agree]'));
-    const panel = '.tdef[data-name="core"] .panel.agree-p';
-    await wait(page, there(`${panel} [data-act=save]`));
-    const bodies = ['チームの規則を 1 つ足した。', 'チームの規則をもう 1 つ足した。', 'チームの規則を 3 つ目まで足した。'];
-    for (const [i, body] of bodies.entries()) {
-      await press(page, q(`${panel} .sec[data-si="0"] [data-act=rule-add]`));
-      const added = `[...document.querySelectorAll(${JSON.stringify(`${panel} .sec[data-si="0"] .rule`)})].at(-1)`;
-      await wait(page, `!!${added}`);
-      await set(page, `${added}.querySelector('[data-f=text]')`, body);
-      await wait(page, `!${q(`${panel} [data-act=save]`)}.disabled`);
-      await save(page, q(`${panel} [data-act=save]`), '/api/team/core');
-      await wait(page, there(`${panel} .ok`));
-      expect(readFileSync(file, 'utf8'), `the save ${i + 1} did not write ${body}`).toContain(body);
+  test('RB41C-4 a team prose document is saved three times in a row', async ({ page, app }) => {
+    const file = path.join(app.proj, '.hergy/teams/core/agreement.md');
+    await page.goto(`${app.base}/teams?open=core&agree=core`); await ready(page);
+    const panel = page.locator('.tdef[data-name="core"] .agree-p');
+    const input = panel.getByRole('textbox', { name: '散文の全文' });
+    let text = await input.inputValue();
+    for (let i = 1; i <= 3; i++) {
+      text += `\n${i} 回目の保存。\n`;
+      await input.fill(text); await panel.locator('[data-act=save]').click();
+      await expect(panel.locator('.ok')).toBeVisible();
+      expect(readFileSync(file, 'utf8')).toBe(text);
+      await expect(page.locator('.tdef[data-name="core"] .c-size')).toContainText([...text].length.toLocaleString());
     }
   });
 });

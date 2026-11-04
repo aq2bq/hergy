@@ -26,8 +26,8 @@ func cacheCatalog(t *testing.T) (*Catalog, *source.Memo) {
 	global := filepath.Join(root, "cfg", "hergy")
 	cacheWrite(t, filepath.Join(local, "teams", "demo", "team.yaml"),
 		"version: 1\ndescription: demo's description\nmembers:\n  - name: lead\n    role: lead\n    profile: coder\nturns:\n  - human -> lead\n  - lead -> human\n")
-	cacheWrite(t, filepath.Join(local, "roles", "lead.yaml"),
-		"version: 1\nsections:\n  - rules:\n      - id: K7QF\n        text: lead moves first.\n")
+	cacheWrite(t, filepath.Join(local, "roles", "lead.md"),
+		"- lead moves first.\n")
 	cacheWrite(t, filepath.Join(local, "profiles.yaml"),
 		"version: 1\nprofiles:\n  coder:\n    kind: claude\n")
 	memo := source.NewMemo()
@@ -79,8 +79,8 @@ func TestAListOpensNoFileTheSecondTime(t *testing.T) {
 		t.Errorf("the second list opened %d file(s) and listed %d directory(ies), want none", reads, lists)
 	}
 	// A role document added shows on the next list: the directory's version moved.
-	cacheWrite(t, filepath.Join(cat.LayerDir(source.LayerLocal), "roles", "builder.yaml"),
-		"version: 1\nsections:\n  - rules:\n      - id: MAAA\n        text: builder builds.\n")
+	cacheWrite(t, filepath.Join(cat.LayerDir(source.LayerLocal), "roles", "builder.md"),
+		"- builder builds.\n")
 	found := false
 	for _, row := range cat.Roles() {
 		found = found || row.Name == "builder"
@@ -94,8 +94,8 @@ func TestAListOpensNoFileTheSecondTime(t *testing.T) {
 // next reading, without a held answer standing in its way (d-e00b).
 func TestASavedFileShowsOnTheNextAnswer(t *testing.T) {
 	cat, _ := cacheCatalog(t)
-	rolePath := filepath.Join(cat.LayerDir(source.LayerLocal), "roles", "lead.yaml")
-	cacheWrite(t, rolePath, "version: 1\nsections:\n  - rules:\n      - id: K7QF\n        text: written by a save.\n")
+	rolePath := filepath.Join(cat.LayerDir(source.LayerLocal), "roles", "lead.md")
+	cacheWrite(t, rolePath, "- written by a save.\n")
 	text, err := cat.Reader().Read(source.Doc{Path: rolePath})
 	if err != nil {
 		t.Fatal(err)

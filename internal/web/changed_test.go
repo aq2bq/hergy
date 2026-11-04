@@ -95,7 +95,7 @@ func TestROLES_3C77_TheOverwriteWritesAndAStaleOneIsRefusedAgain(t *testing.T) {
 	read := readFile(t, path)
 	draft, _ := ruLoadDraft(t, path)
 	// The person is in the middle of a change, and another place wrote one too.
-	draft.Sections[0].Rules[0].Text = "書き換えている途中の本文。"
+	draft.Text = "書き換えている途中の本文。"
 	changed := read + "\n# ほかの所で変わった\n"
 	if err := os.WriteFile(path, []byte(changed), 0o644); err != nil {
 		t.Fatal(err)
@@ -156,7 +156,7 @@ func TestROLES_3C77_AFileThatIsGoneIsToldSoAndCanBeWrittenAgain(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("writing the draft again answered %d, want 200: %v", resp.StatusCode, decoded["text"])
 	}
-	if got := readFile(t, path); !strings.Contains(got, "version: 1") {
+	if got := readFile(t, path); got != draft.Text {
 		t.Errorf("the file written again is not the draft the panel held:\n%s", got)
 	}
 }
@@ -189,12 +189,9 @@ func TestROLES_3C77_AStaleDeleteSaysItDidNotDelete(t *testing.T) {
 func TestTEAMS_3C77_TheAgreementAndItsTextAnswerWhatChanged(t *testing.T) {
 	f := newFixture(t)
 	server := f.server(t)
-	path := filepath.Join(f.proj, ".hergy", "teams", "demo", "agreement.yaml")
+	path := filepath.Join(f.proj, ".hergy", "teams", "demo", "agreement.md")
 	before := readFile(t, path)
-	doc := map[string]any{"name": "", "title": "demo チームの約束", "revision": 1,
-		"sections": []map[string]any{{"heading": "責務", "rules": []map[string]any{
-			{"id": "", "text": "足したルール。", "in_prompt": true},
-		}}}}
+	doc := map[string]any{"name": "", "title": "demo", "text": "# demo\n変更した本文。\n"}
 	changed := before + "\n# ほかの所で変わった\n"
 	if err := os.WriteFile(path, []byte(changed), 0o644); err != nil {
 		t.Fatal(err)

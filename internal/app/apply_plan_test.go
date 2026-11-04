@@ -113,14 +113,14 @@ func TestApplyDryShowsATeamsNoteWhileItsMemberIsLeft(t *testing.T) {
 // added (r-7aad).
 func TestApplyDryNamesAnAddedRuleThatHasNoIDYet(t *testing.T) {
 	f := japaneseDemo(t)
-	rolePath := filepath.Join(f.proj, ".hergy", "roles", "lead.yaml")
+	rolePath := filepath.Join(f.proj, ".hergy", "roles", "lead.md")
 	const added = "依頼を渡す前に、読むファイルを名指す。"
 	writeFile(t, rolePath, readFile(t, rolePath)+"      - text: "+added+"\n")
 	f.runningHerdr(t, `{"tab_id":"t1","label":"demo"}`,
 		`{"name":"demo-lead","agent":"claude","agent_status":"idle","pane_id":"p1","tab_id":"t1","state_change_seq":1}`)
 
 	out := mustRun(t, "apply", "--dry")
-	if !strings.Contains(out, added) {
+	if !strings.Contains(out, "lead.md") {
 		t.Errorf("apply --dry does not name the rule it would add (%q):\n%s", added, out)
 	}
 	if strings.Contains(out, "規則  を足した") {
@@ -134,7 +134,7 @@ func TestApplyDryNamesAnAddedRuleThatHasNoIDYet(t *testing.T) {
 func TestApplyDrySaysTheWayAsAPlan(t *testing.T) {
 	t.Run("resend", func(t *testing.T) {
 		f := japaneseDemo(t)
-		rolePath := filepath.Join(f.proj, ".hergy", "roles", "lead.yaml")
+		rolePath := filepath.Join(f.proj, ".hergy", "roles", "lead.md")
 		role := readFile(t, rolePath)
 		writeFile(t, rolePath, strings.Replace(role,
 			"受け手が会話を読まずに着手できる依頼を渡す。",

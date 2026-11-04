@@ -10,9 +10,9 @@ import (
 // caller says what it is making rather than writing a path of its own.
 const (
 	// NewTeam is a team definition: teams/<name>/ in the layer, the directory
-	// hergy new writes team.yaml and agreement.yaml into.
+	// hergy new writes team.yaml and agreement.md into.
 	NewTeam = "team"
-	// NewRole is a role document: roles/<name>.yaml in the layer. A role
+	// NewRole is a role document: roles/<name>.md in the layer. A role
 	// document is the layer's, shared by every team of it (K5).
 	NewRole = "role"
 	// NewProfile is a layer's profiles.yaml. A profile is one key inside that
@@ -40,7 +40,7 @@ func (c *Catalog) NewPlace(kind, name string) string {
 	case NewTeam:
 		return filepath.Join(dir, "teams", name)
 	case NewRole:
-		return filepath.Join(dir, "roles", name+".yaml")
+		return filepath.Join(dir, "roles", name+".md")
 	case NewProfile:
 		return filepath.Join(dir, "profiles.yaml")
 	default:

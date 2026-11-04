@@ -174,7 +174,7 @@ func TestCHECK_TheCountsAreOnePerDefinition(t *testing.T) {
 	}
 }
 
-// TestCHECK_ALeftoverAgreementIsOnEveryUnit: a leftover shared agreement.yaml
+// TestCHECK_ALeftoverAgreementIsOnEveryUnit: a leftover shared agreement.md
 // is one break on every definition (d-31ad), counted the same by the row, the
 // validate column and the YAML head.
 func TestCHECK_ALeftoverAgreementIsOnEveryUnit(t *testing.T) {
@@ -202,7 +202,7 @@ func TestCHECK_ALeftoverAgreementIsOnEveryUnit(t *testing.T) {
 	}
 	// The file every team of the layer used to share, left where it used to
 	// stand: it is one break on every definition (d-31ad).
-	writeFile(t, filepath.Join(f.proj, ".hergy", "agreement.yaml"), "version: 1\ntitle: 共通\nsections:\n  - heading: 台帳\n    rules:\n      - id: S1\n        text: 全員が読む。\n")
+	writeFile(t, filepath.Join(f.proj, ".hergy", "agreement.yaml"), "# 共通\n\n## 台帳\n\n- 全員が読む。\n")
 
 	items := teamList(t, base)
 	if len(items) == 0 {
@@ -238,7 +238,7 @@ func TestCHECK_EachAnswerNamesItsOwnUnit(t *testing.T) {
 	f, base := checkFixture(t)
 
 	// 1: the role document's own answer.
-	lead := readFile(t, filepath.Join(f.proj, ".hergy", "roles", "lead.yaml"))
+	lead := readFile(t, filepath.Join(f.proj, ".hergy", "roles", "lead.md"))
 	role := checkProblemsOf(t, base, "/api/role/check", map[string]any{
 		"place": "project", "name": "lead", "text": lead,
 	})
@@ -269,27 +269,15 @@ func TestCHECK_EachAnswerNamesItsOwnUnit(t *testing.T) {
 		t.Errorf("core's team answer carries builder.yaml's own warning:\n%s", coreText.String())
 	}
 
-	// 3: draft's rule FAAM names lead, which draft does not have; the
-	// problem stands on the team definition and names writer.yaml's rule.
+	// Prose may name someone outside the topology without becoming a finding.
 	draft := checkProblemsOf(t, base, "/api/team/check", map[string]any{
 		"place": "global", "name": "draft", "part": "team",
 		"doc": map[string]any{"ops": []map[string]any{}},
 	})
-	found := false
-	for _, one := range draft {
-		if one.Role != "writer" || one.RuleID != "FAAM" {
-			continue
-		}
-		found = true
-		// The sentence names the rule; the file it stands in is the field the
-		// screen's own column shows (teams/view.js vlistParts).
-		if !strings.Contains(one.Text, "FAAM") || !strings.Contains(one.Field, "writer.yaml") {
-			t.Errorf("the combination problem reads %+v, want writer.yaml's FAAM", one)
-		}
+	if len(draft) != 0 {
+		t.Errorf("prose produced findings: %+v", draft)
 	}
-	if !found {
-		t.Errorf("draft's team answer does not name writer.yaml's FAAM: %+v", draft)
-	}
+
 }
 
 // teamSize is one line of validate's size list.
@@ -329,16 +317,16 @@ func TestCHECK_ValidateSplitsTheUnitsAndSizes(t *testing.T) {
 	if strings.Contains(core, "HAAA") || strings.Contains(core, "names a model") {
 		t.Errorf("core's team section carries builder.yaml's own warning:\n%s", core)
 	}
-	builder := block(".hergy/roles/builder.yaml")
-	if !strings.Contains(builder, "HAAA") || !strings.Contains(builder, "names a model") {
+	builder := block(".hergy/roles/builder.md")
+	if strings.Contains(builder, "HAAA") || strings.Contains(builder, "names a model") {
 		t.Errorf("builder.yaml's own warning is not in its role section:\n%s", builder)
 	}
-	if n := strings.Count(out, "file: .hergy/roles/builder.yaml\n"); n != 1 {
+	if n := strings.Count(out, "file: .hergy/roles/builder.md\n"); n != 1 {
 		t.Errorf("builder.yaml is checked %d times, want once", n)
 	}
 	globalDir := filepath.Join(f.cfg, "hergy")
 	draft := block(filepath.Join(globalDir, "teams", "draft", "team.yaml"))
-	if !regexp.MustCompile(`writer\.yaml: rule FAAM|reviewer\.yaml: rule CAAK`).MatchString(draft) {
+	if regexp.MustCompile(`writer\.yaml: rule FAAM|reviewer\.yaml: rule CAAK`).MatchString(draft) {
 		t.Errorf("draft's team section does not name the role document's rule:\n%s", draft)
 	}
 	hiddenDocs := block(filepath.Join(globalDir, "teams", "docs", "team.yaml"))
@@ -348,7 +336,7 @@ func TestCHECK_ValidateSplitsTheUnitsAndSizes(t *testing.T) {
 	if regexp.MustCompile(`FAAM|CAAK`).MatchString(hiddenDocs) {
 		t.Errorf("the hidden docs shows a warning:\n%s", hiddenDocs)
 	}
-	if hiddenScout := block(filepath.Join(globalDir, "roles", "scout.yaml")); !strings.Contains(hiddenScout, "is not used") {
+	if hiddenScout := block(filepath.Join(globalDir, "roles", "scout.md")); !strings.Contains(hiddenScout, "is not used") {
 		t.Errorf("the hidden scout does not say it is not used:\n%s", hiddenScout)
 	}
 

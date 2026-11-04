@@ -34,9 +34,8 @@ func TestTeamEffectTakesATurnAway(t *testing.T) {
 		t.Errorf("added = %q, want nothing", line.Added)
 	}
 
-	warn := i18n.Tf("validate.turn_not_in_turns", "PAAF", "lead → spec")
-	if len(got.Problems) != 1 || got.Problems[0].Text != warn {
-		t.Errorf("problems = %+v, want the one turn warning %q", got.Problems, warn)
+	if len(got.Problems) != 0 {
+		t.Fatalf("prose created a topology warning: %+v", got.Problems)
 	}
 }
 

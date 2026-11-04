@@ -194,12 +194,12 @@ var glossary = []term{
 		id:       "role-name",
 		english:  "role name",
 		japanese: "ロール名",
-		meaning:  "the file name under roles/ without .yaml; what team.yaml's role: names",
+		meaning:  "the file name under roles/ without .md; what team.yaml's role: names",
 	},
 	{
 		id:       "team-agreement",
 		english:  "team agreement",
-		japanese: "チームのルール",
+		japanese: "チームの散文",
 		meaning:  "the rules a team definition gives every member of that team, written in the definition's own folder",
 	},
 	{
@@ -367,13 +367,13 @@ var glossary = []term{
 		id:       "rule",
 		english:  "rule",
 		japanese: "規則",
-		meaning:  "one rule of a team's agreement or role document: its id, its text, whether it is on, the day it was switched off, and a note for people",
+		meaning:  "a legacy YAML rule, read only during explicit migration; current definitions are complete prose documents",
 	},
 	{
 		id:       "rule-note",
 		english:  "note",
 		japanese: "メモ",
-		meaning:  "a record a person leaves with a rule: why it was written and what was seen; hergy never sends it to a member",
+		meaning:  "a legacy YAML note retained in the migration backup; current documents have no separate note field",
 	},
 	{
 		id:       "origin",
@@ -653,7 +653,6 @@ func TestGlossaryBannedWordsStayOut(t *testing.T) {
 		{"README.md", "en"},
 		{"README.ja.md", "ja"},
 		{"skills/hergy/SKILL.md", "en"},
-		{"skills/hergy-rules/SKILL.md", "en"},
 		// The API's written promise carries Japanese descriptions too, so the
 		// place words a person reads there stay in the glossary (r-dfe5).
 		{"internal/apicontract/openapi.yaml", "ja"},

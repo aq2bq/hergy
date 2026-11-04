@@ -10,7 +10,7 @@ import (
 
 // roleDoc is one role document with no title, the shape a person who wrote the
 // Japanese name into the file name leaves behind.
-const jpRoleDoc = "version: 1\nsections:\n  - heading: 進め方\n    rules:\n      - id: PM-1\n        text: 今日決めることを 1 つ書く。\n"
+const jpRoleDoc = "## 進め方\n\n- 今日決めることを 1 つ書く。\n"
 
 // TestValidateARoleNameThatIsNotAnIdentifierIsBroken: a role's name is an
 // identifier (d-841e, r-7ea6). validate stands the role's own file broken, and
@@ -19,7 +19,7 @@ func TestValidateARoleNameThatIsNotAnIdentifierIsBroken(t *testing.T) {
 	useJapanese(t)
 	f := newFixture(t)
 	mustRun(t, "new", "demo")
-	writeFile(t, filepath.Join(f.proj, ".hergy", "roles", "進行役.yaml"), jpRoleDoc)
+	writeFile(t, filepath.Join(f.proj, ".hergy", "roles", "進行役.md"), jpRoleDoc)
 
 	out, stderr, code := run("validate")
 	if code == 0 {
@@ -30,7 +30,7 @@ func TestValidateARoleNameThatIsNotAnIdentifierIsBroken(t *testing.T) {
 	}
 	block := ""
 	for one := range strings.SplitSeq(out, "\nfile: ") {
-		if strings.HasPrefix(one, "file: .hergy/roles/進行役.yaml\n") || strings.HasPrefix(one, ".hergy/roles/進行役.yaml\n") {
+		if strings.HasPrefix(one, "file: .hergy/roles/進行役.md\n") || strings.HasPrefix(one, ".hergy/roles/進行役.md\n") {
 			block = one
 		}
 	}
@@ -53,7 +53,7 @@ func TestUpStopsOnARoleNameThatIsNotAnIdentifier(t *testing.T) {
 	useJapanese(t)
 	f := newFixture(t)
 	mustRun(t, "new", "demo")
-	writeFile(t, filepath.Join(f.proj, ".hergy", "roles", "進行役.yaml"), jpRoleDoc)
+	writeFile(t, filepath.Join(f.proj, ".hergy", "roles", "進行役.md"), jpRoleDoc)
 	team := filepath.Join(".hergy", "teams", "demo", "team.yaml")
 	writeFile(t, team, strings.Replace(readFile(t, team), "    role: lead\n", "    role: 進行役\n", 1))
 

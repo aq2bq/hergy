@@ -101,7 +101,7 @@ func Of(before, after View) []Change {
 	before.Run.Team = team
 	after.Run.Team = team
 
-	rosterMoves := !slices.Equal(prompt.RosterOf(before.Def, team), prompt.RosterOf(after.Def, team))
+	rosterMoves := !slices.Equal(prompt.RosterOf(before.Def, team, before.Run), prompt.RosterOf(after.Def, team, after.Run))
 
 	var changes []Change
 	for i := range before.Def.Graph.Members {

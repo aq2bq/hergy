@@ -13,7 +13,6 @@ import (
 	"github.com/aq2bq/hergy/internal/check"
 	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/i18n"
-	"github.com/aq2bq/hergy/internal/rules"
 	"github.com/aq2bq/hergy/internal/scaffold"
 	"github.com/aq2bq/hergy/internal/source"
 )
@@ -210,7 +209,7 @@ func TestTEAMS_S3_ListCarriesTheTable(t *testing.T) {
 	if len(item.Summary.Members) != 2 || item.Summary.Workers != 3 {
 		t.Errorf("the summary reads %d members, %d workers", len(item.Summary.Members), item.Summary.Workers)
 	}
-	if item.Summary.Rules != 1 {
+	if item.Summary.Rules != 0 {
 		t.Errorf("the agreement's rules read %d, want one", item.Summary.Rules)
 	}
 	place := item.Places["project"]
@@ -220,7 +219,7 @@ func TestTEAMS_S3_ListCarriesTheTable(t *testing.T) {
 	if len(place.Doc.Members) == 0 || len(place.Doc.Members[0].Segments) == 0 {
 		t.Errorf("the saved document carries no prompt segments: %+v", place.Doc.Members)
 	}
-	if !place.Doc.Agreement.Has || place.Doc.Agreement.Rules != 1 {
+	if !place.Doc.Agreement.Has || place.Doc.Agreement.Rules != 0 {
 		t.Errorf("the agreement reads %+v, want the one rule", place.Doc.Agreement)
 	}
 	// The prompt's own line for what lead hands to builder (X3): the screen
@@ -238,7 +237,7 @@ func TestTEAMS_S3_ListCarriesTheTable(t *testing.T) {
 		}
 	}
 	if !kinds["project.team"] || !kinds["project.agreement"] {
-		t.Errorf("the files read %v, want the team.yaml and the agreement.yaml", kinds)
+		t.Errorf("the files read %v, want the team.yaml and the agreement.md", kinds)
 	}
 }
 
@@ -467,7 +466,7 @@ func TestTEAMS_PromptSegmentsThroughTheAPI(t *testing.T) {
 	if !strings.Contains(roster, "ops") {
 		t.Errorf("the added member's roster segment does not name it: %q", roster)
 	}
-	if !strings.HasSuffix(role, "/.hergy/roles/builder.yaml") {
+	if !strings.HasSuffix(role, "/.hergy/roles/builder.md") {
 		t.Errorf("the added member's role segment reads %+v", role)
 	}
 
@@ -565,13 +564,7 @@ func TestTEAMS_F7_FigureSaveRefusesANewProblem(t *testing.T) {
 func TestTeamsAgreementCheckSharesThePart(t *testing.T) {
 	f := newFixture(t)
 	server := f.server(t)
-	doc := map[string]any{
-		"name": "", "title": "demo チームの約束", "revision": 1,
-		"sections": []map[string]any{{"heading": "責務", "rules": []map[string]any{{
-			"id": "TEAM-1", "text": "このチームの約束。", "why": "だから。",
-			"send_why": true, "in_prompt": true, "note": "", "report": "", "tests": []any{}, "origin": []any{},
-		}}}},
-	}
+	doc := map[string]any{"name": "", "title": "demo", "text": "# demo\n\nこのチームの散文。\n"}
 	resp, body := f.api(t, server, http.MethodPost, "/api/team/check", map[string]any{
 		"place": "project", "name": "demo", "part": "agreement",
 		"doc": map[string]any{"ops": []map[string]any{}, "doc": doc},
@@ -589,19 +582,13 @@ func TestTeamsAgreementCheckSharesThePart(t *testing.T) {
 }
 
 // TestTeamsAgreementSaveWritesTheFile: the agreement's save writes the panel's
-// document into the team's own agreement.yaml (spec-teams 1.5).
+// document into the team's own agreement.md (spec-teams 1.5).
 func TestTeamsAgreementSaveWritesTheFile(t *testing.T) {
 	f := newFixture(t)
 	server := f.server(t)
-	path := filepath.Join(f.proj, ".hergy", "teams", "demo", "agreement.yaml")
+	path := filepath.Join(f.proj, ".hergy", "teams", "demo", "agreement.md")
 	before := readFile(t, path)
-	doc := map[string]any{
-		"name": "", "title": "demo チームの約束", "revision": 1,
-		"sections": []map[string]any{{"heading": "責務", "rules": []map[string]any{{
-			"id": "TEAM-1", "text": "このチームの約束を変えた。", "why": "だから。",
-			"send_why": true, "in_prompt": true, "note": "", "report": "", "tests": []any{}, "origin": []any{},
-		}}}},
-	}
+	doc := map[string]any{"name": "", "title": "demo", "text": "# demo\n\nこのチームの約束を変えた。\n"}
 	resp, body := f.api(t, server, http.MethodPut, "/api/team/demo", map[string]any{
 		"place": "project", "part": "agreement", "hash": source.Hash(before),
 		"doc": map[string]any{"ops": []map[string]any{}, "doc": doc},
@@ -613,9 +600,8 @@ func TestTeamsAgreementSaveWritesTheFile(t *testing.T) {
 	if !strings.Contains(after, "このチームの約束を変えた。") {
 		t.Errorf("the agreement's save did not write the text:\n%s", after)
 	}
-	saved, _ := rules.ReadAll(after, path)
-	if len(saved.Rules()) != 1 || !rules.RuleIDPattern.MatchString(saved.Rules()[0].ID) {
-		t.Errorf("the agreement's save wrote no id hergy gives:\n%s", after)
+	if after != doc["text"] {
+		t.Fatal("save rewrote prose")
 	}
 }
 
@@ -706,7 +692,7 @@ func TestTeamsYamlLine(t *testing.T) {
 		{"members[1].role", 8},
 		{"turns[0]", 10},
 		{"node:human", 0},
-		{"rule:/x/roles/lead.yaml#A", 0},
+		{"rule:/x/roles/lead.md#A", 0},
 		{"workers[0]", 0},
 	} {
 		if got := t2YamlLine(text, tc.field); got != tc.want {
@@ -830,7 +816,7 @@ func TestTeamsDraftCheckAnswersTheNameAndTheWrites(t *testing.T) {
 	dir := filepath.Join(f.proj, ".hergy", "teams", "ops")
 	for _, want := range []string{
 		filepath.Join(dir, "team.yaml"),
-		filepath.Join(dir, "agreement.yaml"),
+		filepath.Join(dir, "agreement.md"),
 	} {
 		if !slices.Contains(draft.Draft.Writes, want) {
 			t.Errorf("the writes read %v, want %s among them", draft.Draft.Writes, want)
@@ -902,23 +888,16 @@ func TestTEAMS_N3_DraftSaveWritesTheStarterFolder(t *testing.T) {
 		want[file.Path] = string(file.Data)
 	}
 	dir := filepath.Join(f.proj, ".hergy", "teams", "ops")
-	for _, name := range []string{"team.yaml", "agreement.yaml"} {
+	for _, name := range []string{"team.yaml", "agreement.md"} {
 		got := readFile(t, filepath.Join(dir, name))
-		if withoutRuleIDs(got) != want[name] {
+		if got != want[name] {
 			t.Errorf("the saved %s reads\n%s\nwant hergy new's own (without the ids it gives)\n%s", name, got, want[name])
 		}
-		if name == "agreement.yaml" {
-			doc, _ := rules.ReadAll(got, filepath.Join(dir, name))
-			for _, rule := range doc.Rules() {
-				if !rules.RuleIDPattern.MatchString(rule.ID) {
-					t.Errorf("the saved agreement's rule %q has no id hergy writes", rule.Text)
-				}
-			}
-		}
+
 	}
 	// The layer's role documents the starter reads were already there, so the
 	// save left them as they are (K5).
-	if got := readFile(t, filepath.Join(f.proj, ".hergy", "roles", "lead.yaml")); !strings.Contains(got, "PAAF") {
+	if got := readFile(t, filepath.Join(f.proj, ".hergy", "roles", "lead.md")); !strings.Contains(got, "lead は最初に動く。") {
 		t.Errorf("the layer's own lead.yaml was written over:\n%s", got)
 	}
 	// The profiles a place already defines are the ones the members choose from,
@@ -995,49 +974,13 @@ func TestTEAMS_N5_DraftDuplicateWritesTheSameFiles(t *testing.T) {
 	}
 	one := filepath.Join(f.proj, ".hergy", "teams", "demo")
 	two := filepath.Join(f.proj, ".hergy", "teams", "demo-2")
-	for _, name := range []string{"team.yaml", "agreement.yaml"} {
+	for _, name := range []string{"team.yaml", "agreement.md"} {
 		got, want := readFile(t, filepath.Join(two, name)), readFile(t, filepath.Join(one, name))
-		if withoutRuleIDs(got) != withoutRuleIDs(want) {
+		if got != want {
 			t.Errorf("the duplicate's %s reads\n%s\nwant the original's (without the ids)\n%s", name, got, want)
 		}
 	}
-	// The duplicate's rules are its own: no id is shared with the definition it
-	// was copied from (d-4aab).
-	original, _ := rules.ReadAll(readFile(t, filepath.Join(one, "agreement.yaml")), filepath.Join(one, "agreement.yaml"))
-	copied, _ := rules.ReadAll(readFile(t, filepath.Join(two, "agreement.yaml")), filepath.Join(two, "agreement.yaml"))
-	held := map[string]bool{}
-	for _, rule := range original.Rules() {
-		held[rule.ID] = true
-	}
-	for _, rule := range copied.Rules() {
-		if held[rule.ID] {
-			t.Errorf("the duplicate takes the id %s of the definition it copied", rule.ID)
-		}
-	}
-}
 
-// withoutRuleIDs is a file's lines without the id lines hergy writes: the
-// template and the written file are the same shape otherwise (d-4aab).
-func withoutRuleIDs(text string) string {
-	var kept []string
-	dash := -1
-	for line := range strings.SplitSeq(text, "\n") {
-		trim := strings.TrimSpace(line)
-		if strings.HasPrefix(trim, "- id: ") {
-			// The id took the item's dash: the key under it gets the dash back.
-			dash = len(line) - len(strings.TrimLeft(line, " "))
-			continue
-		}
-		if strings.HasPrefix(trim, "id: ") {
-			continue
-		}
-		if dash >= 0 {
-			line = strings.Repeat(" ", dash) + "- " + trim
-			dash = -1
-		}
-		kept = append(kept, line)
-	}
-	return strings.Join(kept, "\n")
 }
 
 // TestTEAMS_N5_N7_CopyAndDeleteTakeOnePlace: a copy stands on the other place's
@@ -1075,7 +1018,7 @@ func TestTEAMS_N5_N7_CopyAndDeleteTakeOnePlace(t *testing.T) {
 	}
 
 	// The delete takes the whole folder, and the directory with it (B6, N7).
-	agreePath := filepath.Join(f.proj, ".hergy", "teams", "demo", "agreement.yaml")
+	agreePath := filepath.Join(f.proj, ".hergy", "teams", "demo", "agreement.md")
 	q := url.Values{}
 	q.Set("place", "project")
 	q.Set("hash", source.Hash(readFile(t, f.teamYAML())))
@@ -1101,8 +1044,8 @@ func TestTeamsDraftCheckReadsTheRowsOwnFiles(t *testing.T) {
 	// The saved definition's own rule writes a turn the team does not hold: read
 	// against the draft's base it warns, and read against the draft's own
 	// agreement it is not there at all.
-	f.write(t, filepath.Join("teams", "demo", "agreement.yaml"),
-		"version: 1\nsections:\n  - rules:\n      - id: TEAM-1\n        text: lead → reviewer と受け渡す。\n")
+	f.write(t, filepath.Join("teams", "demo", "agreement.md"),
+		"- lead → reviewer と受け渡す。\n")
 	server := f.server(t)
 	checkOne := func(name string) t2TestDraft {
 		t.Helper()
@@ -1142,7 +1085,7 @@ func TestTeamsDraftCheckReadsTheRowsOwnFiles(t *testing.T) {
 	if want := filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml"); taken.Draft.Path != want {
 		t.Errorf("the row says it stands at %q, want %q", taken.Draft.Path, want)
 	}
-	if want := filepath.Join(f.proj, ".hergy", "teams", "demo", "agreement.yaml"); taken.Doc.Agreement.Path != want {
+	if want := filepath.Join(f.proj, ".hergy", "teams", "demo", "agreement.md"); taken.Doc.Agreement.Path != want {
 		t.Errorf("the row's agreement says it stands at %q, want %q", taken.Doc.Agreement.Path, want)
 	}
 }
@@ -1362,7 +1305,7 @@ func TestTEAMS_CopyMemberThroughTheAPI(t *testing.T) {
 // nothing else about the definition stops.
 func TestTeamsSayARoleNameThatIsNotOne(t *testing.T) {
 	f := newFixture(t)
-	f.write(t, filepath.Join("roles", "進行管理.yaml"), "version: 1\nsections:\n  - rules:\n      - id: SPEC-1\n        text: 何かをする。\n")
+	f.write(t, filepath.Join("roles", "進行管理.md"), "- 何かをする。\n")
 	text := "version: 1\ndescription: demo\nturns:\n  - human -> lead\n  - lead -> human\nmembers:\n  - name: lead\n    role: 進行管理\n    profile: coder\n"
 	f.write(t, filepath.Join("teams", "demo", "team.yaml"), text)
 	server := f.server(t)
@@ -1430,7 +1373,7 @@ func TestTEAMS_R54B8_ADraftWritesNoRoleFilesThePersonDidNotChoose(t *testing.T) 
 	if err := os.MkdirAll(filepath.Join(f.global, "roles"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(f.global, "roles", "analyst.yaml"), []byte("version: 1\nsections: []\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(f.global, "roles", "analyst.md"), []byte("version: 1\nsections: []\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	profilesBefore := readFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml"))
@@ -1485,7 +1428,7 @@ func TestTEAMS_R54B8_ADraftWritesNoRoleFilesThePersonDidNotChoose(t *testing.T) 
 	if got := roleFiles(t, filepath.Join(f.proj, ".hergy")); len(got) != 0 {
 		t.Errorf("the save wrote the project's roles/: %v", got)
 	}
-	if got := roleFiles(t, f.global); !slices.Equal(got, []string{"analyst.yaml"}) {
+	if got := roleFiles(t, f.global); !slices.Equal(got, []string{"analyst.md"}) {
 		t.Errorf("the save changed the global roles/: %v", got)
 	}
 	if got := readFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml")); got != profilesBefore {
@@ -1523,7 +1466,7 @@ func TestTEAMS_R54B8_TheStarterRolesFollowTheMembersTheRowHas(t *testing.T) {
 	}
 	draft := teamsDraft(t, answer)
 	base := filepath.Join(f.proj, ".hergy")
-	want := []string{filepath.Join(base, "teams", "ops", "team.yaml"), filepath.Join(base, "teams", "ops", "agreement.yaml")}
+	want := []string{filepath.Join(base, "teams", "ops", "team.yaml"), filepath.Join(base, "teams", "ops", "agreement.md")}
 	if !slices.Equal(draft.Draft.Writes, want) {
 		t.Errorf("the writes read %v, want the definition's own two files", draft.Draft.Writes)
 	}
@@ -1597,8 +1540,8 @@ func TestTEAMS_R54B8_TheStarterRolesGoInOnlyWhenThePersonChoseThem(t *testing.T)
 	chosen := teamsDraft(t, body)
 	base := filepath.Join(f.proj, ".hergy")
 	for _, want := range []string{
-		filepath.Join(base, "roles", "lead.yaml"),
-		filepath.Join(base, "roles", "builder.yaml"),
+		filepath.Join(base, "roles", "lead.md"),
+		filepath.Join(base, "roles", "builder.md"),
 		filepath.Join(base, "profiles.yaml"),
 	} {
 		if !slices.Contains(chosen.Draft.Writes, want) {
@@ -1613,7 +1556,7 @@ func TestTEAMS_R54B8_TheStarterRolesGoInOnlyWhenThePersonChoseThem(t *testing.T)
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("PUT /api/team/ops answers %d, want 200: %s", resp.StatusCode, body)
 	}
-	if got := roleFiles(t, base); !slices.Equal(got, []string{"builder.yaml", "lead.yaml"}) {
+	if got := roleFiles(t, base); !slices.Equal(got, []string{"builder.md", "lead.md"}) {
 		t.Errorf("the project's roles/ read %v, want the starter's two", got)
 	}
 	if got := readFile(t, filepath.Join(base, "profiles.yaml")); !strings.Contains(got, scaffold.ProfileName) {

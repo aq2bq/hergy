@@ -163,7 +163,7 @@ paths:
         - name: agreement_hash
           in: query
           required: false
-          description: 読み取った agreement.yaml のハッシュ
+          description: 読み取った agreement.md のハッシュ
           schema:
             type: string
         - name: project
@@ -1392,96 +1392,27 @@ components:
         problems:
           $ref: "#/components/schemas/Counts"
     RoleDoc:
-      description: ロールの文書 1 つ。節と規則だけを持ち、ファイルのハッシュと文は置き場所が持つ。
+      description: Markdown の本文をそのまま保持する文書。
       type: object
       additionalProperties: false
-      required: [name, title, revision, sections]
+      required: [name, title, text]
       properties:
         name:
           type: string
-          description: ロール名
+          description: 文書の名前
         title:
           type: string
-          description: 文書の題
-        revision:
-          type: integer
-          nullable: true
-          description: 文書のバージョン。書いていなければ null。
-        sections:
-          type: array
-          nullable: true
-          description: 文書の節
-          items:
-            $ref: "#/components/schemas/RoleSection"
-    RoleSection:
-      description: ロールの文書の節 1 つ。見出しと前書きと、その節の規則を持つ。
-      type: object
-      additionalProperties: false
-      required: [heading, level, intro, rules]
-      properties:
-        from:
-          type: integer
-          nullable: true
-          description: 保存されている文書でこの節が立つ節の番号。下書きが送る。
-        heading:
-          type: string
-          description: 節の見出し
-        level:
-          type: integer
-          description: 見出しの深さ（Markdown の # の数）
-        intro:
-          type: string
-          description: 節の前書き
-        rules:
-          type: array
-          nullable: true
-          description: この節の規則
-          items:
-            $ref: "#/components/schemas/RoleRule"
-    RoleRule:
-      description: ロールの文書の規則 1 つ。id は hergy が書く時に付けるので、下書きは省ける。
-      type: object
-      additionalProperties: false
-      required: [text, in_prompt, note]
-      properties:
-        from:
-          type: object
-          nullable: true
-          additionalProperties: false
-          description: 保存されている文書でこの規則が立つ場所。下書きが送る。
-          required: [section, rule]
-          properties:
-            section:
-              type: integer
-              description: 節の番号
-            rule:
-              type: integer
-              description: 節の中での規則の番号
-        id:
-          type: string
-          description: 規則の ID。hergy が書き込みのときに付け、人と画面は書かない。下書きは省ける
+          description: 先頭行から得た表示用の題
         text:
           type: string
-          description: 規則の文
-        in_prompt:
-          type: boolean
-          description: プロンプトに含めるか
-        off_since:
-          type: string
-          description: 規則を切った日。切っていなければ空。
-        note:
-          type: string
-          description: 規則に添えるメモ
+          description: Markdown の全文
+
     RoleSummary:
       description: ロールの一覧の 1 行が読む数（spec-boundary 5）。
       type: object
       additionalProperties: false
-      required: [rules, chars]
+      required: [chars]
       properties:
-        rules:
-          type: integer
-          minimum: 0
-          description: プロンプトに入る規則の数
         chars:
           type: integer
           minimum: 0
@@ -1564,6 +1495,9 @@ components:
       additionalProperties: false
       required: [problems, preview, effect, readers]
       properties:
+        template_size:
+          type: integer
+          description: チームとメンバーのひな形の固定文の文字数
         problems:
           type: array
           description: 見つかった問題
@@ -1624,15 +1558,10 @@ components:
       description: 下書きが保存されている文書からどう動いたか。
       type: object
       additionalProperties: false
-      required: [diff, turns]
+      required: [diff]
       properties:
         diff:
           $ref: "#/components/schemas/RoleDiff"
-        turns:
-          type: array
-          description: 規則の文が書く矢印を、その文書を読むチーム定義ごとに見たもの
-          items:
-            $ref: "#/components/schemas/RoleTurn"
     RoleDiff:
       description: メンバーが読む Markdown の、保存されている文書からの動き。
       type: object
@@ -1654,27 +1583,6 @@ components:
         removedAtEnd:
           type: boolean
           description: 消えた行が最後の行より後ろに立っていた
-    RoleTurn:
-      description: 規則の文が書く矢印 1 つを、その文書を読むチーム定義 1 つについて見たもの。
-      type: object
-      additionalProperties: false
-      required: [section, rule, arrow, definition, ok]
-      properties:
-        section:
-          type: integer
-          description: 矢印を書いた規則がある節の番号
-        rule:
-          type: integer
-          description: 矢印を書いた規則の番号
-        arrow:
-          type: string
-          description: 矢印を人が読む形（lead -> builder）
-        definition:
-          type: string
-          description: その矢印を見たチーム定義の名前
-        ok:
-          type: boolean
-          description: そのチーム定義の turns がこの矢印を持つか
     RoleReader:
       description: そのロールの文書を読むメンバー 1 人。
       type: object
@@ -1723,89 +1631,18 @@ components:
             type: string
           description: 置き場所とロール名ごとの、ロールの文書が入っているファイルのハッシュ
     RoleDraft:
-      description: 欄の下書きとして送るロールの文書。書かない欄は省くか null を送る。
       type: object
       additionalProperties: false
+      required: [name, title, text]
       properties:
         name:
           type: string
-          description: ロール名
         title:
           type: string
-          description: 文書の題
-        revision:
-          type: integer
-          nullable: true
-          description: 文書のバージョン
-        sections:
-          type: array
-          nullable: true
-          description: 文書の節
-          items:
-            $ref: "#/components/schemas/RoleDraftSection"
+        text:
+          type: string
         hash:
           type: string
-          description: 読んだときのファイルのハッシュ
-        text:
-          type: string
-          description: 読んだときのファイルの文
-    RoleDraftSection:
-      description: 欄の下書きとして送る節 1 つ。
-      type: object
-      additionalProperties: false
-      properties:
-        from:
-          type: integer
-          nullable: true
-          description: 保存されている文書でこの節が立つ節の番号。新しい節は null。
-        heading:
-          type: string
-          description: 節の見出し
-        level:
-          type: integer
-          description: 見出しの深さ
-        intro:
-          type: string
-          description: 節の前書き
-        rules:
-          type: array
-          nullable: true
-          description: この節の規則
-          items:
-            $ref: "#/components/schemas/RoleDraftRule"
-    RoleDraftRule:
-      description: 欄の下書きとして送る規則 1 つ。
-      type: object
-      additionalProperties: false
-      properties:
-        from:
-          type: object
-          nullable: true
-          additionalProperties: false
-          description: 保存されている文書でこの規則が立つ場所。新しい規則は null。
-          required: [section, rule]
-          properties:
-            section:
-              type: integer
-              description: 節の番号
-            rule:
-              type: integer
-              description: 節の中での規則の番号
-        id:
-          type: string
-          description: 規則の ID。hergy が書き込みのときに付け、人と画面は書かない。下書きは省ける
-        text:
-          type: string
-          description: 規則の文
-        in_prompt:
-          type: boolean
-          description: プロンプトに含めるか
-        off_since:
-          type: string
-          description: 規則を切った日
-        note:
-          type: string
-          description: 規則に添えるメモ
     RoleCheckRequest:
       description: POST /api/role/check に送る本文。欄の下書き（doc）か、YAML タブの文（text）のどちらかを送る。
       type: object
@@ -2513,9 +2350,9 @@ components:
         document:
           type: string
           description: 変更があった文書
-        rule:
+        diff:
           type: string
-          description: 変更があった規則の ID
+          description: 本文の行単位の差分
         turn:
           type: string
           description: 変更があったターン
@@ -3389,7 +3226,7 @@ components:
       description: チーム定義の一覧に出す説明、メンバー、ワーカー、チームのルールの集計。
       type: object
       additionalProperties: false
-      required: [description, members, workers, rules, size, limit]
+      required: [description, members, workers, size, limit]
       properties:
         description:
           type: string
@@ -3404,14 +3241,6 @@ components:
           type: integer
           minimum: 0
           description: チーム定義のワーカー数
-        rules:
-          type: integer
-          minimum: 0
-          description: チームのルールにある規則の数
-        excluded:
-          type: integer
-          minimum: 0
-          description: プロンプトに含めない規則の数
         broken:
           type: boolean
           description: team.yaml をチーム定義として読めなかったか
@@ -3536,23 +3365,17 @@ components:
       description: チーム定義に属するチームのルール。
       type: object
       additionalProperties: false
-      required: [path, hash, has, rules]
+      required: [path, hash, has]
       properties:
         path:
           type: string
-          description: agreement.yaml のパス
+          description: agreement.md のパス
         hash:
           type: string
-          description: agreement.yaml のハッシュ
+          description: agreement.md のハッシュ
         has:
           type: boolean
           description: チームのルールがあるか
-        rules:
-          type: integer
-          description: チームのルールにある規則の数
-        excluded:
-          type: integer
-          description: プロンプトに含めない規則の数
         doc:
           allOf:
             - $ref: '#/components/schemas/TeamRuleDocument'
@@ -3585,7 +3408,7 @@ components:
         kind:
           type: string
           enum: [team, agreement]
-          description: team.yaml または agreement.yaml の区別
+          description: team.yaml または agreement.md の区別
         hidden:
           type: boolean
           description: 同名のプロジェクトのチーム定義に隠れているか
@@ -3799,39 +3622,12 @@ components:
       description: チームのルールの Markdown とターンを渡す矢印に対する編集の影響。
       type: object
       additionalProperties: false
-      required: [diff, turns]
+      required: [diff]
       properties:
         diff:
           allOf:
             - $ref: '#/components/schemas/TeamDiff'
           description: Markdown の行の変化
-        turns:
-          type: array
-          nullable: true
-          items:
-            $ref: '#/components/schemas/TeamRuleTurn'
-          description: 規則が書く矢印とチーム定義のターン
-    TeamRuleTurn:
-      description: 規則が書く矢印をチーム定義のターンと照合した結果。
-      type: object
-      additionalProperties: false
-      required: [section, rule, arrow, definition, ok]
-      properties:
-        section:
-          type: integer
-          description: 規則文書の節の番号
-        rule:
-          type: integer
-          description: 節の中の規則の番号
-        arrow:
-          type: string
-          description: 規則に書かれたターンを渡す矢印
-        definition:
-          type: string
-          description: 照合するチーム定義名
-        ok:
-          type: boolean
-          description: チーム定義が矢印のターンを持つか
     TeamRuleReader:
       description: チームのルールを読むメンバー。
       type: object
@@ -3873,6 +3669,9 @@ components:
       additionalProperties: false
       required: [problems]
       properties:
+        template_size:
+          type: integer
+          description: チームとメンバーのひな形の固定文の文字数
         rename:
           $ref: '#/components/schemas/TeamRenamePreview'
         problems:
@@ -4108,7 +3907,7 @@ components:
           description: 読み取った team.yaml のハッシュ
         agreement_hash:
           type: string
-          description: 読み取った agreement.yaml のハッシュ
+          description: 読み取った agreement.md のハッシュ
         new:
           type: boolean
           description: 雛形から作るチーム定義か
@@ -4277,208 +4076,33 @@ components:
           type: string
           description: ワーカーを起動するメンバー名。空なら目的から決める。
     TeamRuleDocument:
-      description: チームのルールを検査または保存する文書。文書だけを持ち、ファイルのハッシュと文は置き場所が持つ。
+      description: Markdown の本文をそのまま保持する文書。
       type: object
       additionalProperties: false
-      required: [name, title, revision, sections]
+      required: [name, title, text]
       properties:
         name:
           type: string
-          description: チームのルールの文書名
+          description: 文書の名前
         title:
           type: string
-          description: チームのルールの見出し
-        revision:
-          type: integer
-          nullable: true
-          description: チームのルールのバージョン
-        sections:
-          type: array
-          nullable: true
-          items:
-            $ref: '#/components/schemas/TeamRuleSection'
-          description: チームのルールの節
+          description: 先頭行から得た表示用の題
+        text:
+          type: string
+          description: Markdown の全文
+
     TeamRuleDocumentRequest:
-      description: 画面から送るチームのルールの編集文書。
+      description: Markdown の本文をそのまま保持する文書。
       type: object
       additionalProperties: false
+      required: [name, title, text]
       properties:
         name:
           type: string
-          description: チームのルールの文書名
+          description: 文書の名前
         title:
           type: string
-          description: チームのルールの見出し
-        revision:
-          type: integer
-          nullable: true
-          description: チームのルールのバージョン
-        sections:
-          type: array
-          nullable: true
-          items:
-            $ref: '#/components/schemas/TeamRuleSectionRequest'
-          description: チームのルールの節
-        hash:
-          type: string
-          description: 編集元のチームのルールのハッシュ
+          description: 先頭行から得た表示用の題
         text:
           type: string
-          description: 編集元のチームのルールの全文
-    TeamRuleSection:
-      description: チームのルールの節。
-      type: object
-      additionalProperties: false
-      required: [heading, level, intro, rules]
-      properties:
-        from:
-          type: integer
-          nullable: true
-          description: 保存済みのチームのルールでの節の番号
-        heading:
-          type: string
-          description: 節の見出し
-        level:
-          type: integer
-          description: 節の見出しの深さ
-        intro:
-          type: string
-          description: 節の導入文
-        rules:
-          type: array
-          nullable: true
-          items:
-            $ref: '#/components/schemas/TeamRule'
-          description: 節にある規則
-    TeamRuleSectionRequest:
-      description: 画面から送るチームのルールの節。
-      type: object
-      additionalProperties: false
-      properties:
-        from:
-          type: integer
-          nullable: true
-          description: 保存済みのチームのルールでの節の番号
-        heading:
-          type: string
-          description: 節の見出し
-        level:
-          type: integer
-          description: 節の見出しの深さ
-        intro:
-          type: string
-          description: 節の導入文
-        rules:
-          type: array
-          nullable: true
-          items:
-            $ref: '#/components/schemas/TeamRuleRequest'
-          description: 節にある規則
-    TeamRule:
-      description: チームのルールにある規則。id は hergy が書く時に付けるので、下書きは省ける。
-      type: object
-      additionalProperties: false
-      required: [text, in_prompt, note]
-      properties:
-        from:
-          type: object
-          nullable: true
-          additionalProperties: false
-          properties:
-            section:
-              type: integer
-              description: 規則がある節の番号
-            rule:
-              type: integer
-              description: 節にある規則の番号
-          description: 保存済みのチームのルールでの規則の位置
-        id:
-          type: string
-          description: 規則の ID。hergy が書き込みのときに付け、人と画面は書かない。下書きは省ける
-        text:
-          type: string
-          description: 規則の文
-        in_prompt:
-          type: boolean
-          description: 規則をメンバーの初期プロンプトに含めるか
-        off_since:
-          type: string
-          description: 規則をプロンプトに含めなくした日
-        note:
-          type: string
-          description: 規則について人が残すメモ
-    TeamRuleRequest:
-      description: 画面から送るチームのルールの規則。
-      type: object
-      additionalProperties: false
-      properties:
-        from:
-          allOf:
-            - $ref: '#/components/schemas/TeamRuleFrom'
-          nullable: true
-          description: 保存済みのチームのルールでの規則の位置
-        id:
-          type: string
-          description: 規則の ID。hergy が書き込みのときに付け、人と画面は書かない。下書きは省ける
-        text:
-          type: string
-          description: 規則の文
-        in_prompt:
-          type: boolean
-          description: 規則をメンバーの初期プロンプトに含めるか
-        off_since:
-          type: string
-          description: 規則をプロンプトに含めなくした日
-        note:
-          type: string
-          description: 規則について人が残すメモ
-        why:
-          type: string
-          description: 古い形式で規則に付いていた理由
-        send_why:
-          type: boolean
-          description: 古い形式で理由を初期プロンプトに含めるか
-        origin:
-          type: array
-          nullable: true
-          items:
-            $ref: '#/components/schemas/TeamRuleOriginRequest'
-          description: 古い形式で規則に付いていた由来
-        report:
-          type: string
-          description: 古い形式で規則に付いていた報告の形
-        tests:
-          type: array
-          nullable: true
-          items:
-            type: string
-          description: 古い形式で規則に付いていた検証方法
-    TeamRuleOriginRequest:
-      description: 古い形式で規則に付いていた由来の 1 件。
-      type: object
-      additionalProperties: false
-      properties:
-        kind:
-          type: string
-          description: 由来の種類
-        date:
-          type: string
-          description: 由来の日付
-        refs:
-          type: array
-          nullable: true
-          items:
-            type: string
-          description: 由来が指す参照
-    TeamRuleFrom:
-      description: 保存済みのチームのルールでの規則の位置。
-      type: object
-      additionalProperties: false
-      required: [section, rule]
-      properties:
-        section:
-          type: integer
-          description: 規則がある節の番号
-        rule:
-          type: integer
-          description: 節にある規則の番号
+          description: Markdown の全文

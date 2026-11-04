@@ -78,7 +78,7 @@ function isProblemList(value: unknown): value is Problem[] {
 
 // checkText asks the server what is wrong with one file's text. The kind says
 // which files these are, and extra carries the kind's own word for which one
-// (a team definition's team.yaml and agreement.yaml share one kind); the same
+// (a team definition's team.yaml and agreement.md share one kind); the same
 // words answer a panel's draft.
 export async function checkText(
   kind: YamlKind,

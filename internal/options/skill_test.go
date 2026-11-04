@@ -44,7 +44,7 @@ func withoutOtherTools(line string) string {
 func TestSkillAndCheatNamesExist(t *testing.T) {
 	sources := map[string]string{}
 
-	for _, path := range []string{"../../skills/hergy/SKILL.md", "../../skills/hergy-rules/SKILL.md"} {
+	for _, path := range []string{"../../skills/hergy/SKILL.md"} {
 		skill, err := os.ReadFile(path)
 		if err != nil {
 			t.Fatalf("read the bundled skill: %v", err)

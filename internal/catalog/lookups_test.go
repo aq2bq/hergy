@@ -41,11 +41,11 @@ func TestReadersOfARoleDocument(t *testing.T) {
 	l.writeFullTeam(t, source.LayerLocal, "t", "m")
 	cat := l.catalog()
 
-	lead := filepath.Join(l.local, "roles", "lead-role.yaml")
+	lead := filepath.Join(l.local, "roles", "lead-role.md")
 	sameRefs(t, "readers of the lead's role document", cat.Readers(lead), "t/a")
-	impl := filepath.Join(l.local, "roles", "impl-role.yaml")
+	impl := filepath.Join(l.local, "roles", "impl-role.md")
 	sameRefs(t, "readers of the impl's role document", cat.Readers(impl), "t/b")
-	sameRefs(t, "readers of a document nobody reads", cat.Readers(filepath.Join(l.local, "roles", "absent.yaml")))
+	sameRefs(t, "readers of a document nobody reads", cat.Readers(filepath.Join(l.local, "roles", "absent.md")))
 }
 
 // TestReadersOfAnAgreement: a team's own agreement is read by that team's
@@ -61,7 +61,7 @@ func TestReadersOfAnAgreement(t *testing.T) {
 
 	sameRefs(t, "readers of the shared agreement", cat.Readers(shared))
 
-	own := filepath.Join(l.local, "teams", "t", "agreement.yaml")
+	own := filepath.Join(l.local, "teams", "t", "agreement.md")
 	sameRefs(t, "readers of the team's own agreement", cat.Readers(own), "t/a", "t/b")
 }
 
@@ -74,7 +74,7 @@ func TestReadersAcrossDefinitions(t *testing.T) {
 	cat := l.catalog()
 
 	sameRefs(t, "readers of the shared role document",
-		cat.Readers(filepath.Join(l.local, "roles", "lead-role.yaml")), "second/a", "t/a")
+		cat.Readers(filepath.Join(l.local, "roles", "lead-role.md")), "second/a", "t/a")
 	sameRefs(t, "role users", cat.RoleUsers("lead-role"), "second/a", "t/a")
 }
 
@@ -87,7 +87,7 @@ func TestReadersLeaveOutADefinitionThatDoesNotRead(t *testing.T) {
 	cat := l.catalog()
 
 	sameRefs(t, "readers of the shared role document",
-		cat.Readers(filepath.Join(l.local, "roles", "lead-role.yaml")), "t/a")
+		cat.Readers(filepath.Join(l.local, "roles", "lead-role.md")), "t/a")
 	sameRefs(t, "role users", cat.RoleUsers("lead-role"), "t/a")
 }
 

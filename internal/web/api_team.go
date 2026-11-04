@@ -9,7 +9,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"time"
 
 	"go.yaml.in/yaml/v3"
 
@@ -19,7 +18,6 @@ import (
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/profile"
 	"github.com/aq2bq/hergy/internal/prompt"
-	"github.com/aq2bq/hergy/internal/rules"
 	"github.com/aq2bq/hergy/internal/source"
 )
 
@@ -32,7 +30,7 @@ import (
 //
 // One team definition holds two documents, so apiIn.Part says which one a
 // payload is about: "team" is the figure (team.yaml) and "agreement" is the
-// team's own agreement.yaml.
+// team's own agreement.md.
 
 // apiTeam is the team kind.
 type apiTeam struct{ s *Server }
@@ -56,8 +54,6 @@ type apiTeamSummary struct {
 	Description string          `json:"description"`
 	Members     []apiTeamMember `json:"members"`
 	Workers     int             `json:"workers"`
-	Rules       int             `json:"rules"`
-	Excluded    int             `json:"excluded,omitempty"`
 	Broken      bool            `json:"broken,omitempty"`
 	// Size is the definition's own size, counted the way d-00a9 says: the part
 	// of its rules that goes into the prompt and the words of its templates.
@@ -120,15 +116,13 @@ type apiTeamDraftRow struct {
 
 // apiTeamAgree is a team's own agreement as the screen reads it: where it
 // stands, its hash, whether the file is there at all, how many rules it holds,
-// and the document itself. A team with no agreement.yaml answers with Has false
+// and the document itself. A team with no agreement.md answers with Has false
 // and no document, so the screen draws the empty agreement a save would write.
 type apiTeamAgree struct {
-	Path     string `json:"path"`
-	Hash     string `json:"hash"`
-	Has      bool   `json:"has"`
-	Rules    int    `json:"rules"`
-	Excluded int    `json:"excluded,omitempty"`
-	Doc      *r2Doc `json:"doc,omitempty"`
+	Path string `json:"path"`
+	Hash string `json:"hash"`
+	Has  bool   `json:"has"`
+	Doc  *r2Doc `json:"doc,omitempty"`
 }
 
 // apiTeamGet is one team definition in one place, the answer of GET
@@ -219,7 +213,7 @@ func (s *Server) t2DocOf(name, layer string, def *definition.Definition) apiTeam
 }
 
 // t2DocWithAgree is t2DocOf with the agreement given rather than read: a
-// definition that is not there yet has no agreement.yaml to read, so its rules
+// definition that is not there yet has no agreement.md to read, so its rules
 // come from the text the row stands on (spec-teams B2).
 func (s *Server) t2DocWithAgree(cat *catalog.Catalog, name string, def *definition.Definition, agree *apiTeamAgree) apiTeamDoc {
 	out := apiTeamDoc{Agreement: agree}
@@ -291,8 +285,6 @@ func (s *Server) buildSummaryOf(name, layer string, def *definition.Definition) 
 			out.Members = append(out.Members, apiTeamMember{Name: m.Name, Role: m.Role, Profile: m.Profile})
 		}
 	}
-	agree := s.t2AgreeOf(name, layer)
-	out.Rules, out.Excluded = agree.Rules, agree.Excluded
 	// The same size and budget the figure's check answers (d-00a9, r-2f83): a
 	// file that does not read has no size, but the budget it will be held to is
 	// still known.
@@ -322,7 +314,7 @@ func t2MembersOfText(text string) []apiTeamMember {
 	return out
 }
 
-// t2AgreeOf is one layer's agreement.yaml for a definition: the document, the
+// t2AgreeOf is one layer's agreement.md for a definition: the document, the
 // count of rules it holds (the ones kept out of the prompt included), and
 // whether the file is there at all.
 func (s *Server) t2AgreeOf(name, layer string) *apiTeamAgree {
@@ -333,19 +325,13 @@ func (s *Server) t2AgreeOf(name, layer string) *apiTeamAgree {
 		return out
 	}
 	out.Has, out.Hash = true, source.Hash(text)
-	doc, _ := rules.ReadAll(text, out.Path)
-	if doc == nil {
-		doc = &rules.Document{Path: path}
-	}
-	out.Rules = len(doc.IncludedRules()) + doc.ExcludedCount()
-	out.Excluded = doc.ExcludedCount()
-	out.Doc = r2DocOf(doc)
+	out.Doc = r2DocOf(text, path)
 	return out
 }
 
-// t2AgreeFile is a team's own agreement.yaml in one layer.
+// t2AgreeFile is a team's own agreement.md in one layer.
 func (s *Server) t2AgreeFile(name, layer string) string {
-	return filepath.Join(filepath.Dir(s.cat.TeamYAML(name, layer)), "agreement.yaml")
+	return filepath.Join(filepath.Dir(s.cat.TeamYAML(name, layer)), "agreement.md")
 }
 
 // t2CountsOf is how many errors and warnings one place's definition carries:
@@ -371,7 +357,7 @@ func (s *Server) buildCountsOf(name, layer string) apiCounts {
 	return out
 }
 
-// t2FilesOf is every team.yaml and agreement.yaml a layer holds for one name,
+// t2FilesOf is every team.yaml and agreement.md a layer holds for one name,
 // the files the YAML tab can open.
 func (s *Server) t2FilesOf(listing catalog.Listing) []apiFile {
 	var out []apiFile
@@ -386,11 +372,11 @@ func (s *Server) t2FilesOf(listing catalog.Listing) []apiFile {
 	}
 	if listing.Local {
 		add(catalog.PlaceProject, "team", listing.LocalPath, false)
-		add(catalog.PlaceProject, "agreement", filepath.Join(filepath.Dir(listing.LocalPath), "agreement.yaml"), false)
+		add(catalog.PlaceProject, "agreement", filepath.Join(filepath.Dir(listing.LocalPath), "agreement.md"), false)
 	}
 	if listing.Global {
 		add(catalog.PlaceGlobal, "team", listing.GlobalPath, listing.Local)
-		add(catalog.PlaceGlobal, "agreement", filepath.Join(filepath.Dir(listing.GlobalPath), "agreement.yaml"), listing.Local)
+		add(catalog.PlaceGlobal, "agreement", filepath.Join(filepath.Dir(listing.GlobalPath), "agreement.md"), listing.Local)
 	}
 	return out
 }
@@ -740,7 +726,7 @@ func (k apiTeam) checkAgreement(in apiIn) (any, *apiErr) {
 		return nil, refusal
 	}
 	report := check.Agreement(check.AgreementInput{
-		Catalog: cat, Name: in.Name, Place: catalog.Layer(in.Place), Draft: body.in.Doc.document(),
+		Catalog: cat, Name: in.Name, Place: catalog.Layer(in.Place), Text: body.in.Doc.Text,
 	})
 	return r2CheckAnswer(report, false), nil
 }
@@ -940,7 +926,7 @@ func (k apiTeam) saveFigure(name string, in apiIn) (any, *apiErr) {
 	return k.savedAnswer(name, in.Place), nil
 }
 
-// saveAgreement writes a team's own agreement.yaml from the panel's document.
+// saveAgreement writes a team's own agreement.md from the panel's document.
 // An agreement the team does not have yet is written whole (spec-teams 1.5).
 func (k apiTeam) saveAgreement(name string, in apiIn) (any, *apiErr) {
 	s := k.s
@@ -962,38 +948,12 @@ func (k apiTeam) saveAgreement(name string, in apiIn) (any, *apiErr) {
 	if readErr == nil {
 		hash = source.Hash(text)
 	}
-	draft := body.in.Doc
-	draftDoc := draft.document()
-	var saved *rules.Document
-	if readErr == nil {
-		saved, _ = rules.ReadAll(text, display)
-		if saved == nil {
-			saved = &rules.Document{Path: path}
-		}
-	}
-	rules.FillOffDates(saved, draftDoc, time.Now().Format("2006-01-02"))
-	var edited string
-	var err error
-	if readErr != nil {
-		edited, err = rules.Emit(draftDoc)
-	} else {
-		written, rewriteErr := rules.Rewrite([]byte(text), saved, rules.Draft{
-			Doc: draftDoc, From: draft.froms(), SectionFrom: draft.sectionFroms(),
-			SaveFrom: rules.SaveFromTeamDefinition,
-		})
-		edited, err = string(written), rewriteErr
-	}
-	if err != nil {
-		return nil, refuse(http.StatusUnprocessableEntity, err.Error())
-	}
+	edited := body.in.Doc.Text
 	if in.Hash != hash {
 		return nil, s.refuseChanged(display, path, ruleDoc(display), false)
 	}
 	if err := source.WriteIfUnchanged(path, hash, edited); err != nil {
 		return s.r2WriteError(err, display, path, ruleDoc(display))
-	}
-	if refusal := s.assignRuleIDs(); refusal != nil {
-		return nil, refusal
 	}
 	out := k.savedAnswer(name, in.Place)
 	if one, refusal := k.Get(name, in.Place); refusal == nil {
@@ -1032,12 +992,10 @@ func (k apiTeam) saveYAML(name string, in apiIn) (any, *apiErr) {
 		return nil, s.refuseChanged(display, path, nil, false)
 	}
 	written := in.Text
-	if kind == "agreement" {
-		if refusal := t2RefuseNewRuleError(display, text, in.Text); refusal != nil {
+	if kind != "agreement" {
+		if refusal := t2RefuseNewTeamText(s.cat, path, name, layer, text, in.Text); refusal != nil {
 			return nil, refusal
 		}
-	} else if refusal := t2RefuseNewTeamText(s.cat, path, name, layer, text, in.Text); refusal != nil {
-		return nil, refusal
 	}
 	if err := source.WriteIfUnchanged(path, hash, written); err != nil {
 		doc := ruleDoc(display)
@@ -1045,9 +1003,6 @@ func (k apiTeam) saveYAML(name string, in apiIn) (any, *apiErr) {
 			doc = s.teamDoc(name, layer)
 		}
 		return s.r2WriteError(err, display, path, doc)
-	}
-	if refusal := s.assignRuleIDs(); refusal != nil {
-		return nil, refusal
 	}
 	written = s.writtenText(path, written)
 	out := k.savedAnswer(name, place)
@@ -1098,25 +1053,6 @@ func t2TurnGateFinding(finding check.Finding) bool {
 	return finding.Kind == check.KindGraph && strings.HasPrefix(finding.Field, "node:")
 }
 
-// t2RefuseNewRuleError is the refusal for the first rule file error a typed
-// text holds that the saved one did not, or nil.
-func t2RefuseNewRuleError(display, before, after string) *apiErr {
-	_, saved := rules.ReadAll(before, display)
-	known := map[string]bool{}
-	for _, problem := range saved {
-		if problem.Sev == rules.SevError {
-			known[problem.Text] = true
-		}
-	}
-	_, typed := rules.ReadAll(after, display)
-	for _, problem := range typed {
-		if problem.Sev == rules.SevError && !known[problem.Text] {
-			return refuse(http.StatusUnprocessableEntity, problem.Text)
-		}
-	}
-	return nil
-}
-
 // savedAnswer is the answer of a write: the one definition as GET /api/team
 // reads it now, with the whole list under it (spec-boundary 5).
 func (k apiTeam) savedAnswer(name, place string) apiSaved {
@@ -1132,7 +1068,7 @@ func (k apiTeam) savedAnswer(name, place string) apiSaved {
 }
 
 // Delete is DELETE /api/team/{name}?place=&hash=&agreement_hash=: take one
-// definition's folder out of its layer — team.yaml and agreement.yaml — and the
+// definition's folder out of its layer — team.yaml and agreement.md — and the
 // directory itself when the two files were all it held (spec-teams B6). Each
 // file the screen read must still be the one it read, so a file that moved under
 // the screen is not removed.

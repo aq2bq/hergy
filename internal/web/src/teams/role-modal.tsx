@@ -9,28 +9,25 @@ import { ConflictNotice, conflictOf } from '../lib/conflict.js';
 import type { Conflict } from '../lib/conflict.js';
 import { carryTo } from '../lib/nav.js';
 import { projectOfGroup } from '../lib/copy.js';
-import { CURRENT, groupOfRecord, refreshAfterRoleSave, checkTeam } from './state.js';
+import { CURRENT, groupOfRecord, refreshAfterRoleSave, checkTeam, pressDtab } from './state.js';
 import type { Rec } from './state.js';
 
 type Session = { id: number; r: Rec; name: string; expectedPlace?: string; trigger: HTMLElement | null };
 type Entry = { saved: EditableDocument; draft: EditableDocument; hash: string; text: string };
-const active = signal<Session | null>(null);
 let ids = 1000000;
-
-export function RoleButton({ r, name, expectedPlace, children = 'ロールを確認・編集' }: { r: Rec; name: string; expectedPlace?: string; children?: string }) {
-  return <button class="btn sm" type="button" disabled={!name} onClick={(event) => {
-    active.value = { id: ++ids, r, name, expectedPlace, trigger: event.currentTarget };
+const focusTarget = signal('');
+export function RoleButton({ r, name, children = 'ロールを確認・編集' }: { r: Rec; name: string; expectedPlace?: string; children?: string }) {
+  return <button class="btn sm" type="button" disabled={!name} onClick={() => {
+    focusTarget.value = `prose-${r.uid}-${name}`;
+    pressDtab(r, 'agree');
   }}>{children}</button>;
 }
-
-export function RoleModal() {
-  const session = active.value;
-  return session ? <Editor key={session.id} session={session} /> : null;
+export function RoleColumn({ r, name }: { r: Rec; name: string }) {
+  const session = useMemo<Session>(() => ({ id: ++ids, r, name, trigger: null }), [r, name]);
+  return <Editor session={session} />;
 }
 
-function Editor({ session }: { session: Session }) {
-  const dialog = useRef<HTMLDialogElement>(null);
-  const model = useMemo(() => {
+function newModel(session: Session) {
     const global = session.r.place.value === 'global';
     const project = global ? undefined : (projectOfGroup(groupOfRecord(session.r)) || CURRENT);
     const query = new URLSearchParams({ context: global ? 'global' : 'project' });
@@ -42,11 +39,27 @@ function Editor({ session }: { session: Session }) {
       conflict: signal<{ c: Conflict; before?: Entry; undone?: boolean } | null>(null),
       context: resource(async (signal: AbortSignal) => read<Schemas['RoleContext']>(`/api/role/${encodeURIComponent(session.name)}/context?${query}`, { signal })),
     };
+}
+
+const models = new Map<string, ReturnType<typeof newModel>>();
+export function roleDraftsDirty(): boolean {
+  return [...models.values()].some((model) => {
+    const e = model.entry.value;
+    return !!e && e.draft.text !== e.saved.text;
+  });
+}
+
+function Editor({ session }: { session: Session }) {
+  const dialog = useRef<HTMLElement>(null);
+  const model = useMemo(() => {
+    const key = `${session.r.uid}:${session.r.place.value}:${session.name}`;
+    let held = models.get(key);
+    if (!held) { held = newModel(session); models.set(key, held); }
+    return held;
   }, [session]);
   const { editor, entry } = model;
   const dirty = () => !!entry.value && JSON.stringify(entry.value.draft) !== JSON.stringify(entry.value.saved);
   const canClose = () => !editor.saving.value && (!dirty() || window.confirm('ロールに保存していない変更があります。変更を破棄して閉じますか？'));
-  function close() { if (canClose()) active.value = null; }
   async function check(resetBaseline = false) {
     const e = entry.value, ctx = model.context.value.value;
     if (!e || !ctx) return;
@@ -68,10 +81,10 @@ function Editor({ session }: { session: Session }) {
     await check(true);
   }
   useEffect(() => {
-    dialog.current?.showModal();
-    void load();
+    if (!dirty()) void load();
+    else void check();
     return () => {
-      model.context.abort(); editor.check.abort(); dialog.current?.close();
+      model.context.abort(); editor.check.abort();
       session.trigger?.focus({ preventScroll: true });
     };
   }, [model]);
@@ -102,6 +115,11 @@ function Editor({ session }: { session: Session }) {
   }
 
   const ctx = model.context.value.value, e = entry.value;
+  useEffect(() => {
+    if (!e || focusTarget.value !== `prose-${session.r.uid}-${session.name}`) return;
+    const input = dialog.current?.querySelector('textarea');
+    if (input) { input.focus(); input.scrollIntoView({ block: 'nearest', inline: 'nearest' }); focusTarget.value = ''; }
+  }, [e, focusTarget.value]);
   const answer = editor.check.value.value?.json;
   const issues = e && answer?.problems ? roleProblems(e.draft, answer.problems) : [];
   const errors = issues.filter((p) => p.sev === 'err' && !model.baseline.value?.has(p.text));
@@ -111,36 +129,22 @@ function Editor({ session }: { session: Session }) {
   const query = new URLSearchParams({ open: session.name + '|' + (ctx?.place === 'global' ? 'global' : (model.project || '')) });
   if (model.project) query.set('project', model.project);
   function leave(event: MouseEvent) { if (!canClose()) event.preventDefault(); else carryTo('roles', model.project); }
-  function keyDown(event: KeyboardEvent) {
-    event.stopPropagation();
-    if (event.key !== 'Tab' || !dialog.current) return;
-    const fields = Array.from(dialog.current.querySelectorAll<HTMLElement>('button, a[href], input, select, textarea, summary, [tabindex]'))
-      .filter((el) => !el.matches(':disabled, [tabindex="-1"]') && el.getClientRects().length > 0);
-    const at = fields.indexOf(document.activeElement as HTMLElement);
-    if (event.shiftKey ? at <= 0 : at < 0 || at === fields.length - 1) {
-      event.preventDefault();
-      (event.shiftKey ? fields.at(-1) : fields[0])?.focus();
-    }
-  }
-  return <dialog class="role-dialog" ref={dialog} aria-modal="true" aria-labelledby={`role-title-${session.id}`}
-    onKeyDown={keyDown} onCancel={(event) => { event.preventDefault(); close(); }}>
-    <header><h2 id={`role-title-${session.id}`} tabIndex={-1}>ロール {session.name}</h2><button class="btn" disabled={editor.saving.value} onClick={close}>閉じる</button></header>
-    {ctx ? <section class="role-usage" aria-label="保存の影響">
+  return <section class="prose-column role-column" ref={dialog} id={`prose-${session.r.uid}-${session.name}`} aria-labelledby={`role-title-${session.id}`}>
+    <header><h2 id={`role-title-${session.id}`} tabIndex={-1}>{e?.draft.title || session.name}（{session.name}）</h2>{ctx ? <code class="path" title={ctx.path}>{ctx.place === 'global' ? 'グローバル' : 'プロジェクト'} · roles/{session.name}.md</code> : null}</header>
+    {ctx ? <details class="role-usage"><summary>保存先と影響するチーム</summary>
       <p>{ctx.place === 'global' ? 'グローバル' : 'プロジェクト'} · <code>{ctx.path}</code></p>
       {ctx.place === 'global' ? <p>ほかのプロジェクトからも使える文書です。実行するプロジェクトに同名のロールがあれば、その文書が使われます。</p> : null}
       <p>このチーム定義で編集中: {session.r.name.value}。確認できた範囲: {ctx.scanned.join('、')}</p>
       {other.length ? <ul>{other.map((u) => <li>{u.project_name} / {u.name}（{u.place === 'global' ? 'グローバル' : 'プロジェクト'}）: {u.members.join('、')}</li>)}</ul> : <p>確認できた範囲では、ほかに使うチーム定義はありません。</p>}
       {ctx.errors.map((text) => <p role="alert">{text}</p>)}
       {ctx.state !== 'readable' ? <p role="alert">{ctx.problem}</p> : null}
-    </section> : null}
+    </details> : null}
     <div class="role-dialog-body">
     {model.context.error.value ? <p role="alert">{problemText(model.context.error.value, 'ロールと使用先を読み込めませんでした')}</p> : null}
     {model.context.loading.value ? <p role="status">ロールと使用先を読んでいます。</p> : null}
-    <p><a href={`/roles?${query}`} onClick={leave}>ロールの画面で開く</a>{ctx?.state === 'unreadable' ? <> · <a href={`/roles/yaml?${query}&file=${ctx.place}.${encodeURIComponent(session.name)}`} onClick={leave}>ロールのYAMLで直す</a></> : null}</p>
-    <button class="btn sm" disabled={editor.saving.value} onClick={() => { if (canClose()) void load(); }}>文書を読み直す</button>
     {model.target.value && ctx && model.target.value.path !== ctx.path ? <p role="alert">使われるロールの置き場所が変わりました。文書を読み直してください。</p> : null}
     {e && ctx?.state === 'readable' ? <fieldset disabled={editor.saving.value || !model.baseline.value}><div class="pmain"><RuleDoc hasName={false}
-      row={{ uid: session.id, l: ctx.place, saved: e.saved, draft: e.draft, markdown: answer?.preview || { lines: [], chars: 0 }, diff: answer?.effect?.diff || {}, turns: answer?.effect?.turns || [], savedIssues: [] }}
+      row={{ uid: session.id, l: ctx.place, saved: e.saved, draft: e.draft, markdown: answer?.preview || { lines: [], chars: 0 }, diff: answer?.effect?.diff || {}, savedIssues: [] }}
       issues={issues} onChange={() => { entry.value = { ...e, draft: structuredClone(e.draft) }; model.ok.value = false; void check(); }} /></div></fieldset> : null}
     {model.conflict.value && e ? <ConflictNotice c={model.conflict.value.c} mine={e.text} busy={editor.saving.value} undone={model.conflict.value.undone}
       onOverwrite={() => void save(model.conflict.value?.c.file.hash)}
@@ -150,6 +154,8 @@ function Editor({ session }: { session: Session }) {
     {editor.check.error.value ? <p role="alert">{problemText(editor.check.error.value, 'ロールを検査できませんでした')}</p> : null}
     {model.error.value ? <p role="alert">{model.error.value}</p> : null}
     </div>
-    <footer>{e ? <button class="btn primary" disabled={blocked} onClick={() => void save()}>ロールを保存</button> : null}{model.ok.value ? <span role="status">ロールを保存しました</span> : null}</footer>
-  </dialog>;
+    <footer>    <p><a href={`/roles?${query}`} onClick={leave}>ロールの画面で開く</a>{ctx?.state === 'unreadable' ? <> · <a href={`/roles/yaml?${query}&file=${ctx.place}.${encodeURIComponent(session.name)}`} onClick={leave}>ロールの Markdown で直す</a></> : null}</p>
+    <button class="btn sm" disabled={editor.saving.value} onClick={() => { if (canClose()) void load(); }}>文書を読み直す</button>
+{e ? <button class="btn primary" disabled={blocked} onClick={() => void save()}>ロールを保存</button> : null}{model.ok.value ? <span role="status">ロールを保存しました</span> : null}</footer>
+  </section>;
 }

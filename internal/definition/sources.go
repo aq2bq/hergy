@@ -217,11 +217,11 @@ func Read(in Input) (*Definition, error) {
 	return def, nil
 }
 
-// teamAgreement is where a team's own agreement sits: agreement.yaml in the
+// teamAgreement is where a team's own agreement sits: agreement.md in the
 // definition's own folder. It is not read here; the reader is asked whether it
 // is there, and prompt.Member reads it when it builds a member's prompt.
 func teamAgreement(in Input) source.Doc {
-	return source.Doc{Layer: in.Layer, Path: filepath.Join(in.TeamDir, "agreement.yaml")}
+	return source.Doc{Layer: in.Layer, Path: filepath.Join(in.TeamDir, "agreement.md")}
 }
 
 // promptOf is the team's own prompt template: the text it wrote, or "" when it

@@ -65,7 +65,7 @@ func (f *fixture) teamPath() string {
 
 // leadRolePath is where the fixture's lead role document sits.
 func (f *fixture) leadRolePath() string {
-	return filepath.Join(f.proj, ".hergy", "roles", "lead.yaml")
+	return filepath.Join(f.proj, ".hergy", "roles", "lead.md")
 }
 
 // teamHead is the part of a team.yaml before its members: everything the
@@ -99,7 +99,7 @@ func (f *fixture) role(name, rules string) {
 func (f *fixture) roleText(name, rules string) string {
 	f.t.Helper()
 	text := "version: 1\ntitle: " + name + "\nsections:\n  - heading: 仕事\n    rules:\n" + rules
-	f.write(filepath.Join(f.proj, ".hergy", "roles", name+".yaml"), text)
+	f.write(filepath.Join(f.proj, ".hergy", "roles", name+".md"), text)
 	return text
 }
 
@@ -167,73 +167,6 @@ func TestDefinitionStopsOnAGraphProblem(t *testing.T) {
 	}
 }
 
-// TestTurnFindings: a rule text that writes a turn the graph does not have warns
-// (段 5); a name the graph has no node for warns too, and says which name (spec/33
-// H2); a worker's purpose is not such a name, because workers: ties the worker to
-// its member (spec/33 の 3).
-func TestTurnFindings(t *testing.T) {
-	f := newFixture(t)
-	// lead may hire a worker whose purpose is 実装: workers: ties that worker to
-	// lead, so the arrow RAAF writes is not a name without a node.
-	f.write(filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml"),
-		"version: 1\ndescription: a team for the test\nmembers:\n"+leadMember+specMember+
-			"workers:\n  - from: lead\n    purpose: 実装\n    profile: claude\nturns:\n"+
-			"  - human -> lead\n  - lead -> human\n  - spec -> human\n")
-	f.role("lead", strings.Join([]string{
-		"      - id: PAAF\n        text: 設計は spec に渡す（lead → spec）。\n",
-		"      - id: QAAF\n        text: 実装は impl に渡す（lead → impl）。\n",
-		"      - id: RAAF\n        text: 実装はワーカーに払い出す（lead → 実装）。\n",
-	}, ""))
-	f.role("spec", "      - id: SPEC-1\n        text: 何かをする。\n")
-
-	got := f.findings()
-	var texts []string
-	for _, finding := range got {
-		if finding.Stops {
-			t.Fatalf("the definition stopped: %+v", finding)
-		}
-		if finding.Kind != KindTurn {
-			t.Errorf("finding %+v is not about a turn", finding)
-		}
-		if want := "rule:" + f.leadRolePath() + "#"; !strings.HasPrefix(finding.Field, want) {
-			t.Errorf("finding %+v does not name the rule it is about (want %s...)", finding, want)
-		}
-		texts = append(texts, finding.Text)
-	}
-	joined := strings.Join(texts, "\n")
-	if want := i18n.Tf("validate.turn_not_in_turns", "PAAF", "lead → spec"); !strings.Contains(joined, want) {
-		t.Errorf("no warning that turns: lacks lead → spec:\n%s", joined)
-	}
-	if want := i18n.Tf("validate.turn_unknown_name", "QAAF", "lead → impl", "impl"); !strings.Contains(joined, want) {
-		t.Errorf("no warning for the name impl:\n%s", joined)
-	}
-	if strings.Contains(joined, "実装") {
-		t.Errorf("a worker's purpose warned:\n%s", joined)
-	}
-}
-
-// TestATurnWarningReadsARuleKeptOutOfThePrompt: a rule a file keeps out of the
-// prompt (in_prompt: false) is a rule still, so the arrow its text writes is
-// compared with the definition's turns: and warned about the same way
-// (d-f187).
-func TestATurnWarningReadsARuleKeptOutOfThePrompt(t *testing.T) {
-	f := newFixture(t)
-	f.team("  - human -> lead\n  - lead -> human\n  - spec -> human\n")
-	f.role("lead", "      - id: PAAF\n        text: 設計は spec に渡す（lead → spec）。\n        in_prompt: false\n")
-	f.role("spec", "      - id: SPEC-1\n        text: 何かをする。\n")
-
-	want := i18n.Tf("validate.turn_not_in_turns", "PAAF", "lead → spec")
-	found := false
-	for _, finding := range f.findings() {
-		if finding.Kind == KindTurn && strings.Contains(finding.Text, want) {
-			found = true
-		}
-	}
-	if !found {
-		t.Errorf("a rule kept out of the prompt is not compared with turns: (want %q)", want)
-	}
-}
-
 // TestDefinitionSaysWhenTheGlobalOneIsHidden: a name in both layers is read from
 // the project's own; the global one is reported where a person reading it finds
 // it (I11). The one way a name is looked up reports nothing.
@@ -256,61 +189,6 @@ func TestDefinitionSaysWhenTheGlobalOneIsHidden(t *testing.T) {
 	}
 	if got := f.findings(); len(got) != 0 {
 		t.Errorf("the one way reports the hidden warning: %+v", got)
-	}
-}
-
-// TestTheHumanIsReadInBothWords: a rule's text writes the human the way its own
-// language does, and hergy reads either word in either language, because a rule
-// is written in one language while turns: names the human the same way in both
-// (S1). A Japanese rule that writes "human" is a turn to the human, and a rule
-// that writes it where turns: has no such edge is warned about in the same
-// words.
-func TestTheHumanIsReadInBothWords(t *testing.T) {
-	cases := []struct {
-		name string
-		text string
-	}{
-		{"a Japanese text writes the English word", "設計は human に聞く（spec → human）。"},
-		{"an English text writes the Japanese word", "the design asks 人間 (spec → 人間)."},
-	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			f := newFixture(t)
-			f.team("  - human -> lead\n  - lead -> human\n  - spec -> human\n")
-			f.role("lead", "      - id: PAAF\n        text: 何かをする。\n")
-			f.role("spec", "      - id: SPEC-1\n        text: "+c.text+"\n")
-
-			got := f.findings()
-			for _, finding := range got {
-				if finding.Stops {
-					t.Fatalf("the definition stopped: %+v", finding)
-				}
-				if strings.Contains(finding.Text, "human") || strings.Contains(finding.Text, "人間") {
-					t.Errorf("the human was read as an unknown name: %s", finding.Text)
-				}
-			}
-		})
-
-		t.Run(c.name+", and turns: does not have the edge", func(t *testing.T) {
-			f := newFixture(t)
-			// spec hands the turn to lead rather than to the human, so the graph
-			// holds while the rule's turn is one turns: does not have.
-			f.team("  - human -> lead\n  - lead -> human\n  - spec -> lead\n")
-			f.role("lead", "      - id: PAAF\n        text: 何かをする。\n")
-			f.role("spec", "      - id: SPEC-1\n        text: "+c.text+"\n")
-
-			got := f.findings()
-			var joined strings.Builder
-			for _, finding := range got {
-				if finding.Stops {
-					t.Fatalf("the definition stopped: %+v", finding)
-				}
-				joined.WriteString(finding.Text + "\n")
-			}
-			if want := i18n.Tf("validate.turn_not_in_turns", "SPEC-1", "spec → human"); !strings.Contains(joined.String(), want) {
-				t.Errorf("no warning that turns: lacks spec → human:\n%s", joined.String())
-			}
-		})
 	}
 }
 
@@ -463,20 +341,6 @@ func TestFieldKeysReadTheSameInBothLanguages(t *testing.T) {
 			want: func(*fixture) []string { return []string{"members[0]"} },
 		},
 		{
-			name: "members[i], the member's documents together (one rule id twice)",
-			write: func(f *fixture) {
-				f.write(f.teamPath(), reads)
-				f.role("lead", "      - id: PAAF\n        text: 何かをする。\n")
-				f.role("spec", "      - id: SPEC-1\n        text: 何かをする。\n")
-				f.write(filepath.Join(f.proj, ".hergy", "teams", "demo", "agreement.yaml"),
-					"version: 1\ntitle: agreement\nsections:\n  - heading: 約束\n    rules:\n"+
-						"      - id: SPEC-1\n        text: 何かをする。\n")
-			},
-			want: func(f *fixture) []string {
-				return []string{"rule:" + f.agreementPath() + "#SPEC-1"}
-			},
-		},
-		{
 			name: "turns[i], the i-th line",
 			write: func(f *fixture) {
 				f.write(f.teamPath(), "version: 1\ndescription: a team for the test\nmembers:\n"+leadMember+specMember+
@@ -500,15 +364,6 @@ func TestFieldKeysReadTheSameInBothLanguages(t *testing.T) {
 				f.roles()
 			},
 			want: func(*fixture) []string { return []string{"node:human", "node:lead", "node:spec"} },
-		},
-		{
-			name: "rule:<document path>#<rule id>",
-			write: func(f *fixture) {
-				f.write(f.teamPath(), reads)
-				f.role("lead", "      - id: PAAF\n        text: 実装は impl に渡す（lead → impl）。\n")
-				f.role("spec", "      - id: SPEC-1\n        text: 何かをする。\n")
-			},
-			want: func(f *fixture) []string { return []string{"rule:" + f.leadRolePath() + "#PAAF"} },
 		},
 		{
 			name: "the file as a whole",
@@ -550,196 +405,6 @@ func fields(findings []Finding) []string {
 	}
 	slices.Sort(out)
 	return slices.Compact(out)
-}
-
-// stopFields is the fields of the findings that stop the definition.
-func stopFields(findings []Finding) []string {
-	var out []string
-	for _, finding := range findings {
-		if finding.Stops {
-			out = append(out, finding.Field)
-		}
-	}
-	return out
-}
-
-// TestADraftRuleIdIsCheckedAgainstTheAgreement: the check builds every prompt and
-// reads every rule document through the catalog, so a role document's draft (C3b,
-// With) that carries an id the team's agreement already has stops the definition
-// before it is saved, while the same files on disk are accepted (N1). The draft
-// is not written: the file keeps the text it had.
-func TestADraftRuleIdIsCheckedAgainstTheAgreement(t *testing.T) {
-	f := newFixture(t)
-	f.team("  - human -> lead\n  - lead -> human\n  - spec -> human\n")
-	f.role("lead", "      - id: PAAF\n        text: 何かをする。\n")
-	f.role("spec", "      - id: SPEC-1\n        text: 何かをする。\n")
-	// The agreement holds an id the draft of the lead's role document takes.
-	f.write(filepath.Join(f.proj, ".hergy", "teams", "demo", "agreement.yaml"),
-		"version: 1\ntitle: agreement\nsections:\n  - heading: 約束\n    rules:\n"+
-			"      - id: DUP-1\n        text: 何かをする。\n")
-
-	if got := stopFields(f.findings()); len(got) != 0 {
-		t.Fatalf("the definition stops on the files as they are: %v", got)
-	}
-
-	draft := "version: 1\ntitle: lead\nsections:\n  - heading: 仕事\n    rules:\n" +
-		"      - id: PAAF\n        text: 何かをする。\n" +
-		"      - id: DUP-1\n        text: 書きかけの規則。\n"
-	got := Definition(Input{Catalog: f.cat.With(f.leadRolePath(), draft), Name: "demo"})
-	var stops []Finding
-	for _, finding := range got {
-		if finding.Stops {
-			stops = append(stops, finding)
-		}
-	}
-	if len(stops) != 1 {
-		t.Fatalf("stops = %+v, want the one member whose draft holds the id twice", stops)
-	}
-	if stops[0].Kind != KindBetween || stops[0].Role != "lead" || stops[0].RuleID != "DUP-1" {
-		t.Errorf("stop = %+v, want the combination finding that names the role's rule", stops[0])
-	}
-	if want := "rule:" + f.agreementPath() + "#DUP-1"; stops[0].Field != want {
-		t.Errorf("field = %q, want %q", stops[0].Field, want)
-	}
-	if !strings.Contains(stops[0].Text, "DUP-1") {
-		t.Errorf("the stop does not name the id that stands twice: %s", stops[0].Text)
-	}
-
-	onDisk, err := os.ReadFile(f.leadRolePath())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if strings.Contains(string(onDisk), "DUP-1") {
-		t.Errorf("the check wrote the draft to disk:\n%s", onDisk)
-	}
-}
-
-// TestATurnWarningReadsTheDraft: the comparison of a rule text's arrows reads the
-// draft too (N1), so a rule the screen is editing, which writes a turn the graph
-// does not have, warns before it is saved. The same file on disk writes a turn
-// turns: has, so it warns about nothing, and it is left as it was.
-func TestATurnWarningReadsTheDraft(t *testing.T) {
-	f := newFixture(t)
-	f.team("  - human -> lead\n  - lead -> human\n  - spec -> human\n")
-	f.role("lead", "      - id: PAAF\n        text: 設計は spec の話を聞く（spec → human）。\n")
-	f.role("spec", "      - id: SPEC-1\n        text: 何かをする。\n")
-
-	for _, finding := range f.findings() {
-		if finding.Kind == KindTurn {
-			t.Fatalf("the file on disk warns about a turn: %+v", finding)
-		}
-	}
-
-	draft := "version: 1\ntitle: lead\nsections:\n  - heading: 仕事\n    rules:\n" +
-		"      - id: PAAF\n        text: 実装は impl に渡す（lead → impl）。\n"
-	got := Definition(Input{Catalog: f.cat.With(f.leadRolePath(), draft), Name: "demo"})
-	var warned int
-	for _, finding := range got {
-		if finding.Kind != KindTurn {
-			continue
-		}
-		warned++
-		if want := "rule:" + f.leadRolePath() + "#PAAF"; finding.Field != want {
-			t.Errorf("the warning names %q, want %q", finding.Field, want)
-		}
-		if want := i18n.Tf("validate.turn_unknown_name", "PAAF", "lead → impl", "impl"); finding.Text != want {
-			t.Errorf("the warning reads %q, want %q", finding.Text, want)
-		}
-	}
-	if warned != 1 {
-		t.Errorf("the draft warned %d times about a turn, want the one arrow it writes", warned)
-	}
-
-	onDisk, err := os.ReadFile(f.leadRolePath())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(onDisk), "spec → human") {
-		t.Errorf("the check wrote the draft to disk:\n%s", onDisk)
-	}
-}
-
-// TestTurnWarningNamesItsRule: a warning about a rule's text names the document
-// and the rule, so a screen puts the sentence on that rule's slip (N3). A rule
-// of the role document and one of the team's agreement each name their own
-// document.
-func TestTurnWarningNamesItsRule(t *testing.T) {
-	f := newFixture(t)
-	f.team("  - human -> lead\n  - lead -> human\n  - spec -> human\n")
-	f.role("lead", "      - id: PAAF\n        text: 実装は impl に渡す（lead → impl）。\n")
-	f.role("spec", "      - id: SPEC-1\n        text: 何かをする。\n")
-	agreement := filepath.Join(f.proj, ".hergy", "teams", "demo", "agreement.yaml")
-	f.write(agreement, "version: 1\ntitle: agreement\nsections:\n  - heading: 約束\n    rules:\n"+
-		"      - id: AGREE-1\n        text: 設計は spec に渡す（lead → spec）。\n")
-
-	got := f.findings()
-	want := map[string]string{
-		"PAAF":    "rule:" + f.leadRolePath() + "#PAAF",
-		"AGREE-1": "rule:" + agreement + "#AGREE-1",
-	}
-	seen := map[string]bool{}
-	for _, finding := range got {
-		if finding.Stops {
-			t.Fatalf("the definition stopped: %+v", finding)
-		}
-		if finding.Kind != KindTurn {
-			continue
-		}
-		seen[finding.Field] = true
-	}
-	for id, key := range want {
-		if !seen[key] {
-			t.Errorf("no warning names the rule %s of its own document (%s): %v", id, key, seen)
-		}
-	}
-}
-
-// TestTheStyleWarningStaysInItsOwnUnit: a rule file that still writes a
-// section's style: reads, and the warning names the file and the heading, so a
-// person is told which line to delete (d-f4f6). The warning belongs to the unit
-// that holds the file: the team's own agreement is in the team definition's
-// check, a role document's is in the role document's check (d-a575). The warning
-// stops nothing and moves no exit code.
-func TestTheStyleWarningStaysInItsOwnUnit(t *testing.T) {
-	f := newFixture(t)
-	f.team("  - human -> lead\n  - lead -> human\n  - spec -> human\n")
-	lead := "version: 1\ntitle: lead\nsections:\n  - heading: 仕事\n    style: ids\n    rules:\n" +
-		"      - id: PAAF\n        text: 何かをする。\n"
-	f.write(f.leadRolePath(), lead)
-	f.role("spec", "      - id: SPEC-1\n        text: 何かをする。\n")
-	agreement := f.agreementPath()
-	f.write(agreement, "version: 1\ntitle: agreement\nsections:\n  - heading: 約束\n    style: bullets\n    rules:\n"+
-		"      - id: AGREE-1\n        text: 何かをする。\n")
-
-	var teamText []string
-	for _, finding := range f.findings() {
-		if finding.Stops {
-			t.Fatalf("a style: line stopped the definition: %+v", finding)
-		}
-		if strings.Contains(finding.Text, "style:") {
-			teamText = append(teamText, finding.Text)
-		}
-	}
-	if len(teamText) != 1 {
-		t.Fatalf("the team check's style warnings = %v, want the agreement's one", teamText)
-	}
-	if want := i18n.Tf("rules.style_gone", agreement, "約束"); teamText[0] != want {
-		t.Errorf("team style warning = %q, want %q", teamText[0], want)
-	}
-
-	role := reportFor(f, RoleInput{Name: "lead", Text: lead})
-	var roleText []string
-	for _, problem := range role.Problems {
-		if strings.Contains(problem.Text, "style:") {
-			roleText = append(roleText, problem.Text)
-		}
-	}
-	if len(roleText) != 1 {
-		t.Fatalf("the role check's style warnings = %v, want the document's own one", roleText)
-	}
-	if !strings.Contains(roleText[0], "仕事") || !strings.Contains(roleText[0], "style:") {
-		t.Errorf("role style warning = %q, want the heading's style: warning", roleText[0])
-	}
 }
 
 // TestUnknownProfileIsAProblemNotABreak: a profile profiles.yaml does not hold

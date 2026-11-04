@@ -1,7 +1,0 @@
-version: 1
-title: 作る
-sections:
-  - heading: 作り方
-    rules:
-      - id: DAAA
-        text: 作る前に、確かめ方を 1 つ書く。

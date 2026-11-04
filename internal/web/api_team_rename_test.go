@@ -25,7 +25,7 @@ func TestTeamRenameFilesAndRefusals(t *testing.T) {
 			t.Setenv("XDG_STATE_HOME", filepath.Join(f.root, "state"))
 			old := filepath.Join(f.proj, ".hergy", "teams", "demo")
 			teamFile := filepath.Join(old, "team.yaml")
-			agreeFile := filepath.Join(old, "agreement.yaml")
+			agreeFile := filepath.Join(old, "agreement.md")
 			before, _ := os.ReadFile(teamFile)
 			before = append([]byte("# preserved\nteam: 'demo' # name\n"), before...)
 			if err := os.WriteFile(teamFile, before, 0o644); err != nil {
@@ -85,7 +85,7 @@ func TestTeamRenameFilesAndRefusals(t *testing.T) {
 				}
 				got, _ = os.ReadFile(agreeFile)
 				if string(got) != string(agree) {
-					t.Fatal("refusal changed agreement.yaml")
+					t.Fatal("refusal changed agreement.md")
 				}
 				return
 			}
@@ -99,7 +99,7 @@ func TestTeamRenameFilesAndRefusals(t *testing.T) {
 			if string(got) != strings.Replace(string(before), "team: 'demo'", "team: 'next'", 1) {
 				t.Fatalf("unexpected bytes: %s", got)
 			}
-			got, _ = os.ReadFile(filepath.Join(filepath.Dir(old), "next", "agreement.yaml"))
+			got, _ = os.ReadFile(filepath.Join(filepath.Dir(old), "next", "agreement.md"))
 			if string(got) != string(agree) {
 				t.Fatal("agreement changed")
 			}

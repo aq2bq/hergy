@@ -54,7 +54,7 @@ export function BandButton(): JSX.Element {
 
 // ---- 変わったことの行き先 ------------------------------------------------
 // The server names each change's document by the path a screen shows
-// (".hergy/roles/builder.yaml", ".hergy/teams/core/agreement.yaml"). A role's
+// (".hergy/roles/builder.yaml", ".hergy/teams/core/agreement.md"). A role's
 // rule opens on the role screen, the team's own rules on its rules tab, and
 // everything else a member reads opens on its team definition.
 const baseName = (p: string | undefined): string => String(p == null ? '' : p).replace(/\\/g, '/').split('/').pop() || '';
@@ -75,9 +75,9 @@ function linkFor(change: ApplyChange, group: ApplyTeam): string {
   }
   if (kind === 'rule' || kind === 'document') {
     const role = roleOf(change.document);
-    if (role) return `/roles?open=${enc(role)}${kind === 'rule' && change.rule ? `&rule=${enc(change.rule)}` : ''}`;
+    if (role) return `/roles?open=${enc(role)}`;
     const team = teamOf(change.document) || group.definition || group.team;
-    const tab = kind === 'rule' || /agreement\.ya?ml$/.test(baseName(change.document)) ? `&agree=${enc(team)}` : '';
+    const tab = kind === 'rule' || /agreement\.(?:md|ya?ml)$/.test(baseName(change.document)) ? `&agree=${enc(team)}` : '';
     return `/teams?open=${enc(team)}${tab}`;
   }
   return '';
@@ -145,7 +145,7 @@ function Member({ m, group }: { m: ApplyMember; group: ApplyTeam }): JSX.Element
     <span class="apl-what">{(m.changes || []).map((c) => {
       const href = linkFor(c, group);
       const text = c.text || '';
-      return <span>{href ? <a class="apl-chg" href={href}>{text}</a> : text}</span>;
+      return <span>{href ? <a class="apl-chg" href={href}>{text}</a> : text}{c.diff ? <details><summary>本文の差分</summary><pre>{c.diff}</pre></details> : null}</span>;
     })}</span>
   </div>;
 }

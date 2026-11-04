@@ -110,9 +110,9 @@ func TestUpRecordsTheLaunch(t *testing.T) {
 	// The rule files those prompts were built from: the role file and the
 	// documents, once each, each at its whole text.
 	wantDocs := []string{
-		filepath.Join(f.proj, ".hergy", "roles", "builder.yaml"),
-		filepath.Join(f.proj, ".hergy", "roles", "lead.yaml"),
-		filepath.Join(f.proj, ".hergy", "teams", "demo", "agreement.yaml"),
+		filepath.Join(f.proj, ".hergy", "roles", "builder.md"),
+		filepath.Join(f.proj, ".hergy", "roles", "lead.md"),
+		filepath.Join(f.proj, ".hergy", "teams", "demo", "agreement.md"),
 	}
 	gotDocs := make([]string, len(rec.Docs))
 	for i, doc := range rec.Docs {
@@ -322,16 +322,16 @@ func profilesYAML(fast, slow string) string {
 func TestTheRecordKeepsARevision(t *testing.T) {
 	f := newFixture(t)
 	mustRun(t, "new", "dev")
-	protocol := filepath.Join(f.proj, ".hergy", "teams", "dev", "agreement.yaml")
-	writeFile(t, protocol, "version: 1\nrevision: 3\nsections:\n  - rules:\n      - id: P1\n        text: one\n")
+	protocol := filepath.Join(f.proj, ".hergy", "teams", "dev", "agreement.md")
+	writeFile(t, protocol, "- one\n")
 
 	rec := recordDev(t, f)
 	for _, doc := range rec.Docs {
 		if doc.Path != protocol {
 			continue
 		}
-		if doc.Revision != 3 {
-			t.Errorf("the record gives %s revision %d, want 3", protocol, doc.Revision)
+		if doc.Revision != 0 {
+			t.Errorf("the record gives %s revision %d, want 0", protocol, doc.Revision)
 		}
 		return
 	}

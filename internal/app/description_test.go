@@ -17,7 +17,7 @@ import (
 // team.yaml alone.
 func descriptionTeam(t *testing.T, f *fixture, description string) {
 	t.Helper()
-	starter := filepath.Join(f.proj, ".hergy", "teams", "demo", "agreement.yaml")
+	starter := filepath.Join(f.proj, ".hergy", "teams", "demo", "agreement.md")
 	if _, err := os.Stat(starter); err != nil {
 		mustRun(t, "new", "demo")
 	}

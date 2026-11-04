@@ -13,7 +13,7 @@ for (const place of ['project', 'global'] as const) {
     const file = path.join(dir, old, 'team.yaml');
     const before = `# keep this comment\nteam: '${old}' # keep this too\n${readFileSync(file, 'utf8')}`;
     writeFileSync(file, before);
-    const agreeFile = path.join(dir, old, 'agreement.yaml');
+    const agreeFile = path.join(dir, old, 'agreement.md');
     const agree = existsSync(agreeFile) ? readFileSync(agreeFile, 'utf8') : null;
     await page.goto(`${app.base}/teams?open=${old}`);
     await ready(page);
@@ -27,7 +27,7 @@ for (const place of ['project', 'global'] as const) {
     await expect(page).toHaveURL(/open=renamed/);
     expect(existsSync(path.join(dir, old))).toBe(false);
     expect(readFileSync(path.join(dir, 'renamed', 'team.yaml'), 'utf8')).toBe(before.replace(`team: '${old}'`, "team: 'renamed'"));
-    if (agree !== null) expect(readFileSync(path.join(dir, 'renamed', 'agreement.yaml'), 'utf8')).toBe(agree);
+    if (agree !== null) expect(readFileSync(path.join(dir, 'renamed', 'agreement.md'), 'utf8')).toBe(agree);
     await expect(renamed.locator('.team-rename')).toContainText('起動の記録は変更前の名前で残ります');
     await page.goto(`${app.base}/teams?open=${old}`);
     await ready(page);
@@ -46,7 +46,7 @@ test('rename is blocked by unsaved edits and preserves a stale-file refusal', as
   await description.fill(original);
   await row.getByRole('button', { name: '名前を変更', exact: true }).click();
   await row.getByLabel('新しいチーム定義名').fill('renamed');
-  const file = path.join(app.proj, '.hergy/teams/core/agreement.yaml');
+  const file = path.join(app.proj, '.hergy/teams/core/agreement.md');
   const changed = `${readFileSync(file, 'utf8')}\n# another editor\n`;
   writeFileSync(file, changed);
   await row.getByRole('button', { name: '名前を保存', exact: true }).click();

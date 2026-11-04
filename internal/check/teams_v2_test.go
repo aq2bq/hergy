@@ -11,7 +11,6 @@ import (
 	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/prompt"
-	"github.com/aq2bq/hergy/internal/rules"
 	"github.com/aq2bq/hergy/internal/source"
 )
 
@@ -93,15 +92,8 @@ func TestTEAMS_M2_TheEffectIsThePromptsOwnLine(t *testing.T) {
 	if len(line.Added) != 0 {
 		t.Errorf("added = %q, want nothing", line.Added)
 	}
-	warn := i18n.Tf("validate.turn_not_in_turns", "SAAA", "impl-b → reviewer")
-	found := false
-	for _, problem := range got.Problems {
-		if problem.Text == warn {
-			found = true
-		}
-	}
-	if !found {
-		t.Errorf("problems = %+v, want the turn warning %q", got.Problems, warn)
+	if len(got.Problems) != 0 {
+		t.Fatalf("prose created a topology warning: %+v", got.Problems)
 	}
 
 	// The removed line is the very line the member's own prompt writes: the
@@ -164,40 +156,19 @@ func TestTEAMS_M4_ThePreviewIsThePromptsAgreementPart(t *testing.T) {
 
 	// The team's own agreement, parsed the way a screen's preview parses it.
 	path := cat.TeamYAML("core", source.LayerLocal)
-	agreePath := filepath.Join(filepath.Dir(path), "agreement.yaml")
+	agreePath := filepath.Join(filepath.Dir(path), "agreement.md")
 	text, err := cat.Reader().Read(source.Doc{Path: agreePath})
 	if err != nil {
 		t.Fatal(err)
 	}
-	doc, err := rules.Parse(text, cat.Display(agreePath))
-	if err != nil {
-		t.Fatal(err)
+	report := Agreement(AgreementInput{Catalog: cat, Name: "core", Place: source.LayerLocal, Text: text})
+	var lines []string
+	for _, line := range report.Markdown.Lines {
+		lines = append(lines, line.Text)
 	}
-
-	// The numbered preview lines, joined, are exactly the Markdown a member
-	// reads: an excluded rule carries no line here.
-	preview := doc.PreviewLines()
-	var numbered []string
-	excluded := 0
-	for _, line := range preview {
-		if line.Part == rules.PartExcluded {
-			excluded++
-			if !strings.HasPrefix(line.Text, "XAAC ") {
-				t.Errorf("the excluded line reads %q, want XAAC's own", line.Text)
-			}
-			continue
-		}
-		numbered = append(numbered, line.Text)
-	}
-	if excluded != 1 {
-		t.Errorf("the preview draws %d excluded lines, want XAAC's one", excluded)
-	}
-	region := strings.Join(numbered, "\n")
-	if region != strings.TrimRight(doc.Markdown(), "\n") {
-		t.Errorf("the numbered preview is not the Markdown a member reads:\n--- preview ---\n%s\n--- markdown ---\n%s", region, doc.Markdown())
-	}
-	if strings.Contains(region, "XAAC") || strings.Contains(doc.Markdown(), "XAAC") {
-		t.Error("XAAC stands in the text a member reads, and it is kept out of the prompt")
+	region := strings.Join(lines, "\n")
+	if region != text {
+		t.Fatal("preview changed the raw text")
 	}
 
 	// The prompt of a member of core carries the preview's lines verbatim. core's

@@ -42,9 +42,9 @@ members:
     role: impl-role
     profile: builder
 `)
-	write(t, filepath.Join(dir, "teams", name, "agreement.yaml"), "the team's own agreement\n")
-	write(t, filepath.Join(dir, "roles", "lead-role.yaml"), "lead's role document\n")
-	write(t, filepath.Join(dir, "roles", "impl-role.yaml"), "impl's role document\n")
+	write(t, filepath.Join(dir, "teams", name, "agreement.md"), "the team's own agreement\n")
+	write(t, filepath.Join(dir, "roles", "lead-role.md"), "lead's role document\n")
+	write(t, filepath.Join(dir, "roles", "impl-role.md"), "impl's role document\n")
 }
 
 // readFile reads a file a test wrote, for building an edit of it.

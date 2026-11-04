@@ -1,17 +1,14 @@
 package check
 
 import (
-	"fmt"
 	"path/filepath"
 	"slices"
-	"sort"
 	"strings"
 
 	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/definition"
-	"github.com/aq2bq/hergy/internal/rules"
+	"github.com/aq2bq/hergy/internal/prose"
 	"github.com/aq2bq/hergy/internal/source"
-	"github.com/aq2bq/hergy/internal/topology"
 )
 
 // RoleInput is what one role document's check needs (C6): the catalog to read
@@ -31,7 +28,6 @@ type RoleInput struct {
 	// tab's fields, read as a document. It is written back out with Emit to be
 	// checked as if it were saved, and it draws the Markdown preview. When it is
 	// empty, Text is the draft instead.
-	Draft *rules.Document
 	// Text is the YAML the YAML tab is typing, read as the draft: a problem it
 	// finds carries the YAML line, so the tab can mark the line. It is read when
 	// Draft is empty; an empty Text is a document with no lines, which is the
@@ -59,11 +55,18 @@ type RoleProblem struct {
 	Text       string `json:"text"`
 }
 
-// RoleMarkdown is the Markdown a member reads from the document, cut into lines
-// as a screen draws them (C1), with the character count of the whole text.
+// ProseLine is a physical line of the raw document.
+type ProseLine struct {
+	Text    string `json:"text"`
+	Part    string `json:"part"`
+	Section int    `json:"section"`
+	Rule    int    `json:"rule"`
+}
+
+// RoleMarkdown is the raw document preview with its character count.
 type RoleMarkdown struct {
-	Lines []rules.MDLine `json:"lines"`
-	Chars int            `json:"chars"`
+	Lines []ProseLine `json:"lines"`
+	Chars int         `json:"chars"`
 }
 
 // RoleDiff is how the Markdown a screen shows changed from the saved document
@@ -73,18 +76,6 @@ type RoleDiff struct {
 	Added         []int `json:"added"`
 	RemovedBefore []int `json:"removedBefore"`
 	RemovedAtEnd  bool  `json:"removedAtEnd"`
-}
-
-// RoleTurn is one arrow a rule's text writes, judged for one definition that
-// reads the document (C6): the arrow as a person reads it, the definition, and
-// whether the definition's turns: holds it. Every definition that reads the
-// document gives one entry for every arrow, whether it holds or not.
-type RoleTurn struct {
-	Section    int    `json:"section"`
-	Rule       int    `json:"rule"`
-	Arrow      string `json:"arrow"`
-	Definition string `json:"definition"`
-	OK         bool   `json:"ok"`
 }
 
 // RoleReader is one member that reads the document: the team definition it
@@ -106,11 +97,11 @@ type DocReport struct {
 	Problems []RoleProblem `json:"problems"`
 	Markdown RoleMarkdown  `json:"markdown"`
 	Diff     RoleDiff      `json:"diff"`
-	Turns    []RoleTurn    `json:"turns"`
 	Readers  []RoleReader  `json:"readers"`
 	// Limit is the provisional size budget of this unit, in characters, for a
 	// screen that shows the document's size against it (d-8bbf).
-	Limit int `json:"limit,omitempty"`
+	Limit         int `json:"limit,omitempty"`
+	TemplateChars int `json:"template_chars"`
 }
 
 // RoleReport is the old name of DocReport, kept so a caller that reads one role
@@ -132,127 +123,25 @@ type RoleReport = DocReport
 // The draft is checked as if it were saved: the document is read through a
 // catalog that carries the draft in its place (C5), so the readers see it.
 func Role(in RoleInput) DocReport {
-	cat := in.Catalog
-	if cat == nil {
+	if in.Catalog == nil {
 		return DocReport{}
 	}
-	path := rolePath(cat, in.Place, in.Name)
-	savedName := in.Original
-	if savedName == "" {
-		savedName = in.Name
-	}
-	savedPath := rolePath(cat, in.Place, savedName)
-
-	// The saved document is read before the draft is laid over the catalog, so
-	// the diff is against what is on disk (C6).
-	saved := readRoleDoc(cat, savedPath)
-
-	// The text the draft stands for: the role tab's document written back out,
-	// or the YAML tab's own text. ReadAll gathers every problem and, with it,
-	// the document as far as it reads (C2). The document is parsed under the path
-	// a person reads it by, so a sentence that names it names it the way the
-	// panel's own head does.
-	text := draftText(in)
-	display := cat.Display(path)
-	doc, problems := rules.ReadAll(text, display)
-	if doc == nil {
-		doc = &rules.Document{Path: display}
-	}
-	lines := rules.LinesOf(text, display)
-
-	// Everything else reads through a catalog that carries the draft (C5).
-	overlay := cat.With(path, text)
-	if savedPath != path {
-		overlay = overlay.Without(savedPath)
-	}
-	if in.Place == source.LayerGlobal {
-		// The project's own document of this name wins the one way a name is
-		// looked up (K1); hide it so this document is the one read.
-		overlay = overlay.Without(rolePath(cat, source.LayerLocal, in.Name))
-	}
-
-	report := DocReport{
-		Markdown: RoleMarkdown{Lines: doc.PreviewLines(), Chars: rules.CharCount(doc.Markdown())},
-		Diff:     roleDiff(saved, doc),
-		Limit:    RoleCharLimit,
-	}
-	// The name is part of what a role is, not a field the save alone reads
-	// (d-841e): a name that is not an identifier is a problem of the document,
-	// standing on the name field, so the check, validate and up answer it the
-	// way the save does.
+	text := in.Text
+	report := proseReport(in.Catalog, rolePath(in.Catalog, in.Place, in.Name), text)
+	report.Limit = RoleCharLimit
 	if err := catalog.RoleNameProblem(in.Name); err != nil {
-		report.Problems = append(report.Problems, RoleProblem{
-			Sev: rules.SevError, Section: -1, Rule: -1, Field: "name", Text: err.Error(),
-		})
+		report.Problems = append(report.Problems, RoleProblem{Sev: "err", Section: -1, Rule: -1, Field: "name", Text: err.Error()})
 	}
-	for _, p := range problems {
-		report.Problems = append(report.Problems, RoleProblem{
-			Sev: p.Sev, Section: p.Section, Rule: p.Rule, Field: p.Field,
-			Line: p.Line, Text: withoutOwnName(p.Text, display),
-		})
-	}
-	index := ruleIndex(doc)
-	for _, p := range localRuleProblems(doc) {
-		report.Problems = append(report.Problems, RoleProblem{
-			Sev: p.Sev, Section: p.Section, Rule: p.Rule, Field: p.Field,
-			Line: lines.At(p.Section, p.Rule, p.Field),
-			Text: withoutOwnName(p.Text, display),
-		})
-	}
-	report.Problems = append(report.Problems, roleModelProblems(display, doc, index, lines)...)
-	report.Problems = append(report.Problems, roleSizeProblems(rules.CharCount(doc.Markdown()))...)
-
-	for _, def := range roleDefinitions(overlay, in.Name) {
+	report.Problems = append(report.Problems, roleSizeProblems((prose.Document{Text: text}).Chars())...)
+	for _, def := range roleDefinitions(in.Catalog, in.Name) {
 		report.Readers = append(report.Readers, roleReaders(def, in.Name)...)
 	}
-	report.Problems = orderProblems(dedupeProblems(report.Problems))
 	return report
-}
-
-// orderProblems gives every problem the line a screen points at and puts them in
-// the file's order (spec-roles 6 C6). A problem about the file as a whole — the
-// amount a member reads, the title, the revision — stands on the first line, the
-// way the Markdown preview marks the first line.
-func orderProblems(problems []RoleProblem) []RoleProblem {
-	for i := range problems {
-		if problems[i].Line == 0 {
-			problems[i].Line = 1
-		}
-	}
-	sort.SliceStable(problems, func(i, j int) bool { return problems[i].Line < problems[j].Line })
-	return problems
-}
-
-// draftText is the YAML the draft stands for: the role tab's document written
-// back out in hergy's one format, or the YAML tab's own text. With neither, the
-// text is empty, which is the file a person emptied.
-func draftText(in RoleInput) string {
-	if in.Draft != nil {
-		if text, err := rules.Emit(in.Draft); err == nil {
-			return text
-		}
-	}
-	return in.Text
 }
 
 // rolePath is where one layer keeps a role document.
 func rolePath(cat *catalog.Catalog, place, name string) string {
-	return filepath.Join(cat.LayerDir(place), "roles", name+".yaml")
-}
-
-// readRoleDoc is one role document as it is on disk, or nil when it is not there
-// or does not read. It is what the diff is against: a document that does not read
-// has no Markdown to compare with.
-func readRoleDoc(cat *catalog.Catalog, path string) *rules.Document {
-	text, err := cat.Reader().Read(source.Doc{Path: path})
-	if err != nil {
-		return nil
-	}
-	parsed, err := rules.Parse(text, path)
-	if err != nil {
-		return nil
-	}
-	return parsed
+	return filepath.Join(cat.LayerDir(place), "roles", name+".md")
 }
 
 // roleDefinitions is every readable team definition that plays one role, once
@@ -274,88 +163,6 @@ func roleDefinitions(cat *catalog.Catalog, role string) []*definition.Definition
 	return out
 }
 
-// RoleIndex is the place of every rule id in a document, the first occurrence
-// winning, so a finding's field can say where it stands.
-type roleIndex struct {
-	places map[string][2]int
-}
-
-// ruleIndex indexes one document's rule ids.
-func ruleIndex(doc *rules.Document) roleIndex {
-	index := roleIndex{places: map[string][2]int{}}
-	for si := range doc.Sections {
-		for ri := range doc.Sections[si].Rules {
-			id := doc.Sections[si].Rules[ri].ID
-			if id == "" {
-				continue
-			}
-			if _, ok := index.places[id]; !ok {
-				index.places[id] = [2]int{si, ri}
-			}
-		}
-	}
-	return index
-}
-
-// place is the section and rule a field names, or -1, -1 when it names no rule
-// of the document (a document-level problem, or one whose rule is not there).
-func (x roleIndex) place(field, path string) (int, int) {
-	prefix := "rule:" + path + "#"
-	if !strings.HasPrefix(field, prefix) {
-		return -1, -1
-	}
-	if at, ok := x.places[strings.TrimPrefix(field, prefix)]; ok {
-		return at[0], at[1]
-	}
-	return -1, -1
-}
-
-// roleModelProblems is one document's model-name warnings (C8): one per rule
-// whose text names a model, in the written order.
-func roleModelProblems(path string, doc *rules.Document, index roleIndex, lines rules.Lines) []RoleProblem {
-	var out []RoleProblem
-	for _, finding := range modelDocFindings(path, doc) {
-		section, rule := index.place(finding.Field, path)
-		out = append(out, RoleProblem{
-			Sev: rules.SevWarning, Section: section, Rule: rule,
-			Field: "text", Line: lines.At(section, rule, "text"), Text: finding.Text,
-		})
-	}
-	return out
-}
-
-// parseRoleDoc reads one rule document through the catalog, or nil when it does
-// not read. It is parsed under the path a person reads it by (Catalog.Display):
-// the problems between the documents one member reads name a file each, and a
-// screen draws those names under the panel's own head (C3, X1).
-func parseRoleDoc(cat *catalog.Catalog, doc source.Doc) *rules.Document {
-	text, err := cat.Reader().Read(doc)
-	if err != nil {
-		return nil
-	}
-	parsed, err := rules.Parse(text, cat.Display(doc.Path))
-	if err != nil {
-		return nil
-	}
-	return parsed
-}
-
-// edgeHeld is whether a definition's turns: holds an arrow: for "→" the one
-// pair, and for "⇄" both ways. An arrow with an end that is no node of the graph
-// is held by nothing.
-func edgeHeld(def *definition.Definition, edge topology.Edge, members []topology.Member) bool {
-	pairs := edgePairs(edge, members)
-	if len(pairs) == 0 {
-		return false
-	}
-	for _, pair := range pairs {
-		if !graphHasTurn(def.Graph, pair[0], pair[1]) {
-			return false
-		}
-	}
-	return true
-}
-
 // roleReaders is the members that read the document, by the definition they
 // play it in and their name: who uses the role, not how much each is handed
 // (d-8bbf).
@@ -371,47 +178,10 @@ func roleReaders(def *definition.Definition, role string) []RoleReader {
 	return out
 }
 
-// dedupeProblems is the problems with an identical one shown once, so a C3
-// problem two definitions read the same way (spec-roles 1.6) is one sentence
-// beside the rule rather than one per definition. The first stands, with the
-// definition it was found for.
-func dedupeProblems(problems []RoleProblem) []RoleProblem {
-	seen := make(map[string]bool, len(problems))
-	out := make([]RoleProblem, 0, len(problems))
-	for _, p := range problems {
-		key := fmt.Sprintf("%s\x00%d\x00%d\x00%s\x00%s", p.Sev, p.Section, p.Rule, p.Field, p.Text)
-		if seen[key] {
-			continue
-		}
-		seen[key] = true
-		out = append(out, p)
-	}
-	return out
-}
-
-// roleDiff is how the Markdown a screen draws changed from the saved document
-// (C6): the lines that are new, where a saved line was removed, and whether the
-// removals stand after the last line.
-func roleDiff(saved, draft *rules.Document) RoleDiff {
-	if saved == nil {
-		return RoleDiff{}
-	}
-	return lineDiff(mdTexts(saved.Lines()), mdTexts(draft.Lines()))
-}
-
 // LineDiff is how draft differs from saved, by line: the same alignment the
 // Markdown preview uses, exported so the team screen's YAML preview marks the
 // lines one edit would change the same way (spec-teams B7).
 func LineDiff(saved, draft []string) RoleDiff { return lineDiff(saved, draft) }
-
-// mdTexts is the text of the Markdown lines, for a diff by line.
-func mdTexts(lines []rules.MDLine) []string {
-	out := make([]string, len(lines))
-	for i, line := range lines {
-		out[i] = line.Text
-	}
-	return out
-}
 
 // lineDiff is how draft differs from saved, by line: the indexes of the draft
 // lines added, the indexes a removed saved line stood before (or RemovedAtEnd,
@@ -496,4 +266,14 @@ func lcsLengths(saved, draft []string) [][]int {
 		}
 	}
 	return common
+}
+
+// proseReport compares the exact saved and drafted lines without interpreting prose.
+func proseReport(cat *catalog.Catalog, path, text string) DocReport {
+	saved, _ := cat.Reader().Read(source.Doc{Path: path})
+	var lines []ProseLine
+	for line := range strings.SplitSeq(text, "\n") {
+		lines = append(lines, ProseLine{Text: line, Part: "text", Section: -1, Rule: -1})
+	}
+	return DocReport{Markdown: RoleMarkdown{Lines: lines, Chars: (prose.Document{Text: text}).Chars()}, Diff: lineDiff(strings.Split(saved, "\n"), strings.Split(text, "\n"))}
 }

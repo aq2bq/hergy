@@ -6,7 +6,7 @@ import (
 	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/i18n"
-	"github.com/aq2bq/hergy/internal/rules"
+	"github.com/aq2bq/hergy/internal/prose"
 )
 
 // The size of one guide, counted the way d-81c1 and d-00a9 decide: only the
@@ -24,10 +24,10 @@ import (
 const (
 	// RoleCharLimit is how many characters one role document's prompt part may
 	// hold.
-	RoleCharLimit = 3000
+	RoleCharLimit = 1200
 	// TeamCharLimit is how many characters one team definition's rules and
 	// templates may hold.
-	TeamCharLimit = 3000
+	TeamCharLimit = 1200
 )
 
 // placeholder is the %{name} a template writes to ask hergy for one of its
@@ -38,7 +38,7 @@ var placeholder = regexp.MustCompile(`%\{[^}]*\}`)
 // templateChars is the prose of one template: its words with every %{name}
 // taken out.
 func templateChars(template string) int {
-	return rules.CharCount(placeholder.ReplaceAllString(template, ""))
+	return (prose.Document{Text: placeholder.ReplaceAllString(template, "")}).Chars()
 }
 
 // teamSizeChars is one team definition's size: the Markdown its own agreement
@@ -49,9 +49,7 @@ func teamSizeChars(cat *catalog.Catalog, def *definition.Definition) int {
 	chars := 0
 	if def.HasAgreement {
 		if text, err := cat.Reader().Read(def.Agreement); err == nil {
-			if doc, err := rules.Parse(text, cat.Display(def.Agreement.Path)); err == nil {
-				chars += rules.CharCount(doc.Markdown())
-			}
+			chars += (prose.Document{Text: text}).Chars()
 		}
 	}
 	chars += templateChars(def.Prompt)
@@ -94,7 +92,7 @@ func roleSizeProblems(chars int) []RoleProblem {
 		return nil
 	}
 	return []RoleProblem{{
-		Sev: rules.SevWarning, Section: -1, Rule: -1,
+		Sev: "warn", Section: -1, Rule: -1,
 		Text: i18n.Tf("size.role_chars", chars, RoleCharLimit),
 	}}
 }

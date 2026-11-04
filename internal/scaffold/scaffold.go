@@ -21,14 +21,14 @@ const Fallback = "en"
 var NamePattern = regexp.MustCompile(`^[a-z][a-z0-9_-]{0,24}$`)
 
 // Names are the files a starter team has, in the order hergy new writes them.
-var Names = []string{"team.yaml", "agreement.yaml"}
+var Names = []string{"team.yaml", "agreement.md"}
 
 // RoleNames are the role documents the starter team's members read. They are not
 // the team's own files: a role document lives once per layer, at
-// <layer>/roles/<role>.yaml (K5), so hergy new writes them there only when
+// <layer>/roles/<role>.md (K5), so hergy new writes them there only when
 // neither place holds a role document, and the team screen only when the person
 // presses the starter-roles button (r-54b8).
-var RoleNames = []string{"lead.yaml", "builder.yaml"}
+var RoleNames = []string{"lead.md", "builder.md"}
 
 // The profile the starter team's members name, and the engine it picks. hergy
 // new writes it into the layer's profiles.yaml when that layer cannot already

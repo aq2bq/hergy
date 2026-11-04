@@ -38,7 +38,6 @@ function fitFigure(main: HTMLElement, r: Rec, f: { vw: number; vh: number }): vo
   if (!cv || !svg || !f.vw || !f.vh) return;
   const panel = main.closest<HTMLElement>('.panel.team-p');
   const row = panel ? panel.closest<HTMLElement>('.tdef') : null;
-  const head = row ? row.querySelector<HTMLElement>(':scope > .sum') : null;
   const foot = panel ? panel.querySelector<HTMLElement>('footer.pf') : null;
   const vlist = main.querySelector<HTMLElement>('.vlist');
   // The room is read where the row's head stands once it is opened: under the
@@ -46,8 +45,8 @@ function fitFigure(main: HTMLElement, r: Rec, f: { vw: number; vh: number }): vo
   // it from the page as it stands would make the figure smaller the further
   // down the list the row is.
   const stick = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--stick')) || 62;
-  const fromPanel = panel ? cv.getBoundingClientRect().top - panel.getBoundingClientRect().top : cv.getBoundingClientRect().top;
-  const top = stick + (head ? head.offsetHeight : 0) + fromPanel;
+  const fromRow = row ? cv.getBoundingClientRect().top - row.getBoundingClientRect().top : cv.getBoundingClientRect().top;
+  const top = stick + fromRow;
   const below = (vlist ? vlist.offsetHeight : 0) + (foot ? foot.offsetHeight : 0) + 12;
   const room = Math.max(160, Math.floor(window.innerHeight - top - below));
   const across = Math.max(160, cv.clientWidth - 2);

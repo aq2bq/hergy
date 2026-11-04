@@ -263,30 +263,3 @@ func scalarString(value *yaml.Node, path, label string) (string, error) {
 	}
 	return value.Value, nil
 }
-
-// FillOffDates writes the day a rule was switched off when a screen's save
-// turned it off, and takes the day away when the save turned it on (d-9f30).
-// A rule that was already off keeps the day it has, even when it has none: a
-// file a person wrote without a day is not rewritten just because it was saved.
-func FillOffDates(saved, draft *Document, today string) {
-	was := map[string]Rule{}
-	if saved != nil {
-		for _, rule := range saved.Rules() {
-			was[rule.ID] = rule
-		}
-	}
-	for si := range draft.Sections {
-		for ri := range draft.Sections[si].Rules {
-			rule := &draft.Sections[si].Rules[ri]
-			before, ok := was[rule.ID]
-			switch {
-			case rule.Included():
-				rule.OffSince = ""
-			case !ok || before.Included():
-				if rule.OffSince == "" {
-					rule.OffSince = today
-				}
-			}
-		}
-	}
-}

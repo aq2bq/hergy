@@ -6,11 +6,10 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"time"
 
 	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/check"
-	"github.com/aq2bq/hergy/internal/rules"
+	"github.com/aq2bq/hergy/internal/prose"
 	"github.com/aq2bq/hergy/internal/source"
 )
 
@@ -23,7 +22,6 @@ type apiRole struct{ s *Server }
 // a prompt and how much one person reads, and the row a person still has to
 // write a document for (spec-boundary 5).
 type apiRoleSummary struct {
-	Rules    int    `json:"rules"`
 	Chars    int    `json:"chars"`
 	Markdown string `json:"markdown,omitempty"`
 	NoDoc    bool   `json:"noDoc,omitempty"`
@@ -34,8 +32,7 @@ type apiRoleSummary struct {
 // Markdown a person reads moved, and the arrows the rules write judged for each
 // definition that reads them.
 type apiEffect struct {
-	Diff  check.RoleDiff   `json:"diff"`
-	Turns []check.RoleTurn `json:"turns"`
+	Diff check.RoleDiff `json:"diff"`
 }
 
 // List is GET /api/role: one item per role name, with the documents behind it.
@@ -74,7 +71,7 @@ func (s *Server) r2ListOf(reading r2Reading) apiList {
 			item.Places[place.name] = apiPlace{
 				Doc: *place.doc, Text: text, Hash: source.Hash(text),
 				Path:     s.cat.Display(path),
-				Problems: r2DocCounts(text, s.cat.Display(path)),
+				Problems: r2DocCounts(text),
 			}
 			out.Hashes[place.name+"."+place.doc.Name] = source.Hash(text)
 		}
@@ -96,25 +93,15 @@ func r2SummaryOf(row r2Row, summary apiRoleSummary) apiRoleSummary {
 	if doc == nil {
 		return summary
 	}
-	parsed := doc.document()
-	if parsed == nil {
-		return summary
-	}
-	summary.Rules = len(parsed.IncludedRules())
-	summary.Chars = rules.CharCount(parsed.Markdown())
+	summary.Chars = (prose.Document{Text: doc.Text}).Chars()
 	return summary
 }
 
 // r2DocCounts is one document's own problems, counted from its text.
-func r2DocCounts(text, display string) apiCounts {
-	_, problems := rules.ReadAll(text, display)
+func r2DocCounts(text string) apiCounts {
 	var out apiCounts
-	for _, problem := range problems {
-		if problem.Sev == rules.SevError {
-			out.Err++
-		} else {
-			out.Warn++
-		}
+	if (prose.Document{Text: text}).Chars() > check.RoleCharLimit {
+		out.Warn = 1
 	}
 	return out
 }
@@ -170,13 +157,9 @@ func (k apiRole) Get(name, place string) (any, *apiErr) {
 	if err != nil {
 		return nil, refuse(http.StatusNotFound, t("web.error.not_found"))
 	}
-	doc, _ := rules.ReadAll(text, s.cat.Display(path))
-	if doc == nil {
-		return nil, refuse(http.StatusNotFound, t("web.error.not_found"))
-	}
 	effective, hidden := s.r2RowPlaces(name)
 	return map[string]any{
-		"doc":       r2DocOf(doc),
+		"doc":       r2DocOf(text, path),
 		"text":      text,
 		"hash":      source.Hash(text),
 		"path":      s.cat.Display(path),
@@ -218,7 +201,7 @@ func (k apiRole) Check(in apiIn) (any, *apiErr) {
 	}
 	return r2CheckAnswer(check.Role(check.RoleInput{
 		Catalog: k.s.cat, Place: catalog.Layer(in.Place), Name: doc.Name,
-		Draft: doc.document(), Original: original,
+		Text: doc.Text, Original: original,
 	}), false), nil
 }
 
@@ -228,21 +211,18 @@ func (k apiRole) Check(in apiIn) (any, *apiErr) {
 func r2CheckAnswer(report check.DocReport, fromText bool) apiCheck {
 	// Empty is an empty list, never null: a screen draws a list it can walk
 	// without asking whether this kind of check carries one (n-3f6c).
-	turns := report.Turns
-	if turns == nil {
-		turns = []check.RoleTurn{}
-	}
 	readers := report.Readers
 	if readers == nil {
 		readers = []check.RoleReader{}
 	}
 	return apiCheck{
-		Problems: r2Problems(report.Problems, fromText),
-		Preview:  report.Markdown,
-		Effect:   apiEffect{Diff: report.Diff, Turns: turns},
-		Readers:  readers,
-		Limit:    report.Limit,
-		Size:     report.Markdown.Chars,
+		Problems:     r2Problems(report.Problems, fromText),
+		Preview:      report.Markdown,
+		Effect:       apiEffect{Diff: report.Diff},
+		Readers:      readers,
+		Limit:        report.Limit,
+		Size:         report.Markdown.Chars + report.TemplateChars,
+		TemplateSize: report.TemplateChars,
 	}
 }
 
@@ -309,18 +289,6 @@ func (k apiRole) saveDoc(in apiIn) (any, *apiErr) {
 	// The text the draft stands on: the file being replaced, or the file a
 	// duplicate or a copy is based on. A row with neither stands on nothing and
 	// is a new document.
-	basePath, baseCat := old, s.cat
-	if in.Base != nil {
-		// The base is read from the place the row a duplicate or a copy came
-		// from stands in: a row under a listed project's head is that project's
-		// document, and reading this serve's own one would write the copy from
-		// another project's lines (r-a028, d-73fc).
-		from, refusal := s.withProject(in.Base.Project)
-		if refusal != nil {
-			return nil, refusal
-		}
-		basePath, baseCat = from.cat.RolePath(in.Base.Place, in.Base.Name), from.cat
-	}
 	text, readErr := s.cat.Reader().Read(source.Doc{Path: old})
 	rename := doc.Name != savedName
 	// A name this place already holds is the name's problem, whether the document
@@ -332,31 +300,7 @@ func (k apiRole) saveDoc(in apiIn) (any, *apiErr) {
 			return nil, refuseAt("name", tf("error.role_name_taken", doc.Name, s.cat.Display(target)))
 		}
 	}
-	base, baseErr := text, readErr
-	if basePath != old {
-		base, baseErr = baseCat.Reader().Read(source.Doc{Path: basePath})
-	}
-	draftDoc := doc.document()
-	var edited []byte
-	var err error
-	var saved *rules.Document
-	if baseErr == nil {
-		saved, _ = rules.ReadAll(base, baseCat.Display(basePath))
-		if saved == nil {
-			saved = &rules.Document{Path: basePath}
-		}
-	}
-	rules.FillOffDates(saved, draftDoc, time.Now().Format("2006-01-02"))
-	if baseErr != nil {
-		edited, err = emitNewRole(draftDoc)
-	} else {
-		edited, err = rules.Rewrite([]byte(base), saved, rules.Draft{
-			Doc: draftDoc, From: doc.froms(), SectionFrom: doc.sectionFroms(), SaveFrom: rules.SaveFromRoles,
-		})
-	}
-	if err != nil {
-		return nil, refuse(http.StatusUnprocessableEntity, err.Error())
-	}
+	edited := []byte(doc.Text)
 	writeHash := source.Hash("")
 	readHash := ""
 	if readErr == nil {
@@ -382,15 +326,7 @@ func (k apiRole) saveDoc(in apiIn) (any, *apiErr) {
 	if rename && in.RenameUsers {
 		s.r2RenameUsers(savedName, doc.Name)
 	}
-	if refusal := s.assignRuleIDs(); refusal != nil {
-		return nil, refusal
-	}
-	written, _ := s.cat.Reader().Read(source.Doc{Path: target})
-	got, _ := rules.ReadAll(written, s.cat.Display(target))
-	if got == nil {
-		got = &rules.Document{Path: target}
-	}
-	return k.savedAnswer(in.Place, doc.Name, r2DocOf(got), s.writtenText(target, string(edited))), nil
+	return k.savedAnswer(in.Place, doc.Name, r2DocOf(doc.Text, target), doc.Text), nil
 }
 
 // saveYAML writes one file's text as the person wrote it (the old
@@ -411,31 +347,10 @@ func (k apiRole) saveYAML(in apiIn) (any, *apiErr) {
 	if in.Hash != hash {
 		return nil, s.refuseChanged(display, path, nil, false)
 	}
-	_, before := rules.ReadAll(text, display)
-	known := map[string]bool{}
-	for _, problem := range before {
-		if problem.Sev == rules.SevError {
-			known[problem.Text] = true
-		}
-	}
-	_, after := rules.ReadAll(in.Text, display)
-	for _, problem := range after {
-		if problem.Sev == rules.SevError && !known[problem.Text] {
-			return nil, refuse(http.StatusUnprocessableEntity, problem.Text)
-		}
-	}
 	if err := source.WriteIfUnchanged(path, hash, in.Text); err != nil {
 		return s.r2WriteError(err, display, path, nil)
 	}
-	if refusal := s.assignRuleIDs(); refusal != nil {
-		return nil, refusal
-	}
-	written, _ := s.cat.Reader().Read(source.Doc{Path: path})
-	doc, _ := rules.ReadAll(written, display)
-	if doc == nil {
-		doc = &rules.Document{Path: path}
-	}
-	return k.savedAnswer(in.Place, in.Name, r2DocOf(doc), written), nil
+	return k.savedAnswer(in.Place, in.Name, r2DocOf(in.Text, path), in.Text), nil
 }
 
 // savedAnswer is the answer of a write: the one document as GET

@@ -19,7 +19,7 @@
 import { test, expect } from './fixtures';
 import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { press, q, readTo, set, there, wait } from './helpers';
+import { press, q, readTo, set, there, wait, ready } from './helpers';
 
 test.use({ reads: 'hq' });
 
@@ -86,7 +86,7 @@ function listedFiles(beta: string): { profiles: string; role: string; team: stri
   mkdirSync(path.join(dir, 'roles'), { recursive: true });
   mkdirSync(path.join(dir, 'teams', `${BETA}-dev`), { recursive: true });
   const profiles = path.join(dir, 'profiles.yaml');
-  const role = path.join(dir, 'roles', 'builder.yaml');
+  const role = path.join(dir, 'roles', 'builder.md');
   const team = path.join(dir, 'teams', `${BETA}-dev`, 'team.yaml');
   writeFileSync(profiles, 'version: 1\nprofiles:\n  beta-fast:\n    kind: claude\n    args: ["--model", "claude-haiku-5-5"]\n  beta-slow:\n    kind: codex\n    args: ["-m", "gpt-5-5"]\n');
   writeFileSync(role, 'version: 1\ntitle: 見積もりを組む\nsections:\n  - heading: 作り方\n    rules:\n      - id: DBAA\n        text: 見積もりは、前提を 1 つ書いてから出す。\n');
@@ -99,7 +99,7 @@ function servedFiles(alpha: string) {
   const dir = path.join(alpha, '.hergy');
   return {
     profiles: path.join(dir, 'profiles.yaml'),
-    role: path.join(dir, 'roles', 'builder.yaml'),
+    role: path.join(dir, 'roles', 'builder.md'),
     team: path.join(dir, 'teams', 'alpha-dev', 'team.yaml'),
   };
 }
@@ -163,41 +163,21 @@ test('HQ-WRITE-P1 a listed project’s profile is deleted and saved with its own
   expect(read(beta.profiles), 'the refused delete took the profile away').toContain('beta-new:');
 });
 
-test('HQ-WRITE-P1 a listed project’s role is saved and deleted with its own file’s hash', async ({ page, app }) => {
+test('HQ-WRITE-P1 a listed project’s role uses its own hash and leaves the served project untouched', async ({ page, app }) => {
   const { alpha, beta: betaDir } = projects(app);
-  const beta = listedFiles(betaDir);
-  const served = servedFiles(alpha);
-
-  await page.goto(`${app.base}/roles`);
-  await wait(page, drawn(rowIn(ROWS, ROLES, alpha, 'builder')));
-
-  // This serve's own role moves first: the save answers with its project's
-  // files, and the listed project's role of the same name keeps its own hash.
-  await press(page, `${rowIn(ROWS, ROLES, alpha, 'builder')}.querySelector('.sum')`);
-  await wait(page, drawn(`${rowIn(ROWS, ROLES, alpha, 'builder')}.querySelector('.panel .rule')`));
-  await press(page, `${rowIn(ROWS, ROLES, alpha, 'builder')}.querySelector('.rule .rsum')`);
-  await set(page, `${rowIn(ROWS, ROLES, alpha, 'builder')}.querySelector('.rule.open .redit [data-f=note]')`, 'served のメモ。');
-  await press(page, `${rowIn(ROWS, ROLES, alpha, 'builder')}.querySelector('.panel .pf [data-act=save]')`);
-  await wait(page, drawn(`${rowIn(ROWS, ROLES, alpha, 'builder')}.querySelector('.panel .ok')`));
+  const beta = listedFiles(betaDir), served = servedFiles(alpha);
+  await page.goto(`${app.base}/roles?${new URLSearchParams({ open: 'builder|' + alpha })}`); await ready(page);
+  const panel = page.locator('.role.open .panel[data-l=project]');
+  await panel.getByRole('textbox', { name: '散文の全文' }).fill('# served の本文。\n');
+  await panel.locator('[data-act=save]').click(); await expect(panel.locator('.ok')).toBeVisible();
   const before = { profiles: read(served.profiles), role: read(served.role), team: read(served.team) };
-
-  // The listed project's role saves, then goes: neither is refused.
-  await press(page, `${rowIn(ROWS, ROLES, betaDir, 'builder')}.querySelector('.sum')`);
-  await wait(page, drawn(`${rowIn(ROWS, ROLES, betaDir, 'builder')}.querySelector('.panel .rule')`));
-  await press(page, `${rowIn(ROWS, ROLES, betaDir, 'builder')}.querySelector('.rule .rsum')`);
-  await set(page, `${rowIn(ROWS, ROLES, betaDir, 'builder')}.querySelector('.rule.open .redit [data-f=note]')`, 'listed のメモ。');
-  await press(page, `${rowIn(ROWS, ROLES, betaDir, 'builder')}.querySelector('.panel .pf [data-act=save]')`);
-  await wait(page, drawn(`${rowIn(ROWS, ROLES, betaDir, 'builder')}.querySelector('.panel .ok')`));
-  expect(read(beta.role), 'the listed project’s role does not hold the memo the save wrote').toContain('listed のメモ。');
-
-  await press(page, `${rowIn(ROWS, ROLES, betaDir, 'builder')}.querySelector('.panel .pf [data-act=del]')`);
-  await press(page, `${rowIn(ROWS, ROLES, betaDir, 'builder')}.querySelector('.panel .pf [data-act=del-yes]')`);
-  await wait(page, `!${rowIn(ROWS, ROLES, betaDir, 'builder')}`);
-  expect(existsSync(beta.role), 'the listed project’s role file is still there after the delete').toBe(false);
-
-  expect(read(served.profiles), 'the served project’s profiles.yaml moved').toBe(before.profiles);
-  expect(read(served.role), 'the served project’s role moved').toBe(before.role);
-  expect(read(served.team), 'the served project’s team.yaml moved').toBe(before.team);
+  await page.goto(`${app.base}/roles?${new URLSearchParams({ open: 'builder|' + betaDir, project: betaDir })}`); await ready(page);
+  await panel.getByRole('textbox', { name: '散文の全文' }).fill('# listed の本文。\n');
+  await panel.locator('[data-act=save]').click(); await expect(panel.locator('.ok')).toBeVisible();
+  expect(read(beta.role)).toBe('# listed の本文。\n');
+  await panel.locator('[data-act=del]').click(); await panel.locator('[data-act=del-yes]').click();
+  await expect(panel).toHaveCount(0); expect(existsSync(beta.role)).toBe(false);
+  expect({ profiles: read(served.profiles), role: read(served.role), team: read(served.team) }).toEqual(before);
 });
 
 test('HQ-WRITE-P1 a listed project’s team definition is saved and deleted with its own file’s hash', async ({ page, app }) => {

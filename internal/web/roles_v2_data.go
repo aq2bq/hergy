@@ -4,7 +4,7 @@ import (
 	"path/filepath"
 
 	"github.com/aq2bq/hergy/internal/catalog"
-	"github.com/aq2bq/hergy/internal/rules"
+	"github.com/aq2bq/hergy/internal/prose"
 	"github.com/aq2bq/hergy/internal/source"
 	"go.yaml.in/yaml/v3"
 )
@@ -41,34 +41,9 @@ type r2Row struct {
 // r2Doc is one role document as the screen drafts and reads it. From is where a
 // rule stood in the saved document: a draft sends it, the island does not.
 type r2Doc struct {
-	Name     string      `json:"name"`
-	Title    string      `json:"title"`
-	Revision *int        `json:"revision"`
-	Sections []r2Section `json:"sections"`
-}
-
-type r2Section struct {
-	From    *int     `json:"from,omitempty"`
-	Heading string   `json:"heading"`
-	Level   int      `json:"level"`
-	Intro   string   `json:"intro"`
-	Rules   []r2Rule `json:"rules"`
-}
-
-type r2Rule struct {
-	From     *r2From `json:"from,omitempty"`
-	ID       string  `json:"id"`
-	Text     string  `json:"text"`
-	InPrompt bool    `json:"in_prompt"`
-	// OffSince is the day the rule was switched off, or empty when the file
-	// does not say. It is only meaningful while InPrompt is false (d-9f30).
-	OffSince string `json:"off_since,omitempty"`
-	Note     string `json:"note"`
-}
-
-type r2From struct {
-	Section int `json:"section"`
-	Rule    int `json:"rule"`
+	Name  string `json:"name"`
+	Title string `json:"title"`
+	Text  string `json:"text"`
 }
 
 type r2Member struct {
@@ -106,7 +81,7 @@ func (s *Server) r2ReadingOf() r2Reading {
 			// A member names this role and no layer holds a .yaml for it. A
 			// document still left as Markdown is named as such, and hergy does
 			// not write over it: the team-building skill moves it over.
-			if md, ok := s.cat.RoleMarkdown(entry.Name); ok {
+			if md, ok := s.cat.LegacyRole(entry.Name); ok {
 				row.Name = entry.Name
 				row.Markdown = tf("error.role_markdown", entry.Name, s.cat.Display(md.Path))
 				break
@@ -158,40 +133,15 @@ func (s *Server) r2Read(path string) *r2Doc {
 	if err != nil {
 		return nil
 	}
-	doc, _ := rules.ReadAll(text, s.cat.Display(path))
-	if doc == nil {
-		doc = &rules.Document{Path: path}
-	}
-	return r2DocOf(doc)
+	return r2DocOf(text, path)
 }
 
-// r2DocOf is a parsed document in the screen's JSON shape.
-func r2DocOf(doc *rules.Document) *r2Doc {
-	out := &r2Doc{Name: roleNameOf(doc.Path), Title: doc.Title, Revision: doc.Revision}
-	for _, section := range doc.Sections {
-		sec := r2Section{Heading: section.Heading, Level: section.Level, Intro: section.Intro}
-		for i := range section.Rules {
-			rule := &section.Rules[i]
-			row := r2Rule{ID: rule.ID, Text: rule.Text, InPrompt: rule.Included(), OffSince: rule.OffSince, Note: rule.Note}
-			sec.Rules = append(sec.Rules, row)
-		}
-		out.Sections = append(out.Sections, sec)
-	}
-	return out
+func r2DocOf(text, path string) *r2Doc {
+	name := roleNameOf(path)
+	return &r2Doc{Name: name, Title: (prose.Document{Text: text}).Title(name), Text: text}
 }
 
-// r2NewRole is the content of a new role a screen opens (spec-roles 1.2.4):
-// revision 1, one section 責務, and one empty rule. The name is the caller's.
-func r2NewRole(name string) *r2Doc {
-	revision := 1
-	return &r2Doc{
-		Name: name, Revision: &revision,
-		Sections: []r2Section{{
-			Heading: "責務",
-			Rules:   []r2Rule{{InPrompt: true}},
-		}},
-	}
-}
+func r2NewRole(name string) *r2Doc { return r2DocOf("# "+name+"\n\n## 責務\n", name+".md") }
 
 // roleNameOf is the role a document's file names: roles/<name>.yaml.
 func roleNameOf(path string) string {
@@ -200,64 +150,6 @@ func roleNameOf(path string) string {
 		base = base[:len(base)-len(ext)]
 	}
 	return base
-}
-
-// document is the draft in the rules package's words, the document a check or a
-// rewrite reads.
-func (d r2Doc) document() *rules.Document {
-	out := &rules.Document{Title: d.Title, Revision: d.Revision}
-	for _, section := range d.Sections {
-		sec := rules.Section{Heading: section.Heading, Level: section.Level, Intro: section.Intro}
-		for i := range section.Rules {
-			rule := &section.Rules[i]
-			// in_prompt true is the default, so a rule that is in the prompt
-			// comes back with the key unsaid.
-			var inPrompt *bool
-			if !rule.InPrompt {
-				no := false
-				inPrompt = &no
-			}
-			parsed := rules.Rule{ID: rule.ID, Text: rule.Text, InPrompt: inPrompt, OffSince: rule.OffSince, Note: rule.Note}
-			sec.Rules = append(sec.Rules, parsed)
-		}
-		out.Sections = append(out.Sections, sec)
-	}
-	return out
-}
-
-// froms is where each draft rule stood in the saved document, in the order the
-// draft writes its rules (the place Rewrite reads).
-func (d r2Doc) froms() []rules.Place {
-	var out []rules.Place
-	for _, section := range d.Sections {
-		for _, rule := range section.Rules {
-			if rule.From == nil {
-				out = append(out, rules.Place{Section: -1, Rule: -1})
-				continue
-			}
-			out = append(out, rules.Place{Section: rule.From.Section, Rule: rule.From.Rule})
-		}
-	}
-	return out
-}
-
-// sectionFroms is where each draft section stood in the saved document, in the
-// order the draft writes its sections (the place Rewrite reads, C7). Nil when no
-// section says: the write then reads the places from the rules' from.
-func (d r2Doc) sectionFroms() []int {
-	out := make([]int, len(d.Sections))
-	found := false
-	for i, section := range d.Sections {
-		out[i] = -1
-		if section.From != nil {
-			out[i] = *section.From
-			found = true
-		}
-	}
-	if !found {
-		return nil
-	}
-	return out
 }
 
 // r2MembersOf is the people one team definition names, with the role each one

@@ -6,19 +6,13 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"regexp"
-	"sort"
 	"strings"
 	"testing"
 
 	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/i18n"
-	"github.com/aq2bq/hergy/internal/prompt"
-	"github.com/aq2bq/hergy/internal/rules"
 	"github.com/aq2bq/hergy/internal/source"
 )
-
-var regexpOffSince = regexp.MustCompile(`(?m)^        off_since: .*\n`)
 
 // This file holds the 小・中 checks of the role screen that are held without a
 // browser: the preview a member's prompt carries (ROLES-M1) and the writes the
@@ -46,26 +40,9 @@ func ruFixtureRoles(t *testing.T) *fixture {
 // reads it.
 func ruRolePath(f *fixture, place, name string) string {
 	if place == catalog.PlaceGlobal {
-		return filepath.Join(f.global, "roles", name+".yaml")
+		return filepath.Join(f.global, "roles", name+".md")
 	}
-	return filepath.Join(f.proj, ".hergy", "roles", name+".yaml")
-}
-
-// ruDraftOf is one parsed document as the draft a panel sends: every section and
-// every rule carries where it stood in the saved document, so the server can
-// write the changed lines and carry a moved rule or section whole (the from the
-// page's own toDoc adds).
-func ruDraftOf(t *testing.T, doc *rules.Document, _ string) *r2Doc {
-	t.Helper()
-	out := r2DocOf(doc)
-	for si := range out.Sections {
-		at := si
-		out.Sections[si].From = &at
-		for ri := range out.Sections[si].Rules {
-			out.Sections[si].Rules[ri].From = &r2From{Section: si, Rule: ri}
-		}
-	}
-	return out
+	return filepath.Join(f.proj, ".hergy", "roles", name+".md")
 }
 
 // ruLoadDraft reads one role file and answers the draft a panel would send for
@@ -73,467 +50,7 @@ func ruDraftOf(t *testing.T, doc *rules.Document, _ string) *r2Doc {
 func ruLoadDraft(t *testing.T, path string) (*r2Doc, string) {
 	t.Helper()
 	text := readFile(t, path)
-	parsed, err := rules.Parse(text, path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return ruDraftOf(t, parsed, ""), text
-}
-
-// ruRuleAt finds one rule of a document by its id.
-func ruRuleAt(t *testing.T, doc *rules.Document, id string) (int, int) {
-	t.Helper()
-	for si := range doc.Sections {
-		for ri := range doc.Sections[si].Rules {
-			if doc.Sections[si].Rules[ri].ID == id {
-				return si, ri
-			}
-		}
-	}
-	t.Fatalf("the document holds no rule %s", id)
-	return -1, -1
-}
-
-// ruChangedLines is the 1-based numbers of the lines that differ between two
-// texts, with the line each became — how a save is held to the one line it was
-// meant to write.
-func ruChangedLines(before, after string) map[int]string {
-	b, a := strings.Split(before, "\n"), strings.Split(after, "\n")
-	out := map[int]string{}
-	n := max(len(a), len(b))
-	for i := range n {
-		l, r := "", ""
-		if i < len(b) {
-			l = b[i]
-		}
-		if i < len(a) {
-			r = a[i]
-		}
-		if l != r {
-			out[i+1] = r
-		}
-	}
-	return out
-}
-
-// ruSameLines holds a save to moving lines about rather than changing them: the
-// file comes back with the same lines in another order.
-func ruSameLines(t *testing.T, before, after string) {
-	t.Helper()
-	b, a := strings.Split(before, "\n"), strings.Split(after, "\n")
-	if len(b) != len(a) {
-		t.Fatalf("the file went from %d lines to %d:\n%s", len(b), len(a), after)
-	}
-	sb, sa := append([]string(nil), b...), append([]string(nil), a...)
-	sort.Strings(sb)
-	sort.Strings(sa)
-	if strings.Join(sb, "\n") != strings.Join(sa, "\n") {
-		t.Fatalf("the file's lines changed, not only their order:\n%s", after)
-	}
-}
-
-// ruItemBlock is one rule's own lines: its "- id:" line and the keys under it, up
-// to the next line that is indented less.
-func ruItemBlock(t *testing.T, text, id string) string {
-	t.Helper()
-	return ruBlock(t, text, "- id: "+id, "        ")
-}
-
-// ruSectionBlock is one section's own lines: its "- heading:" line and the lines
-// under it.
-func ruSectionBlock(t *testing.T, text, heading string) string {
-	t.Helper()
-	return ruBlock(t, text, "- heading: "+heading, "    ")
-}
-
-// ruBlock is the lines from the one a heading stands on, down to the first line
-// that is not indented deeper than it.
-func ruBlock(t *testing.T, text, head, deeper string) string {
-	t.Helper()
-	lines := strings.Split(text, "\n")
-	start := -1
-	for i, l := range lines {
-		if strings.TrimSpace(l) == head {
-			start = i
-			break
-		}
-	}
-	if start < 0 {
-		t.Fatalf("the file no longer holds %q:\n%s", head, text)
-	}
-	end := start + 1
-	for end < len(lines) && strings.HasPrefix(lines[end], deeper) {
-		end++
-	}
-	return strings.Join(lines[start:end], "\n")
-}
-
-// ruMemberPrompt builds one member's bootstrap prompt for the definition that
-// first plays a role: the initial prompt the role document's own part stands in
-// (ROLES-M1).
-func ruMemberPrompt(t *testing.T, cat *catalog.Catalog, role string) (*prompt.Built, error) {
-	t.Helper()
-	users := cat.RoleUsers(role)
-	if len(users) == 0 {
-		t.Fatalf("no definition plays the role %s", role)
-	}
-	def, err := cat.Definition(users[0].Definition, "")
-	if err != nil {
-		t.Fatalf("the definition %s does not read: %v", users[0].Definition, err)
-	}
-	for i := range def.Graph.Members {
-		if def.Graph.Members[i].Role != role {
-			continue
-		}
-		node := &def.Graph.Members[i]
-		return prompt.Member(def, node, prompt.Run{
-			Team: def.Name, Reader: cat.Reader(), Sources: cat, Display: cat.Display, Base: cat.Base(),
-		})
-	}
-	t.Fatalf("no member of %s plays the role %s", def.Name, role)
-	return nil, nil
-}
-
-// ruRoleDoc reads one role document through the catalog and parses it under the
-// path a person reads it by.
-func ruRoleDoc(t *testing.T, cat *catalog.Catalog, role string) (source.Doc, *rules.Document) {
-	t.Helper()
-	doc, ok := cat.Role(role)
-	if !ok {
-		t.Fatalf("no layer holds a document for %s", role)
-	}
-	text, err := cat.Reader().Read(doc)
-	if err != nil {
-		t.Fatal(err)
-	}
-	parsed, err := rules.Parse(text, cat.Display(doc.Path))
-	if err != nil {
-		t.Fatal(err)
-	}
-	return doc, parsed
-}
-
-// ruNumbered is the Markdown preview's "N 行 · N 文字" as a check answers it: the
-// lines that carry a number (a rule kept out of the prompt carries none) and the
-// characters of the text a member reads.
-func ruNumbered(preview map[string]any) (int, int) {
-	lines, _ := preview["lines"].([]any)
-	n := 0
-	for _, l := range lines {
-		one, _ := l.(map[string]any)
-		if one["part"] != rules.PartExcluded {
-			n++
-		}
-	}
-	chars, _ := preview["chars"].(float64)
-	return n, int(chars)
-}
-
-// ruIssues is a check's problems as the sentences a screen shows, in order.
-func ruIssues(problems []any) []string {
-	out := make([]string, 0, len(problems))
-	for _, p := range problems {
-		one, _ := p.(map[string]any)
-		text, _ := one["text"].(string)
-		out = append(out, text)
-	}
-	return out
-}
-
-// ruErrorTexts is a check's error problems' sentences.
-func ruErrorTexts(problems []any) map[string]bool {
-	out := map[string]bool{}
-	for _, p := range problems {
-		one, _ := p.(map[string]any)
-		if one["sev"] != rules.SevError {
-			continue
-		}
-		text, _ := one["text"].(string)
-		out[text] = true
-	}
-	return out
-}
-
-// TestROLES_M1_ThePreviewIsThePrompt'sRolePart: the Markdown a role document's
-// preview draws is the very part the member's initial prompt carries, one
-// character not differing, and a reason kept out of the prompt (send_why: false)
-// and a rule kept out of the prompt (in_prompt: false) stand as struck lines
-// with no number, inside neither the "N 行 · N 文字" nor the amount a member
-// reads.
-func TestROLES_M1_ThePreviewIsThePromptsRolePart(t *testing.T) {
-	cat := ruFixtureRoles(t).catalog()
-
-	// The six roles the fixture holds. The preview's numbered lines, joined with
-	// a line break, are exactly the role-document part of the prompt: the same
-	// text, with no line a member does not read and no line missing.
-	for _, role := range []string{"analyst", "builder", "lead", "scout", "reviewer", "writer"} {
-		t.Run(role, func(t *testing.T) {
-			doc, parsed := ruRoleDoc(t, cat, role)
-			var numbered []string
-			for _, line := range parsed.PreviewLines() {
-				if line.Part != rules.PartExcluded {
-					numbered = append(numbered, line.Text)
-				}
-			}
-			region := strings.Join(numbered, "\n")
-			built, err := ruMemberPrompt(t, cat, role)
-			if err != nil {
-				// builder's document carries the persisted problem (GAAA's
-				// derived origin points at HAAJ, which no member reads): the
-				// prompt's cross-document check refuses before it carries the
-				// role document. That is builder's own problem, not a preview
-				// that drifts, so the preview is still the document a prompt
-				// would carry.
-				if role != "builder" {
-					t.Fatalf("the prompt of %s did not build: %v", role, err)
-				}
-				if !strings.Contains(err.Error(), "GAAA") {
-					t.Fatalf("builder's prompt refused with %v, want GAAA's persisted problem", err)
-				}
-				if region == "" {
-					t.Error("builder's preview draws nothing")
-				}
-				return
-			}
-			if built.Role.Path != doc.Path {
-				t.Errorf("the prompt read the role document %s, the preview %s", built.Role.Path, doc.Path)
-			}
-			if !strings.Contains(built.Text, "\n\n"+region+"\n") {
-				t.Errorf("the prompt does not carry the preview's lines of %s verbatim:\n--- preview ---\n%s\n--- prompt ---\n%s", role, region, built.Text)
-			}
-		})
-	}
-
-	// A rule kept out of the prompt (in_prompt: false) is one struck line with no
-	// number: the numbered count and the character count fall, and the prompt
-	// carries no YAAF. No per-member amount is part of the answer (d-b87a).
-	t.Run("a rule kept out of the prompt", func(t *testing.T) {
-		f := ruFixtureRoles(t)
-		server := f.server(t)
-		path := ruRolePath(f, catalog.PlaceProject, "lead")
-		draft, _ := ruLoadDraft(t, path)
-
-		_, before := f.apiJSON(t, server, http.MethodPost, "/api/role/check", map[string]any{
-			"place": catalog.PlaceProject, "original": "lead", "doc": draft,
-		})
-		beforePreview, _ := before["preview"].(map[string]any)
-		beforeLines, beforeChars := ruNumbered(beforePreview)
-
-		si, ri := ruRuleAt(t, draftRuleDoc(t, draft, "lead"), "YAAF")
-		draft.Sections[si].Rules[ri].InPrompt = false
-		_, after := f.apiJSON(t, server, http.MethodPost, "/api/role/check", map[string]any{
-			"place": catalog.PlaceProject, "original": "lead", "doc": draft,
-		})
-		afterPreview, _ := after["preview"].(map[string]any)
-		afterLines, afterChars := ruNumbered(afterPreview)
-		excluded := 0
-		lines, _ := afterPreview["lines"].([]any)
-		for _, l := range lines {
-			one, _ := l.(map[string]any)
-			if one["part"] == rules.PartExcluded {
-				excluded++
-				if !strings.HasPrefix(one["text"].(string), "YAAF ") {
-					t.Errorf("the excluded line reads %q, want YAAF's own", one["text"])
-				}
-			}
-		}
-		if excluded != 1 {
-			t.Errorf("the preview draws %d excluded lines, want YAAF's one", excluded)
-		}
-		if afterLines != beforeLines-1 {
-			t.Errorf("the preview reads %d 行 after the switch, want %d", afterLines, beforeLines-1)
-		}
-		if afterChars >= beforeChars {
-			t.Errorf("the preview reads %d 文字 after the switch, want below %d", afterChars, beforeChars)
-		}
-
-		// The prompt carries the document without the rule: the same text the
-		// preview draws as one struck line.
-		draftText, err := rules.Emit(draft.document())
-		if err != nil {
-			t.Fatal(err)
-		}
-		overlay := f.catalog().With(path, draftText)
-		built, err := ruMemberPrompt(t, overlay, "lead")
-		if err != nil {
-			t.Fatalf("the prompt of the switched lead did not build: %v", err)
-		}
-		if strings.Contains(built.Text, "YAAF") {
-			t.Errorf("the prompt still carries the rule kept out of it")
-		}
-	})
-}
-
-// draftRuleDoc is one draft's document in the rules package's words, so a test
-// can look a rule up by its id.
-func draftRuleDoc(t *testing.T, draft *r2Doc, name string) *rules.Document {
-	t.Helper()
-	doc := draft.document()
-	if doc == nil {
-		t.Fatalf("%s's draft is empty", name)
-	}
-	return doc
-}
-
-// TestROLES_F1_ASaveWritesTheChangedLineAlone: one save that changes one value
-// writes the line that value stands on and nothing else — a rule's body, a
-// section's heading, a section's depth (which adds the one level: line) and a
-// rule's in_prompt (which adds the one in_prompt: false line).
-func TestROLES_F1_ASaveWritesTheChangedLineAlone(t *testing.T) {
-	cases := []struct {
-		name string
-		role string
-		edit func(t *testing.T, draft *r2Doc)
-		want string // the one line the save writes, or "" when it is added
-	}{
-		{
-			name: "a rule's body",
-			role: "builder",
-			edit: func(t *testing.T, draft *r2Doc) {
-				si, ri := ruRuleAt(t, draftRuleDoc(t, draft, "builder"), "HAAA")
-				draft.Sections[si].Rules[ri].Text = "書き換えた本文。"
-			},
-			want: "        text: 書き換えた本文。",
-		},
-		{
-			name: "a section's heading",
-			role: "builder",
-			edit: func(_ *testing.T, draft *r2Doc) {
-				draft.Sections[0].Heading = "作り方の見直し"
-			},
-			want: "  - heading: 作り方の見直し",
-		},
-		{
-			name: "a section's depth",
-			role: "builder",
-			edit: func(_ *testing.T, draft *r2Doc) {
-				draft.Sections[0].Level = 3
-			},
-			want: "    level: 3",
-		},
-		{
-			name: "a rule kept out of the prompt",
-			role: "lead",
-			edit: func(t *testing.T, draft *r2Doc) {
-				si, ri := ruRuleAt(t, draftRuleDoc(t, draft, "lead"), "YAAF")
-				draft.Sections[si].Rules[ri].InPrompt = false
-			},
-			want: "        in_prompt: false",
-		},
-	}
-	for _, test := range cases {
-		t.Run(test.name, func(t *testing.T) {
-			f := ruFixtureRoles(t)
-			server := f.server(t)
-			path := ruRolePath(f, catalog.PlaceProject, test.role)
-			before := readFile(t, path)
-			draft, text := ruLoadDraft(t, path)
-			test.edit(t, draft)
-
-			resp, _ := f.apiJSON(t, server, http.MethodPut, "/api/role/"+test.role, map[string]any{
-				"place": catalog.PlaceProject, "original": test.role, "hash": source.Hash(text), "doc": draft,
-			})
-			if resp.StatusCode != http.StatusOK {
-				t.Fatalf("the save answered %d", resp.StatusCode)
-			}
-			after := readFile(t, path)
-			changed := ruChangedLines(before, after)
-			switch {
-			case test.want == "        in_prompt: false":
-				// Turning a rule off writes in_prompt and the day hergy switched
-				// it off (d-9f30); everything else comes back byte for byte.
-				if !strings.Contains(after, "        in_prompt: false\n") || !strings.Contains(after, "        off_since: ") {
-					t.Errorf("the save did not add in_prompt and off_since:\n%s", after)
-				}
-				without := strings.Replace(after, "        in_prompt: false\n", "", 1)
-				without = regexpOffSince.ReplaceAllString(without, "")
-				if without != before {
-					t.Errorf("the save changed more than the switch:\n%s", after)
-				}
-				if n := strings.Count(after, "\n") - strings.Count(before, "\n"); n != 2 {
-					t.Errorf("the save added %d lines, want in_prompt and off_since", n)
-				}
-				_ = changed
-			case strings.HasPrefix(test.want, "    level"):
-				// An added line: everything else comes back byte for byte.
-				if strings.Replace(after, test.want+"\n", "", 1) != before {
-					t.Errorf("the save did not add the one %q line and nothing else:\n%s", test.want, after)
-				}
-				if n := strings.Count(after, "\n") - strings.Count(before, "\n"); n != 1 {
-					t.Errorf("the save added %d lines, want the one %q", n, test.want)
-				}
-				_ = changed
-			default:
-				if len(changed) != 1 {
-					t.Fatalf("the save changed %d lines, want the one it wrote: %v", len(changed), changed)
-				}
-				for _, got := range changed {
-					if got != test.want {
-						t.Errorf("the changed line reads %q, want %q", got, test.want)
-					}
-				}
-			}
-		})
-	}
-}
-
-// TestROLES_F2_AMoveKeepsTheMovedItemsLines: one save that moves rules (EAAA
-// down, DAAA below FAAA) and a whole section (確かめ方 up) comes back with
-// the same lines in another order: every rule's item is byte for byte the one
-// that stood before, and the section that moved carries its own lines whole.
-func TestROLES_F2_AMoveKeepsTheMovedItemsLines(t *testing.T) {
-	f := ruFixtureRoles(t)
-	server := f.server(t)
-	path := ruRolePath(f, catalog.PlaceProject, "builder")
-	before := readFile(t, path)
-	draft, text := ruLoadDraft(t, path)
-
-	// 作り方's rules take the order a person leaves them in: FAAA, DAAA,
-	// EAAA, GAAA (EAAA one down, DAAA below FAAA).
-	sec := draft.Sections[0]
-	byID := map[string]r2Rule{}
-	for _, rule := range sec.Rules {
-		byID[rule.ID] = rule
-	}
-	sec.Rules = nil
-	for _, id := range []string{"FAAA", "DAAA", "EAAA", "GAAA"} {
-		sec.Rules = append(sec.Rules, byID[id])
-	}
-	draft.Sections[0] = sec
-	// 確かめ方 moves above 作り方.
-	draft.Sections[0], draft.Sections[1] = draft.Sections[1], draft.Sections[0]
-
-	resp, _ := f.apiJSON(t, server, http.MethodPut, "/api/role/builder", map[string]any{
-		"place": catalog.PlaceProject, "original": "builder", "hash": source.Hash(text), "doc": draft,
-	})
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("the save answered %d", resp.StatusCode)
-	}
-	after := readFile(t, path)
-
-	ruSameLines(t, before, after)
-	for _, id := range []string{"DAAA", "EAAA", "FAAA", "GAAA", "HAAA", "JAAA", "KAAA"} {
-		if got, want := ruItemBlock(t, after, id), ruItemBlock(t, before, id); got != want {
-			t.Errorf("%s's own lines changed:\n%s\nwant\n%s", id, got, want)
-		}
-	}
-	if got, want := ruSectionBlock(t, after, "確かめ方"), ruSectionBlock(t, before, "確かめ方"); got != want {
-		t.Errorf("the moved section's own lines changed:\n%s\nwant\n%s", got, want)
-	}
-	if strings.Index(after, "  - heading: 確かめ方") > strings.Index(after, "  - heading: 作り方") {
-		t.Errorf("the moved section did not land first:\n%s", after)
-	}
-	at := 0
-	for _, id := range []string{"FAAA", "DAAA", "EAAA", "GAAA"} {
-		i := strings.Index(after, "- id: "+id)
-		if i < 0 {
-			t.Fatalf("%s left the file:\n%s", id, after)
-		}
-		if i < at {
-			t.Errorf("the file puts %s above the rule before it:\n%s", id, after)
-		}
-		at = i
-	}
+	return r2DocOf(text, path), text
 }
 
 // TestROLES_F4_RenamingWritesTheReadingTeamsRoleLine: a save that renames a role
@@ -620,85 +137,6 @@ func TestROLES_F5_AStaleHashIsRefused(t *testing.T) {
 	}
 }
 
-// TestROLES_F6_APersistedProblemBlocksOnlyTheNewOne: with builder's note on
-// GAAA standing, a save that fixes another rule is written; a save that
-// overlaps a rule's id is refused. The screen refuses by
-// the check it reads (ruledoc.js disables 保存 while a new error stands; the
-// server's own write has no rule-id check), so the refusal is the check's new
-// error — the fix save carries no new error and is written.
-func TestROLES_F6_APersistedProblemBlocksOnlyTheNewOne(t *testing.T) {
-	f := ruFixtureRoles(t)
-	server := f.server(t)
-	path := ruRolePath(f, catalog.PlaceProject, "builder")
-	before := readFile(t, path)
-	draft, text := ruLoadDraft(t, path)
-
-	_, savedCheck := f.apiJSON(t, server, http.MethodPost, "/api/role/check", map[string]any{
-		"place": catalog.PlaceProject, "original": "builder", "doc": draft,
-	})
-	known := ruErrorTexts(mustProblems(t, savedCheck))
-
-	// The fix save: change HAAA's body, and the persisted problem stays.
-	si, ri := ruRuleAt(t, draftRuleDoc(t, draft, "builder"), "HAAA")
-	draft.Sections[si].Rules[ri].Text = "直した本文。"
-	_, fixCheck := f.apiJSON(t, server, http.MethodPost, "/api/role/check", map[string]any{
-		"place": catalog.PlaceProject, "original": "builder", "doc": draft,
-	})
-	fixErrors := ruErrorTexts(mustProblems(t, fixCheck))
-	for text := range fixErrors {
-		if known[text] {
-			continue
-		}
-		t.Errorf("the fix save brought a new error the screen would refuse on: %q", text)
-	}
-	resp, _ := f.apiJSON(t, server, http.MethodPut, "/api/role/builder", map[string]any{
-		"place": catalog.PlaceProject, "original": "builder", "hash": source.Hash(text), "doc": draft,
-	})
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("the fix save answered %d, want it written", resp.StatusCode)
-	}
-	after := readFile(t, path)
-	if !strings.Contains(after, "note: '由来: derived  HAAJ'") {
-		t.Errorf("the fix save lost GAAA's note:\n%s", after)
-	}
-	if changed := ruChangedLines(before, after); len(changed) != 1 {
-		t.Errorf("the fix save changed %d lines, want HAAA's text alone: %v", len(changed), changed)
-	}
-
-	// The overlapping save: HAAA takes GAAA's id. The check reports a new
-	// error on the rule's id field, which is what the screen refuses the save on.
-	over, _ := ruLoadDraft(t, path)
-	osi, ori := ruRuleAt(t, draftRuleDoc(t, over, "builder"), "HAAA")
-	over.Sections[osi].Rules[ori].ID = "GAAA"
-	_, dupCheck := f.apiJSON(t, server, http.MethodPost, "/api/role/check", map[string]any{
-		"place": catalog.PlaceProject, "original": "builder", "doc": over,
-	})
-	found := false
-	for _, one := range mustProblems(t, dupCheck) {
-		problem, _ := one.(map[string]any)
-		if problem["sev"] != rules.SevError || problem["field"] != "id" {
-			continue
-		}
-		text, _ := problem["text"].(string)
-		if strings.Contains(text, "GAAA") && !known[text] {
-			found = true
-		}
-	}
-	if !found {
-		t.Errorf("the overlapping save brought no new error on the id field, so the screen would not refuse it: %v", ruIssues(mustProblems(t, dupCheck)))
-	}
-}
-
-// mustProblems is one check answer's problems, or a test failure.
-func mustProblems(t *testing.T, decoded map[string]any) []any {
-	t.Helper()
-	problems, ok := decoded["problems"].([]any)
-	if !ok {
-		t.Fatalf("the check answered no problems: %v", decoded)
-	}
-	return problems
-}
-
 // TestROLES_F7_TheFiveWrites: a role added, a duplicate and a copy to the shared
 // place write new files (the duplicate and the copy byte for byte from the
 // document they came from), a delete takes that one file away, and a role no
@@ -708,8 +146,8 @@ func TestROLES_F7_TheFiveWrites(t *testing.T) {
 		f := ruFixtureRoles(t)
 		server := f.server(t)
 		draft := r2NewRole("ra-new")
-		draft.Sections[0].Rules[0].ID = "NEW-1"
-		draft.Sections[0].Rules[0].Text = "新しく足したロールの規則。"
+
+		draft.Text = "新しく足したロールの規則。"
 		resp, _ := f.apiJSON(t, server, http.MethodPut, "/api/role/ra-new", map[string]any{
 			"place": catalog.PlaceProject, "hash": "", "doc": draft,
 		})
@@ -720,8 +158,8 @@ func TestROLES_F7_TheFiveWrites(t *testing.T) {
 		if !strings.Contains(written, "新しく足したロールの規則。") {
 			t.Errorf("the added file does not hold the rule's text:\n%s", written)
 		}
-		if !rules.RuleIDPattern.MatchString(ruleIDIn(t, written)) {
-			t.Errorf("the added file's rule has no id hergy writes:\n%s", written)
+		if written != draft.Text {
+			t.Fatalf("saved prose differs: %q", written)
 		}
 	})
 
@@ -818,8 +256,8 @@ func TestROLES_F7_TheFiveWrites(t *testing.T) {
 		}
 
 		draft := r2NewRole("ghost")
-		draft.Sections[0].Rules[0].ID = "GHOST-1"
-		draft.Sections[0].Rules[0].Text = "文書の無いロールに足した規則。"
+
+		draft.Text = "文書の無いロールに足した規則。"
 		resp, _ := f.apiJSON(t, server, http.MethodPut, "/api/role/ghost", map[string]any{
 			"place": catalog.PlaceProject, "hash": "", "doc": draft,
 		})
@@ -830,21 +268,10 @@ func TestROLES_F7_TheFiveWrites(t *testing.T) {
 		if !strings.Contains(written, "文書の無いロールに足した規則。") {
 			t.Errorf("the new file does not hold the rule's text:\n%s", written)
 		}
-		if !rules.RuleIDPattern.MatchString(ruleIDIn(t, written)) {
-			t.Errorf("the new file's rule has no id hergy writes:\n%s", written)
+		if written != draft.Text {
+			t.Fatalf("saved prose differs: %q", written)
 		}
 	})
-}
-
-// ruleIDIn is the first rule id a written file holds, as the check that hergy
-// gave one reads it.
-func ruleIDIn(t *testing.T, text string) string {
-	t.Helper()
-	doc, _ := rules.ReadAll(text, "written.yaml")
-	if doc == nil || len(doc.Rules()) == 0 {
-		t.Fatalf("the written file holds no rule:\n%s", text)
-	}
-	return doc.Rules()[0].ID
 }
 
 // TestROLES_F8_ALayerWithoutRolesGetsOne: a layer that is there but holds no
@@ -867,7 +294,7 @@ func TestROLES_F8_ALayerWithoutRolesGetsOne(t *testing.T) {
 			f := noRoles(t, place)
 			server := f.server(t)
 			draft := r2NewRole("ra-new")
-			draft.Sections[0].Rules[0].Text = "roles/ の無い層に足したロールの規則。"
+			draft.Text = "roles/ の無い層に足したロールの規則。"
 			resp, body := f.api(t, server, http.MethodPut, "/api/role/ra-new", map[string]any{
 				"place": place, "hash": "", "doc": draft,
 			})

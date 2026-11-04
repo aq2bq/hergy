@@ -9,7 +9,7 @@ import { ProjectView } from '../lib/project-view';
 // 読むものと知らせる先を渡す（依頼書 4）。
 import { useEffect } from '../lib/preact.js';
 import { YamlTab } from '../lib/yamltab.js';
-import { fromJSON, Badge, rulesOf } from '../lib/ruledoc.js';
+import { fromJSON, Badge } from '../lib/ruledoc.js';
 import {
   PLACES, LNAME, DIR, state, filesList, live, issuesOf,
   ychecksOf, setYchecks, docText, pathOf, clone, pressYamlRevert, pressTab, pressYfile, setYfile,
@@ -42,7 +42,7 @@ function YamlFile({ file }: { file: SavedFileEntry }) {
         if (!json) return;
         e.hash = json.hash || e.hash;
         if (typeof json.text === 'string') e.text = json.text;
-        if (json.doc && 'sections' in json.doc) { e.saved = fromJSON(json.doc); e.draft = clone(e.saved); }
+        if (json.doc && 'text' in json.doc) { e.saved = fromJSON(json.doc); e.draft = clone(e.saved); }
         e.ytext = undefined;
       }} />
   </section>;
@@ -69,14 +69,14 @@ function YamlPageBody() {
   if (!files.length) {
     return <section class="yed yempty">
       <p>ロールの文書はまだありません。</p>
-      <p>一覧の『＋ ロールを追加』で作ると、ここに roles/&lt;ロール名&gt;.yaml が並びます。</p>
+      <p>一覧の『＋ ロールを追加』で作ると、ここに roles/&lt;ロール名&gt;.md が並びます。</p>
       <span><button class="btn" data-act="tab" data-t="roles" onClick={() => pressTab('roles')}>一覧へ</button></span></section>;
   }
   const one = files.find(({ r, l }) => keyOfYed(r, l) === chosen) || null;
   return <div class="ylay">
       <nav class="files">{PLACES.map((l) => <div class="fgroup"><div class="gh"><b>{LNAME[l]}</b><code>{DIR[l]}</code></div>{files.filter((f) => f.l === l).map(({ r, e }) => {
         const key = keyOfYed(r, l), is = issuesOf(r, l), hid = l === 'global' && live(r, 'project');
-        return <button class={['file', chosen === key ? 'on' : '', hid ? 'hid' : ''].filter(Boolean).join(' ')} data-act="yfile" data-key={key} aria-pressed={chosen === key} onClick={() => pressYfile(key)}><code>{e.saved.name}.yaml</code><span class="fs">{ychecksText(l, e.saved.name)}{badgeOrCount(is, e.saved)}</span><span class="ft">{e.saved.title}{hid ? '・隠れている' : ''}</span></button>;
+        return <button class={['file', chosen === key ? 'on' : '', hid ? 'hid' : ''].filter(Boolean).join(' ')} data-act="yfile" data-key={key} aria-pressed={chosen === key} onClick={() => pressYfile(key)}><code>{e.saved.name}.md</code><span class="fs">{ychecksText(l, e.saved.name)}{badgeOrCount(is, e.saved)}</span><span class="ft">{e.saved.title}{hid ? '・隠れている' : ''}</span></button>;
       })}</div>)}</nav>
       {one ? <YamlFile key={chosen} file={one} /> : <div class="none">ロールの文書はありません</div>}
     </div>;
@@ -86,7 +86,7 @@ function YamlPageBody() {
 // file's own check found, or, with none, how many rules it holds.
 function badgeOrCount(issues: RuleIssue[], saved: EditableDocument | null) {
   if ((issues || []).length) return <Badge list={issues} />;
-  const n = saved ? rulesOf(saved).length : 0;
+  const n = saved ? Array.from(saved.text).length : 0;
   return n ? <>{n}</> : '';
 }
 

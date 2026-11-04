@@ -21,13 +21,13 @@ func TestMain(m *testing.M) {
 }
 
 func TestCompareReadsRulesTurnsAndWorkers(t *testing.T) {
-	oldDoc := "version: 1\nsections:\n  - rules:\n      - id: C1\n        text: 古い本文。\n"
-	nowDoc := "version: 1\nsections:\n  - rules:\n      - id: C1\n        text: 新しい本文。\n      - id: C2\n        text: 足した本文。\n"
+	oldDoc := "- 古い本文。\n"
+	nowDoc := "- 新しい本文。\n- 足した本文。\n"
 	oldPrompt := "## Team agreements\n\n" + oldDoc + "\n## ターンを渡す相手\nあなたがターンを渡す相手:\n- demo-reviewer（ロール reviewer）\n"
 	current := definition.Start{
 		Name: "demo-lead", Short: "lead", Role: "lead", Prompt: "new prompt",
 		Segments: []definition.PromptSegment{
-			{Kind: "team_rules", Text: "\n" + nowDoc, Origin: definition.PromptOrigin{Path: "demo/agreement.yaml"}},
+			{Kind: "team_rules", Text: "\n" + nowDoc, Origin: definition.PromptOrigin{Path: "demo/agreement.md"}},
 			{Kind: "turns", Text: "\n## ターンを渡す相手\nあなたがターンを渡す相手:\n- demo-builder（ロール builder）\n"},
 			{Kind: "workers", Text: "\n## ワーカーの追加\n必要なときは、次の「目的 → プロファイル」の組でワーカーを追加してよい: 校正 → cheap\n"},
 		},
@@ -35,16 +35,16 @@ func TestCompareReadsRulesTurnsAndWorkers(t *testing.T) {
 		Workers: []definition.WorkerNode{{From: "lead", Purpose: "校正", Profile: "cheap"}},
 	}
 	changes := Compare("ja", oldPrompt, map[string]string{
-		".hergy/teams/demo/agreement.yaml": oldDoc,
+		".hergy/teams/demo/agreement.md": oldDoc,
 	}, current, []Doc{{
-		Path: ".hergy/teams/demo/agreement.yaml", Display: "demo/agreement.yaml", Text: nowDoc,
+		Path: ".hergy/teams/demo/agreement.md", Display: "demo/agreement.md", Text: nowDoc,
 	}})
 	var kinds []string
 	for _, change := range changes {
-		kinds = append(kinds, change.Kind+":"+change.Rule+change.Turn+change.Worker)
+		kinds = append(kinds, change.Kind+":"+change.Turn+change.Worker)
 	}
 	joined := strings.Join(kinds, ",")
-	for _, want := range []string{"rule:C1", "rule:C2", "turn:lead → builder", "worker:校正"} {
+	for _, want := range []string{"document:", "turn:lead → builder", "worker:校正"} {
 		if !strings.Contains(joined, want) {
 			t.Errorf("changes = %+v, want %s", changes, want)
 		}
@@ -129,5 +129,39 @@ func TestAChangedWorkerProfileIsNotAnAddedWorker(t *testing.T) {
 	}
 	if !strings.Contains(changes[0].Text, "校正") {
 		t.Errorf("the text = %q, want the purpose named", changes[0].Text)
+	}
+}
+
+func TestProseChangesIncludeEmptyDeletedAndLegacyDocuments(t *testing.T) {
+	const path = "/roles/builder.md"
+	legacy := "version: 1\nsections:\n  - rules:\n      - id: ABCD\n        text: Before.\n"
+	cases := []struct {
+		name          string
+		old           map[string]string
+		docs          []Doc
+		diff, message string
+	}{
+		{"empty", map[string]string{path: "Before.\n"}, []Doc{{Path: path, Display: path}}, "- Before.", ""},
+		{"deleted", map[string]string{path: "Before.\n"}, nil, "- Before.", ""},
+		{"legacy", map[string]string{"/roles/builder.yaml": legacy}, []Doc{{Path: path, Display: path, Text: "After.\n"}}, "- - Before.", ""},
+		{"unreadable", map[string]string{"/roles/builder.yaml": "["}, []Doc{{Path: path, Display: path, Text: "After.\n"}}, "", i18n.Tf("delivery.document_unreadable", "builder.md")},
+		{"unreadable removed", map[string]string{"/roles/builder.yaml": "["}, nil, "", i18n.Tf("delivery.document_unreadable", "builder.yaml")},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := Compare("ja", "previous prompt", tc.old, definition.Start{Prompt: "next prompt"}, tc.docs)
+			if len(got) != 1 || got[0].Kind != "document" {
+				t.Fatalf("changes: %+v", got)
+			}
+			if tc.diff != "" && !strings.Contains(got[0].Diff, tc.diff) {
+				t.Fatalf("diff: %+v", got)
+			}
+			if tc.message != "" && got[0].Text != tc.message {
+				t.Fatalf("message: %+v", got)
+			}
+			if tc.name == "legacy" && tc.old["/roles/builder.yaml"] != legacy {
+				t.Fatal("snapshot rewritten")
+			}
+		})
 	}
 }

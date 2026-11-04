@@ -1,5 +1,44 @@
 # Changelog
 
+## Unreleased
+
+- Team and role prose is stored as complete Markdown documents. The team screen edits the team and shared roles side by side. The roster includes each member's name, first-line document title, role and herdr contact. Prose arrows are no longer interpreted; topology validation still uses `turns:`.
+- The provisional warning budget is 1,200 Unicode code points per role and team. Team totals include fixed template words. Warnings do not prevent startup.
+
+### Migration to Markdown prose
+
+Run these commands from the project directory with the new executable:
+
+```sh
+hergy migrate --dry
+hergy migrate
+hergy validate
+```
+
+If validation names old shared definitions, convert that layer as well. For shared settings, explicitly select them:
+
+```sh
+hergy migrate --global --dry
+hergy migrate --global
+hergy validate
+```
+
+`-C <project>` selects a project instead of the current directory. The default target is that project's `.hergy`, even outside a Git repository; global migration targets `$XDG_CONFIG_HOME/hergy` (normally `~/.config/hergy`). `team.yaml`, profiles and running agents are not rewritten.
+
+The command checks all targets before writing any. `roles/<name>.yaml` becomes `roles/<name>.md`; `teams/<name>/agreement.yaml` becomes `agreement.md` in the same directory. Each original is preserved byte for byte beside it as `<original filename>.bak`. Titles, heading depth, introductions and enabled rule bodies keep their order; rule IDs disappear. Disabled rules and notes remain only in the backup. Backups are not active settings. Validate and prompt generation stop and name any old YAML still at an active path.
+
+A conflicting `.md` or `.bak` is never overwritten. The error names the target. Move the conflicting file to a separate safe location after comparing it with the source, then repeat the dry run and migration. After an interrupted migration, rerun the same command: matching backups and conversion results allow resumption. A completed Markdown document that has since been edited is left alone.
+
+A symbolic link is refused with its path and `migration requires a regular file`. Preserve the link and its target separately, replace the link at the named definition path with a regular copy of the intended YAML, then rerun the commands. Migration does not modify the link target.
+
+If the filesystem does not support hard links, the error names the intended backup or Markdown path and says `cannot install migration file with an exclusive hard link`. The original YAML remains. If the backup was already installed, it remains too; an incomplete temporary file is removed. Copy the affected settings directory to a filesystem supporting hard links, run the migration there with the appropriate project or XDG configuration path, verify the backups and `validate` result, then copy the completed settings back. Do not delete the originals before verification.
+
+A retired top-level `.hergy/agreement.yaml` or global `agreement.yaml` is not assigned to teams automatically. Preserve it, use its content to edit the appropriate team `agreement.md` or shared role `.md`, then remove the retired file from the active settings directory. Run `hergy validate` again.
+
+No running team must be stopped just to convert its files. Saving does not change an agent's existing conversation. After validation, inspect `hergy apply --dry`, then use `hergy apply` when ready to send the new prompt. Historical YAML launch snapshots are converted for comparison without rewriting the history; an unreadable historical snapshot is reported as unavailable for comparison.
+
+To return to the previous executable, first preserve any Markdown edits separately. Restore each `.yaml.bak` to its original `.yaml` name and move the corresponding `.md` out of the active directory. Validate with the previous executable before starting teams.
+
 ## 0.9.6 - 2026-11-04
 
 ### Added

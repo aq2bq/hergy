@@ -1,7 +1,6 @@
 package app
 
 import (
-	"os"
 	"testing"
 
 	"github.com/aq2bq/hergy/internal/i18n"
@@ -15,14 +14,4 @@ func initLocales(t *testing.T) {
 	if err := i18n.Init(); err != nil {
 		t.Fatal(err)
 	}
-}
-
-// readRule reads one settings file as it stands on disk.
-func readRule(t *testing.T, path string) string {
-	t.Helper()
-	text, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return string(text)
 }

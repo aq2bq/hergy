@@ -17,7 +17,7 @@ import {
 } from './state.js';
 import { ConflictNotice } from '../lib/conflict.js';
 import { bringUnderBand } from '../lib/band.js';
-import { RuleDoc, Counts, Badge, rulesOf, inP, diffCount } from '../lib/ruledoc.js';
+import { RuleDoc, Counts, Badge, diffCount } from '../lib/ruledoc.js';
 import type { RuleIssue } from '../lib/ruledoc.js';
 import type { Place, RoleGroup, RoleRow } from './state.js';
 import { AssignPage } from './assign.js';
@@ -30,7 +30,7 @@ const other = (l: Place): Place => (l === 'project' ? 'global' : 'project');
 export function Tabs() {
   const s = state.value;
   const people = teams.value.reduce((n, t) => n + t.members.length, 0);
-  const tabs: Array<['roles' | 'assign' | 'yaml', string, string | number]> = [['roles', '一覧', ''], ['assign', '割り当て', people], ['yaml', 'YAML', '']];
+  const tabs: Array<['roles' | 'assign' | 'yaml', string, string | number]> = [['roles', '一覧', ''], ['assign', '割り当て', people], ['yaml', 'Markdown', '']];
   return tabs.map(([t, label, n]) => <button class={'tab' + (s.tab === t ? ' on' : '')} role="tab" aria-controls="view" aria-selected={s.tab === t} tabIndex={s.tab === t ? 0 : -1} data-act="tab" data-t={t} aria-pressed={s.tab === t} onClick={() => pressTab(t)}>{label}{n !== '' ? <span class="n">{n}</span> : ''}</button>);
 }
 
@@ -47,20 +47,20 @@ export function App() {
 export function List() {
   const s = state.value;
   return <><div class="toolbar">
-      <div class="filters">{FILTERS.map(([f, label]) => <button class={'fchip' + (s.filter === f ? ' on' : '')} data-act="filter" data-f={f || ''} aria-pressed={s.filter === f} onClick={() => pressFilter(f)}>{label}<span class="n">{filterCount(f)} {f === 'off' ? 'ロール' : '規則'}</span></button>)}</div>
-      <Field id="q" class="search" type="search" placeholder="規則を探す" value={s.q} autocomplete="off" onInput={(e: Event) => { if (e.currentTarget instanceof HTMLInputElement) pressSearch(e.currentTarget.value); }} />
+      <div class="filters">{FILTERS.map(([f, label]) => <button class={'fchip' + (s.filter === f ? ' on' : '')} data-act="filter" data-f={f || ''} aria-pressed={s.filter === f} onClick={() => pressFilter(f)}>{label}<span class="n">{filterCount(f)} ロール</span></button>)}</div>
+      <Field id="q" class="search" type="search" placeholder="文書を探す" value={s.q} autocomplete="off" onInput={(e: Event) => { if (e.currentTarget instanceof HTMLInputElement) pressSearch(e.currentTarget.value); }} />
     </div>
     {HQ && HQ.error
       ? <p class="hq-err" data-role="hq-error">{HQ.error}</p>
       : <div class="list">
-        <div class="head"><span></span><span>ロール名</span><span>置き場所</span><span>規則</span><span>オン / オフ</span><span>大きさ</span><span>使っているチーム</span></div>
+        <div class="head"><span></span><span>ロール名</span><span>置き場所</span><span>大きさ</span><span>使っているチーム</span></div>
         <div id="rows">{rowsHTML()}</div>
       </div>}</>;
 }
 
 function rowsHTML() {
   const shown = roles.value.filter((r) => !filtering() || r.isNew || r.markdown
-    || PLACES.some((l) => r[l] && rulesOf(r[l].draft).some((x) => ruleShown(x, issuesOf(r, l)))));
+    || PLACES.some((l) => r[l] && ruleShown(r[l].draft, issuesOf(r, l))));
   return roleGroups().map((g) => {
     const rows = shown.filter((r) => groupOfRow(r) === g.key);
     return <>{groupHeader(g)}{rows.map((r) => <Role key={r.uid} r={r} />)}
@@ -152,23 +152,17 @@ function sumInner(r: RoleRow) {
     return <><button type="button" class="chev disclosure" aria-label={`${r.markdown ? r.name : curName(r)} を開閉する`} aria-expanded={state.value.open.has(r.uid)} onClick={(e) => { e.stopPropagation(); pressToggle(r.uid); }}></button>
         <span class="c-name"><span class="nm">{r.name}</span><span class="sev err">問題 1</span></span>
         <span class="c-place">{placePills(r)}</span>
-        <span class="c-count"><span class="none">—</span></span>
-        <span class="c-backing"></span>
         <span class="c-amount"><span class="none">—</span></span>
         <span class="c-readers">{readersCell(r)}</span></>;
   }
   const d = cur(r), saved = live(r, 'project') || live(r, 'global');
   const readers = whoReads(curName(r), r.group);
   const issues = rowIssues(r);
-  const rs = rulesOf(d);
-  const on = rs.filter(inP).length, off = rs.length - on;
   const size = checks.value[r.uid + eff(r)];
   const teamIds = [...new Set(readers.map((x) => x.t.id))];
   return <><button type="button" class="chev disclosure" aria-label={`${r.markdown ? r.name : curName(r)} を開閉する`} aria-expanded={state.value.open.has(r.uid)} onClick={(e) => { e.stopPropagation(); pressToggle(r.uid); }}></button>
       <span class="c-name"><span class="nm">{d.name ? d.name : <span class="none">—</span>}</span><span class="ttl">{d.title}</span>{r.isNew ? <span class="tag">新規</span> : ''}{saved ? <Badge list={issues} /> : readers.length ? <span class="sev err">問題 {readers.length}</span> : ''}</span>
       <span class="c-place">{r.noDoc ? '' : placePills(r)}</span>
-      <span class="c-count">{saved ? rs.length : <span class="none">—</span>}</span>
-      <span class="c-backing">{saved ? <span class="onoff">オン <b>{on}</b>{off ? <>{' · '}<span class="offn">オフ {off}</span></> : ''}</span> : <span class="none">—</span>}</span>
       <span class="c-amount">{size && size.limit ? <Measure chars={size.size || 0} limit={size.limit} /> : <span class="none">—</span>}</span>
       <span class="c-readers">{GROUPED ? readersCell(r) : teamIds.length ? <><b>{teamIds.length}</b><span>{teamIds.join(' · ')}</span></> : <span class="none">0</span>}</span></>;
 }
@@ -241,11 +235,10 @@ function Panel({ r, l }: { r: RoleRow; l: Place }) {
         <code class="path">{pathOfRow(r, l, d)}</code>
         <span class="phr">
           {both ? <span class={'state ' + (shadowed ? 'off' : 'on')}>{shadowed ? '隠れている' : '効いている'}</span> : ''}
-          <span class="seg pview">{[['edit', '編集'], ['md', 'Markdown']].map(([v, label]) => <button class={mode === v ? 'on' : ''} data-act="pmode" data-v={v} aria-pressed={mode === v} onClick={() => pressPmode(r.uid, l, v)}>{label}</button>)}</span>
         </span>
       </header>
       <div class="pmain"><RuleDoc row={row} issues={issues} nameError={nameError}
-        filtering={filtering()} shown={ruleShown} query={state.value.q}
+        filtering={filtering()} query={state.value.q}
         readerCount={(name: string) => whoReads(name, GROUPED ? CURRENT : '').length}
         onChange={() => onChangeDraft(r, l)}
         onMode={(v: 'edit' | 'md') => pressPmode(r.uid, l, v)}

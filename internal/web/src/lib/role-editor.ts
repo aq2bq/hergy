@@ -52,24 +52,13 @@ function isRoleDiff(value: unknown): value is components['schemas']['RoleDiff'] 
     && typeof value.removedAtEnd === 'boolean';
 }
 
-function isRoleTurn(value: unknown): value is components['schemas']['RoleTurn'] {
-  return record(value)
-    && typeof value.section === 'number'
-    && typeof value.rule === 'number'
-    && typeof value.arrow === 'string'
-    && typeof value.definition === 'string'
-    && typeof value.ok === 'boolean';
-}
-
 function isRoleReader(value: unknown): value is components['schemas']['RoleReader'] {
   return record(value) && typeof value.definition === 'string' && typeof value.member === 'string';
 }
 
 function isRoleEffect(value: unknown): value is components['schemas']['RoleEffect'] {
   return record(value)
-    && isRoleDiff(value.diff)
-    && Array.isArray(value.turns)
-    && value.turns.every(isRoleTurn);
+    && isRoleDiff(value.diff);
 }
 
 function isRoleCheckData(value: unknown): value is RoleCheckData {
@@ -112,7 +101,7 @@ export function roleEditor() {
   return { check, saving, save };
 }
 
-export function roleProblems(doc: EditableDocument, list: Schemas['Problem'][]): RuleIssue[] {
-  return list.map((p) => ({ sev: p.sev, k: doc.sections[p.section ?? -1]?.rules[p.rule ?? -1]?._k || 0,
+export function roleProblems(_doc: EditableDocument, list: Schemas['Problem'][]): RuleIssue[] {
+  return list.map((p) => ({ sev: p.sev, k: 0,
     f: p.field || '', text: p.text, definition: p.definition || '' }));
 }

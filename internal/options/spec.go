@@ -346,7 +346,7 @@ var specs = []Spec{
 		Kind: New, Name: "new",
 		Summary: text("Write a starter team definition", "チーム定義のひな形を作る"),
 		Detail: text(
-			"Write team.yaml and agreement.yaml.\n"+
+			"Write team.yaml and agreement.md.\n"+
 				"The members' roles and profiles are the ones either place already holds:\n"+
 				"hergy writes no role document and no profile the person did not choose.\n"+
 				"While neither place holds a role document, it writes the starter roles\n"+
@@ -356,7 +356,7 @@ var specs = []Spec{
 				"An existing team is never overwritten. It writes into the project's .hergy/\n"+
 				"inside a git repository, and into ~/.config/hergy/ outside one.\n"+
 				"If the global config.yaml (version and lang) is missing, it is written too.",
-			"team.yaml・agreement.yaml を書き出す。メンバーのロールとプロファイルは、\n"+
+			"team.yaml・agreement.md を書き出す。メンバーのロールとプロファイルは、\n"+
 				"プロジェクトかグローバルのどちらかに今あるものから選ぶ。\n"+
 				"人が選んでいないロールの文書とプロファイルは書かない。\n"+
 				"どちらにもロールの文書が 1 つも無いときだけ、ひな形のロール lead・builder を\n"+
@@ -376,6 +376,8 @@ var specs = []Spec{
 			use(flagDir, descDir),
 		},
 	},
+	{Kind: Migrate, Name: "migrate", Summary: text("Convert legacy prose definitions", "旧形式の文書を散文へ変換する"),
+		Flags: []Use{use(flagDry, text("Inspect every conversion without writing", "全対象を検査して表示する。書き込まない")), use(flagGlobal, text("Convert the global layer instead of the project", "プロジェクトではなくグローバルを変換する")), use(flagDir, descDir)}},
 	{
 		Kind: Validate, Name: "validate",
 		Summary: text("Check the settings files", "設定ファイルを検査する"),

@@ -46,31 +46,11 @@ function yamlString(value) {
   return JSON.stringify(value);
 }
 
-function ruleID(index) {
-  return `A${String(index).padStart(3, '0')}`;
-}
 
-let nextRule = 0;
-
-function rulesYAML(count, topic) {
-  const rules = Array.from({ length: count }, (_, index) => {
-    const id = ruleID(nextRule++);
-    return `      - id: ${id}\n        text: ${yamlString(`${topic} の手順 ${String(index + 1).padStart(2, '0')} を確認する。`)}`;
-  });
-  const half = Math.ceil(rules.length / 2);
-  const first = rules.slice(0, half).join('\n');
-  const second = rules.slice(half).join('\n');
-  return `sections:\n  - heading: ${yamlString(`${topic} の進め方`)}\n    rules:\n${first}\n  - heading: ${yamlString(`${topic} の確認`)}\n    rules:\n${second}\n`;
-}
-
-function roleYAML(name) {
-  const title = `${name} の役割`;
-  return `version: 1\ntitle: ${yamlString(title)}\n${rulesYAML(sample.rulesPerDocument, title)}`;
-}
-
-function agreementYAML(name) {
-  const title = `${name} チームの約束`;
-  return `version: 1\ntitle: ${yamlString(title)}\nrevision: 1\n${rulesYAML(sample.rulesPerDocument, title)}`;
+function proseDocument(title) {
+  const lines = Array.from({ length: sample.rulesPerDocument }, (_, i) => `- ${title} の手順 ${i + 1} を確認する。`);
+  const half = Math.ceil(lines.length / 2);
+  return `# ${title}\n\n## 進め方\n${lines.slice(0, half).join('\n')}\n\n## 確認\n${lines.slice(half).join('\n')}\n`;
 }
 
 function membersFor(team) {
@@ -151,11 +131,11 @@ function createFixture() {
     mkdirSync(hergy, { recursive: true });
     writeDocument(path.join(hergy, 'profiles.yaml'), profilesYAML());
     for (const role of rolesByProject[project]) {
-      writeDocument(path.join(hergy, 'roles', `${role}.yaml`), roleYAML(role));
+      writeDocument(path.join(hergy, 'roles', `${role}.md`), proseDocument(`${role} の役割`));
     }
     for (const team of teams.filter((one) => one.project === project)) {
       writeDocument(path.join(hergy, 'teams', team.name, 'team.yaml'), teamYAML(team));
-      writeDocument(path.join(hergy, 'teams', team.name, 'agreement.yaml'), agreementYAML(team.name));
+      writeDocument(path.join(hergy, 'teams', team.name, 'agreement.md'), proseDocument(`${team.name} チームの散文`));
     }
     execFileSync('git', ['init', '-q'], {
       cwd: projectRoot,

@@ -33,24 +33,18 @@ import {
 import {
   token2,
   parseOpen2
-} from "../chunk/nav-bb65tqp4.js";
-import"../chunk/nav-xf4emtj1.js";
+} from "../chunk/nav-7rgxqdr2.js";
+import"../chunk/nav-8vctx6fw.js";
 import {
+  renameCarries2,
   fromJSON2,
   toDoc2,
-  rulesOf2,
-  inP2,
-  openRules2,
-  openRuleKey2,
-  renameCarries2,
-  Vm2,
+  diffCount2,
   Counts2,
   Badge2,
-  diffCount2,
-  RuleDoc2,
-  nextKey2,
-  observeKeys2
-} from "../chunk/nav-7cjn77zc.js";
+  Vm2,
+  RuleDoc2
+} from "../chunk/nav-q3nq11g3.js";
 import {
   conflictOf,
   ConflictNotice,
@@ -60,7 +54,7 @@ import {
   roleEditor,
   roleProblems,
   Measure
-} from "../chunk/nav-vabskx3v.js";
+} from "../chunk/nav-ym23ftqp.js";
 import {
   copyGroupOf,
   projectOfGroup,
@@ -270,7 +264,7 @@ var projectNameOf = (key) => {
   const found = HQ && ((HQ.projects || {}).projects || []).find((x) => x.path === key);
   return found ? found.name : String(key || "").split("/").filter(Boolean).pop() || "";
 };
-var pathOf = (l, d) => DIR[l] + (d.name || "…") + ".yaml";
+var pathOf = (l, d) => DIR[l] + (d.name || "…") + ".md";
 var pathOfRow = (r, l, d) => r.paths && r.paths[l] || pathOf(l, d);
 var withRow = (id, fn) => {
   const one = Number(id);
@@ -318,7 +312,6 @@ function rowOfPanel(r, l) {
     issues: c ? c.issues : [],
     markdown: c ? c.markdown : { lines: [], chars: 0 },
     diff: c ? c.diff : { added: [], removedBefore: [], removedAtEnd: false },
-    turns: c ? c.turns : [],
     savedIssues: e.__savedIssues
   };
 }
@@ -345,7 +338,6 @@ async function askCheck(r, l, cb) {
       issues,
       markdown: c.preview || { lines: [], chars: 0 },
       diff: c.effect?.diff || { added: [], removedBefore: [], removedAtEnd: false },
-      turns: c.effect?.turns || [],
       readers: c.readers || null,
       size: c.size,
       limit: c.limit
@@ -390,10 +382,8 @@ var refusalOf = (k) => state.value.refusals[k] || null;
 var teamErrorOf = (id) => state.value.teamErrors[id] || "";
 function openNewPanel(r) {
   const l = eff(r), e = r[l];
-  const first = e && e.draft.sections[0] && e.draft.sections[0].rules[0];
-  if (!first)
+  if (!e)
     return;
-  openRuleKey2(`${r.uid}${l}:${first._k}`);
   if (!checks.value[keyOf(r, l)])
     askCheck(r, l, () => touch());
 }
@@ -404,7 +394,7 @@ function parseURL() {
   const next = { tab };
   if (tab === "roles") {
     const f = qs.get("filter");
-    next.filter = f === "off" || f === "issues" ? f : null;
+    next.filter = f === "issues" ? f : null;
     next.q = qs.get("q") || "";
     const openedRaw = qs.get("open") || "";
     const openedRows = parseOpen2(openedRaw) || [];
@@ -416,29 +406,6 @@ function parseURL() {
       open.add(r.uid);
       if (r.noDoc)
         openNewPanel(r);
-    });
-    next.open = open;
-    const isPlace = (value) => value === "project" || value === "global";
-    (qs.get("rule") || "").split(",").filter(Boolean).forEach((spec) => {
-      const m = /^(.*)\.(project|global)\.(.+)$/.exec(spec);
-      const place = m && isPlace(m[2]) ? m[2] : null;
-      const wanted = m && place ? [{ name: m[1], group: openedRows.find((r) => r.name === m[1])?.group, place, id: m[3] }] : openedRows.map(({ name, group }) => ({ name, group, place: null, id: spec }));
-      wanted.forEach(({ name, group, place, id }) => {
-        const r = group ? savedRoles().find((r) => curName(r) === name && r.group === group) : roleByName(name) || savedRoles().find((r) => curName(r) === name);
-        if (!r)
-          return;
-        const places = place ? [place] : [eff(r)];
-        places.forEach((l) => {
-          const entry = r[l];
-          if (!entry || !entry.saved)
-            return;
-          const hit = rulesOf2(entry.saved).find((x) => x.id === id);
-          if (hit) {
-            open.add(r.uid);
-            openRuleKey2(`${r.uid}${l}:${hit._k}`);
-          }
-        });
-      });
     });
     next.open = open;
   } else if (tab === "assign") {
@@ -487,20 +454,6 @@ function syncURL(push) {
     }).filter(Boolean);
     if (open.length)
       q.set("open", open.join(","));
-    const rule = [...openRules2()].map((kk) => {
-      const m = /^(\d+)(project|global):(\d+)$/.exec(kk);
-      if (!m)
-        return "";
-      const r = byUid(m[1]);
-      const place = m[2] === "project" ? "project" : "global";
-      const entry = r && r[place];
-      if (!r || !entry || !entry.saved)
-        return "";
-      const hit = rulesOf2(entry.saved).find((x) => x._k === Number(m[3]));
-      return hit && hit.id ? `${curName(r)}.${place}.${hit.id}` : "";
-    }).filter(Boolean);
-    if (rule.length)
-      q.set("rule", rule.join(","));
   }
   const url = path + (q.toString() ? "?" + q.toString() : "");
   if (push)
@@ -508,30 +461,16 @@ function syncURL(push) {
   else
     history.replaceState(null, "", url);
 }
-var FILTERS = [[null, "すべて"], ["off", "オフがある"], ["issues", "問題・警告"]];
+var FILTERS = [[null, "すべて"], ["issues", "問題・警告"]];
 var allEntries = () => roles.value.flatMap((r) => PLACES.flatMap((l) => r[l] ? [{ r, l, e: r[l] }] : []));
 function ruleShown(x, issues) {
   const s = state.value;
-  if (s.filter === "off" && inP2(x))
-    return false;
-  if (s.filter === "issues" && !issues.some((m) => m.k === x._k))
-    return false;
-  if (s.q) {
-    const q = s.q.toLowerCase();
-    if (![x.id, x.text, x.note].some((v) => String(v).toLowerCase().includes(q)))
-      return false;
-  }
-  return true;
+  return (!s.filter || issues.length > 0) && (!s.q || [x.name, x.title, x.text].some((v) => v.toLowerCase().includes(s.q.toLowerCase())));
 }
 var filtering = () => !!(state.value.filter || state.value.q);
 var rowIssues = (r) => PLACES.filter((l) => r[l]).flatMap((l) => issuesOf(r, l));
 function filterCount(f) {
-  if (f === "off")
-    return roles.value.filter((r) => PLACES.some((l) => r[l] && rulesOf2(r[l].draft).some((x) => !inP2(x)))).length;
-  return allEntries().reduce((c, { r, l, e }) => {
-    const is = issuesOf(r, l);
-    return c + rulesOf2(e.draft).filter((x) => f === null || is.some((m) => m.k === x._k)).length;
-  }, 0);
+  return roles.value.filter((r) => !f || rowIssues(r).length > 0).length;
 }
 var ykey = (place, name) => place + "." + name;
 var ychecksOf = (place, name) => ychecks.value[ykey(place, name)];
@@ -617,7 +556,8 @@ function pressFilter(f) {
   syncURL(false);
 }
 function pressNew(group) {
-  const d = { name: "", title: "", revision: 1, sections: [{ _s: 0, heading: "責務", level: 0, intro: "", rules: [{ _k: nextKey2(), id: "", text: "", note: "", in_prompt: true, off_since: "" }] }] };
+  const d = { name: "", title: "", text: `## 責務
+` };
   const key = group === undefined ? roleGroups()[0].key : group;
   const place = key === "global" ? "global" : "project";
   const nr = { uid: nextUid(), isNew: true, group: key, project: null, global: null };
@@ -634,7 +574,6 @@ function pressNew(group) {
   const open = new Set(state.value.open);
   open.add(nr.uid);
   patch({ open, filter: null, q: "" });
-  openRuleKey2(`${nr.uid}${place}:${d.sections[0].rules[0]._k}`);
   touch();
   askCheck(nr, place, () => {
     askFocus(nr.uid, "[data-f=name]");
@@ -987,7 +926,6 @@ function restore(carried) {
       return;
     if (c.hash && e.hash !== c.hash)
       return;
-    observeKeys2(rulesOf2(c.draft));
     withEntry(r.uid, c.place, (one) => ({ ...one, draft: clone(c.draft) }));
     if (c.isNew)
       withRow(r.uid, (one) => ({ ...one, isNew: true }));
@@ -1061,7 +999,7 @@ function ARow({ t, m, i }) {
   const r = roleByName(m.draft);
   const hi = state.value.roleHi;
   const dim = hi && m.draft !== hi;
-  const places = [DIR.project + m.draft + ".yaml", DIR.global + m.draft + ".yaml"].join(TEXT.separator || "、");
+  const places = [DIR.project + m.draft + ".md", DIR.global + m.draft + ".md"].join(TEXT.separator || "、");
   return /* @__PURE__ */ u("div", {
     class: ["arow", m.draft !== m.saved ? "changed" : "", r ? "" : "missing", dim ? "dim" : ""].filter(Boolean).join(" "),
     "data-m": m.name,
@@ -1294,7 +1232,7 @@ function YamlFile({ file }) {
         e.hash = json.hash || e.hash;
         if (typeof json.text === "string")
           e.text = json.text;
-        if (json.doc && "sections" in json.doc) {
+        if (json.doc && "text" in json.doc) {
           e.saved = fromJSON2(json.doc);
           e.draft = clone(e.saved);
         }
@@ -1326,7 +1264,7 @@ function YamlPageBody() {
           children: "ロールの文書はまだありません。"
         }),
         /* @__PURE__ */ u("p", {
-          children: "一覧の『＋ ロールを追加』で作ると、ここに roles/<ロール名>.yaml が並びます。"
+          children: "一覧の『＋ ロールを追加』で作ると、ここに roles/<ロール名>.md が並びます。"
         }),
         /* @__PURE__ */ u("span", {
           children: /* @__PURE__ */ u("button", {
@@ -1372,7 +1310,7 @@ function YamlPageBody() {
                   /* @__PURE__ */ u("code", {
                     children: [
                       e.saved.name,
-                      ".yaml"
+                      ".md"
                     ]
                   }),
                   /* @__PURE__ */ u("span", {
@@ -1409,7 +1347,7 @@ function badgeOrCount(issues, saved) {
     return /* @__PURE__ */ u(Badge2, {
       list: issues
     });
-  const n = saved ? rulesOf2(saved).length : 0;
+  const n = saved ? Array.from(saved.text).length : 0;
   return n ? /* @__PURE__ */ u(S, {
     children: n
   }) : "";
@@ -1430,7 +1368,7 @@ var other2 = (l) => l === "project" ? "global" : "project";
 function Tabs() {
   const s = state.value;
   const people = teams.value.reduce((n, t) => n + t.members.length, 0);
-  const tabs = [["roles", "一覧", ""], ["assign", "割り当て", people], ["yaml", "YAML", ""]];
+  const tabs = [["roles", "一覧", ""], ["assign", "割り当て", people], ["yaml", "Markdown", ""]];
   return tabs.map(([t, label, n]) => /* @__PURE__ */ u("button", {
     class: "tab" + (s.tab === t ? " on" : ""),
     role: "tab",
@@ -1479,8 +1417,7 @@ function List() {
                   class: "n",
                   children: [
                     filterCount(f),
-                    " ",
-                    f === "off" ? "ロール" : "規則"
+                    " ロール"
                   ]
                 })
               ]
@@ -1490,7 +1427,7 @@ function List() {
             id: "q",
             class: "search",
             type: "search",
-            placeholder: "規則を探す",
+            placeholder: "文書を探す",
             value: s.q,
             autocomplete: "off",
             onInput: (e) => {
@@ -1518,12 +1455,6 @@ function List() {
                 children: "置き場所"
               }),
               /* @__PURE__ */ u("span", {
-                children: "規則"
-              }),
-              /* @__PURE__ */ u("span", {
-                children: "オン / オフ"
-              }),
-              /* @__PURE__ */ u("span", {
                 children: "大きさ"
               }),
               /* @__PURE__ */ u("span", {
@@ -1541,7 +1472,7 @@ function List() {
   });
 }
 function rowsHTML() {
-  const shown = roles.value.filter((r) => !filtering() || r.isNew || r.markdown || PLACES.some((l) => r[l] && rulesOf2(r[l].draft).some((x) => ruleShown(x, issuesOf(r, l)))));
+  const shown = roles.value.filter((r) => !filtering() || r.isNew || r.markdown || PLACES.some((l) => r[l] && ruleShown(r[l].draft, issuesOf(r, l))));
   return roleGroups().map((g) => {
     const rows = shown.filter((r) => groupOfRow(r) === g.key);
     return /* @__PURE__ */ u(S, {
@@ -1761,16 +1692,6 @@ function sumInner(r) {
           children: placePills(r)
         }),
         /* @__PURE__ */ u("span", {
-          class: "c-count",
-          children: /* @__PURE__ */ u("span", {
-            class: "none",
-            children: "—"
-          })
-        }),
-        /* @__PURE__ */ u("span", {
-          class: "c-backing"
-        }),
-        /* @__PURE__ */ u("span", {
           class: "c-amount",
           children: /* @__PURE__ */ u("span", {
             class: "none",
@@ -1787,8 +1708,6 @@ function sumInner(r) {
   const d = cur(r), saved = live(r, "project") || live(r, "global");
   const readers = whoReads(curName(r), r.group);
   const issues = rowIssues(r);
-  const rs = rulesOf2(d);
-  const on = rs.filter(inP2).length, off = rs.length - on;
   const size = checks.value[r.uid + eff(r)];
   const teamIds = [...new Set(readers.map((x) => x.t.id))];
   return /* @__PURE__ */ u(S, {
@@ -1835,40 +1754,6 @@ function sumInner(r) {
       /* @__PURE__ */ u("span", {
         class: "c-place",
         children: r.noDoc ? "" : placePills(r)
-      }),
-      /* @__PURE__ */ u("span", {
-        class: "c-count",
-        children: saved ? rs.length : /* @__PURE__ */ u("span", {
-          class: "none",
-          children: "—"
-        })
-      }),
-      /* @__PURE__ */ u("span", {
-        class: "c-backing",
-        children: saved ? /* @__PURE__ */ u("span", {
-          class: "onoff",
-          children: [
-            "オン ",
-            /* @__PURE__ */ u("b", {
-              children: on
-            }),
-            off ? /* @__PURE__ */ u(S, {
-              children: [
-                " · ",
-                /* @__PURE__ */ u("span", {
-                  class: "offn",
-                  children: [
-                    "オフ ",
-                    off
-                  ]
-                })
-              ]
-            }) : ""
-          ]
-        }) : /* @__PURE__ */ u("span", {
-          class: "none",
-          children: "—"
-        })
       }),
       /* @__PURE__ */ u("span", {
         class: "c-amount",
@@ -2033,23 +1918,10 @@ function Panel({ r, l }) {
           }),
           /* @__PURE__ */ u("span", {
             class: "phr",
-            children: [
-              both ? /* @__PURE__ */ u("span", {
-                class: "state " + (shadowed ? "off" : "on"),
-                children: shadowed ? "隠れている" : "効いている"
-              }) : "",
-              /* @__PURE__ */ u("span", {
-                class: "seg pview",
-                children: [["edit", "編集"], ["md", "Markdown"]].map(([v, label]) => /* @__PURE__ */ u("button", {
-                  class: mode === v ? "on" : "",
-                  "data-act": "pmode",
-                  "data-v": v,
-                  "aria-pressed": mode === v,
-                  onClick: () => pressPmode(r.uid, l, v),
-                  children: label
-                }))
-              })
-            ]
+            children: both ? /* @__PURE__ */ u("span", {
+              class: "state " + (shadowed ? "off" : "on"),
+              children: shadowed ? "隠れている" : "効いている"
+            }) : ""
           })
         ]
       }),
@@ -2060,7 +1932,6 @@ function Panel({ r, l }) {
           issues,
           nameError,
           filtering: filtering(),
-          shown: ruleShown,
           query: state.value.q,
           readerCount: (name) => whoReads(name, GROUPED ? CURRENT : "").length,
           onChange: () => onChangeDraft(r, l),

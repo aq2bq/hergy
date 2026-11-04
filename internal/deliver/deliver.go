@@ -15,7 +15,7 @@ import (
 
 	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/i18n"
-	"github.com/aq2bq/hergy/internal/rules"
+	"github.com/aq2bq/hergy/internal/migrate"
 )
 
 // Answer is what a screen reads about the running members whose prompt is not
@@ -68,10 +68,10 @@ type Note struct {
 type Change struct {
 	Kind     string `json:"kind"`
 	Document string `json:"document,omitempty"`
-	Rule     string `json:"rule,omitempty"`
 	Turn     string `json:"turn,omitempty"`
 	Worker   string `json:"worker,omitempty"`
 	Text     string `json:"text"`
+	Diff     string `json:"diff,omitempty"`
 }
 
 // Doc is one rule document as the comparison reads it. Path is the file's own
@@ -94,28 +94,14 @@ func Compare(lang, oldPrompt string, oldDocs map[string]string, current definiti
 	if oldPrompt == current.Prompt {
 		return nil
 	}
-	var out []Change
-	seenDoc := map[string]bool{}
+	out := documentChanges(oldDocs, docs)
 	for _, segment := range current.Segments {
 		if segment.Text == "" || strings.Contains(oldPrompt, segment.Text) {
 			continue
 		}
 		switch segment.Kind {
 		case "team_rules", "role_doc":
-			doc, ok := findDoc(docs, segment.Origin.Path)
-			if !ok {
-				out = append(out, Change{Kind: "document", Text: i18n.Tf("delivery.document_changed", segment.Origin.Path)})
-				continue
-			}
-			if seenDoc[doc.Path] {
-				continue
-			}
-			seenDoc[doc.Path] = true
-			changes := ruleChanges(doc, oldDocs[doc.Path])
-			if len(changes) == 0 {
-				changes = []Change{{Kind: "document", Document: doc.Display, Text: i18n.Tf("delivery.document_changed", displayOf(doc))}}
-			}
-			out = append(out, changes...)
+			continue
 		case "turns":
 			out = append(out, turnChanges(current, segment.Text, oldPrompt, lang)...)
 		case "workers":
@@ -134,116 +120,12 @@ func Compare(lang, oldPrompt string, oldDocs map[string]string, current definiti
 	return dedupe(out)
 }
 
-// findDoc finds the document a prompt segment names: the display path first,
-// then the path itself.
-func findDoc(docs []Doc, path string) (Doc, bool) {
-	for _, doc := range docs {
-		if doc.Display == path || doc.Path == path {
-			return doc, true
-		}
-	}
-	for _, doc := range docs {
-		if filepath.Base(doc.Path) == filepath.Base(path) {
-			return doc, true
-		}
-	}
-	return Doc{}, false
-}
-
 // displayOf is the document as a summary names it: its base name, so the
 // sentence stays short while the Change keeps the whole path.
 func displayOf(doc Doc) string { return filepath.Base(doc.Path) }
 
-// ruleChanges compares the rules of one document by id.
-func ruleChanges(doc Doc, oldText string) []Change {
-	if oldText == "" {
-		return nil
-	}
-	oldDoc, _ := rules.ReadAll(oldText, doc.Path)
-	nowDoc, _ := rules.ReadAll(doc.Text, doc.Path)
-	if oldDoc == nil || nowDoc == nil {
-		return nil
-	}
-	oldRules := map[string]rules.Rule{}
-	for _, rule := range oldDoc.Rules() {
-		oldRules[rule.ID] = rule
-	}
-	nowRules := map[string]rules.Rule{}
-	for _, rule := range nowDoc.Rules() {
-		nowRules[rule.ID] = rule
-	}
-	name := displayOf(doc)
-	var out []Change
-	for _, rule := range nowDoc.Rules() {
-		before, ok := oldRules[rule.ID]
-		switch {
-		case !ok:
-			// A rule a person has just written has no id until a write gives
-			// it one, so the plan names it by its own text (r-7aad).
-			if text := firstSentence(rule.Text); rule.ID == "" && text != "" {
-				out = append(out, Change{Kind: "rule", Document: doc.Display,
-					Text: i18n.Tf("delivery.rule_added_text", name, text)})
-				continue
-			}
-			out = append(out, Change{Kind: "rule", Document: doc.Display, Rule: rule.ID,
-				Text: i18n.Tf("delivery.rule_added", name, ruleName(rule))})
-		case before.Text != rule.Text:
-			out = append(out, Change{Kind: "rule", Document: doc.Display, Rule: rule.ID,
-				Text: i18n.Tf("delivery.rule_changed", name, ruleName(rule))})
-		case before.Included() != rule.Included():
-			key := "delivery.rule_off"
-			if rule.Included() {
-				key = "delivery.rule_on"
-			}
-			out = append(out, Change{Kind: "rule", Document: doc.Display, Rule: rule.ID,
-				Text: i18n.Tf(key, name, ruleName(rule))})
-		}
-	}
-	for _, rule := range oldDoc.Rules() {
-		if _, ok := nowRules[rule.ID]; !ok {
-			out = append(out, Change{Kind: "rule", Document: doc.Display, Rule: rule.ID,
-				Text: i18n.Tf("delivery.rule_removed", name, ruleName(rule))})
-		}
-	}
-	return out
-}
-
-// ruleName is one rule as a change names it: the id the rule stands by, or, for
-// a rule that has none, the rule's own first sentence. A rule a person has just
-// written has no id until a write gives it one, and the plan is read before that
-// write, so the plan still has to say which rule it is (r-7aad).
-func ruleName(rule rules.Rule) string {
-	if rule.ID != "" {
-		return rule.ID
-	}
-	text := firstSentence(rule.Text)
-	if text == "" {
-		return i18n.T("delivery.rule_unnamed")
-	}
-	return i18n.Tf("delivery.rule_text", text)
-}
-
 // ruleNameLength is the most runes of a rule's text a change quotes: enough to
 // tell one rule from another, and short enough to read in one line.
-const ruleNameLength = 40
-
-// firstSentence is a rule's text up to the end of its first sentence, and no
-// more than ruleNameLength runes of it.
-func firstSentence(text string) string {
-	line, _, _ := strings.Cut(strings.TrimSpace(text), "\n")
-	line = strings.TrimSpace(line)
-	for _, end := range []string{"。", ". "} {
-		if at := strings.Index(line, end); at >= 0 {
-			line = strings.TrimSpace(line[:at+len(end)])
-			break
-		}
-	}
-	runes := []rune(line)
-	if len(runes) > ruleNameLength {
-		return string(runes[:ruleNameLength]) + "…"
-	}
-	return line
-}
 
 // turnChanges compares the turns a member hands to, by their endpoints. The
 // current endpoints come from the definition (short member names and human);
@@ -487,4 +369,73 @@ func dedupe(changes []Change) []Change {
 		out = append(out, change)
 	}
 	return out
+}
+
+// documentChanges compares raw prose, converting only historical YAML snapshots.
+func documentChanges(old map[string]string, docs []Doc) []Change {
+	var out []Change
+	seen := map[string]bool{}
+	for _, doc := range docs {
+		key := doc.Path
+		before, exists := old[key]
+		if !exists {
+			legacy := strings.TrimSuffix(key, ".md") + ".yaml"
+			if raw, ok := old[legacy]; ok {
+				seen[legacy] = true
+				converted, err := migrate.Convert(raw, legacy)
+				if err != nil {
+					out = append(out, Change{Kind: "document", Document: doc.Display, Text: i18n.Tf("delivery.document_unreadable", displayOf(doc))})
+					continue
+				}
+				before = converted.Text
+			}
+		}
+		seen[key] = true
+		if before != doc.Text {
+			out = append(out, Change{Kind: "document", Document: doc.Display, Text: i18n.Tf("delivery.document_changed", displayOf(doc)), Diff: textDiff(before, doc.Text)})
+		}
+	}
+	keys := make([]string, 0, len(old))
+	for path := range old {
+		keys = append(keys, path)
+	}
+	slices.Sort(keys)
+	for _, path := range keys {
+		if seen[path] || (filepath.Ext(path) != ".md" && filepath.Ext(path) != ".yaml") {
+			continue
+		}
+		// Launch records may also contain topology and profiles.
+		if filepath.Base(path) == "team.yaml" || filepath.Base(path) == "profiles.yaml" {
+			continue
+		}
+		before := old[path]
+		if filepath.Ext(path) == ".yaml" {
+			converted, err := migrate.Convert(before, path)
+			if err != nil {
+				out = append(out, Change{Kind: "document", Document: path, Text: i18n.Tf("delivery.document_unreadable", filepath.Base(path))})
+				continue
+			}
+			before = converted.Text
+		}
+		out = append(out, Change{Kind: "document", Document: path, Text: i18n.Tf("delivery.document_changed", filepath.Base(path)), Diff: textDiff(before, "")})
+	}
+	return out
+}
+
+func textDiff(before, after string) string {
+	a, b := strings.Split(before, "\n"), strings.Split(after, "\n")
+	for len(a) > 0 && len(b) > 0 && a[0] == b[0] {
+		a, b = a[1:], b[1:]
+	}
+	for len(a) > 0 && len(b) > 0 && a[len(a)-1] == b[len(b)-1] {
+		a, b = a[:len(a)-1], b[:len(b)-1]
+	}
+	var out strings.Builder
+	for _, line := range a {
+		out.WriteString("- " + line + "\n")
+	}
+	for _, line := range b {
+		out.WriteString("+ " + line + "\n")
+	}
+	return out.String()
 }

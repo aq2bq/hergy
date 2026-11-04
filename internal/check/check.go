@@ -16,10 +16,8 @@ import (
 	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/prompt"
-	"github.com/aq2bq/hergy/internal/rules"
 	"github.com/aq2bq/hergy/internal/scaffold"
 	"github.com/aq2bq/hergy/internal/source"
-	"github.com/aq2bq/hergy/internal/topology"
 )
 
 // Finding is one thing a check found about a definition.
@@ -141,8 +139,8 @@ func SharedAgreementText(cat *catalog.Catalog, docs []source.Doc) string {
 	layer := cat.LayerDir(docs[0].Layer)
 	return i18n.Tf("error.shared_agreement_gone",
 		strings.Join(paths, i18n.T("list.separator")),
-		cat.Display(filepath.Join(layer, "teams", i18n.T("place.team_definition"), "agreement.yaml")),
-		cat.Display(filepath.Join(layer, "roles", i18n.T("place.role"))+".yaml"))
+		cat.Display(filepath.Join(layer, "teams", i18n.T("place.team_definition"), "agreement.md")),
+		cat.Display(filepath.Join(layer, "roles", i18n.T("place.role"))+".md"))
 }
 
 // sharedAgreementFindings is the one break every definition's check carries
@@ -178,246 +176,10 @@ func Definition(in Input) []Finding {
 	breaks := roleNameFindings(in, def)
 	breaks = append(breaks, promptFindings(in, def)...)
 	breaks = append(breaks, profileFindings(in, def)...)
-	agreementBreaks, agreementWarnings := agreementFinding(in, def)
-	betweenBreaks, betweenWarnings := betweenFindings(in, def)
-	breaks = append(breaks, agreementBreaks...)
-	breaks = append(breaks, betweenBreaks...)
-	breaks = dropPromptDuplicates(in, breaks)
 	warnings = append(warnings, descriptionPlaceholderFindings(def)...)
-	warnings = append(warnings, TurnFindings(in, def)...)
-	warnings = append(warnings, agreementWarnings...)
-	warnings = append(warnings, betweenWarnings...)
 	warnings = append(warnings, teamSizeFinding(in.Catalog, def)...)
 	warnings = append(warnings, hiddenGlobalFindings(in)...)
 	return append(breaks, warnings...)
-}
-
-// dropPromptDuplicates removes a prompt break that a rule-file finding of the
-// same check already says better. A duplicate id between a role document and the
-// team's agreement makes the prompt unbuildable and is also the combination's
-// finding (betweenFindings); the person is shown the one standing on the rule,
-// not the same sentence twice. A duplicate inside one document is not in the
-// combination's findings, so its prompt break stays: the team's prompt cannot be
-// built even though the problem is the document's own.
-func dropPromptDuplicates(in Input, findings []Finding) []Finding {
-	said := map[string]bool{}
-	for _, finding := range findings {
-		if finding.Kind == KindBetween || finding.Kind == KindRule {
-			said[finding.Text] = true
-		}
-	}
-	layer := in.Layer
-	if layer == "" {
-		layer = resolvedLayer(in)
-	}
-	teamYAML := in.Catalog.Display(in.Catalog.TeamYAML(in.Name, layer))
-	out := make([]Finding, 0, len(findings))
-	for _, finding := range findings {
-		if finding.Kind == KindPrompt && said[strings.TrimPrefix(finding.Text, teamYAML+": ")] {
-			continue
-		}
-		out = append(out, finding)
-	}
-	return out
-}
-
-// agreementFinding is the team's own rules read as its unit (d-a575): the
-// document's own problems (a repeated id, a report or a derived rule that is not
-// there, a style: line) and the model names its rule texts write. A rule's turn
-// warnings are TurnFindings's, which reads the agreement with the team's turns.
-//
-// The document is the team's own, so none of this belongs beside a role
-// document: a role document's own problems are check.Role's.
-func agreementFinding(in Input, def *definition.Definition) (breaks, warnings []Finding) {
-	if !def.HasAgreement {
-		return nil, nil
-	}
-	text, err := in.Catalog.Reader().Read(def.Agreement)
-	if err != nil {
-		return nil, nil
-	}
-	display := in.Catalog.Display(def.Agreement.Path)
-	doc, problems := rules.ReadAll(text, display)
-	if doc != nil {
-		problems = append(problems, localRuleProblems(doc)...)
-	}
-	for _, p := range problems {
-		finding := Finding{
-			Field:  problemField(p, display),
-			At:     p.Field,
-			Text:   p.Text,
-			Kind:   KindRule,
-			Stops:  p.Sev == rules.SevError,
-			Doc:    display,
-			RuleID: p.RuleID(),
-		}
-		if finding.Stops {
-			breaks = append(breaks, finding)
-		} else {
-			warnings = append(warnings, finding)
-		}
-	}
-	if doc == nil {
-		return breaks, warnings
-	}
-	for _, finding := range modelDocFindings(display, doc) {
-		finding.Doc = display
-		finding.At = "text"
-		warnings = append(warnings, finding)
-	}
-	return breaks, warnings
-}
-
-// betweenFindings is what only the documents one member reads can say together
-// (d-a575): an id that stands in the member's role document and in the team's
-// agreement, a derived rule that points across them, a report one names and the
-// other holds. Each finding names the document it stands in, and the role whose
-// document a rule belongs to, so a screen can open that role at the rule
-// (d-8bbf).
-func betweenFindings(in Input, def *definition.Definition) (breaks, warnings []Finding) {
-	if !def.HasAgreement || def.Graph == nil {
-		return nil, nil
-	}
-	agreement := parseDisplayed(in.Catalog, def.Agreement)
-	if agreement == nil {
-		return nil, nil
-	}
-	var outBreaks, outWarnings []Finding
-	seen := map[string]bool{}
-	for i := range def.Graph.Members {
-		member := &def.Graph.Members[i]
-		roleDoc, ok := in.Catalog.Role(member.Role)
-		if !ok {
-			continue
-		}
-		role := parseDisplayed(in.Catalog, roleDoc)
-		if role == nil {
-			continue
-		}
-		rolePath := in.Catalog.Display(roleDoc.Path)
-		for _, p := range rules.CheckAll([]*rules.Document{role, agreement}) {
-			if !betweenDocProblem(p, role, agreement) {
-				continue
-			}
-			field := problemField(p, p.Path)
-			key := field + "\x00" + p.Text
-			if seen[key] {
-				continue
-			}
-			seen[key] = true
-			finding := Finding{
-				Field:  field,
-				At:     p.Field,
-				Text:   p.Text,
-				Kind:   KindBetween,
-				Stops:  p.Sev == rules.SevError,
-				Doc:    p.Path,
-				RuleID: p.RuleID(),
-			}
-			if p.Path == rolePath || (p.Field == "id" && hasRuleID(role, p.RuleID())) {
-				finding.Role = member.Role
-				finding.RoleDoc = rolePath
-			}
-			if finding.Stops {
-				outBreaks = append(outBreaks, finding)
-			} else {
-				outWarnings = append(outWarnings, finding)
-			}
-		}
-	}
-	return outBreaks, outWarnings
-}
-
-// betweenDocProblem says whether one problem of the two documents a member reads
-// is the combination's rather than one document's own. A repeated id or report
-// is the combination's only when both documents hold it; a repeated name inside
-// one document belongs to that document's own check (check.Role for a role,
-// agreementFinding for a team's agreement). A report or a derived reference that
-// is not there is the combination's: either document may hold what it names.
-func betweenDocProblem(p rules.Problem, role, agreement *rules.Document) bool {
-	switch p.Field {
-	case "id":
-		if p.RuleID() == "" {
-			return false
-		}
-		return hasRuleID(role, p.RuleID()) && hasRuleID(agreement, p.RuleID())
-	default:
-		// The new rule model has no report or derived references; an id that
-		// stands in one document alone is that document's own problem.
-		return false
-	}
-}
-
-// localRuleProblems is the problems one document has by itself that ReadAll does
-// not gather: an id or a report name that stands twice in it. The references
-// that point outside it are not named here: whether one is missing is the
-// combination's question (betweenFindings).
-func localRuleProblems(doc *rules.Document) []rules.Problem {
-	var out []rules.Problem
-	for _, p := range rules.CheckAll([]*rules.Document{doc}) {
-		if p.Field == "id" {
-			out = append(out, p)
-		}
-	}
-	return out
-}
-
-// problemField is the field a rule-file problem stands beside: the rule it is
-// about, in the document the problem stands in, so a screen puts the sentence
-// on that rule's slip. A problem about the file as a whole keeps no field.
-func problemField(p rules.Problem, path string) string {
-	if p.RuleID() == "" {
-		return p.Field
-	}
-	return "rule:" + path + "#" + p.RuleID()
-}
-
-// parseDisplayed reads one rule document through the catalog's path, the way a
-// person reads it, so the sentences about it name the file the same way a screen
-// does.
-func parseDisplayed(cat *catalog.Catalog, doc source.Doc) *rules.Document {
-	text, err := cat.Reader().Read(doc)
-	if err != nil {
-		return nil
-	}
-	parsed, err := rules.Parse(text, cat.Display(doc.Path))
-	if err != nil {
-		return nil
-	}
-	return parsed
-}
-
-// hasRuleID reports whether a document holds a rule id.
-func hasRuleID(doc *rules.Document, id string) bool {
-	if id == "" {
-		return false
-	}
-	for _, rule := range doc.Rules() {
-		if rule.ID == id {
-			return true
-		}
-	}
-	return false
-}
-
-// modelDocFindings is one role document's warnings: one finding per rule whose
-// text names a model, in the written order, with the field that puts the
-// sentence on that rule's slip (N3).
-func modelDocFindings(path string, doc *rules.Document) []Finding {
-	var out []Finding
-	for _, rule := range doc.Rules() {
-		words := rules.ModelWords(rule.Text)
-		if len(words) == 0 {
-			continue
-		}
-		out = append(out, Finding{
-			Field: "rule:" + path + "#" + rule.ID,
-			Kind:  KindModel,
-			Text: i18n.Tf("validate.rule_model_name", rule.ID,
-				strings.Join(words, i18n.T("list.separator"))),
-		})
-	}
-	return out
 }
 
 // breakFindings is what stops a definition from reading. A graph the definition
@@ -464,23 +226,6 @@ func BreakLine(display func(string) string, path string, err error) string {
 		msg = fmt.Sprintf("%s: %s", display(path), msg)
 	}
 	return strings.Join(strings.Fields(msg), " ")
-}
-
-// withoutOwnName is one problem's sentence without the name of the file the
-// problem stands in, which the sentence carries at its head: the path a person
-// reads the file by, or the file's own name when the problem is about the file
-// as a whole. The place a person reads a problem of one document — a screen
-// panel's head, the YAML tab's file — names that file already, so the head would
-// be read twice. What the sentence keeps is the location it gives at its end and
-// the names of the other files it is about, which no line above gives (lead
-// 2026-10-21).
-func withoutOwnName(text, file string) string {
-	for _, head := range []string{file + ": ", filepath.Base(file) + ": "} {
-		if after, ok := strings.CutPrefix(text, head); ok {
-			return after
-		}
-	}
-	return text
 }
 
 // promptFindings is the break a member's prompt cannot be built from: a role
@@ -645,14 +390,14 @@ func oldFileFindings(in Input) []Finding {
 	old := filepath.Join(dir, "teams", in.Name, "protocol.yaml")
 	if isFile(old) {
 		out = append(out, Finding{Kind: KindOldFile, Text: i18n.Tf("validate.old_team_agreement",
-			in.Catalog.Display(old), in.Catalog.Display(filepath.Join(dir, "teams", in.Name, "agreement.yaml")))})
+			in.Catalog.Display(old), in.Catalog.Display(filepath.Join(dir, "teams", in.Name, "agreement.md")))})
 	}
 	matches, _ := filepath.Glob(filepath.Join(dir, "teams", in.Name, "roles", "*.yaml"))
 	slices.Sort(matches)
 	for _, path := range matches {
 		role := strings.TrimSuffix(filepath.Base(path), ".yaml")
 		out = append(out, Finding{Kind: KindOldFile, Text: i18n.Tf("validate.old_team_role",
-			in.Catalog.Display(path), in.Catalog.Display(filepath.Join(dir, "roles", role+".yaml")))})
+			in.Catalog.Display(path), in.Catalog.Display(filepath.Join(dir, "roles", role+".md")))})
 	}
 	return out
 }
@@ -683,230 +428,6 @@ func hiddenGlobalFindings(in Input) []Finding {
 		return nil
 	}
 	return []Finding{{Text: i18n.Tf("validate.global_hidden", in.Name), Kind: KindHidden}}
-}
-
-// TurnFindings is the turn directions a team's rule texts claim: the ones turns:
-// does not hold (段 5), and the names it writes that are no node of the graph
-// (spec/33 H2). A rule text writes a turn as "a → b"; the turns live in turns:
-// now, and this says when the two disagree. A name that is a worker's purpose is
-// not a node — workers: ties that worker to its member — so nothing is said
-// about it.
-func TurnFindings(in Input, def *definition.Definition) []Finding {
-	members, docs := turnReading(in.Catalog, def)
-	roles := roleOfDoc(in.Catalog, def)
-	var out []Finding
-	seen := map[string]bool{}
-	for _, edge := range topology.Read(members, docs).Edges {
-		role := roles[edge.DocKey]
-		roleDoc := ""
-		if role != "" {
-			roleDoc = edge.DocKey
-		}
-		if word, ok := strangerSide(edge); ok {
-			if isPurpose(def, word) {
-				continue
-			}
-			key := edge.RuleID + "\x00" + word
-			if seen[key] {
-				continue
-			}
-			seen[key] = true
-			out = append(out, Finding{Field: ruleField(edge), At: "text", Kind: KindTurn, Doc: edge.DocKey, Role: role, RoleDoc: roleDoc, RuleID: edge.RuleID, Text: i18n.Tf("validate.turn_unknown_name",
-				edge.RuleID, edgeText(edge, members), word)})
-			continue
-		}
-		for _, pair := range edgePairs(edge, members) {
-			if graphHasTurn(def.Graph, pair[0], pair[1]) {
-				continue
-			}
-			key := edge.RuleID + "\x00" + pair[0].String() + "\x00" + pair[1].String()
-			if seen[key] {
-				continue
-			}
-			seen[key] = true
-			out = append(out, Finding{Field: ruleField(edge), At: "text", Kind: KindTurn, Doc: edge.DocKey, Role: role, RoleDoc: roleDoc, RuleID: edge.RuleID, Text: i18n.Tf("validate.turn_not_in_turns", edge.RuleID,
-				pair[0].String()+" → "+pair[1].String())})
-		}
-	}
-	return out
-}
-
-// roleOfDoc is the role each of a team's rule documents belongs to, by the path
-// a person reads it by. The team's own agreement has no role, and neither does
-// a document a role no longer names.
-func roleOfDoc(cat *catalog.Catalog, def *definition.Definition) map[string]string {
-	out := map[string]string{}
-	for i := range def.Graph.Members {
-		role := def.Graph.Members[i].Role
-		doc, ok := cat.Role(role)
-		if !ok {
-			continue
-		}
-		out[cat.Display(doc.Path)] = role
-	}
-	return out
-}
-
-// ruleField is the field a sentence about a rule's text belongs beside: the
-// document the rule is written in, and the rule's id, so a screen puts the
-// sentence on that rule's slip (N3).
-func ruleField(edge topology.Edge) string {
-	return "rule:" + edge.DocKey + "#" + edge.RuleID
-}
-
-// edgeText is the arrow of a rule text as a person reads it: the names it
-// matched, and the words it wrote for the ones it did not.
-func edgeText(edge topology.Edge, members []topology.Member) string {
-	return sideText(edge.From, members) + " " + string(edgeArrow(edge)) + " " + sideText(edge.To, members)
-}
-
-// edgeArrow is the arrow the rule text wrote.
-func edgeArrow(edge topology.Edge) rune {
-	if edge.Both {
-		return '⇄'
-	}
-	return '→'
-}
-
-// sideText is one end of an arrow as a person reads it: the node's name when it
-// matched, and the written word when it did not.
-func sideText(side topology.Side, members []topology.Member) string {
-	if side.Kind == topology.SideStranger {
-		return side.Word
-	}
-	if id, ok := turnNode(side, members); ok {
-		return id.String()
-	}
-	return ""
-}
-
-// strangerSide is the word an arrow wrote that matched no member of the team, and
-// whether there is one. An arrow with both ends matching has none.
-func strangerSide(edge topology.Edge) (string, bool) {
-	if edge.From.Kind == topology.SideStranger {
-		return edge.From.Word, true
-	}
-	if edge.To.Kind == topology.SideStranger {
-		return edge.To.Word, true
-	}
-	return "", false
-}
-
-// isPurpose reports whether a word is a purpose some member's workers: names: a
-// worker is not a node of the graph, and its turn to the member that hires it is
-// workers:'s, not the rule text's.
-func isPurpose(def *definition.Definition, word string) bool {
-	for _, worker := range def.Graph.Workers {
-		if worker.Purpose == word {
-			return true
-		}
-	}
-	return false
-}
-
-// edgePairs is the turns one rule-text arrow claims: one, or both ways for "⇄".
-// An arrow with an end the graph has no node for claims none of them.
-func edgePairs(edge topology.Edge, members []topology.Member) [][2]definition.NodeID {
-	from, okFrom := turnNode(edge.From, members)
-	to, okTo := turnNode(edge.To, members)
-	if !okFrom || !okTo {
-		return nil
-	}
-	pairs := [][2]definition.NodeID{{from, to}}
-	if edge.Both {
-		pairs = append(pairs, [2]definition.NodeID{to, from})
-	}
-	return pairs
-}
-
-// turnNode is one end of a rule-text arrow as a node of the graph: a member the
-// team has, or the human. A name that matched no member is not a node.
-func turnNode(side topology.Side, members []topology.Member) (definition.NodeID, bool) {
-	switch side.Kind {
-	case topology.SideHuman:
-		return definition.NodeID{Kind: definition.KindHuman, Name: "human"}, true
-	case topology.SideMember:
-		if side.Member >= 0 && side.Member < len(members) {
-			return definition.NodeID{Kind: definition.KindMember, Name: members[side.Member].Name}, true
-		}
-	case topology.SideStranger:
-		// A worker's purpose, or a name the team has no node for: not a node.
-	}
-	return definition.NodeID{}, false
-}
-
-// graphHasTurn is whether the graph already holds this turn.
-func graphHasTurn(g *definition.Graph, from, to definition.NodeID) bool {
-	for _, edge := range g.Turns {
-		if edge.From == from && edge.To == to {
-			return true
-		}
-	}
-	return false
-}
-
-// topologyMembers is the members of one definition as the arrow reader wants
-// them (topology.Member): the short name, the role, and the workers that member
-// may hire, so a word a rule's text writes can be told from a purpose.
-func topologyMembers(def *definition.Definition) []topology.Member {
-	members := make([]topology.Member, 0, len(def.Graph.Members))
-	for i := range def.Graph.Members {
-		member := &def.Graph.Members[i]
-		var workers []topology.Worker
-		for _, worker := range def.Graph.Workers {
-			if worker.From == member.Name {
-				workers = append(workers, topology.Worker{Purpose: worker.Purpose, Profile: worker.Profile})
-			}
-		}
-		members = append(members, topology.Member{Name: member.Name, Role: member.Role, Workers: workers})
-	}
-	return members
-}
-
-// turnReading is the members and the rule files the reading of a rule text's
-// turn arrows needs: the members of the team, and the documents a member reads
-// (段 4: the agreement every team of the layer shares, the team's own agreement,
-// and each member's role document), with the rules parsed. It reads what the
-// definition names, not what one prompt happened to ask for, so a team whose
-// prompt drops %{docs} still has its rule texts compared with turns:. It reads
-// through the catalog, so a text the screen is editing (C3b, With) is the text
-// that is compared, rather than the file on disk. A file that cannot be read is
-// left out: the definition was built a moment ago with the same reading, so the
-// break was already reported.
-func turnReading(cat *catalog.Catalog, def *definition.Definition) ([]topology.Member, []topology.Doc) {
-	members := topologyMembers(def)
-	var docs []topology.Doc
-	seen := map[string]bool{}
-	reader := cat.Reader()
-	add := func(doc source.Doc, role string) {
-		if seen[doc.Path] {
-			return
-		}
-		seen[doc.Path] = true
-		text, err := reader.Read(doc)
-		if err != nil {
-			return
-		}
-		parsed, err := rules.Parse(string(text), doc.Path)
-		if err != nil {
-			return
-		}
-		entry := topology.Doc{Key: cat.Display(doc.Path), Label: parsed.Title, Role: role}
-		for _, rule := range parsed.Rules() {
-			entry.Rules = append(entry.Rules, topology.Rule{ID: rule.ID, Text: rule.Text})
-		}
-		docs = append(docs, entry)
-	}
-	if def.HasAgreement {
-		add(def.Agreement, "")
-	}
-	for i := range def.Graph.Members {
-		member := &def.Graph.Members[i]
-		if doc, ok := cat.Role(member.Role); ok {
-			add(doc, member.Role)
-		}
-	}
-	return members, docs
 }
 
 // isFile reports whether a path is a regular file.

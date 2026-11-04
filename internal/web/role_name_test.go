@@ -16,8 +16,8 @@ import (
 func TestRoleNameThatIsNotAnIdentifierIsANameProblem(t *testing.T) {
 	f := newFixture(t)
 	server := f.server(t)
-	text := "version: 1\nsections:\n  - heading: 進め方\n    rules:\n      - id: PM-1\n        text: 今日決めることを 1 つ書く。\n"
-	f.write(t, "roles/進行役.yaml", text)
+	text := "## 進め方\n\n- 今日決めることを 1 つ書く。\n"
+	f.write(t, "roles/進行役.md", text)
 
 	type problem struct {
 		Sev   string `json:"sev"`
@@ -64,14 +64,7 @@ func TestRoleNameThatIsNotAnIdentifierIsANameProblem(t *testing.T) {
 	// The panel's draft a copy makes: the name comes from the document.
 	resp, body = f.api(t, server, http.MethodPost, "/api/role/check", map[string]any{
 		"place": "global",
-		"doc": map[string]any{
-			"name": "進行役", "title": "", "revision": 1,
-			"sections": []any{map[string]any{
-				"heading": "進め方", "level": 2, "intro": "", "rules": []any{
-					map[string]any{"id": "PM-1", "text": "今日決めることを 1 つ書く。", "in_prompt": true},
-				},
-			}},
-		},
+		"doc":   map[string]any{"name": "進行役", "title": "", "text": "## 進め方\n\n- 今日決めることを 1 つ書く。\n"},
 	})
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("the draft check answers %d: %s", resp.StatusCode, body)
@@ -81,14 +74,7 @@ func TestRoleNameThatIsNotAnIdentifierIsANameProblem(t *testing.T) {
 	// The save refuses it on the same field.
 	resp, body = f.api(t, server, http.MethodPut, "/api/role/"+url.PathEscape("進行役"), map[string]any{
 		"place": "global",
-		"doc": map[string]any{
-			"name": "進行役", "title": "", "revision": 1,
-			"sections": []any{map[string]any{
-				"heading": "進め方", "level": 2, "intro": "", "rules": []any{
-					map[string]any{"id": "PM-1", "text": "今日決めることを 1 つ書く。", "in_prompt": true},
-				},
-			}},
-		},
+		"doc":   map[string]any{"name": "進行役", "title": "", "text": "## 進め方\n\n- 今日決めることを 1 つ書く。\n"},
 	})
 	if resp.StatusCode != http.StatusUnprocessableEntity {
 		t.Fatalf("the save of a role named 進行役 answers %d: %s", resp.StatusCode, body)

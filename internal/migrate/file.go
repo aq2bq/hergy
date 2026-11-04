@@ -88,7 +88,9 @@ func (f File) check() error {
 // Apply keeps the original bytes in .yaml.bak and installs Markdown without
 // replacing an existing file. It can be called again after partial completion.
 // Symlinks are refused rather than moving a link or modifying its target.
-func (f File) Apply() error {
+func (f File) Apply() error { return f.apply(os.Link) }
+
+func (f File) apply(link func(string, string) error) error {
 	if f.Path == "" {
 		return errors.New("migration was not prepared")
 	}
@@ -108,10 +110,10 @@ func (f File) Apply() error {
 			return fmt.Errorf("%s: source and backup are missing", f.Path)
 		}
 	}
-	if err := install(f.Backup, f.original); err != nil {
+	if err := install(f.Backup, f.original, link); err != nil {
 		return err
 	}
-	if err := install(f.Destination, f.markdown); err != nil {
+	if err := install(f.Destination, f.markdown, link); err != nil {
 		return err
 	}
 	if !exists {
@@ -125,7 +127,7 @@ func (f File) Apply() error {
 
 // install publishes a complete temporary file with an exclusive hard link.
 // Unlike rename, the link cannot overwrite a destination created concurrently.
-func install(path, text string) error {
+func install(path, text string, link func(string, string) error) error {
 	exists, err := matches(path, text)
 	if err != nil || exists {
 		return err
@@ -142,8 +144,8 @@ func install(path, text string) error {
 	if err := temp.Close(); err != nil {
 		return err
 	}
-	if err := os.Link(temp.Name(), path); err != nil {
-		return err
+	if err := link(temp.Name(), path); err != nil {
+		return fmt.Errorf("%s: cannot install migration file with an exclusive hard link: %w", path, err)
 	}
 	return nil
 }

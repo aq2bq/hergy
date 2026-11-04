@@ -78,7 +78,7 @@ const tRow = (name: string) =>
   `[...document.querySelectorAll('#view .tdef')].find(function(r){return r.dataset.name===${JSON.stringify(name)}})`;
 // shape is one row's shape panel, and agree its agreement panel.
 const shape = (name: string) => q(`.tdef[data-name="${name}"] .panel.team-p`);
-const agree = (name: string) => q(`.tdef[data-name="${name}"] .panel.agree-p`);
+
 
 // draft is the row a person is making: a new definition stands under a name
 // beginning ~new until it is saved.
@@ -151,39 +151,15 @@ async function workerPurpose(page: Parameters<typeof read>[0], base: string): Pr
   ).toBe('1 か所');
 }
 
-// graphProblems is e2eTeamsGraphProblems' browser-only part: a warning about the
-// team's own agreement opens that rule in the ルール tab, inside the window a
-// person reads on, with the cursor in its body (1.4.5, 1.7, R9・R12).
+// Removing a topology edge still produces the topology's own findings.
 async function graphProblems(page: Parameters<typeof read>[0], base: string): Promise<void> {
-  await page.setViewportSize({ width: 1440, height: 1000 });
-  await page.goto(`${base}/teams?open=research`);
-  await wait(page, there('.tdef[data-name="research"] .panel.team-p .cv-canvas svg'));
-  const rp = shape('research');
-  // scout's turn to the human goes, so the team's own agreement's rule VAAJ
-  // warns.
-  await press(page, `${rp}.querySelector('.cv-n.member[data-cv-n=scout]')`);
-  await wait(page, there2(rp, '.cv-side [data-cv-f=m-name]'));
-  await press(page, `${rp}.querySelector('.cv-side [data-cv-act=turn-del][data-a=scout][data-b=human]')`);
-  await wait(page, `!!document.querySelector('.cv-toast')`);
-  const item = `[...document.querySelectorAll('.tdef[data-name="research"] .panel.team-p .vlist .vitem')].find(function(b){return b.textContent.indexOf('VAAJ')>=0})`;
-  await wait(page, `!!${item}`);
-  await press(page, item);
-  await wait(page, there2(agree('research'), '.rule.open'));
-
-  // R12: the rule the press opened stands in the window — its head below the
-  // top, its body above the save's band — and its body has the cursor (1.7).
-  const above = `(function(){var p=${agree('research')};var r=p.querySelector('.rule.open'),t=p.querySelector('.rule.open [data-f=text]'),f=p.querySelector('footer.pf');if(!r||!t||!f)return false;var rr=r.getBoundingClientRect(),tr=t.getBoundingClientRect(),fr=f.getBoundingClientRect();return rr.top>=0&&tr.top>rr.top&&tr.bottom<=fr.top})()`;
-  const cursor = `(document.activeElement&&document.activeElement.dataset.f)==='text'`;
-  await readTo<boolean>(
-    page,
-    above,
-    'the rule the press opened does not stand in the window',
-  ).toBe(true);
-  await readTo<boolean>(
-    page,
-    cursor,
-    'the rule the press opened does not hold the cursor in its body',
-  ).toBe(true);
+  await page.goto(`${base}/teams?open=research`); await ready(page);
+  const row = page.locator('.tdef[data-name="research"]');
+  await row.locator('.cv-n.member[data-cv-n=scout]').click();
+  await row.locator('[data-cv-act=turn-del][data-a=scout][data-b=human]').click();
+  await expect(row.locator('.vlist')).not.toContainText('VAAJ');
+  await expect(row.locator('[data-cv-act=turn-del][data-a=scout][data-b=human]')).toHaveCount(0);
+  await expect(row.locator('.vlist .vitem')).toHaveCount(0);
 }
 
 // saveShape is e2eTeamsSaveShape's browser-only part: the description alone moves and
@@ -530,24 +506,18 @@ test('TEAMS-C2 undo after letting go, a line from the keyboard, and no two point
   await readTo<string>(page, overlap, 'the worker just added covers a point').toBe('');
 });
 
-test('TEAMS-R1 the rules tab is the same switch and the same three fields', async ({ page, app }) => {
-  // d-85dc: the team's ルール tab mounts the same part as the role screen; the
-  // row carries the switch, and the opened rule holds ID, 本文 and メモ alone.
-  await page.goto(`${app.base}/teams?open=core`);
-  await wait(page, there('.tdef[data-name="core"] .panel.team-p'));
-  await press(page, q('.tdef[data-name="core"] .dtab[data-t=agree]'));
-  await wait(page, there('.tdef[data-name="core"] .panel.agree-p .rule'));
-  await readTo<number>(page, `document.querySelectorAll('.tdef[data-name="core"] .panel.agree-p .rule .onsw').length`, 'the rules tab has a switch').toBeGreaterThan(0);
-  await press(page, q('.tdef[data-name="core"] .panel.agree-p .rule .rsum'));
-  await wait(page, there('.tdef[data-name="core"] .panel.agree-p .rule.open .redit'));
-  const labels = await page.$$eval('.tdef[data-name="core"] .panel.agree-p .rule.open .redit .field > label, .tdef[data-name="core"] .panel.agree-p .rule.open .redit .field > .fl', (els) => els.map((e) => (e.textContent || '').trim()));
-  expect(labels, 'the team rule holds ID, 本文 and メモ alone').toEqual(['ID', '本文', 'メモ']);
+test('TEAMS-R1 team prose and roles use one full-text editor per document', async ({ page, app }) => {
+  await page.goto(`${app.base}/teams?open=core&agree=core`); await ready(page);
+  const row = page.locator('.tdef[data-name="core"]');
+  await expect(row.locator('.prose-column')).toHaveCount(5);
+  await expect(row.getByRole('textbox', { name: '散文の全文' })).toHaveCount(5);
+  await expect(row.locator('.prose-budget')).toContainText('ひな形');
 });
 
 test('TEAMS-N1c the starter roles follow the members the row has', async ({ page, app }) => {
   // r-54b8, d-86b1, ac-ff73: the person asks for the starter roles and profile,
   // then takes the builder away. builder is a starter name no member uses now,
-  // so the save writes lead.yaml alone and no builder.yaml; the band before the
+  // so the save writes lead.md alone and no builder.md; the band before the
   // save lists the files that follow the row's own members.
   const proj = path.join(app.proj, '.hergy');
   const global = path.join(app.cfg, 'hergy');
@@ -568,7 +538,7 @@ test('TEAMS-N1c the starter roles follow the members the row has', async ({ page
   await press(page, `${draft}.querySelector('[data-act=starter-profile]')`);
   await wait(page, `${draft}.querySelectorAll('footer.pf .also code').length===5`);
   // builder goes: the row keeps lead alone, and the two starter documents it
-  // still names are lead.yaml and the starter profile.
+  // still names are lead.md and the starter profile.
   await press(page, `${draft}.querySelector('.cv-n.member[data-cv-n=builder]')`);
   await wait(page, there2(draft, '.cv-side [data-cv-act=del]'));
   await press(page, `${draft}.querySelector('.cv-side [data-cv-act=del]')`);
@@ -577,7 +547,7 @@ test('TEAMS-N1c the starter roles follow the members the row has', async ({ page
   await wait(page, `${draft}.querySelector('[data-act=t-save]').disabled===false`);
   await press(page, `${draft}.querySelector('[data-act=t-save]')`);
   await wait(page, `!document.querySelector('.tdef[data-name^="~new"]')`);
-  expect(roleNames(proj), "the save's role documents read").toEqual(['lead.yaml']);
+  expect(roleNames(proj), "the save's role documents read").toEqual(['lead.md']);
   expect(roleNames(global), 'the save wrote the shared roles/').toEqual([]);
   expect(readFileSync(path.join(proj, 'profiles.yaml'), 'utf8'), 'the save wrote the starter profile').toContain('claude-default');
 });
@@ -599,7 +569,7 @@ test('TEAMS-N1b the starter roles and profile are written only when asked', asyn
   await set(page, `${draft}.querySelector('.in-name')`, 'ops');
   await wait(page, `${draft}.querySelector('.in-name').classList.contains('bad')===false`);
   await wait(page, there2(draft, '.cv-canvas svg'));
-  // The band lists team.yaml and agreement.yaml; the notice says both are
+  // The band lists team.yaml and agreement.md; the notice says both are
   // missing.
   await wait(page, `${draft}.querySelectorAll('footer.pf .also code').length===2`);
   await wait(page, there2(draft, '[data-act=starter-roles]'));
@@ -620,6 +590,6 @@ test('TEAMS-N1b the starter roles and profile are written only when asked', asyn
   await wait(page, `${draft}.querySelectorAll('footer.pf .also code').length===5`);
   await press(page, `${draft}.querySelector('[data-act=t-save]')`);
   await wait(page, `!document.querySelector('.tdef[data-name^="~new"]')`);
-  expect(roleNames(proj), "the save's role documents read").toEqual(['builder.yaml', 'lead.yaml']);
+  expect(roleNames(proj), "the save's role documents read").toEqual(['builder.md', 'lead.md']);
   expect(readFileSync(path.join(proj, 'profiles.yaml'), 'utf8'), 'the save wrote the starter profile').toContain('claude-default');
 });

@@ -61,14 +61,14 @@ test.describe('UI review: waiting and editing', () => {
       await page.screenshot({ path: testInfo.outputPath(`${screen}-768.png`), fullPage: true });
     }
   });
-  test('an optional empty agreement guides the first section without an error', async ({ page, app }) => {
-    rmSync(path.join(app.proj, '.hergy', 'teams', 'core', 'agreement.yaml'), { force: true });
+  test('an optional empty agreement offers full-text editing without an error', async ({ page, app }) => {
+    rmSync(path.join(app.proj, '.hergy', 'teams', 'core', 'agreement.md'), { force: true });
     await page.goto(app.base + '/teams?open=core'); await ready(page);
     const row = page.locator('.tdef[data-name="core"]');
     await row.locator('[data-act="dtab"][data-t="agree"]').click();
-    await expect(row.getByText('チームのルールは任意です。追加する場合は「＋ 節」から始めてください。')).toBeVisible();
+    await expect(row.getByText('チームの散文は任意です。本文を入力して保存できます。')).toBeVisible();
     await expect(row.locator('.agree-p .vcount')).not.toContainText('問題');
-    await expect(row.locator('.agree-p').getByRole('button', { name: '＋ 節', exact: true })).toBeVisible();
+    await expect(row.locator('.agree-p').getByRole('textbox', { name: '散文の全文' })).toBeVisible();
   });
   test('end sheet stays by its trigger and explains the irreversible result', async ({ page, app }, testInfo) => {
     await page.goto(app.base + '/activity'); await ready(page);

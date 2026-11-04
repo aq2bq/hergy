@@ -12,7 +12,7 @@ import (
 // written (C5). The catalog it was called on is left as it was.
 func TestWithoutReadsAPathAsThoughItIsNotThere(t *testing.T) {
 	l := newLayers(t)
-	path := filepath.Join(l.local, "roles", "gone.yaml")
+	path := filepath.Join(l.local, "roles", "gone.md")
 	write(t, path, "a role document the screen is removing\n")
 
 	cat := l.catalog()
@@ -43,7 +43,7 @@ func TestWithoutReadsAPathAsThoughItIsNotThere(t *testing.T) {
 // there, so a removal wins the text a screen was checking (C5).
 func TestWithoutDropsATextLaidOverTheSamePath(t *testing.T) {
 	l := newLayers(t)
-	path := filepath.Join(l.local, "roles", "new.yaml")
+	path := filepath.Join(l.local, "roles", "new.md")
 
 	cat := l.catalog().With(path, "a role document the screen made\n")
 	if _, ok := cat.Role("new"); !ok {
@@ -63,7 +63,7 @@ func TestWithoutDropsATextLaidOverTheSamePath(t *testing.T) {
 func TestWithoutLeavesOtherPathsToDisk(t *testing.T) {
 	l := newLayers(t)
 	l.writeFullTeam(t, source.LayerLocal, "t", "m")
-	removed := l.catalog().Without(filepath.Join(l.local, "roles", "lead-role.yaml"))
+	removed := l.catalog().Without(filepath.Join(l.local, "roles", "lead-role.md"))
 
 	if _, ok := removed.Role("lead-role"); ok {
 		t.Error("the removed role document is still found")

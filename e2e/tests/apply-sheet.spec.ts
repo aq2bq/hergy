@@ -21,7 +21,7 @@ const answer = {
     team: 'core', definition: 'core', project_name: '注文 API',
     notes: [],
     members: [
-      { name: 'core-lead', role: 'lead', state: 'handed', how: 'resend', can_apply: true, changes: [change('rule', '.hergy/roles/lead.yaml', 'PAAF', '規則 PAAF を書き換えた')] },
+      { name: 'core-lead', role: 'lead', state: 'handed', how: 'resend', can_apply: true, changes: [change('rule', '.hergy/roles/lead.md', 'PAAF', '規則 PAAF を書き換えた')] },
       { name: 'core-impl-a', role: 'builder', state: 'idle', how: 'restart', can_apply: true, conversation_lost: true, changes: [change('prompt', '.hergy/teams/core/team.yaml', '', 'プロファイルを変えた')] },
       { name: 'core-spec2', role: 'builder', state: 'absent', how: 'start', can_apply: true, changes: [change('prompt', '.hergy/teams/core/team.yaml', '', 'メンバー spec2 を足した')] },
       { name: 'core-busy', role: 'builder', state: 'active', how: 'cannot', can_apply: false, why_not: 'core-busy は仕事中か許可待ちなので、今は反映できません', changes: [] },

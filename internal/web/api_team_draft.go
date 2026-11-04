@@ -14,7 +14,6 @@ import (
 	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/newteam"
-	"github.com/aq2bq/hergy/internal/rules"
 	"github.com/aq2bq/hergy/internal/scaffold"
 	"github.com/aq2bq/hergy/internal/source"
 )
@@ -65,7 +64,7 @@ func (s *Server) t2DraftRowOf(in apiIn) (t2DraftRow, *apiErr) {
 			switch file.Path {
 			case "team.yaml":
 				out.Team = string(file.Data)
-			case "agreement.yaml":
+			case "agreement.md":
 				out.Agree = string(file.Data)
 			}
 		}
@@ -135,7 +134,7 @@ func (s *Server) t2DraftWrites(row t2DraftRow, in apiIn, name, team string) []st
 	// The team.yaml text is the row with its ops applied, so the starter roles
 	// and profile the save would write follow the members the row now has: a
 	// starter name no member uses is not one the person chose (r-54b8, d-86b1).
-	files := []scaffold.File{{Path: "team.yaml", Data: []byte(team)}, {Path: "agreement.yaml"}}
+	files := []scaffold.File{{Path: "team.yaml", Data: []byte(team)}, {Path: "agreement.md"}}
 	written, err := newteam.Plan(newteam.In{
 		Catalog: s.cat, Layer: row.Layer, Name: name, Lang: i18n.Language(),
 		Files: files, Starter: row.Starter, StarterRoles: row.StarterRoles, StarterProfile: row.StarterProfile,
@@ -172,8 +171,8 @@ func (s *Server) t2StarterFindings(row t2DraftRow, cat *catalog.Catalog, def *de
 		if member := t2MemberAt(def, finding.Field); member != nil {
 			if finding.Kind == check.KindPrompt && strings.HasSuffix(finding.Field, ".role") {
 				if _, held := cat.Role(member.Role); !held {
-					if _, markdown := cat.RoleMarkdown(member.Role); !markdown {
-						if row.StarterRoles && slices.Contains(scaffold.RoleNames, member.Role+".yaml") {
+					if _, markdown := cat.LegacyRole(member.Role); !markdown {
+						if row.StarterRoles && slices.Contains(scaffold.RoleNames, member.Role+".md") {
 							// The save writes this role document; it is not missing.
 							continue
 						}
@@ -277,30 +276,6 @@ func t2ApplyOps(base, display string, ops []definition.Op) (string, error) {
 	return text, nil
 }
 
-// t2AgreementText is the text a row's agreement.yaml stands for: the base text
-// with the draft's own document laid over it (spec-teams B2). A row whose rules
-// were not touched writes the base text as it is.
-func t2AgreementText(display, base string, draft *r2Doc) (string, error) {
-	if draft == nil {
-		return base, nil
-	}
-	if base == "" {
-		return rules.Emit(draft.document())
-	}
-	saved, _ := rules.ReadAll(base, display)
-	if saved == nil {
-		saved = &rules.Document{Path: display}
-	}
-	written, err := rules.Rewrite([]byte(base), saved, rules.Draft{
-		Doc: draft.document(), From: draft.froms(), SectionFrom: draft.sectionFroms(),
-		SaveFrom: rules.SaveFromTeamDefinition,
-	})
-	if err != nil {
-		return "", err
-	}
-	return string(written), nil
-}
-
 // t2LineTexts is the text of a preview's lines, for a diff by line.
 func t2LineTexts(lines []definition.YAMLLine) []string {
 	out := make([]string, len(lines))
@@ -319,13 +294,7 @@ func (s *Server) t2AgreeOfText(name, layer, text string) *apiTeamAgree {
 		return out
 	}
 	out.Has, out.Hash = true, source.Hash(text)
-	doc, _ := rules.ReadAll(text, out.Path)
-	if doc == nil {
-		doc = &rules.Document{Path: path}
-	}
-	out.Rules = len(doc.IncludedRules()) + doc.ExcludedCount()
-	out.Excluded = doc.ExcludedCount()
-	out.Doc = r2DocOf(doc)
+	out.Doc = r2DocOf(text, path)
 	return out
 }
 
@@ -422,13 +391,13 @@ func (k apiTeam) checkDraftAgreement(in apiIn) (any, *apiErr) {
 	cat := s.cat.With(s.cat.TeamYAML(t2DraftCheckName(in.Name), row.Layer), row.Team).
 		With(s.t2AgreeFile(t2DraftCheckName(in.Name), row.Layer), row.Agree)
 	report := check.Agreement(check.AgreementInput{
-		Catalog: cat, Name: t2DraftCheckName(in.Name), Place: row.Layer, Draft: body.in.Doc.document(),
+		Catalog: cat, Name: t2DraftCheckName(in.Name), Place: row.Layer, Text: body.in.Doc.Text,
 	})
 	return r2CheckAnswer(report, false), nil
 }
 
 // saveFolder writes a definition that is not there yet, whole (spec-teams B2,
-// B6, C8): its team.yaml (the base with the row's ops), its agreement.yaml (the
+// B6, C8): its team.yaml (the base with the row's ops), its agreement.md (the
 // base with the draft's document), and, for one made from the scaffold, the
 // layer's role documents and the starter profile. A name problem, or a folder
 // that has appeared since the check, stops it before anything is written.
@@ -453,13 +422,13 @@ func (k apiTeam) saveFolder(name string, in apiIn) (any, *apiErr) {
 	if err != nil {
 		return nil, refuse(http.StatusUnprocessableEntity, err.Error())
 	}
-	agree, err := t2AgreementText(s.cat.Display(s.t2AgreeFile(name, row.Layer)), row.Agree, body.in.Doc)
-	if err != nil {
-		return nil, refuse(http.StatusUnprocessableEntity, err.Error())
+	agree := row.Agree
+	if body.in.Doc != nil {
+		agree = body.in.Doc.Text
 	}
 	files := []scaffold.File{
 		{Path: "team.yaml", Data: []byte(team)},
-		{Path: "agreement.yaml", Data: []byte(agree)},
+		{Path: "agreement.md", Data: []byte(agree)},
 	}
 	if _, err := newteam.Write(newteam.In{
 		Catalog: s.cat, Layer: row.Layer, Name: name, Lang: i18n.Language(),
@@ -470,8 +439,5 @@ func (k apiTeam) saveFolder(name string, in apiIn) (any, *apiErr) {
 	}
 	// The save wrote rule files — the agreement, and the role documents a
 	// starter definition brings — so their rules get hergy's ids now (d-4aab).
-	if refusal := s.assignRuleIDs(); refusal != nil {
-		return nil, refusal
-	}
 	return k.savedAnswer(name, in.Place), nil
 }

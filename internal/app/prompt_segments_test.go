@@ -101,11 +101,11 @@ turns:
 			t.Errorf("%s's segments do not join to its prompt:\n%s", member.Name, joined)
 		}
 		role := segmentOf(t, member.Name, member.Segments, "role_doc")
-		if role.Origin.Kind != "role" || role.Origin.Place != "project" || !strings.HasSuffix(role.Origin.Path, "roles/"+strings.TrimPrefix(member.Name, "demo-")+".yaml") {
+		if role.Origin.Kind != "role" || role.Origin.Place != "project" || !strings.HasSuffix(role.Origin.Path, "roles/"+strings.TrimPrefix(member.Name, "demo-")+".md") {
 			t.Errorf("%s's role segment reads %+v", member.Name, role)
 		}
 		rules := segmentOf(t, member.Name, member.Segments, "team_rules")
-		if rules.Origin.Kind != "team_rules" || rules.Origin.Path != ".hergy/teams/demo/agreement.yaml" {
+		if rules.Origin.Kind != "team_rules" || rules.Origin.Path != ".hergy/teams/demo/agreement.md" {
 			t.Errorf("%s's team rules segment reads %+v", member.Name, rules)
 		}
 	}

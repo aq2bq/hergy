@@ -9,7 +9,6 @@ import (
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/launchlog"
 	"github.com/aq2bq/hergy/internal/protocol"
-	"github.com/aq2bq/hergy/internal/rules"
 	"github.com/aq2bq/hergy/internal/source"
 	"github.com/aq2bq/hergy/internal/team"
 	"github.com/aq2bq/hergy/internal/version"
@@ -189,8 +188,6 @@ func docEntry(log launchlog.Log, doc source.Doc) (launchlog.Doc, error) {
 		return launchlog.Doc{}, err
 	}
 	entry := launchlog.Doc{Path: doc.Path, Layer: doc.Layer, SHA256: hash}
-	if parsed, err := rules.Parse(text, doc.Path); err == nil && parsed.Revision != nil {
-		entry.Revision = *parsed.Revision
-	}
+
 	return entry, nil
 }

@@ -13,7 +13,6 @@ import (
 	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/options"
-	"github.com/aq2bq/hergy/internal/rules"
 	"github.com/aq2bq/hergy/internal/source"
 )
 
@@ -394,13 +393,12 @@ func TestNewShape(t *testing.T) {
 		"team definition: demo",
 		"dir: .hergy/teams/demo",
 		"file: .hergy/teams/demo/team.yaml",
-		"file: .hergy/teams/demo/agreement.yaml",
-		"role document: .hergy/roles/lead.yaml",
-		"role document: .hergy/roles/builder.yaml",
+		"file: .hergy/teams/demo/agreement.md",
+		"role document: .hergy/roles/lead.md",
+		"role document: .hergy/roles/builder.md",
 		"profile: claude-default",
 		"file: .hergy/profiles.yaml",
 		"config: "+filepath.Join(f.cfg, "hergy", "config.yaml"),
-		i18n.Tf("rules.ids_given", 6),
 		"next: up demo --dry",
 	)
 }
@@ -422,7 +420,7 @@ func TestNewUpDryPassesWithNoRoleAnywhere(t *testing.T) {
 // team.yaml, and the next step is validate (r-54b8, d-86b1).
 func TestNewLeavesTheRolesAndProfilesAlreadyThere(t *testing.T) {
 	f := newFixture(t)
-	writeFile(t, filepath.Join(f.cfg, "hergy", "roles", "analyst.yaml"), "version: 1\nsections: []\n")
+	writeFile(t, filepath.Join(f.cfg, "hergy", "roles", "analyst.md"), "version: 1\nsections: []\n")
 	writeFile(t, filepath.Join(f.cfg, "hergy", "profiles.yaml"), "version: 1\nprofiles:\n  coder:\n    kind: claude\n")
 	got := mustRun(t, "new", "demo")
 	for _, line := range []string{
@@ -437,7 +435,7 @@ func TestNewLeavesTheRolesAndProfilesAlreadyThere(t *testing.T) {
 	if strings.Contains(got, "role document:") || strings.Contains(got, "profile: claude-default") {
 		t.Errorf("new reports role documents or the starter profile it did not write:\n%s", got)
 	}
-	if _, err := os.Stat(filepath.Join(f.proj, ".hergy", "roles", "lead.yaml")); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(f.proj, ".hergy", "roles", "lead.md")); !os.IsNotExist(err) {
 		t.Errorf("new wrote the project's lead.yaml over the global role: %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(f.proj, ".hergy", "profiles.yaml")); !os.IsNotExist(err) {
@@ -520,35 +518,6 @@ func TestValidateAcceptsTheCreatedConfig(t *testing.T) {
 	}
 }
 
-// TestValidateSaysALeftoverStyleOnce: the leftover-style warning names one file
-// and one section, and a file several definitions read is one line to delete, so
-// validate says it once for the whole run rather than once per definition
-// (d-f4f6).
-func TestValidateSaysALeftoverStyleOnce(t *testing.T) {
-	newFixture(t)
-	mustRun(t, "new", "demo")
-	mustRun(t, "new", "demo2")
-	// The starter role document keeps one style: line — the shape this release
-	// takes out — and both definitions read it, because a role document is
-	// looked up by the role's name.
-	path := filepath.Join(".hergy", "roles", "lead.yaml")
-	text := readFile(t, path)
-	writeFile(t, path, strings.Replace(text, "sections:\n  - rules:", "sections:\n  - style: ids\n    rules:", 1))
-
-	got := mustRun(t, "validate")
-	if n := strings.Count(got, "file: .hergy/teams/"); n != 2 {
-		t.Fatalf("validate read %d definitions, want the 2 that read the role document:\n%s", n, got)
-	}
-	want := i18n.Tf("rules.style_gone", ".hergy/roles/lead.yaml", "sections[0]")
-	want = strings.TrimPrefix(want, ".hergy/roles/lead.yaml: ")
-	if n := strings.Count(got, want); n != 1 {
-		t.Errorf("validate says the leftover-style sentence %d times, want once:\n%s", n, got)
-	}
-	if !strings.Contains(got, "problems: 0\n") {
-		t.Errorf("a leftover style: line is not a problem:\n%s", got)
-	}
-}
-
 // TestNewWritesTheProfileTheStarterTeamNames: the starter team's members name a
 // profile, so new writes that profile into the layer's profiles.yaml when the
 // layer cannot already resolve it (I7). The name says what it picks rather than
@@ -602,7 +571,7 @@ func TestValidateWarnsAboutAProfileNamedAfterItsKind(t *testing.T) {
 }
 
 // TestValidateWarnsAboutThePlacesHergyNoLongerReads: 段 4 moved a team's
-// agreement to agreement.yaml and a role document to the layer's roles/. A file
+// agreement to agreement.md and a role document to the layer's roles/. A file
 // left in one of the old places is not read, so validate names it and where it
 // goes now, once per file, and moves no exit code (spec/32 D1). Each of the old
 // places is tried on its own, so a fix that forgets one is still a warning here.
@@ -616,7 +585,7 @@ func TestValidateWarnsAboutThePlacesHergyNoLongerReads(t *testing.T) {
 		{
 			name: "a protocol.yaml that was not renamed",
 			key:  "validate.old_team_agreement",
-			args: []any{".hergy/teams/demo/protocol.yaml", ".hergy/teams/demo/agreement.yaml"},
+			args: []any{".hergy/teams/demo/protocol.yaml", ".hergy/teams/demo/agreement.md"},
 			write: func(t *testing.T, f *fixture) {
 				writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "demo", "protocol.yaml"), "version: 1\nsections: []\n")
 			},
@@ -624,7 +593,7 @@ func TestValidateWarnsAboutThePlacesHergyNoLongerReads(t *testing.T) {
 		{
 			name: "a role document left in the definition's folder",
 			key:  "validate.old_team_role",
-			args: []any{".hergy/teams/demo/roles/keep.yaml", ".hergy/roles/keep.yaml"},
+			args: []any{".hergy/teams/demo/roles/keep.yaml", ".hergy/roles/keep.md"},
 			write: func(t *testing.T, f *fixture) {
 				writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "demo", "roles", "keep.yaml"), "version: 1\nsections: []\n")
 			},
@@ -670,8 +639,8 @@ func TestValidateNamesEveryPlaceItLookedForARoleDocument(t *testing.T) {
 		t.Fatalf("validate accepted a missing role document:\n%s", stdout)
 	}
 	places := strings.Join([]string{
-		".hergy/roles/absent.yaml",
-		filepath.Join(f.cfg, "hergy", "roles", "absent.yaml"),
+		".hergy/roles/absent.md",
+		filepath.Join(f.cfg, "hergy", "roles", "absent.md"),
 	}, i18n.T("list.separator"))
 	want := i18n.Tf("error.no_role_doc", "lead", "absent", places)
 	if !strings.Contains(stdout, want) {
@@ -706,7 +675,7 @@ func TestValidateNamesTheFileAndMemberForATemplateMissingADoor(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			f := newFixture(t)
 			writeFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml"), "version: 1\nprofiles:\n  claude-default:\n    kind: claude\n")
-			writeFile(t, filepath.Join(f.proj, ".hergy", "roles", "lead.yaml"), "version: 1\nsections:\n  - rules:\n      - id: L1\n        text: one\n")
+			writeFile(t, filepath.Join(f.proj, ".hergy", "roles", "lead.md"), "- one\n")
 			writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml"), tc.team)
 
 			stdout, _, code := run("validate")
@@ -873,23 +842,22 @@ func TestValidateShape(t *testing.T) {
 		"file: .hergy/teams/demo/team.yaml",
 		"  result: ok",
 		"  warning: "+i18n.T("validate.description_placeholder"),
-		"file: .hergy/roles/builder.yaml",
+		"file: .hergy/roles/builder.md",
 		"  result: ok",
-		"file: .hergy/roles/lead.yaml",
+		"file: .hergy/roles/lead.md",
 		"  result: ok",
 		"checked: 5",
 		"problems: 0",
-		"rules 6 in 3 files",
 		i18n.T("validate.size_heading"),
-		"  team .hergy/teams/demo: 202 characters (the provisional budget is 3000)",
-		"  role .hergy/roles/builder.yaml: 240 characters (the provisional budget is 3000)",
-		"  role .hergy/roles/lead.yaml: 178 characters (the provisional budget is 3000)",
+		"  team .hergy/teams/demo: 202 characters (the provisional budget is 1200)",
+		"  role .hergy/roles/builder.md: 233 characters (the provisional budget is 1200)",
+		"  role .hergy/roles/lead.md: 168 characters (the provisional budget is 1200)",
 		"This budget is provisional, for cutting team and role definitions; it does not stop hergy up.",
 	)
 }
 
 // TestSharedAgreementIsNotReadAndStops: the agreement every team used to share
-// (agreement.yaml beside the teams, in either place) does not reach a member's
+// (agreement.md beside the teams, in either place) does not reach a member's
 // prompt any more; while one is left, the commands that build a prompt and
 // validate stop on it, name the path and say where the rules go (d-31ad,
 // r-7de2, ac-b7b6).
@@ -898,7 +866,7 @@ func TestValidateShape(t *testing.T) {
 var sharedID = regexp.MustCompile(`(^|[^A-Z0-9])S1([^A-Z0-9]|$)`)
 
 func TestSharedAgreementIsNotReadAndStops(t *testing.T) {
-	shared := "version: 1\ntitle: 共通\nsections:\n  - heading: 台帳\n    rules:\n      - id: S1\n        text: 全員が読む。\n"
+	shared := "# 共通\n\n## 台帳\n\n- 全員が読む。\n"
 	for _, place := range []string{"project", "global"} {
 		t.Run(place, func(t *testing.T) {
 			f := newFixture(t)
@@ -936,7 +904,7 @@ func TestSharedAgreementIsNotReadAndStops(t *testing.T) {
 					t.Errorf("%v succeeded with the shared agreement left", argv)
 					continue
 				}
-				for _, want := range []string{shown, "teams/<definition>/agreement.yaml", "roles/<role>.yaml"} {
+				for _, want := range []string{shown, "teams/<definition>/agreement.md", "roles/<role>.md"} {
 					if !strings.Contains(stderr, want) {
 						t.Errorf("%v does not name %q:\n%s", argv, want, stderr)
 					}
@@ -971,11 +939,11 @@ func TestSharedAgreementIsNotReadAndStops(t *testing.T) {
 			}
 
 			// Moved where it belongs, the same rule reaches the member.
-			writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "demo", "agreement.yaml"), shared)
+			writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "demo", "agreement.md"), shared)
 			if err := os.Remove(path); err != nil {
 				t.Fatal(err)
 			}
-			if got := mustRun(t, "up", "demo", "--dry"); !strings.Contains(got, "S1") {
+			if got := mustRun(t, "up", "demo", "--dry"); !strings.Contains(got, "全員が読む。") {
 				t.Errorf("the rule moved to the team's agreement does not reach the prompt:\n%s", got)
 			}
 		})
@@ -1011,7 +979,7 @@ func TestShowShape(t *testing.T) {
 		"version: 1",
 		"team.yaml: .hergy/teams/demo/team.yaml",
 		"profiles: .hergy/profiles.yaml",
-		"document: .hergy/teams/demo/agreement.yaml",
+		"document: .hergy/teams/demo/agreement.md",
 		"member: demo-lead",
 		"  role: lead",
 		"  kind: claude",
@@ -1019,8 +987,8 @@ func TestShowShape(t *testing.T) {
 		"  env: GY_ACTOR",
 		"  cwd: .",
 		"  turns: builder, human",
-		"  role document: .hergy/roles/lead.yaml",
-		"  reads: .hergy/teams/demo/agreement.yaml",
+		"  role document: .hergy/roles/lead.md",
+		"  reads: .hergy/teams/demo/agreement.md",
 		"member: demo-builder",
 		"  role: builder",
 		"  kind: claude",
@@ -1028,8 +996,8 @@ func TestShowShape(t *testing.T) {
 		"  env: GY_ACTOR",
 		"  cwd: .",
 		"  turns: lead",
-		"  role document: .hergy/roles/builder.yaml",
-		"  reads: .hergy/teams/demo/agreement.yaml",
+		"  role document: .hergy/roles/builder.md",
+		"  reads: .hergy/teams/demo/agreement.md",
 	)
 }
 
@@ -1037,7 +1005,7 @@ func TestShowLabelsFollowTheLanguage(t *testing.T) {
 	newFixture(t)
 	mustRun(t, "new", "demo")
 	got := mustRun(t, "show", "demo", "--lang", "ja")
-	for _, line := range []string{"チーム定義: demo", "メンバー: demo-lead", "  ロール: lead", "  ロールの文書: .hergy/roles/lead.yaml"} {
+	for _, line := range []string{"チーム定義: demo", "メンバー: demo-lead", "  ロール: lead", "  ロールの文書: .hergy/roles/lead.md"} {
 		if !strings.Contains(got, line+"\n") {
 			t.Fatalf("Japanese output is missing %q:\n%s", line, got)
 		}
@@ -1045,10 +1013,8 @@ func TestShowLabelsFollowTheLanguage(t *testing.T) {
 }
 
 func TestUpDryShapePrintsThePromptUnescaped(t *testing.T) {
-	f := newFixture(t)
+	newFixture(t)
 	mustRun(t, "new", "demo")
-	leadID := ruleIDOf(t, filepath.Join(f.proj, ".hergy", "roles", "lead.yaml"), "Hand over a task")
-	agreeID := ruleIDOf(t, filepath.Join(f.proj, ".hergy", "teams", "demo", "agreement.yaml"), "Work along the gy-loop")
 	got := mustRun(t, "up", "demo", "--dry")
 	if strings.Contains(got, `\n`) {
 		t.Fatalf("up --dry escapes the prompt:\n%s", got)
@@ -1059,12 +1025,12 @@ func TestUpDryShapePrintsThePromptUnescaped(t *testing.T) {
 		"timeout: 30000",
 		"member: demo-lead",
 		"  role: lead",
-		"  role document: .hergy/roles/lead.yaml",
-		"  reads: .hergy/teams/demo/agreement.yaml",
+		"  role document: .hergy/roles/lead.md",
+		"  reads: .hergy/teams/demo/agreement.md",
 		"  prompt: |",
 		"    You are demo-lead (lead) on team demo.",
-		"    - **" + leadID + "** Hand over a task the receiver can start without reading your conversation.",
-		"    - **" + agreeID + "** Work along the gy-loop skill, so that work can resume from gy when a conversation ends.",
+		"    - Hand over a task the receiver can start without reading your conversation.",
+		"    - Work along the gy-loop skill, so that work can resume from gy when a conversation ends.",
 		"next: up demo",
 	} {
 		if !strings.Contains(got, line+"\n") {
@@ -1073,57 +1039,6 @@ func TestUpDryShapePrintsThePromptUnescaped(t *testing.T) {
 	}
 	if !strings.HasSuffix(got, "next: up demo\n") {
 		t.Fatalf("up --dry does not end with next:\n%s", got)
-	}
-}
-
-// TestUpDryLeavesOutARuleThatIsNotInThePrompt: a rule a file keeps out of the
-// prompt (in_prompt: false) is in neither the prompt up hands a member nor the
-// one reprompt sends; the rules that are in the prompt stand unchanged
-// (d-f187).
-// TestOldRuleFieldsStopValidateAndUp: a file that still writes an old rule field
-// is named by its file and rule id by validate and by up --dry, with where the
-// content goes; neither silently drops it (r-81be, ac-9f8d).
-func TestOldRuleFieldsStopValidateAndUp(t *testing.T) {
-	f := newFixture(t)
-	mustRun(t, "new", "demo")
-	writeFile(t, filepath.Join(f.proj, ".hergy", "roles", "lead.yaml"),
-		"version: 1\nsections:\n  - rules:\n      - id: L1\n        text: 本文。\n        why: 前の形の理由。\n")
-	for _, argv := range [][]string{{"validate"}, {"up", "demo", "--dry"}} {
-		stdout, stderr, code := run(argv...)
-		if code == 0 {
-			t.Fatalf("%v accepted an old rule field", argv)
-		}
-		out := stdout + "\n" + stderr
-		for _, want := range []string{"lead.yaml", "L1", "old shape"} {
-			if !strings.Contains(out, want) {
-				t.Errorf("%v does not name %q:\n%s", argv, want, out)
-			}
-		}
-	}
-}
-
-func TestUpDryLeavesOutARuleThatIsNotInThePrompt(t *testing.T) {
-	f := newFixture(t)
-	mustRun(t, "new", "demo")
-	f.runningHerdr(t, `{"tab_id":"t1","label":"team:demo@demo"}`, "")
-	writeFile(t, filepath.Join(f.proj, ".hergy", "roles", "lead.yaml"),
-		"version: 1\nsections:\n  - heading: 進め方\n    rules:\n"+
-			"      - id: L1\n        text: 渡す本文。\n        note: 人向けのメモ。\n"+
-			"      - id: L2\n        text: 渡さない本文。\n        in_prompt: false\n")
-	for _, argv := range [][]string{
-		{"up", "demo", "--dry"},
-		{"reprompt", "lead", "--team", "demo", "--dry"},
-	} {
-		got := mustRun(t, argv...)
-		if strings.Contains(got, "渡さない本文。") || strings.Contains(got, "L2") {
-			t.Errorf("%v hands out a rule the file keeps out of the prompt:\n%s", argv, got)
-		}
-		if strings.Contains(got, "人向けのメモ") {
-			t.Errorf("%v sends a rule's note to a member:\n%s", argv, got)
-		}
-		if !strings.Contains(got, "- **L1** 渡す本文。") {
-			t.Errorf("%v lost the rule that is in the prompt:\n%s", argv, got)
-		}
 	}
 }
 
@@ -1631,7 +1546,7 @@ func TestUpAsDryUsesTheTeamName(t *testing.T) {
 		"team: demo",
 		"member: demo-lead",
 		"    You are demo-lead (lead) on team demo.",
-		"    - lead: demo-lead (you)",
+		"    - lead: Lead (lead) — demo-lead (you)",
 	} {
 		if !strings.Contains(plain, line+"\n") {
 			t.Fatalf("up demo --dry is missing %q:\n%s", line, plain)
@@ -1648,8 +1563,8 @@ func TestUpAsDryUsesTheTeamName(t *testing.T) {
 		"member: alpha-lead",
 		"member: alpha-builder",
 		"    You are alpha-lead (lead) on team alpha.",
-		"    - lead: alpha-lead (you)",
-		"    - builder: alpha-builder",
+		"    - lead: Lead (lead) — alpha-lead (you)",
+		"    - builder: Builder (builder) — alpha-builder",
 	} {
 		if !strings.Contains(named, line+"\n") {
 			t.Fatalf("up demo --as alpha --dry is missing %q:\n%s", line, named)
@@ -1671,8 +1586,8 @@ func TestUpAsDev2PrefixesTheMemberNames(t *testing.T) {
 		"member: dev2-lead",
 		"member: dev2-builder",
 		"    You are dev2-lead (lead) on team dev2.",
-		"    - lead: dev2-lead (you)",
-		"    - builder: dev2-builder",
+		"    - lead: Lead (lead) — dev2-lead (you)",
+		"    - builder: Builder (builder) — dev2-builder",
 	} {
 		if !strings.Contains(got, line+"\n") {
 			t.Fatalf("up dev --as dev2 --dry is missing %q:\n%s", line, got)
@@ -1932,8 +1847,8 @@ func TestHireCommandCarriesTheTeam(t *testing.T) {
 			"turns:\n  - human -> lead\n  - lead -> human\n")
 	writeFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml"),
 		"version: 1\nprofiles:\n  dev:\n    kind: claude\n")
-	writeFile(t, filepath.Join(f.proj, ".hergy", "roles", "lead.yaml"),
-		"version: 1\nsections:\n  - rules:\n      - id: L1\n        text: hand the turn to whoever acts next\n")
+	writeFile(t, filepath.Join(f.proj, ".hergy", "roles", "lead.md"),
+		"- hand the turn to whoever acts next\n")
 
 	plain := mustRun(t, "up", "demo", "--dry")
 	if !strings.Contains(plain, "--team demo --lang en") {
@@ -2137,8 +2052,8 @@ func TestHirePurposeOutsideWorkers(t *testing.T) {
 			"version: 1\nprofiles:\n  seeker:\n    kind: claude\n  developer:\n    kind: codex\n")
 		// The second member's role needs its document (roles live once per
 		// layer).
-		writeFile(t, filepath.Join(f.proj, ".hergy", "roles", "spec.yaml"),
-			"version: 1\nsections:\n  - rules:\n      - id: S1\n        text: hand the turn to lead\n")
+		writeFile(t, filepath.Join(f.proj, ".hergy", "roles", "spec.md"),
+			"- hand the turn to lead\n")
 		f.runningHerdr(t, `{"tab_id":"t1","label":"team:dev@dev"}`, "")
 
 		// --from names the member, so the sentence is about what that member may
@@ -2203,8 +2118,8 @@ func TestHirePurposeNobodyHiresFor(t *testing.T) {
 			"turns:\n  - human -> lead\n  - lead -> human\n  - lead -> spec\n  - spec -> lead\n")
 	writeFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml"),
 		"version: 1\nprofiles:\n  seeker:\n    kind: claude\n  developer:\n    kind: codex\n")
-	writeFile(t, filepath.Join(f.proj, ".hergy", "roles", "spec.yaml"),
-		"version: 1\nsections:\n  - rules:\n      - id: S1\n        text: hand the turn to lead\n")
+	writeFile(t, filepath.Join(f.proj, ".hergy", "roles", "spec.md"),
+		"- hand the turn to lead\n")
 	f.runningHerdr(t, `{"tab_id":"t1","label":"team:dev@dev"}`, "")
 
 	_, stderr, code := run("hire", "w", "--purpose", "デザイン", "--task", "t", "--team", "dev", "--dry")
@@ -2293,8 +2208,8 @@ func TestUpDryPromptShowsWorkerPairs(t *testing.T) {
 			"turns:\n  - human -> lead\n  - lead -> human\n")
 	writeFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml"),
 		"version: 1\nprofiles:\n  seeker:\n    kind: claude\n  developer:\n    kind: codex\n")
-	writeFile(t, filepath.Join(f.proj, ".hergy", "roles", "lead.yaml"),
-		"version: 1\nsections:\n  - rules:\n      - id: L1\n        text: hand the turn to whoever acts next\n")
+	writeFile(t, filepath.Join(f.proj, ".hergy", "roles", "lead.md"),
+		"- hand the turn to whoever acts next\n")
 
 	got := mustRun(t, "up", "demo", "--dry", "--lang", "ja")
 	for _, want := range []string{"## ワーカーの追加", "調査 → seeker", "実装 → developer", "hire <ワーカー名> --purpose <目的>"} {
@@ -2843,22 +2758,4 @@ func TestTeamCommandsRejectAs(t *testing.T) {
 			t.Fatalf("%v does not say why:\n%s", argv, stderr)
 		}
 	}
-}
-
-// ruleIDOf is the id of the rule whose text begins with prefix, as the file
-// holds it: hergy gives the id when it writes the file, so a test reads it back
-// rather than naming one (d-4aab).
-func ruleIDOf(t *testing.T, path, prefix string) string {
-	t.Helper()
-	doc, problems := rules.ReadAll(readFile(t, path), path)
-	if len(problems) != 0 || doc == nil {
-		t.Fatalf("%s does not read: %+v", path, problems)
-	}
-	for _, rule := range doc.Rules() {
-		if strings.HasPrefix(rule.Text, prefix) {
-			return rule.ID
-		}
-	}
-	t.Fatalf("%s holds no rule starting %q", path, prefix)
-	return ""
 }

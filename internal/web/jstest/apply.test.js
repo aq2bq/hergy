@@ -92,7 +92,7 @@ test('the band, the sheet and the apply hold the members a change is not in yet'
   expect(document.querySelector('.apl-sheet .apl-tnote').textContent).toContain('ワーカー w-1 のプロファイル');
   expect(document.querySelector('.apl-sheet [data-role=definition-error]').textContent).toBe('チーム定義を組み立てられません');
   // The changed rule opens its own place.
-  expect(document.querySelector('.apl-sheet .apl-chg').getAttribute('href')).toBe('/roles?open=builder&rule=HAAA');
+  expect(document.querySelector('.apl-sheet .apl-chg').getAttribute('href')).toBe('/roles?open=builder');
   // Opening the sheet sent nothing.
   expect(asked.filter((one) => one.method === 'POST')).toEqual([]);
 

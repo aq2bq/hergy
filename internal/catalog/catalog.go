@@ -465,7 +465,7 @@ func (c *Catalog) definitionKey(name, path, layer string, mode readMode, text st
 		ptext, ok, err := c.fileText(profiles)
 		fmt.Fprintf(&b, "%s\x00%t\x00%v\x00%s\x00", profiles, ok, err, ptext)
 	}
-	agree := filepath.Join(filepath.Dir(path), "agreement.yaml")
+	agree := filepath.Join(filepath.Dir(path), "agreement.md")
 	fmt.Fprintf(&b, "%s\x00%t", agree, c.reader.IsFile(source.Doc{Path: agree}))
 	return sha256.Sum256([]byte(b.String()))
 }
@@ -703,7 +703,7 @@ func (c *Catalog) LayerProfiles(layer string) (map[string]profile.Profile, error
 // global layer asks whether the global layer holds the document itself
 // (r-7e4a).
 func (c *Catalog) LayerRole(layer, name string) (source.Doc, bool) {
-	doc := source.Doc{Layer: layer, Path: filepath.Join(c.LayerDir(layer), "roles", name+".yaml")}
+	doc := source.Doc{Layer: layer, Path: filepath.Join(c.LayerDir(layer), "roles", name+".md")}
 	if c.reader.IsFile(doc) {
 		return doc, true
 	}
@@ -725,14 +725,14 @@ func (c *Catalog) Profile(name string) (profile.Profile, bool) {
 // the same one a profile takes. The second return is whether a layer has one; a
 // run stops when it has none, and prompt.Member says so with the member's name.
 func (c *Catalog) Role(name string) (source.Doc, bool) {
-	return c.firstFile(filepath.Join("roles", name+".yaml"))
+	return c.firstFile(filepath.Join("roles", name+".md"))
 }
 
-// RoleMarkdown is a role document still left as Markdown (roles/<name>.md): it
+// LegacyRole is a role document still left as YAML (roles/<name>.yaml): it
 // is what the sentence that says how to move the file over names. It is asked
 // only when Role found nothing.
-func (c *Catalog) RoleMarkdown(name string) (source.Doc, bool) {
-	return c.firstFile(filepath.Join("roles", name+".md"))
+func (c *Catalog) LegacyRole(name string) (source.Doc, bool) {
+	return c.firstFile(filepath.Join("roles", name+".yaml"))
 }
 
 // RolePlaces is every path a role document is looked for, in the one order a
@@ -743,7 +743,7 @@ func (c *Catalog) RoleMarkdown(name string) (source.Doc, bool) {
 func (c *Catalog) RolePlaces(name string) []string {
 	out := make([]string, 0, len(c.layers()))
 	for _, one := range c.layers() {
-		out = append(out, filepath.Join(one.dir, "roles", name+".yaml"))
+		out = append(out, filepath.Join(one.dir, "roles", name+".md"))
 	}
 	return out
 }

@@ -17,7 +17,7 @@ func TestFigureProblemsNameThePlaceAndTheField(t *testing.T) {
 		{Field: "description", Text: "description?"},
 		{Field: "workers[0]", Text: "worker?"},
 		{Field: "node:lead", Text: "node?"},
-		{Field: "rule:demo/agreement.yaml#C1", Text: "rule?"},
+		{Field: "rule:demo/agreement.md#C1", Text: "rule?"},
 	}, "demo")
 	want := []struct{ at, field string }{
 		{"members[2].role", "role"},
@@ -25,7 +25,7 @@ func TestFigureProblemsNameThePlaceAndTheField(t *testing.T) {
 		{"description", "description"},
 		{"workers[0]", "workers"},
 		{"node:lead", "node:lead"},
-		{"rule:demo/agreement.yaml#C1", "rule:demo/agreement.yaml#C1"},
+		{"rule:demo/agreement.md#C1", "rule:demo/agreement.md#C1"},
 	}
 	if len(problems) != len(want) {
 		t.Fatalf("problems = %+v, want %d", problems, len(want))

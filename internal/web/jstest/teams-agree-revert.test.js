@@ -49,19 +49,19 @@ test('a team with no agreement goes back to the document it opened with', async 
   expect(r, 'the definition is a row').toBeTruthy();
   // The row opened with no agreement: its draft is the empty document.
   expect(r.agreeSaved.value).toBe(null);
-  expect(r.agreeDraft.value.title).toBe('core チームのルール');
-  expect(r.agreeDraft.value.sections.length).toBe(0);
+  expect(r.agreeDraft.value.title).toBe('core');
+  expect(r.agreeDraft.value.text.length).toBe(0);
 
   // A rule is added to the draft, and 元に戻す is pressed.
   r.agreeDraft.value = {
     ...r.agreeDraft.value,
-    sections: [{ heading: '仕事', level: 0, intro: '', rules: [{ id: 'NEW-1', _k: 900, text: '足した。', note: '', in_prompt: true }] }],
+    text: '# 仕事\n足した。\n',
   };
   state.pressRevert(r);
   await settle();
 
   // The document is the one it opened with, not null.
   expect(r.agreeDraft.value).not.toBe(null);
-  expect(r.agreeDraft.value.title).toBe('core チームのルール');
-  expect(r.agreeDraft.value.sections).toEqual([]);
+  expect(r.agreeDraft.value.title).toBe('core');
+  expect(r.agreeDraft.value.text).toBe('');
 });

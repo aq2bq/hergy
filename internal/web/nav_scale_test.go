@@ -69,11 +69,7 @@ func TestNAV_N11_TheBandNumberFollowsASave(t *testing.T) {
 	resp, decoded := f.apiJSON(t, server, http.MethodPut, "/api/role/nav-one", map[string]any{
 		"place": "project", "original": "", "hash": "",
 		"doc": map[string]any{
-			"name": "nav-one", "revision": 1,
-			"sections": []map[string]any{{
-				"heading": "責務",
-				"rules":   []map[string]any{{"id": "NAV-1", "text": "帯の数のために足した規則。", "in_prompt": true}},
-			}},
+			"name": "nav-one", "title": "責務", "text": "# 責務\n帯の数のために足した本文。\n",
 		},
 	})
 	if resp.StatusCode != http.StatusOK {

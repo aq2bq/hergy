@@ -2,96 +2,64 @@ package check
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 
-	"github.com/aq2bq/hergy/internal/definition"
-	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/source"
 )
 
-// agreementPath is where the fixture's definition keeps its agreement.
 func (f *fixture) agreementPath() string {
-	return filepath.Join(f.proj, ".hergy", "teams", "demo", "agreement.yaml")
+	return filepath.Join(f.proj, ".hergy", "teams", "demo", "agreement.md")
 }
 
-// agreementDoc is one agreement with a rule whose text writes the arrow the
-// test is about.
-const agreementDoc = "version: 1\ntitle: demo agreement\nsections:\n  - heading: 約束\n    rules:\n" +
-	"      - id: AGR-1\n        text: 実装は spec に渡す（lead → spec）。\n"
-
-// TestAgreementJudgesAnArrowAgainstTheDraftTurns: the agreement's rule writes
-// lead → spec, and the definition's turns do not hold it, so the arrow comes
-// back not held and one warning stands beside the rule (C6, 1.5).
-func TestAgreementJudgesAnArrowAgainstTheDraftTurns(t *testing.T) {
+func TestProseArrowsDoNotChangeTopologyChecks(t *testing.T) {
 	f := newFixture(t)
 	f.team("  - human -> lead\n  - lead -> human\n  - spec -> human\n")
-	f.role("lead", "      - id: PAAF\n        text: 何かをする。\n")
-	f.role("spec", "      - id: SPEC-1\n        text: 何かをする。\n")
-	f.write(f.agreementPath(), agreementDoc)
-
-	got := Agreement(AgreementInput{
-		Catalog: f.cat, Name: "demo", Place: source.LayerLocal, Text: agreementDoc,
-	})
-
-	if len(got.Turns) != 1 {
-		t.Fatalf("turns = %+v, want the one arrow the agreement writes", got.Turns)
+	f.roles()
+	text := "# 合意\r\n不明な人 → 別の人。lead ⇄ unknown。\n"
+	f.write(f.agreementPath(), text)
+	report := Agreement(AgreementInput{Catalog: f.cat, Name: "demo", Place: source.LayerLocal, Text: text})
+	if len(report.Problems) != 0 {
+		t.Fatalf("prose warnings: %+v", report.Problems)
 	}
-	turn := got.Turns[0]
-	if turn.Arrow != "lead → spec" || turn.OK {
-		t.Errorf("turn = %+v, want lead → spec not held", turn)
+	for _, finding := range f.findings() {
+		if finding.Stops {
+			t.Fatal(finding)
+		}
 	}
-	if turn.Definition != "demo" {
-		t.Errorf("turn definition = %q, want demo", turn.Definition)
+	f.team("  - human -> missing\n")
+	found := false
+	for _, finding := range f.findings() {
+		found = found || finding.Stops
 	}
-
-	want := i18n.Tf("validate.turn_not_in_turns", "AGR-1", "lead → spec")
-	if len(got.Problems) != 1 || got.Problems[0].Text != want {
-		t.Errorf("problems = %+v, want the one warning %q", got.Problems, want)
-	}
-
-	if len(got.Markdown.Lines) == 0 || got.Markdown.Chars == 0 {
-		t.Errorf("markdown = %+v, want the draft's preview", got.Markdown)
+	if !found {
+		t.Fatal("invalid topology was accepted")
 	}
 }
 
-// TestAgreementHoldsAnArrowTheTurnsHave: an arrow the definition's turns hold
-// comes back held, and adds no warning.
-func TestAgreementHoldsAnArrowTheTurnsHave(t *testing.T) {
+func TestRoleProseBudgetAndExactPreview(t *testing.T) {
 	f := newFixture(t)
-	f.team("  - human -> lead\n  - lead -> human\n  - lead -> spec\n  - spec -> human\n")
-	f.role("lead", "      - id: PAAF\n        text: 何かをする。\n")
-	f.role("spec", "      - id: SPEC-1\n        text: 何かをする。\n")
-	f.write(f.agreementPath(), agreementDoc)
-
-	got := Agreement(AgreementInput{
-		Catalog: f.cat, Name: "demo", Place: source.LayerLocal, Text: agreementDoc,
-	})
-	if len(got.Turns) != 1 || !got.Turns[0].OK {
-		t.Fatalf("turns = %+v, want the one arrow held", got.Turns)
+	for _, n := range []int{0, 1200, 1201} {
+		text := strings.Repeat("あ", n)
+		got := Role(RoleInput{Catalog: f.cat, Place: source.LayerLocal, Name: "lead", Text: text})
+		if got.Markdown.Chars != n || got.Limit != 1200 {
+			t.Fatalf("size: %+v", got)
+		}
+		want := 0
+		if n > 1200 {
+			want = 1
+		}
+		if len(got.Problems) != want {
+			t.Fatalf("%d: %+v", n, got.Problems)
+		}
 	}
-	if len(got.Problems) != 0 {
-		t.Errorf("problems = %+v, want none", got.Problems)
+	text := "# 題\r\n\t本文 %{role_doc} → someone  \n"
+	got := Role(RoleInput{Catalog: f.cat, Place: source.LayerLocal, Name: "lead", Text: text})
+	var lines []string
+	for _, line := range got.Markdown.Lines {
+		lines = append(lines, line.Text)
 	}
-}
-
-// TestAgreementJudgesAgainstTheOverlaidDraftTurns: the caller overlays the
-// ops-applied team.yaml, so an arrow the draft turns hold is held even though
-// the saved file does not write it (C6, 1.5).
-func TestAgreementJudgesAgainstTheOverlaidDraftTurns(t *testing.T) {
-	f := newFixture(t)
-	f.team("  - human -> lead\n  - lead -> human\n  - spec -> human\n")
-	f.role("lead", "      - id: PAAF\n        text: 何かをする。\n")
-	f.role("spec", "      - id: SPEC-1\n        text: 何かをする。\n")
-	f.write(f.agreementPath(), agreementDoc)
-
-	overlay := overlayOfFixture(t, f, definition.AddTurn(memberNode("lead"), memberNode("spec")))
-	got := Agreement(AgreementInput{
-		Catalog: overlay, Name: "demo", Place: source.LayerLocal, Text: agreementDoc,
-	})
-	if len(got.Turns) != 1 || !got.Turns[0].OK {
-		t.Fatalf("turns = %+v, want the arrow held by the draft's turns", got.Turns)
-	}
-	if len(got.Problems) != 0 {
-		t.Errorf("problems = %+v, want none", got.Problems)
+	if strings.Join(lines, "\n") != text {
+		t.Fatal("preview changed text")
 	}
 }

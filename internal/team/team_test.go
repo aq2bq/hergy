@@ -92,7 +92,7 @@ func TestNewPlaceFollowsK2(t *testing.T) {
 		t.Errorf("outside a repository NewPlace = %q, want %q", got, want)
 	}
 	cat := in.Catalog(source.Disk{})
-	if got, want := cat.NewPlace(catalog.NewRole, "lead"), filepath.Join(env.LocalDir, "roles", "lead.yaml"); got != want {
+	if got, want := cat.NewPlace(catalog.NewRole, "lead"), filepath.Join(env.LocalDir, "roles", "lead.md"); got != want {
 		t.Errorf("NewPlace(NewRole, lead) = %q, want %q", got, want)
 	}
 	if got, want := cat.NewPlace(catalog.NewProfile, "lead"), filepath.Join(env.LocalDir, "profiles.yaml"); got != want {

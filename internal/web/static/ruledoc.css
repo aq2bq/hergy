@@ -221,3 +221,28 @@ textarea.held-why { color: var(--faint); text-decoration: line-through; text-dec
   .panel[data-mode="edit"] .yprev, .panel[data-mode="md"] .pedit { display: none; }
   .yprev { position: static; max-height: none; }
 }
+/* Raw prose is shared by the roles screen and the team's horizontal board. */
+.pmain { display: block; }
+.prose-board { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(290px, 1fr); gap: 12px; overflow-x: auto; align-items: start; padding: 12px; }
+.prose-column { min-width: 0; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); padding: 12px; }
+.prose-column h2 { font: 600 15px var(--f-body); margin: 0 0 10px; }
+.prose-column .path { overflow-wrap: anywhere; white-space: normal; font-size: 11px; }
+.prose-column .pmain { display: block; padding: 0; }
+.prose-column fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.prose-column .role-usage { font-size: 12px; color: var(--muted); margin-bottom: 10px; }
+.prose-column .role-usage code { overflow-wrap: anywhere; }
+.prose-column footer { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.prose-editor { min-width: 0; }
+.prose-tools { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 0; font-size: 12px; font-variant-numeric: tabular-nums; }
+.prose-editor textarea { display: block; width: 100%; box-sizing: border-box; height: 410px; resize: vertical; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: var(--ink); padding: 12px; font: 14px/1.75 var(--f-body); }
+.prose-editor textarea:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
+.prose-outline { height: 410px; overflow: auto; padding: 0; margin: 0; list-style: none; }
+.prose-outline li { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.prose-outline li span:last-child { white-space: nowrap; color: var(--muted); font-size: 12px; }
+.prose-current { color: var(--muted); font-size: 12px; margin: 6px 0; }
+[hidden] { display: none !important; }
+
+.prose-column > header { display: block; min-height: 66px; margin-bottom: 8px; }
+.prose-column > header .path { display: block; margin-top: 6px; }
+.prose-budget { font-size: 12px; margin: 8px 0; }
+.prose-tools > span { white-space: nowrap; }

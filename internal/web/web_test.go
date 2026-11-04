@@ -59,8 +59,8 @@ func newFixture(t *testing.T) *fixture {
 	}
 	f.writeTeam(t, "demo", "demo の説明")
 	f.write(t, "profiles.yaml", "version: 1\nprofiles:\n  coder:\n    kind: claude\n    args: [--x]\n    env:\n      A: one\n  planner:\n    kind: codex\n")
-	f.write(t, "roles/lead.yaml", "version: 1\nsections:\n  - rules:\n      - id: PAAF\n        text: lead は最初に動く。\n")
-	f.write(t, "roles/builder.yaml", "version: 1\nsections:\n  - rules:\n      - id: DAAA\n        text: builder は作る。\n")
+	f.write(t, "roles/lead.md", "- lead は最初に動く。\n")
+	f.write(t, "roles/builder.md", "- builder は作る。\n")
 	return f
 }
 
@@ -81,7 +81,7 @@ func (f *fixture) write(t *testing.T, rel, text string) {
 func (f *fixture) writeTeam(t *testing.T, name, description string) {
 	t.Helper()
 	f.write(t, filepath.Join("teams", name, "team.yaml"), "version: 1\ndescription: "+description+"\nmembers:\n  - name: lead\n    role: lead\n    profile: coder\n  - name: builder\n    role: builder\n    profile: coder\nturns:\n  - human -> lead\n  - lead -> builder\n  - builder -> human\nworkers:\n  - from: lead\n    purpose: 実装\n    profile: coder\n  - from: lead\n    purpose: 試作\n    profile: coder\n  - from: lead\n    purpose: 調査\n    profile: planner\n")
-	f.write(t, filepath.Join("teams", name, "agreement.yaml"), "version: 1\nsections:\n  - rules:\n      - id: TEAM-1\n        text: このチームの約束。\n        note: このチームの約束を書いた理由。\n")
+	f.write(t, filepath.Join("teams", name, "agreement.md"), "- このチームの約束。\n")
 }
 
 // teamYAML is the team.yaml of the fixture's demo definition.

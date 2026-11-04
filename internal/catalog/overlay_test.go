@@ -89,7 +89,7 @@ func TestWithLeavesOtherPathsToDisk(t *testing.T) {
 func TestWithFindsARoleDocumentThatIsNotWritten(t *testing.T) {
 	l := newLayers(t)
 	l.writeFullTeam(t, source.LayerLocal, "t", "m")
-	path := filepath.Join(l.local, "roles", "new-role.yaml")
+	path := filepath.Join(l.local, "roles", "new-role.md")
 	text := "a role document the screen made\n"
 
 	cat := l.catalog()
@@ -119,7 +119,7 @@ func TestWithFindsARoleDocumentThatIsNotWritten(t *testing.T) {
 func TestWithFindsAnAgreementThatIsNotWritten(t *testing.T) {
 	l := newLayers(t)
 	l.writeFullTeam(t, source.LayerLocal, "t", "m")
-	path := filepath.Join(l.local, "teams", "t", "agreement.yaml")
+	path := filepath.Join(l.local, "teams", "t", "agreement.md")
 	if err := os.Remove(path); err != nil {
 		t.Fatal(err)
 	}
@@ -146,7 +146,7 @@ func TestWithFindsAnAgreementThatIsNotWritten(t *testing.T) {
 func TestWithFindsAFileThatIsNotWritten(t *testing.T) {
 	l := newLayers(t)
 	l.writeFullTeam(t, source.LayerLocal, "t", "m")
-	path := filepath.Join(l.local, "roles", "r.yaml")
+	path := filepath.Join(l.local, "roles", "r.md")
 
 	cat := l.catalog()
 	if _, ok := cat.Role("r"); ok {

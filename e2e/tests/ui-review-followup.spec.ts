@@ -41,7 +41,7 @@ test.describe('review 1-8: listed projects', () => {
   }
   test('a team finding opens the same-named role in its own project', async ({ page, app }) => {
     const beta = realpathSync(path.join(app.home, 'src', 'beta'));
-    const file = path.join(beta, '.hergy', 'roles', 'builder.yaml');
+    const file = path.join(beta, '.hergy', 'roles', 'builder.md');
     writeFileSync(file, readFileSync(file, 'utf8').replace('DAAA', 'DAAB').replace('作る前に、確かめ方を 1 つ書く。', 'Use claude for the beta task.'));
     // Supply a role finding at the API boundary; follow its real link into the saved role.
     await page.route('**/api/team/check*', async (route) => {
@@ -57,9 +57,8 @@ test.describe('review 1-8: listed projects', () => {
     await expect(link).toHaveCount(1);
     await link.click(); await ready(page);
     await expect(page).toHaveURL(/project=.*beta/);
-    await expect(page.locator('.role.open .rule.open')).toHaveCount(1);
-    await expect(page.locator('.role.open .rule.open')).toContainText('DAAB');
-    await expect(page.locator('.role.open .rule.open')).toContainText('beta task');
+    await expect(page.locator('.role.open').getByRole('textbox', { name: '散文の全文' })).toHaveCount(1);
+    await expect(page.locator('.role.open').getByRole('textbox', { name: '散文の全文' })).toHaveValue(/beta task/);
   });
   test('activity preserves the selected project and last tab', async ({ page, app }) => {
     const beta = realpathSync(path.join(app.home, 'src', 'beta'));
@@ -72,13 +71,13 @@ test.describe('review 1-8: listed projects', () => {
   });
   test('rule links resolve a different project and honor its group', async ({ page, app }) => {
     const beta = realpathSync(path.join(app.home, 'src', 'beta'));
-    const file = path.join(beta, '.hergy', 'roles', 'builder.yaml');
-    writeFileSync(path.join(beta, '.hergy', 'roles', 'beta-only.yaml'), readFileSync(file));
+    const file = path.join(beta, '.hergy', 'roles', 'builder.md');
+    writeFileSync(path.join(beta, '.hergy', 'roles', 'beta-only.md'), readFileSync(file));
     for (const name of ['beta-only', 'builder']) {
       const open = name === 'builder' ? `${name}|${beta}` : name;
       await page.goto(`${app.base}/roles?${new URLSearchParams({ open, rule: `${name}.project.DAAA` })}`); await ready(page);
-      await expect(page.locator('.role.open .rule.open')).toHaveCount(1);
-      await expect(page.locator('.role.open .rule.open')).toContainText('DAAA');
+      await expect(page.locator('.role.open').getByRole('textbox', { name: '散文の全文' })).toHaveCount(1);
+      await expect(page.locator('.role.open').getByRole('textbox', { name: '散文の全文' })).not.toBeEmpty();
     }
   });
 });

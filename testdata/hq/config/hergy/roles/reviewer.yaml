@@ -1,7 +1,0 @@
-version: 1
-title: 確認
-sections:
-  - heading: 見方
-    rules:
-      - id: FAAK
-        text: 変えた所と、変えていない所を分けて読む。

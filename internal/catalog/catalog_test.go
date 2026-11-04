@@ -226,16 +226,16 @@ func TestRolePrefersLocalOverGlobal(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			l := newLayers(t)
 			if tc.local {
-				write(t, filepath.Join(l.local, "roles", "r.yaml"), "version: 1\n")
+				write(t, filepath.Join(l.local, "roles", "r.md"), "version: 1\n")
 			}
 			if tc.global {
-				write(t, filepath.Join(l.global, "roles", "r.yaml"), "version: 1\n")
+				write(t, filepath.Join(l.global, "roles", "r.md"), "version: 1\n")
 			}
 			doc, ok := l.catalog().Role("r")
 			if !ok {
 				t.Fatal("Role(r) found no document")
 			}
-			want := filepath.Join(l.dir(tc.wantLayer), "roles", "r.yaml")
+			want := filepath.Join(l.dir(tc.wantLayer), "roles", "r.md")
 			if doc.Path != want || doc.Layer != tc.wantLayer {
 				t.Errorf("Role(r) = %q (%s), want %q (%s)", doc.Path, doc.Layer, want, tc.wantLayer)
 			}
@@ -250,8 +250,8 @@ func TestRolePlacesNamesBothLayersInOrder(t *testing.T) {
 	l := newLayers(t)
 	got := l.catalog().RolePlaces("r")
 	want := []string{
-		filepath.Join(l.local, "roles", "r.yaml"),
-		filepath.Join(l.global, "roles", "r.yaml"),
+		filepath.Join(l.local, "roles", "r.md"),
+		filepath.Join(l.global, "roles", "r.md"),
 	}
 	if len(got) != len(want) {
 		t.Fatalf("RolePlaces(r) = %v, want %v", got, want)
@@ -272,13 +272,13 @@ func TestRoleWithNoDocumentAndOneStillMarkdown(t *testing.T) {
 	if _, ok := cat.Role("r"); ok {
 		t.Error("Role(r) found a document that is not there")
 	}
-	if _, ok := cat.RoleMarkdown("r"); ok {
-		t.Error("RoleMarkdown(r) found a document that is not there")
+	if _, ok := cat.LegacyRole("r"); ok {
+		t.Error("LegacyRole(r) found a document that is not there")
 	}
-	write(t, filepath.Join(l.local, "roles", "r.md"), "- R1: old\n")
-	doc, ok := cat.RoleMarkdown("r")
-	if !ok || doc.Path != filepath.Join(l.local, "roles", "r.md") {
-		t.Errorf("RoleMarkdown(r) = %q, %v; want the project's .md", doc.Path, ok)
+	write(t, filepath.Join(l.local, "roles", "r.yaml"), "- R1: old\n")
+	doc, ok := cat.LegacyRole("r")
+	if !ok || doc.Path != filepath.Join(l.local, "roles", "r.yaml") {
+		t.Errorf("LegacyRole(r) = %q, %v; want the project's .md", doc.Path, ok)
 	}
 	if _, ok := cat.Role("r"); ok {
 		t.Error("Role(r) read a Markdown file as a role document")

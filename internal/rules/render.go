@@ -112,17 +112,6 @@ func (d *Document) mdPreviewBlocks() [][]MDLine {
 	return out
 }
 
-// blocks is one section as the blocks it is made of: the heading, the intro and
-// the rules. It is what SectionMarkdown joins.
-func (s Section) blocks() []string {
-	blocks := s.mdBlocks(0)
-	out := make([]string, 0, len(blocks))
-	for _, block := range blocks {
-		out = append(out, blockText(block))
-	}
-	return out
-}
-
 // mdBlocks is one section as its blocks: the heading, the intro and the rules
 // as one list.
 func (s Section) mdBlocks(index int) [][]MDLine {

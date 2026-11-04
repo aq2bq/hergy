@@ -75,24 +75,14 @@ test('NAV-N6 the changes one screen carries', async ({ page, app }) => {
     'N8: a draft made before the file moved outside was put back, want none',
   ).toBe(0);
 
-  // R3: a field inside a role's row does not redraw the screen, but it is a
-  // change all the same — the band's mark comes with it and goes when the
-  // field is put back.
-  await page.goto(`${app.base}/roles?open=builder`);
-  await wait(page, there('.role.open .panel[data-l="project"] [data-f="title"]'));
-  const title = '.role.open .panel[data-l="project"] [data-f="title"]';
-  await set(page, q(title), '設計と実装');
-  await readTo<string>(
-    page,
-    `String(!!${q('.scr.on[data-screen="roles"] .dot')})`,
-    'R3: the band shows no mark while a field inside the row is changed',
-  ).toBe('true');
-  await set(page, q(title), '設計実装');
-  await readTo<string>(
-    page,
-    `String(!!${q('.screens .dot')})`,
-    'R3: the band still marks a screen after the field was put back',
-  ).toBe('false');
+  // Editing prose marks the screen; restoring the full original clears it.
+  await page.goto(`${app.base}/roles?open=builder`); await ready(page);
+  const prose = page.locator('.role.open .panel[data-l="project"]').getByRole('textbox', { name: '散文の全文' });
+  const original = await prose.inputValue();
+  await prose.fill(original + '\n書きかけの本文。\n');
+  await expect(page.locator('.scr.on[data-screen="roles"] .dot')).toBeVisible();
+  await prose.fill(original);
+  await expect(page.locator('.screens .dot')).toHaveCount(0);
 });
 
 test('NAV-N10 the team definition carries the description a person did not save', async ({ page, app }) => {

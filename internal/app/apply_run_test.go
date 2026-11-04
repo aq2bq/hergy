@@ -65,7 +65,7 @@ case "$g $s" in
   *) echo '{"result":{}}' ;;
 esac
 `)
-	rolePath := filepath.Join(f.proj, ".hergy", "roles", "lead.yaml")
+	rolePath := filepath.Join(f.proj, ".hergy", "roles", "lead.md")
 	role := readFile(t, rolePath)
 	writeFile(t, rolePath, strings.Replace(role, "Hand over a task the receiver can start without reading your conversation.", "Hand over a task the receiver can start without reading your conversation, and name the files to read.", 1))
 
@@ -105,7 +105,7 @@ func TestApplyMembersRefusesAWorkingMember(t *testing.T) {
 	f := applyDemo(t)
 	f.runningHerdr(t, `{"tab_id":"t1","label":"demo"}`,
 		`{"name":"demo-lead","agent":"claude","agent_status":"working","pane_id":"p1","tab_id":"t1","state_change_seq":1}`)
-	rolePath := filepath.Join(f.proj, ".hergy", "roles", "lead.yaml")
+	rolePath := filepath.Join(f.proj, ".hergy", "roles", "lead.md")
 	role := readFile(t, rolePath)
 	writeFile(t, rolePath, strings.Replace(role, "Hand over a task the receiver can start without reading your conversation.", "Hand over a task the receiver can start without reading your conversation, and name the files to read.", 1))
 	env := serveEnv(t)

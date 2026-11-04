@@ -2,12 +2,13 @@ package prompt
 
 import (
 	"errors"
+	"path/filepath"
 	"strings"
 
 	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/profile"
-	"github.com/aq2bq/hergy/internal/rules"
+	"github.com/aq2bq/hergy/internal/prose"
 	"github.com/aq2bq/hergy/internal/source"
 )
 
@@ -74,7 +75,7 @@ type Sources interface {
 	Role(name string) (source.Doc, bool)
 	// RoleMarkdown is a role document still left as Markdown, for the sentence
 	// that says how to move it over. It is asked only when Role found none.
-	RoleMarkdown(name string) (source.Doc, bool)
+	LegacyRole(name string) (source.Doc, bool)
 	// RolePlaces is every path a role document is looked for, in the one order a
 	// name is looked up. It is what the sentence a missing role document gets
 	// names, so a person sees the whole list.
@@ -176,18 +177,16 @@ func Member(def *definition.Definition, node *definition.MemberNode, run Run) (*
 	var buildErr error
 	var roleDoc *source.Doc
 	var read []source.Doc
-	var parsed []*rules.Document
 
 	readDoc := func(doc source.Doc, what Where) (string, bool) {
-		document, err := readRuleFile(run, doc)
+		document, err := run.Reader.Read(doc)
 		if err != nil {
 			if buildErr == nil {
 				buildErr = withWhere(what, err)
 			}
 			return "", false
 		}
-		parsed = append(parsed, document)
-		return strings.TrimRight(document.Markdown(), "\n"), true
+		return document, true
 	}
 
 	memberName := run.Team + "-" + node.Name
@@ -253,7 +252,7 @@ func Member(def *definition.Definition, node *definition.MemberNode, run Run) (*
 			return out
 		},
 		"roster": func() []definition.PromptSegment {
-			return oneSegment("roster", Roster(run.Lang, RosterOf(def, run.Team), memberName), teamOrigin)
+			return oneSegment("roster", Roster(run.Lang, RosterOf(def, run.Team, run), memberName), teamOrigin)
 		},
 		"herdr": func() []definition.PromptSegment {
 			return []definition.PromptSegment{{
@@ -281,9 +280,6 @@ func Member(def *definition.Definition, node *definition.MemberNode, run Run) (*
 	}
 	if buildErr != nil {
 		return nil, buildErr
-	}
-	if err := rules.Check(parsed); err != nil {
-		return nil, withWhere(WhereRules, err)
 	}
 	built := &Built{Text: text, Segments: segments, Read: read}
 	if roleDoc != nil {
@@ -315,10 +311,18 @@ func promptPlace(layer string) string {
 // RosterOf is the team's members as the roster shows them: the herdr name each
 // one answers to, and the role it reads. It is the roster the prompt and the
 // figure are both made of.
-func RosterOf(def *definition.Definition, team string) []RosterEntry {
+func RosterOf(def *definition.Definition, team string, runs ...Run) []RosterEntry {
 	out := make([]RosterEntry, len(def.Graph.Members))
 	for i, member := range def.Graph.Members {
-		out[i] = RosterEntry{Name: team + "-" + member.Name, Role: member.Role}
+		title := member.Role
+		if len(runs) > 0 && runs[0].Sources != nil && runs[0].Reader != nil {
+			if doc, ok := runs[0].Sources.Role(member.Role); ok {
+				if text, err := runs[0].Reader.Read(doc); err == nil {
+					title = (prose.Document{Text: text}).Title(member.Role)
+				}
+			}
+		}
+		out[i] = RosterEntry{Name: team + "-" + member.Name, Short: member.Name, Title: title, Role: member.Role}
 	}
 	return out
 }
@@ -382,13 +386,6 @@ func WorkersOf(def *definition.Definition, member string) []WorkerPair {
 // member reads — a rule id two of them hold, a rule derived from one that is not
 // there — name the files the way hergy prints a path everywhere else (C2, X1),
 // so the same sentence reads the same on a screen and in hergy validate.
-func readRuleFile(run Run, doc source.Doc) (*rules.Document, error) {
-	text, err := run.Reader.Read(doc)
-	if err != nil {
-		return nil, err
-	}
-	return rules.Parse(text, run.shown(doc.Path))
-}
 
 // hireCommand is embedded in a member's prompt. It names the exact team and
 // project, so a hire works even when the member runs outside the project.
@@ -420,6 +417,16 @@ func shellQuote(s string) string {
 // team.yaml it read and, when the template is a member's own, the member, so a
 // person knows which file to open (spec/32 D2).
 func checkTemplate(run Run, def *definition.Definition, node *definition.MemberNode, template string) error {
+	old := source.Doc{Path: filepath.Join(filepath.Dir(def.TeamYAML), "agreement.yaml")}
+	if run.Reader.IsFile(old) {
+		return run.errorf("error.legacy_prose", run.shown(old.Path))
+	}
+	if run.Sources != nil {
+		if old, ok := run.Sources.LegacyRole(node.Role); ok {
+			return run.errorf("error.legacy_prose", run.shown(old.Path))
+		}
+	}
+
 	where := run.text("prompt.template_default")
 	switch {
 	case node.HasPrompt:
@@ -464,11 +471,11 @@ func memberRole(node *definition.MemberNode, run Run) (source.Doc, error) {
 // whole list (spec/32 D2).
 func missingRole(node *definition.MemberNode, run Run) error {
 	if run.Sources != nil {
-		if doc, ok := run.Sources.RoleMarkdown(node.Role); ok {
+		if doc, ok := run.Sources.LegacyRole(node.Role); ok {
 			return run.errorf("error.role_markdown", node.Role, run.shown(doc.Path))
 		}
 	}
-	places := []string{run.shown("roles/" + node.Role + ".yaml")}
+	places := []string{run.shown("roles/" + node.Role + ".md")}
 	if run.Sources != nil {
 		if found := run.Sources.RolePlaces(node.Role); len(found) > 0 {
 			places = make([]string, len(found))

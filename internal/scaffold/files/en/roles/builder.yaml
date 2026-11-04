@@ -1,7 +1,0 @@
-version: 1
-sections:
-  - rules:
-      - text: Do only what you were asked. If you need to go beyond it, ask whoever asked you.
-        note: "Changes outside the request are ones the requester cannot check."
-      - text: "When you are done, report to whoever asked you: what you did, how you checked it, what you decided yourself, and what you did not check."
-        note: "It lets the requester narrow down where to check again."

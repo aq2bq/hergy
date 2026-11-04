@@ -57,7 +57,7 @@ func TestPlanSaysWhatAWriteWouldMake(t *testing.T) {
 	if len(written.Files) != 2 {
 		t.Errorf("the plan names %v, want the definition's own two files", written.Files)
 	}
-	if len(written.Roles) != 2 || !slices.Contains(written.Roles, filepath.Join(base, "roles", "lead.yaml")) {
+	if len(written.Roles) != 2 || !slices.Contains(written.Roles, filepath.Join(base, "roles", "lead.md")) {
 		t.Errorf("the plan writes roles %v, want the starter's two", written.Roles)
 	}
 	if len(written.Kept) != 0 {
@@ -110,20 +110,20 @@ func TestPlanLooksForARoleInBothPlaces(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(global, "roles"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(global, "roles", "lead.yaml"), []byte("version: 1\nsections: []\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(global, "roles", "lead.md"), []byte("version: 1\nsections: []\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	written, err := Plan(in)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := filepath.Join(global, "roles", "lead.yaml"); len(written.Kept) != 1 || written.Kept[0] != want {
+	if want := filepath.Join(global, "roles", "lead.md"); len(written.Kept) != 1 || written.Kept[0] != want {
 		t.Errorf("the plan leaves %v, want the global lead.yaml alone", written.Kept)
 	}
 	if want := []string{"builder"}; !slices.Equal(written.Missing, want) {
 		t.Errorf("the plan misses %v, want %v", written.Missing, want)
 	}
-	if slices.Contains(written.Roles, filepath.Join(proj, ".hergy", "roles", "lead.yaml")) {
+	if slices.Contains(written.Roles, filepath.Join(proj, ".hergy", "roles", "lead.md")) {
 		t.Errorf("the plan writes the project's lead.yaml over the global one: %v", written.Roles)
 	}
 }
@@ -185,7 +185,7 @@ func TestPlanWritesAStarterRoleAMemberNames(t *testing.T) {
 		t.Fatal(err)
 	}
 	base := filepath.Join(proj, ".hergy")
-	if want := []string{filepath.Join(base, "roles", "lead.yaml")}; !slices.Equal(written.Roles, want) {
+	if want := []string{filepath.Join(base, "roles", "lead.md")}; !slices.Equal(written.Roles, want) {
 		t.Errorf("the plan writes %v, want %v", written.Roles, want)
 	}
 	if want := filepath.Join(base, "profiles.yaml"); written.Profile != want {
@@ -218,8 +218,8 @@ func TestWriteMakesTheStarterFolder(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(base, "roles"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	mine := "version: 1\nsections:\n  - rules:\n      - id: MINE-1\n        text: これは私のリード。\n"
-	if err := os.WriteFile(filepath.Join(base, "roles", "lead.yaml"), []byte(mine), 0o644); err != nil {
+	mine := "- これは私のリード。\n"
+	if err := os.WriteFile(filepath.Join(base, "roles", "lead.md"), []byte(mine), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	written, err := Write(in)
@@ -239,13 +239,13 @@ func TestWriteMakesTheStarterFolder(t *testing.T) {
 			t.Errorf("the written %s reads\n%s\nwant the scaffold's own\n%s", file.Path, got, file.Data)
 		}
 	}
-	if got, err := os.ReadFile(filepath.Join(base, "roles", "lead.yaml")); err != nil || string(got) != mine {
+	if got, err := os.ReadFile(filepath.Join(base, "roles", "lead.md")); err != nil || string(got) != mine {
 		t.Errorf("the layer's own lead.yaml was written over: %v\n%s", err, got)
 	}
 	if len(written.Kept) != 1 || len(written.Roles) != 1 {
 		t.Errorf("the write left %v and wrote %v, want one of each", written.Kept, written.Roles)
 	}
-	if got, err := os.ReadFile(filepath.Join(base, "roles", "builder.yaml")); err != nil || !strings.Contains(string(got), "version: 1") {
+	if got, err := os.ReadFile(filepath.Join(base, "roles", "builder.md")); err != nil || !strings.Contains(string(got), "#") {
 		t.Errorf("the starter's builder.yaml was not written: %v\n%s", err, got)
 	}
 	if got, err := os.ReadFile(filepath.Join(base, "profiles.yaml")); err != nil || !strings.Contains(string(got), scaffold.ProfileName) {
@@ -272,7 +272,7 @@ func TestWriteTakesBackWhatItCouldNotFinish(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(base, "teams", "ops")); !os.IsNotExist(err) {
 		t.Error("the failed write left the definition's directory")
 	}
-	if _, err := os.Stat(filepath.Join(base, "roles", "lead.yaml")); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(base, "roles", "lead.md")); !os.IsNotExist(err) {
 		t.Error("the failed write left the role document it wrote")
 	}
 	if got, err := os.ReadFile(filepath.Join(base, "profiles.yaml")); err != nil || string(got) != "this: [is not: a profile\n" {
@@ -325,14 +325,14 @@ func TestWriteLeavesTheRolesAndProfileThePersonDidNotChoose(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(global, "roles"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(global, "roles", "analyst.yaml"), []byte("version: 1\nsections: []\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(global, "roles", "analyst.md"), []byte("version: 1\nsections: []\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	written, err := Write(in)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{filepath.Join(base, "teams", "ops", "team.yaml"), filepath.Join(base, "teams", "ops", "agreement.yaml")} {
+	for _, want := range []string{filepath.Join(base, "teams", "ops", "team.yaml"), filepath.Join(base, "teams", "ops", "agreement.md")} {
 		if _, err := os.Stat(want); err != nil {
 			t.Errorf("the write did not make %s: %v", want, err)
 		}
@@ -343,7 +343,7 @@ func TestWriteLeavesTheRolesAndProfileThePersonDidNotChoose(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(base, "profiles.yaml")); !os.IsNotExist(err) {
 		t.Errorf("the write made the project's profiles.yaml: %v", err)
 	}
-	if got, err := os.ReadFile(filepath.Join(global, "roles", "analyst.yaml")); err != nil || !strings.Contains(string(got), "sections: []") {
+	if got, err := os.ReadFile(filepath.Join(global, "roles", "analyst.md")); err != nil || !strings.Contains(string(got), "sections: []") {
 		t.Errorf("the write changed the global place's role document: %v\n%s", err, got)
 	}
 	if len(written.Roles) != 0 || len(written.Kept) != 0 || written.Profile != "" {

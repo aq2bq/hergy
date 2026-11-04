@@ -56,8 +56,8 @@ test.describe('the one project', () => {
   test.use({ reads: 'roles' });
 
   test('PLACE-R1 a role added under the project head', async ({ page, app }) => {
-    const file = path.join(app.proj, '.hergy', 'roles', 'place-p1.yaml');
-    const global = path.join(app.cfg, 'hergy', 'roles', 'place-p1.yaml');
+    const file = path.join(app.proj, '.hergy', 'roles', 'place-p1.md');
+    const global = path.join(app.cfg, 'hergy', 'roles', 'place-p1.md');
     await page.goto(`${app.base}/roles`);
     await wait(page, there(ROLES));
     const beforeGlobal = await read<number>(page, countIn(ROLES, 'global'));
@@ -72,7 +72,7 @@ test.describe('the one project', () => {
     await noPlaceSwitch(page, row);
     await readTo<string>(page, `${row}.querySelector('.c-place .pill').textContent`, 'the new row says the project').toBe(said);
     await set(page, `${row}.querySelector('[data-f=name]')`, 'place-p1');
-    await set(page, `${row}.querySelector('.rule [data-f=text]')`, '置き場所の見出しから足したロール。');
+    await page.locator('.role.open .panel').last().getByRole('textbox', { name: '散文の全文' }).fill('置き場所の見出しから足したロール。');
     await press(page, `${row}.querySelector('.panel [data-act=save]')`);
     await wait(page, `!!(${byName(ROLES, 'project', 'place-p1')}).querySelector('.ok')`);
 
@@ -86,8 +86,8 @@ test.describe('the one project', () => {
   });
 
   test('PLACE-R2 a role added under the global head', async ({ page, app }) => {
-    const file = path.join(app.cfg, 'hergy', 'roles', 'place-g1.yaml');
-    const project = path.join(app.proj, '.hergy', 'roles', 'place-g1.yaml');
+    const file = path.join(app.cfg, 'hergy', 'roles', 'place-g1.md');
+    const project = path.join(app.proj, '.hergy', 'roles', 'place-g1.md');
     await page.goto(`${app.base}/roles`);
     await wait(page, there(ROLES));
     const beforeProject = await read<number>(page, countIn(ROLES, 'project'));
@@ -99,7 +99,7 @@ test.describe('the one project', () => {
     const row = await addUnder(page, ROLES, 'global');
     await noPlaceSwitch(page, row);
     await set(page, `${row}.querySelector('[data-f=name]')`, 'place-g1');
-    await set(page, `${row}.querySelector('.rule [data-f=text]')`, 'グローバルの見出しから足したロール。');
+    await page.locator('.role.open .panel').last().getByRole('textbox', { name: '散文の全文' }).fill('グローバルの見出しから足したロール。');
     await press(page, `${row}.querySelector('.panel [data-act=save]')`);
     await wait(page, `!!(${byName(ROLES, 'global', 'place-g1')}).querySelector('.ok')`);
 
@@ -177,8 +177,8 @@ test.describe('the headquarters', () => {
   test.use({ reads: 'hq' });
 
   test('PLACE-R3 a role added under a listed project head', async ({ page, app }) => {
-    const file = path.join(app.proj, '.hergy', 'roles', 'place-p3.yaml');
-    const global = path.join(app.cfg, 'hergy', 'roles', 'place-p3.yaml');
+    const file = path.join(app.proj, '.hergy', 'roles', 'place-p3.md');
+    const global = path.join(app.cfg, 'hergy', 'roles', 'place-p3.md');
     await page.goto(`${app.base}/roles`);
     await wait(page, there(ROLES));
     const beforeProject = await read<number>(page, countIn(ROLES, 'project'));
@@ -191,7 +191,7 @@ test.describe('the headquarters', () => {
     const row = await addUnder(page, ROLES, 'project');
     await noPlaceSwitch(page, row);
     await set(page, `${row}.querySelector('[data-f=name]')`, 'place-p3');
-    await set(page, `${row}.querySelector('.rule [data-f=text]')`, '本部のプロジェクトの見出しから足したロール。');
+    await page.locator('.role.open .panel').last().getByRole('textbox', { name: '散文の全文' }).fill('本部のプロジェクトの見出しから足したロール。');
     await press(page, `${row}.querySelector('.panel [data-act=save]')`);
     await wait(page, `!!(${byName(ROLES, 'project', 'place-p3')}).querySelector('.ok')`);
 
@@ -205,8 +205,8 @@ test.describe('the headquarters', () => {
   });
 
   test('PLACE-R4 a role added under the global head', async ({ page, app }) => {
-    const file = path.join(app.cfg, 'hergy', 'roles', 'place-g4.yaml');
-    const project = path.join(app.proj, '.hergy', 'roles', 'place-g4.yaml');
+    const file = path.join(app.cfg, 'hergy', 'roles', 'place-g4.md');
+    const project = path.join(app.proj, '.hergy', 'roles', 'place-g4.md');
     await page.goto(`${app.base}/roles`);
     await wait(page, there(ROLES));
     const beforeProject = await read<number>(page, countIn(ROLES, 'project'));
@@ -216,7 +216,7 @@ test.describe('the headquarters', () => {
     const row = await addUnder(page, ROLES, 'global');
     await noPlaceSwitch(page, row);
     await set(page, `${row}.querySelector('[data-f=name]')`, 'place-g4');
-    await set(page, `${row}.querySelector('.rule [data-f=text]')`, '本部のグローバルの見出しから足したロール。');
+    await page.locator('.role.open .panel').last().getByRole('textbox', { name: '散文の全文' }).fill('本部のグローバルの見出しから足したロール。');
     await press(page, `${row}.querySelector('.panel [data-act=save]')`);
     await wait(page, `!!(${byName(ROLES, 'global', 'place-g4')}).querySelector('.ok')`);
 

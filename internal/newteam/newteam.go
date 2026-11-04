@@ -195,7 +195,7 @@ func writeCarry(in In, written Written, made *[]string) error {
 		return nil
 	}
 	for _, path := range written.CarryRoles {
-		name := strings.TrimSuffix(filepath.Base(path), ".yaml")
+		name := strings.TrimSuffix(filepath.Base(path), ".md")
 		doc, held := in.Carry.Catalog.LayerRole(in.Carry.Layer, name)
 		if !held {
 			return fmt.Errorf("newteam: no role document for %s in that layer", name)
@@ -259,7 +259,7 @@ func plan(in In) (Written, error) {
 		return Written{}, err
 	}
 	for _, role := range roles {
-		name := strings.TrimSuffix(role.Path, ".yaml")
+		name := strings.TrimSuffix(role.Path, ".md")
 		if membersKnown && !namedRoles[name] {
 			continue
 		}
@@ -305,7 +305,7 @@ func planCarry(in In, base string, out *Written) error {
 		if _, there := in.Carry.Catalog.LayerRole(in.Carry.Layer, name); !there {
 			continue
 		}
-		path := filepath.Join(base, "roles", name+".yaml")
+		path := filepath.Join(base, "roles", name+".md")
 		if _, held := in.Catalog.LayerRole(in.Layer, name); held {
 			out.Kept = append(out.Kept, path)
 			continue

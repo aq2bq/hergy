@@ -21,7 +21,7 @@ func TestROLES_B41C_TheAnswerIsTheFileTheWriteLeft(t *testing.T) {
 	draft, text := ruLoadDraft(t, path)
 	hash := source.Hash(text)
 	for i, body := range []string{"足した規則 1。", "足した規則 2。", "足した規則 3。"} {
-		draft.Sections[0].Rules = append(draft.Sections[0].Rules, r2Rule{Text: body})
+		draft.Text += "\n" + body
 		resp, decoded := f.apiJSON(t, server, http.MethodPut, "/api/role/builder", map[string]any{
 			"place": catalog.PlaceProject, "original": "builder", "hash": hash, "doc": draft,
 		})
@@ -51,13 +51,10 @@ func TestROLES_B41C_TheAnswerIsTheFileTheWriteLeft(t *testing.T) {
 func TestTEAMS_B41C_TheAgreementAnswerIsTheFileTheWriteLeft(t *testing.T) {
 	f := newFixture(t)
 	server := f.server(t)
-	path := filepath.Join(f.proj, ".hergy", "teams", "demo", "agreement.yaml")
+	path := filepath.Join(f.proj, ".hergy", "teams", "demo", "agreement.md")
 	before := readFile(t, path)
 	hash := source.Hash(before)
-	doc := map[string]any{"name": "", "title": "demo チームの約束", "revision": 1,
-		"sections": []map[string]any{{"heading": "責務", "rules": []map[string]any{
-			{"id": "", "text": "足した約束。", "in_prompt": true},
-		}}}}
+	doc := map[string]any{"name": "", "title": "demo", "text": "# demo\n\n足した約束。\n"}
 	for i := 1; i <= 3; i++ {
 		resp, decoded := f.apiJSON(t, server, http.MethodPut, "/api/team/demo", map[string]any{
 			"place": "project", "part": "agreement", "hash": hash,

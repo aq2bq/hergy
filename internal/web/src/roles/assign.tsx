@@ -30,7 +30,7 @@ function ARow({ t, m, i }: { t: TeamCard; m: TeamMember; i: number }) {
   const dim = hi && m.draft !== hi;
   // The sentence the server would print for validate, with its values: the
   // member's own name, and where hergy looked, as a person reads a path.
-  const places = [DIR.project + m.draft + '.yaml', DIR.global + m.draft + '.yaml'].join(TEXT.separator || '、');
+  const places = [DIR.project + m.draft + '.md', DIR.global + m.draft + '.md'].join(TEXT.separator || '、');
   return <div class={['arow', m.draft !== m.saved ? 'changed' : '', r ? '' : 'missing', dim ? 'dim' : ''].filter(Boolean).join(' ')} data-m={m.name}>
       <div class="who"><code>{m.name}</code></div>
       <div class="pick">{m.draft !== m.saved ? <s class="was">{m.saved}</s> : ''}<span class="sel"><select class="pickrole" id={`s-${t.id}-${i}`} data-t={t.id} data-i={i} aria-label={`${m.name} のロール`} onChange={(e: Event) => { if (e.currentTarget instanceof HTMLSelectElement) pickRole(t.id, i, e.currentTarget.value); }}>{roleOptions(m.draft)}</select></span></div>

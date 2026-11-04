@@ -39,31 +39,25 @@ import {
   problemText2
 } from "../chunk/nav-59pgz9xy.js";
 import {
+  chars,
   clone2,
   fromJSON2,
   toDoc2,
-  rulesOf2,
-  outCount2,
-  openRules2,
-  openRuleKey2,
-  Sev2,
-  Vm2,
-  Counts2,
-  OutNote2,
   diffCount2,
-  openRule2,
-  RuleDoc2,
-  observeKeys2
-} from "../chunk/nav-7cjn77zc.js";
+  Sev2,
+  Counts2,
+  Vm2,
+  RuleDoc2
+} from "../chunk/nav-q3nq11g3.js";
 import {
   st,
   token2,
   parseOpen2,
   projectName2
-} from "../chunk/nav-bb65tqp4.js";
+} from "../chunk/nav-7rgxqdr2.js";
 import {
   RunCell2
-} from "../chunk/nav-xf4emtj1.js";
+} from "../chunk/nav-8vctx6fw.js";
 import {
   conflictOf,
   ConflictNotice,
@@ -73,7 +67,7 @@ import {
   roleEditor,
   roleProblems,
   Measure
-} from "../chunk/nav-vabskx3v.js";
+} from "../chunk/nav-ym23ftqp.js";
 import {
   copyGroupOf,
   groupPlace,
@@ -87,6 +81,355 @@ import {
 import {
   resource
 } from "../chunk/nav-gwkv74cd.js";
+
+// teams/role-modal.tsx
+var ids = 1e6;
+var focusTarget = y("");
+function RoleButton({ r, name, children = "ロールを確認・編集" }) {
+  return /* @__PURE__ */ u("button", {
+    class: "btn sm",
+    type: "button",
+    disabled: !name,
+    onClick: () => {
+      focusTarget.value = `prose-${r.uid}-${name}`;
+      pressDtab(r, "agree");
+    },
+    children
+  });
+}
+function RoleColumn({ r, name }) {
+  const session = T(() => ({ id: ++ids, r, name, trigger: null }), [r, name]);
+  return /* @__PURE__ */ u(Editor, {
+    session
+  });
+}
+function newModel(session) {
+  const global = session.r.place.value === "global";
+  const project = global ? undefined : projectOfGroup(groupOfRecord(session.r)) || CURRENT;
+  const query = new URLSearchParams({ context: global ? "global" : "project" });
+  if (project)
+    query.set("project", project);
+  return {
+    global,
+    project,
+    editor: roleEditor(),
+    entry: y(null),
+    baseline: y(null),
+    error: y(""),
+    ok: y(false),
+    target: y(null),
+    conflict: y(null),
+    context: resource(async (signal) => read2(`/api/role/${encodeURIComponent(session.name)}/context?${query}`, { signal }))
+  };
+}
+var models = new Map;
+function roleDraftsDirty() {
+  return [...models.values()].some((model) => {
+    const e = model.entry.value;
+    return !!e && e.draft.text !== e.saved.text;
+  });
+}
+function Editor({ session }) {
+  const dialog = A(null);
+  const model = T(() => {
+    const key = `${session.r.uid}:${session.r.place.value}:${session.name}`;
+    let held = models.get(key);
+    if (!held) {
+      held = newModel(session);
+      models.set(key, held);
+    }
+    return held;
+  }, [session]);
+  const { editor, entry } = model;
+  const dirty = () => !!entry.value && JSON.stringify(entry.value.draft) !== JSON.stringify(entry.value.saved);
+  const canClose = () => !editor.saving.value && (!dirty() || window.confirm("ロールに保存していない変更があります。変更を破棄して閉じますか？"));
+  async function check(resetBaseline = false) {
+    const e = entry.value, ctx = model.context.value.value;
+    if (!e || !ctx)
+      return;
+    const answer = await editor.check.run({ project: model.project, place: model.target.value?.place || ctx.place, original: session.name, doc: toDoc2(e.draft, e.saved) });
+    if (answer?.json?.problems && resetBaseline)
+      model.baseline.value = new Set(answer.json.problems.filter((p) => p.sev === "err").map((p) => p.text));
+  }
+  async function load() {
+    const ctx = await model.context.run();
+    if (!ctx?.doc || ctx.state !== "readable")
+      return;
+    if (session.expectedPlace && session.expectedPlace !== ctx.place) {
+      await checkTeam(session.r);
+      model.error.value = "プロンプトの文書が変わったため、プロンプトを再検査しました。閉じて、もう一度開いてください";
+      return;
+    }
+    const saved = fromJSON2(ctx.doc);
+    model.target.value = { place: ctx.place, path: ctx.path };
+    entry.value = { saved, draft: structuredClone(saved), hash: ctx.hash, text: ctx.text };
+    model.baseline.value = null;
+    await check(true);
+  }
+  h(() => {
+    if (!dirty())
+      load();
+    else
+      check();
+    return () => {
+      model.context.abort();
+      editor.check.abort();
+      session.trigger?.focus({ preventScroll: true });
+    };
+  }, [model]);
+  async function save(over) {
+    const e = entry.value, ctx = model.context.value.value, target = model.target.value;
+    if (!e || !ctx || !target || target.path !== ctx.path || editor.saving.value || model.context.loading.value || model.context.error.value || ctx.errors.length)
+      return;
+    dialog.current?.querySelector("h2")?.focus({ preventScroll: true });
+    editor.check.abort();
+    model.error.value = "";
+    model.ok.value = false;
+    try {
+      const answer = await editor.save(session.name, {
+        project: model.project,
+        place: target.place,
+        original: session.name,
+        role_context: model.global ? "global" : "project",
+        hash: over || e.hash,
+        doc: toDoc2(e.draft, e.saved)
+      });
+      if (!answer.json)
+        throw new Error("保存の結果を読めませんでした。文書を読み直してください");
+      const saved = fromJSON2(answer.json.doc);
+      entry.value = { saved, draft: structuredClone(saved), hash: answer.json.hash, text: answer.json.text };
+      model.conflict.value = null;
+      model.ok.value = true;
+      await check(true);
+      await model.context.run();
+      await refreshAfterRoleSave();
+    } catch (err) {
+      const conflict = conflictOf(err);
+      if (conflict)
+        model.conflict.value = { c: conflict };
+      else
+        model.error.value = problemText2(err, "ロールを保存できませんでした");
+    }
+  }
+  const ctx = model.context.value.value, e = entry.value;
+  h(() => {
+    if (!e || focusTarget.value !== `prose-${session.r.uid}-${session.name}`)
+      return;
+    const input = dialog.current?.querySelector("textarea");
+    if (input) {
+      input.focus();
+      input.scrollIntoView({ block: "nearest", inline: "nearest" });
+      focusTarget.value = "";
+    }
+  }, [e, focusTarget.value]);
+  const answer = editor.check.value.value?.json;
+  const issues = e && answer?.problems ? roleProblems(e.draft, answer.problems) : [];
+  const errors = issues.filter((p) => p.sev === "err" && !model.baseline.value?.has(p.text));
+  const unavailable = model.context.loading.value || !!model.context.error.value || !ctx || ctx.errors.length > 0 || model.target.value?.path !== ctx.path;
+  const blocked = unavailable || !dirty() || !model.baseline.value || editor.check.loading.value || !!editor.check.error.value || !answer?.problems || errors.length > 0 || editor.saving.value;
+  const other = ctx?.uses.filter((u2) => !(u2.name === session.r.name.value && u2.place === session.r.place.value && (u2.place === "global" || u2.project === model.project))) || [];
+  const query = new URLSearchParams({ open: session.name + "|" + (ctx?.place === "global" ? "global" : model.project || "") });
+  if (model.project)
+    query.set("project", model.project);
+  function leave(event) {
+    if (!canClose())
+      event.preventDefault();
+    else
+      carryTo2("roles", model.project);
+  }
+  return /* @__PURE__ */ u("section", {
+    class: "prose-column role-column",
+    ref: dialog,
+    id: `prose-${session.r.uid}-${session.name}`,
+    "aria-labelledby": `role-title-${session.id}`,
+    children: [
+      /* @__PURE__ */ u("header", {
+        children: [
+          /* @__PURE__ */ u("h2", {
+            id: `role-title-${session.id}`,
+            tabIndex: -1,
+            children: [
+              e?.draft.title || session.name,
+              "（",
+              session.name,
+              "）"
+            ]
+          }),
+          ctx ? /* @__PURE__ */ u("code", {
+            class: "path",
+            title: ctx.path,
+            children: [
+              ctx.place === "global" ? "グローバル" : "プロジェクト",
+              " · roles/",
+              session.name,
+              ".md"
+            ]
+          }) : null
+        ]
+      }),
+      ctx ? /* @__PURE__ */ u("details", {
+        class: "role-usage",
+        children: [
+          /* @__PURE__ */ u("summary", {
+            children: "保存先と影響するチーム"
+          }),
+          /* @__PURE__ */ u("p", {
+            children: [
+              ctx.place === "global" ? "グローバル" : "プロジェクト",
+              " · ",
+              /* @__PURE__ */ u("code", {
+                children: ctx.path
+              })
+            ]
+          }),
+          ctx.place === "global" ? /* @__PURE__ */ u("p", {
+            children: "ほかのプロジェクトからも使える文書です。実行するプロジェクトに同名のロールがあれば、その文書が使われます。"
+          }) : null,
+          /* @__PURE__ */ u("p", {
+            children: [
+              "このチーム定義で編集中: ",
+              session.r.name.value,
+              "。確認できた範囲: ",
+              ctx.scanned.join("、")
+            ]
+          }),
+          other.length ? /* @__PURE__ */ u("ul", {
+            children: other.map((u2) => /* @__PURE__ */ u("li", {
+              children: [
+                u2.project_name,
+                " / ",
+                u2.name,
+                "（",
+                u2.place === "global" ? "グローバル" : "プロジェクト",
+                "）: ",
+                u2.members.join("、")
+              ]
+            }))
+          }) : /* @__PURE__ */ u("p", {
+            children: "確認できた範囲では、ほかに使うチーム定義はありません。"
+          }),
+          ctx.errors.map((text) => /* @__PURE__ */ u("p", {
+            role: "alert",
+            children: text
+          })),
+          ctx.state !== "readable" ? /* @__PURE__ */ u("p", {
+            role: "alert",
+            children: ctx.problem
+          }) : null
+        ]
+      }) : null,
+      /* @__PURE__ */ u("div", {
+        class: "role-dialog-body",
+        children: [
+          model.context.error.value ? /* @__PURE__ */ u("p", {
+            role: "alert",
+            children: problemText2(model.context.error.value, "ロールと使用先を読み込めませんでした")
+          }) : null,
+          model.context.loading.value ? /* @__PURE__ */ u("p", {
+            role: "status",
+            children: "ロールと使用先を読んでいます。"
+          }) : null,
+          model.target.value && ctx && model.target.value.path !== ctx.path ? /* @__PURE__ */ u("p", {
+            role: "alert",
+            children: "使われるロールの置き場所が変わりました。文書を読み直してください。"
+          }) : null,
+          e && ctx?.state === "readable" ? /* @__PURE__ */ u("fieldset", {
+            disabled: editor.saving.value || !model.baseline.value,
+            children: /* @__PURE__ */ u("div", {
+              class: "pmain",
+              children: /* @__PURE__ */ u(RuleDoc2, {
+                hasName: false,
+                row: { uid: session.id, l: ctx.place, saved: e.saved, draft: e.draft, markdown: answer?.preview || { lines: [], chars: 0 }, diff: answer?.effect?.diff || {}, savedIssues: [] },
+                issues,
+                onChange: () => {
+                  entry.value = { ...e, draft: structuredClone(e.draft) };
+                  model.ok.value = false;
+                  check();
+                }
+              })
+            })
+          }) : null,
+          model.conflict.value && e ? /* @__PURE__ */ u(ConflictNotice, {
+            c: model.conflict.value.c,
+            mine: e.text,
+            busy: editor.saving.value,
+            undone: model.conflict.value.undone,
+            onOverwrite: () => void save(model.conflict.value?.c.file.hash),
+            onRevert: () => {
+              const hold = model.conflict.value;
+              const before = entry.value;
+              load().then(() => {
+                model.conflict.value = { c: hold.c, before, undone: true };
+              });
+            },
+            onUndo: () => {
+              if (model.conflict.value?.before) {
+                entry.value = model.conflict.value.before;
+                model.conflict.value = { c: model.conflict.value.c };
+                check();
+              }
+            }
+          }) : null,
+          errors.map((error) => /* @__PURE__ */ u("p", {
+            role: "alert",
+            children: error.text
+          })),
+          editor.check.error.value ? /* @__PURE__ */ u("p", {
+            role: "alert",
+            children: problemText2(editor.check.error.value, "ロールを検査できませんでした")
+          }) : null,
+          model.error.value ? /* @__PURE__ */ u("p", {
+            role: "alert",
+            children: model.error.value
+          }) : null
+        ]
+      }),
+      /* @__PURE__ */ u("footer", {
+        children: [
+          "    ",
+          /* @__PURE__ */ u("p", {
+            children: [
+              /* @__PURE__ */ u("a", {
+                href: `/roles?${query}`,
+                onClick: leave,
+                children: "ロールの画面で開く"
+              }),
+              ctx?.state === "unreadable" ? /* @__PURE__ */ u(S, {
+                children: [
+                  " · ",
+                  /* @__PURE__ */ u("a", {
+                    href: `/roles/yaml?${query}&file=${ctx.place}.${encodeURIComponent(session.name)}`,
+                    onClick: leave,
+                    children: "ロールの Markdown で直す"
+                  })
+                ]
+              }) : null
+            ]
+          }),
+          /* @__PURE__ */ u("button", {
+            class: "btn sm",
+            disabled: editor.saving.value,
+            onClick: () => {
+              if (canClose())
+                load();
+            },
+            children: "文書を読み直す"
+          }),
+          e ? /* @__PURE__ */ u("button", {
+            class: "btn primary",
+            disabled: blocked,
+            onClick: () => void save(),
+            children: "ロールを保存"
+          }) : null,
+          model.ok.value ? /* @__PURE__ */ u("span", {
+            role: "status",
+            children: "ロールを保存しました"
+          }) : null
+        ]
+      })
+    ]
+  });
+}
 
 // teams/place.ts
 var textW = (s, mono) => [...String(s)].reduce((w, c) => w + (/[\u3000-\u9fff\uff00-\uffef]/.test(c) ? 13 : mono ? 8.4 : 7.4), 0);
@@ -471,9 +814,8 @@ function applyOps(saved, ops) {
 function emptyAgreement(name) {
   return fromJSON2({
     name: "",
-    title: name ? `${name} チームのルール` : "チームのルール",
-    revision: 1,
-    sections: []
+    title: name,
+    text: ""
   });
 }
 function recOf(init) {
@@ -552,7 +894,7 @@ function setWide(r) {
 var recs = y([]);
 var missingOpen = y([]);
 var uids = 0;
-var NO_AGREEMENT = { path: "", hash: "", has: false, rules: 0 };
+var NO_AGREEMENT = { path: "", hash: "", has: false };
 function defOf(item, project, only) {
   const group = project || "";
   const places = item.places || {};
@@ -704,7 +1046,6 @@ function seedDraft(r, json) {
   r.agreeHash.value = agree.hash || "";
   if (agree.doc) {
     const d = fromJSON2(agree.doc);
-    observeKeys2(rulesOf2(d));
     d.__path = agree.path;
     r.agreeSaved.value = d;
     r.agreeDraft.value = clone2(d);
@@ -750,27 +1091,20 @@ function dropDraft(r) {
   setConfirm("del" + dkey(r), false);
   resetCanvas(r);
 }
-function ruleKeyAt(doc, si, ri) {
-  const s = doc && doc.sections[si];
-  if (!s)
-    return 0;
-  const x = s.rules[ri];
-  return x ? x._k : 0;
-}
-var convProblems = (doc, list) => (list || []).map((p) => ({
+var convProblems = (_doc, list) => (list || []).map((p) => ({
   sev: p.sev,
-  k: p.section >= 0 ? ruleKeyAt(doc, p.section, p.rule) : 0,
+  k: 0,
   f: p.field || "",
   text: p.text || "",
   definition: p.definition || ""
 }));
 var buildCheck = (doc, json) => {
-  const effect = json.effect && "turns" in json.effect ? json.effect : null;
+  const effect = json.effect && "diff" in json.effect ? json.effect : null;
   return {
+    templateSize: json.template_size || 0,
     issues: convProblems(doc, json.problems || []),
     markdown: json.preview && !("diff" in json.preview) ? json.preview : { lines: [], chars: 0 },
     diff: effect && effect.diff || { added: [], removedBefore: [], removedAtEnd: false },
-    turns: effect && effect.turns || [],
     readers: json.readers || []
   };
 };
@@ -796,8 +1130,8 @@ function figFindings(r, problems) {
     } else if (at.startsWith("rule:")) {
       field = at;
       const path = at.slice("rule:".length).split("#")[0];
-      if (p.section >= 0 && path.endsWith(`/teams/${r.name.value}/agreement.yaml`)) {
-        ruleKey = ruleKeyAt(r.agreeDraft.value, p.section, p.rule);
+      if (p.section >= 0 && path.endsWith(`/teams/${r.name.value}/agreement.md`)) {
+        ruleKey = 0;
       }
     } else {
       field = "";
@@ -879,7 +1213,7 @@ function changeCount(r) {
 var ownAgreement = (r, m) => {
   const path = (m.field || "").replace(/^rule:/, "").split("#")[0];
   const name = r.name.value;
-  return !!r.agreePath.value && path.endsWith("/teams/" + name + "/agreement.yaml");
+  return !!r.agreePath.value && path.endsWith("/teams/" + name + "/agreement.md");
 };
 var ruleID = (m) => (m.field || "").split("#")[1] || "";
 var vlistParts = (r) => {
@@ -1000,7 +1334,7 @@ async function checkTeam(r) {
 }
 async function checkAgree(r) {
   const one = checkersFor(r);
-  if (!r.agreeSaved.value && !r.agreeDraft.value.sections.length) {
+  if (!r.agreeSaved.value && !r.agreeDraft.value.text.length) {
     one.agree.abort();
     r.check.value = null;
     return;
@@ -1013,7 +1347,10 @@ async function checkAgree(r) {
   if (!agreeDiff(r))
     r.agreeSavedIssues.value = r.check.value.issues;
 }
-var scheduleAgree = (r) => debounce("a" + dkey(r), () => syncAgree(r));
+var scheduleAgree = (r) => {
+  setOk("a" + dkey(r), false);
+  debounce("a" + dkey(r), () => syncAgree(r));
+};
 function syncTeam(r) {
   checkTeam(r);
 }
@@ -1098,7 +1435,6 @@ async function saveAgree(r, over) {
   r.agreeHash.value = json.hash || r.agreeHash.value;
   if (json.doc) {
     const d2 = fromJSON2(json.doc);
-    observeKeys2(rulesOf2(d2));
     d2.__path = r.agreePath.value;
     r.agreeSaved.value = d2;
     r.agreeDraft.value = clone2(d2);
@@ -1483,22 +1819,6 @@ function syncURL() {
     });
     if (agrees.length)
       params.set("agree", agrees.join(","));
-    const rules = [];
-    opens.forEach((n) => {
-      const r = byName(n);
-      if (!r)
-        return;
-      openRules2().forEach((kk) => {
-        const head = `${r.uid}${r.place.value}:`;
-        if (!kk.startsWith(head))
-          return;
-        const hit = rulesOf2(r.agreeDraft.value).find((x) => x._k === Number(kk.slice(head.length)));
-        if (hit && hit.id)
-          rules.push(`${r.name.value}.${hit.id}`);
-      });
-    });
-    if (rules.length)
-      params.set("rule", rules.join(","));
   }
   const path = s.tab === "yaml" ? "/teams/yaml" : "/teams";
   const q = params.toString();
@@ -1534,13 +1854,8 @@ function readURL() {
       const r = byRealName(spec.slice(0, i));
       if (!r)
         return;
-      const hit = rulesOf2(r.agreeDraft.value).find((x) => x.id === spec.slice(i + 1));
-      if (hit) {
-        withOpen(r.dom, true);
-        setDtab(r.dom, "agree");
-        openRuleKey2(`${r.uid}${r.place.value}:${hit._k}`);
-        put({ wantRule: { name: r.dom, k: hit._k } });
-      }
+      withOpen(r.dom, true);
+      setDtab(r.dom, "agree");
     });
   const file = p.get("file");
   if (file)
@@ -1562,12 +1877,13 @@ var rowOfPanel = (r) => {
     issues: agreeIssues(r),
     savedIssues: r.agreeSavedIssues.value,
     markdown: check ? check.markdown : { lines: [], chars: 0 },
-    diff: check ? check.diff : { added: [], removedBefore: [], removedAtEnd: false },
-    turns: check ? check.turns : []
+    diff: check ? check.diff : { added: [], removedBefore: [], removedAtEnd: false }
   };
 };
 var savedCount = () => recs.value.filter((r) => !r.draftRow).length;
 function dirty() {
+  if (roleDraftsDirty())
+    return true;
   for (const r of recs.value)
     if (dirtyDef(r))
       return true;
@@ -1779,16 +2095,14 @@ function pressRevert(r) {
 function pressToastUndo() {
   canvasUndoFromToast();
 }
-function pressVrule(r, key) {
+function pressVrule(r, _key) {
   if (!r)
     return;
   withOpen(r.dom, true);
   setDtab(r.dom, "agree");
-  const hit = typeof key === "number" ? rulesOf2(r.agreeDraft.value).find((x) => x._k === key) : rulesOf2(r.agreeDraft.value).find((x) => String(x.id) === key);
   checkAgree(r);
   syncURL();
-  if (hit)
-    jumpToRule(r, hit._k);
+  jumpToRule(r, 0);
 }
 function pressVpick(r, m) {
   if (m.nameField) {
@@ -1887,10 +2201,10 @@ function openAgree(r) {
   checkAgree(r);
   syncURL();
 }
-function jumpToRule(r, k) {
+function jumpToRule(r, _k) {
   focusAsk.value = null;
   pressPmode(r, "edit");
-  openRule2(rowOfPanel(r), k);
+  focusAsk.value = { dom: r.dom, sel: ".prose-editor textarea" };
   syncURL();
 }
 function jumpWantRule() {
@@ -2540,338 +2854,6 @@ function Menu({ r }) {
           "data-from": x.name,
           children: x.name
         }))
-      })
-    ]
-  });
-}
-
-// teams/role-modal.tsx
-var active = y(null);
-var ids = 1e6;
-function RoleButton({ r, name, expectedPlace, children = "ロールを確認・編集" }) {
-  return /* @__PURE__ */ u("button", {
-    class: "btn sm",
-    type: "button",
-    disabled: !name,
-    onClick: (event) => {
-      active.value = { id: ++ids, r, name, expectedPlace, trigger: event.currentTarget };
-    },
-    children
-  });
-}
-function RoleModal() {
-  const session = active.value;
-  return session ? /* @__PURE__ */ u(Editor, {
-    session
-  }, session.id) : null;
-}
-function Editor({ session }) {
-  const dialog = A(null);
-  const model = T(() => {
-    const global = session.r.place.value === "global";
-    const project = global ? undefined : projectOfGroup(groupOfRecord(session.r)) || CURRENT;
-    const query = new URLSearchParams({ context: global ? "global" : "project" });
-    if (project)
-      query.set("project", project);
-    return {
-      global,
-      project,
-      editor: roleEditor(),
-      entry: y(null),
-      baseline: y(null),
-      error: y(""),
-      ok: y(false),
-      target: y(null),
-      conflict: y(null),
-      context: resource(async (signal) => read2(`/api/role/${encodeURIComponent(session.name)}/context?${query}`, { signal }))
-    };
-  }, [session]);
-  const { editor, entry } = model;
-  const dirty = () => !!entry.value && JSON.stringify(entry.value.draft) !== JSON.stringify(entry.value.saved);
-  const canClose = () => !editor.saving.value && (!dirty() || window.confirm("ロールに保存していない変更があります。変更を破棄して閉じますか？"));
-  function close() {
-    if (canClose())
-      active.value = null;
-  }
-  async function check(resetBaseline = false) {
-    const e = entry.value, ctx = model.context.value.value;
-    if (!e || !ctx)
-      return;
-    const answer = await editor.check.run({ project: model.project, place: model.target.value?.place || ctx.place, original: session.name, doc: toDoc2(e.draft, e.saved) });
-    if (answer?.json?.problems && resetBaseline)
-      model.baseline.value = new Set(answer.json.problems.filter((p) => p.sev === "err").map((p) => p.text));
-  }
-  async function load() {
-    const ctx = await model.context.run();
-    if (!ctx?.doc || ctx.state !== "readable")
-      return;
-    if (session.expectedPlace && session.expectedPlace !== ctx.place) {
-      await checkTeam(session.r);
-      model.error.value = "プロンプトの文書が変わったため、プロンプトを再検査しました。閉じて、もう一度開いてください";
-      return;
-    }
-    const saved = fromJSON2(ctx.doc);
-    model.target.value = { place: ctx.place, path: ctx.path };
-    entry.value = { saved, draft: structuredClone(saved), hash: ctx.hash, text: ctx.text };
-    model.baseline.value = null;
-    await check(true);
-  }
-  h(() => {
-    dialog.current?.showModal();
-    load();
-    return () => {
-      model.context.abort();
-      editor.check.abort();
-      dialog.current?.close();
-      session.trigger?.focus({ preventScroll: true });
-    };
-  }, [model]);
-  async function save(over) {
-    const e = entry.value, ctx = model.context.value.value, target = model.target.value;
-    if (!e || !ctx || !target || target.path !== ctx.path || editor.saving.value || model.context.loading.value || model.context.error.value || ctx.errors.length)
-      return;
-    dialog.current?.querySelector("h2")?.focus({ preventScroll: true });
-    editor.check.abort();
-    model.error.value = "";
-    model.ok.value = false;
-    try {
-      const answer = await editor.save(session.name, {
-        project: model.project,
-        place: target.place,
-        original: session.name,
-        role_context: model.global ? "global" : "project",
-        hash: over || e.hash,
-        doc: toDoc2(e.draft, e.saved)
-      });
-      if (!answer.json)
-        throw new Error("保存の結果を読めませんでした。文書を読み直してください");
-      const saved = fromJSON2(answer.json.doc);
-      entry.value = { saved, draft: structuredClone(saved), hash: answer.json.hash, text: answer.json.text };
-      model.conflict.value = null;
-      model.ok.value = true;
-      await check(true);
-      await model.context.run();
-      await refreshAfterRoleSave();
-    } catch (err) {
-      const conflict = conflictOf(err);
-      if (conflict)
-        model.conflict.value = { c: conflict };
-      else
-        model.error.value = problemText2(err, "ロールを保存できませんでした");
-    }
-  }
-  const ctx = model.context.value.value, e = entry.value;
-  const answer = editor.check.value.value?.json;
-  const issues = e && answer?.problems ? roleProblems(e.draft, answer.problems) : [];
-  const errors = issues.filter((p) => p.sev === "err" && !model.baseline.value?.has(p.text));
-  const unavailable = model.context.loading.value || !!model.context.error.value || !ctx || ctx.errors.length > 0 || model.target.value?.path !== ctx.path;
-  const blocked = unavailable || !dirty() || !model.baseline.value || editor.check.loading.value || !!editor.check.error.value || !answer?.problems || errors.length > 0 || editor.saving.value;
-  const other = ctx?.uses.filter((u2) => !(u2.name === session.r.name.value && u2.place === session.r.place.value && (u2.place === "global" || u2.project === model.project))) || [];
-  const query = new URLSearchParams({ open: session.name + "|" + (ctx?.place === "global" ? "global" : model.project || "") });
-  if (model.project)
-    query.set("project", model.project);
-  function leave(event) {
-    if (!canClose())
-      event.preventDefault();
-    else
-      carryTo2("roles", model.project);
-  }
-  function keyDown(event) {
-    event.stopPropagation();
-    if (event.key !== "Tab" || !dialog.current)
-      return;
-    const fields = Array.from(dialog.current.querySelectorAll("button, a[href], input, select, textarea, summary, [tabindex]")).filter((el) => !el.matches(':disabled, [tabindex="-1"]') && el.getClientRects().length > 0);
-    const at = fields.indexOf(document.activeElement);
-    if (event.shiftKey ? at <= 0 : at < 0 || at === fields.length - 1) {
-      event.preventDefault();
-      (event.shiftKey ? fields.at(-1) : fields[0])?.focus();
-    }
-  }
-  return /* @__PURE__ */ u("dialog", {
-    class: "role-dialog",
-    ref: dialog,
-    "aria-modal": "true",
-    "aria-labelledby": `role-title-${session.id}`,
-    onKeyDown: keyDown,
-    onCancel: (event) => {
-      event.preventDefault();
-      close();
-    },
-    children: [
-      /* @__PURE__ */ u("header", {
-        children: [
-          /* @__PURE__ */ u("h2", {
-            id: `role-title-${session.id}`,
-            tabIndex: -1,
-            children: [
-              "ロール ",
-              session.name
-            ]
-          }),
-          /* @__PURE__ */ u("button", {
-            class: "btn",
-            disabled: editor.saving.value,
-            onClick: close,
-            children: "閉じる"
-          })
-        ]
-      }),
-      ctx ? /* @__PURE__ */ u("section", {
-        class: "role-usage",
-        "aria-label": "保存の影響",
-        children: [
-          /* @__PURE__ */ u("p", {
-            children: [
-              ctx.place === "global" ? "グローバル" : "プロジェクト",
-              " · ",
-              /* @__PURE__ */ u("code", {
-                children: ctx.path
-              })
-            ]
-          }),
-          ctx.place === "global" ? /* @__PURE__ */ u("p", {
-            children: "ほかのプロジェクトからも使える文書です。実行するプロジェクトに同名のロールがあれば、その文書が使われます。"
-          }) : null,
-          /* @__PURE__ */ u("p", {
-            children: [
-              "このチーム定義で編集中: ",
-              session.r.name.value,
-              "。確認できた範囲: ",
-              ctx.scanned.join("、")
-            ]
-          }),
-          other.length ? /* @__PURE__ */ u("ul", {
-            children: other.map((u2) => /* @__PURE__ */ u("li", {
-              children: [
-                u2.project_name,
-                " / ",
-                u2.name,
-                "（",
-                u2.place === "global" ? "グローバル" : "プロジェクト",
-                "）: ",
-                u2.members.join("、")
-              ]
-            }))
-          }) : /* @__PURE__ */ u("p", {
-            children: "確認できた範囲では、ほかに使うチーム定義はありません。"
-          }),
-          ctx.errors.map((text) => /* @__PURE__ */ u("p", {
-            role: "alert",
-            children: text
-          })),
-          ctx.state !== "readable" ? /* @__PURE__ */ u("p", {
-            role: "alert",
-            children: ctx.problem
-          }) : null
-        ]
-      }) : null,
-      /* @__PURE__ */ u("div", {
-        class: "role-dialog-body",
-        children: [
-          model.context.error.value ? /* @__PURE__ */ u("p", {
-            role: "alert",
-            children: problemText2(model.context.error.value, "ロールと使用先を読み込めませんでした")
-          }) : null,
-          model.context.loading.value ? /* @__PURE__ */ u("p", {
-            role: "status",
-            children: "ロールと使用先を読んでいます。"
-          }) : null,
-          /* @__PURE__ */ u("p", {
-            children: [
-              /* @__PURE__ */ u("a", {
-                href: `/roles?${query}`,
-                onClick: leave,
-                children: "ロールの画面で開く"
-              }),
-              ctx?.state === "unreadable" ? /* @__PURE__ */ u(S, {
-                children: [
-                  " · ",
-                  /* @__PURE__ */ u("a", {
-                    href: `/roles/yaml?${query}&file=${ctx.place}.${encodeURIComponent(session.name)}`,
-                    onClick: leave,
-                    children: "ロールのYAMLで直す"
-                  })
-                ]
-              }) : null
-            ]
-          }),
-          /* @__PURE__ */ u("button", {
-            class: "btn sm",
-            disabled: editor.saving.value,
-            onClick: () => {
-              if (canClose())
-                load();
-            },
-            children: "文書を読み直す"
-          }),
-          model.target.value && ctx && model.target.value.path !== ctx.path ? /* @__PURE__ */ u("p", {
-            role: "alert",
-            children: "使われるロールの置き場所が変わりました。文書を読み直してください。"
-          }) : null,
-          e && ctx?.state === "readable" ? /* @__PURE__ */ u("fieldset", {
-            disabled: editor.saving.value || !model.baseline.value,
-            children: /* @__PURE__ */ u("div", {
-              class: "pmain",
-              children: /* @__PURE__ */ u(RuleDoc2, {
-                hasName: false,
-                row: { uid: session.id, l: ctx.place, saved: e.saved, draft: e.draft, markdown: answer?.preview || { lines: [], chars: 0 }, diff: answer?.effect?.diff || {}, turns: answer?.effect?.turns || [], savedIssues: [] },
-                issues,
-                onChange: () => {
-                  entry.value = { ...e, draft: structuredClone(e.draft) };
-                  model.ok.value = false;
-                  check();
-                }
-              })
-            })
-          }) : null,
-          model.conflict.value && e ? /* @__PURE__ */ u(ConflictNotice, {
-            c: model.conflict.value.c,
-            mine: e.text,
-            busy: editor.saving.value,
-            undone: model.conflict.value.undone,
-            onOverwrite: () => void save(model.conflict.value?.c.file.hash),
-            onRevert: () => {
-              const hold = model.conflict.value;
-              const before = entry.value;
-              load().then(() => {
-                model.conflict.value = { c: hold.c, before, undone: true };
-              });
-            },
-            onUndo: () => {
-              if (model.conflict.value?.before) {
-                entry.value = model.conflict.value.before;
-                model.conflict.value = { c: model.conflict.value.c };
-                check();
-              }
-            }
-          }) : null,
-          errors.map((error) => /* @__PURE__ */ u("p", {
-            role: "alert",
-            children: error.text
-          })),
-          editor.check.error.value ? /* @__PURE__ */ u("p", {
-            role: "alert",
-            children: problemText2(editor.check.error.value, "ロールを検査できませんでした")
-          }) : null,
-          model.error.value ? /* @__PURE__ */ u("p", {
-            role: "alert",
-            children: model.error.value
-          }) : null
-        ]
-      }),
-      /* @__PURE__ */ u("footer", {
-        children: [
-          e ? /* @__PURE__ */ u("button", {
-            class: "btn primary",
-            disabled: blocked,
-            onClick: () => void save(),
-            children: "ロールを保存"
-          }) : null,
-          model.ok.value ? /* @__PURE__ */ u("span", {
-            role: "status",
-            children: "ロールを保存しました"
-          }) : null
-        ]
       })
     ]
   });
@@ -4553,12 +4535,11 @@ function fitFigure(main, r, f) {
     return;
   const panel = main.closest(".panel.team-p");
   const row = panel ? panel.closest(".tdef") : null;
-  const head = row ? row.querySelector(":scope > .sum") : null;
   const foot = panel ? panel.querySelector("footer.pf") : null;
   const vlist = main.querySelector(".vlist");
   const stick = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--stick")) || 62;
-  const fromPanel = panel ? cv.getBoundingClientRect().top - panel.getBoundingClientRect().top : cv.getBoundingClientRect().top;
-  const top = stick + (head ? head.offsetHeight : 0) + fromPanel;
+  const fromRow = row ? cv.getBoundingClientRect().top - row.getBoundingClientRect().top : cv.getBoundingClientRect().top;
+  const top = stick + fromRow;
   const below = (vlist ? vlist.offsetHeight : 0) + (foot ? foot.offsetHeight : 0) + 12;
   const room = Math.max(160, Math.floor(window.innerHeight - top - below));
   const across = Math.max(160, cv.clientWidth - 2);
@@ -4817,7 +4798,6 @@ function inputValue(e) {
 var other2 = (p) => p === "project" ? "global" : "project";
 var placeName = (p) => p === "global" ? PLACE.global : PLACE.project;
 var TABS = [["list", "一覧"], ["yaml", "YAML"]];
-var MODES = [["edit", "編集"], ["md", "Markdown"]];
 function Tabs() {
   const tab = state.value.tab;
   return TABS.map(([t, label]) => /* @__PURE__ */ u("button", {
@@ -4844,8 +4824,7 @@ function App() {
           /* @__PURE__ */ u(YamlPage, {})
         ]
       }),
-      /* @__PURE__ */ u(CanvasToast, {}),
-      /* @__PURE__ */ u(RoleModal, {})
+      /* @__PURE__ */ u(CanvasToast, {})
     ]
   });
 }
@@ -4876,7 +4855,7 @@ function List() {
         children: "ワーカー"
       }),
       /* @__PURE__ */ u("span", {
-        children: "ルール"
+        children: "散文"
       }),
       /* @__PURE__ */ u("span", {
         children: "大きさ"
@@ -5118,7 +5097,7 @@ function placePills(r) {
 }
 var runProject = (r) => r.place.value === "global" ? "" : r.project || CURRENT;
 function Sum({ r, open }) {
-  const t = r.draft.value, saved = r.saved.value, rules = rulesOf2(r.agreeDraft.value);
+  const t = r.draft.value, saved = r.saved.value;
   const broken = r.broken.value;
   const pills = r.draftRow ? /* @__PURE__ */ u("span", {
     class: "pill pending",
@@ -5178,12 +5157,7 @@ function Sum({ r, open }) {
       }),
       /* @__PURE__ */ u("span", {
         class: "c-agree c-num",
-        children: [
-          rules.length,
-          /* @__PURE__ */ u(OutNote2, {
-            n: outCount2(rules)
-          })
-        ]
+        children: chars(r.agreeDraft.value.text)
       }),
       /* @__PURE__ */ u("span", {
         class: "c-size",
@@ -5191,7 +5165,7 @@ function Sum({ r, open }) {
           class: "none",
           children: "—"
         }) : /* @__PURE__ */ u(Measure, {
-          chars: r.size.value,
+          chars: chars(r.agreeDraft.value.text) + (r.check.value?.templateSize ?? Math.max(0, r.size.value - chars(r.agreeSaved.value?.text || ""))),
           limit: r.limit.value
         })
       }),
@@ -5271,7 +5245,7 @@ function DtabsNav({ r }) {
   const cur = dtabOf(r);
   const tabs = [
     ["shape", "トポロジー", "", changeCount(r) > 0],
-    ["agree", "ルール", String(rulesOf2(r.agreeDraft.value).length), r.agreeSaved.value ? agreeDiff(r) > 0 : false]
+    ["agree", "散文", String(chars(r.agreeDraft.value.text)), r.agreeSaved.value ? agreeDiff(r) > 0 : false]
   ];
   return /* @__PURE__ */ u(S, {
     children: [
@@ -5343,7 +5317,7 @@ function Dacts({ r }) {
             class: "btn danger solid",
             "data-act": "del-yes",
             onClick: () => pressDelYes(r),
-            children: "削除する（team.yaml と agreement.yaml）"
+            children: "削除する（team.yaml と agreement.md）"
           }),
           /* @__PURE__ */ u("button", {
             class: "btn",
@@ -5480,7 +5454,7 @@ function CarryNote({ r }) {
         class: "st-item",
         children: /* @__PURE__ */ u("span", {
           children: [
-            "グローバルに書くのは、このチーム定義（team.yaml と agreement.yaml）だけです。",
+            "グローバルに書くのは、このチーム定義（team.yaml と agreement.md）だけです。",
             missing ? "メンバーが使うロールとプロファイルのうち、グローバルに無いものは、選んだものだけを一緒に書きます。" : "メンバーが使うロールとプロファイルはグローバルにそろっているので、どのプロジェクトからも起動できます。"
           ]
         })
@@ -5705,14 +5679,14 @@ function Foot({ r, agree }) {
     const s = r.agreeSaved.value, d = agreeDiff(r);
     const errs = agreeIssues(r);
     const was = new Set((s && r.agreeSavedIssues.value ? r.agreeSavedIssues.value : errs).filter((m) => m.sev === "err").map((m) => m.text));
-    const empty = !s && !r.agreeDraft.value.sections.length;
+    const empty = !s && !r.agreeDraft.value.text.length;
     const blocked = empty || (!s ? errs.some((m) => m.sev === "err") : errs.some((m) => m.sev === "err" && !was.has(m.text)) || d === 0);
     return /* @__PURE__ */ u(S, {
       children: [
         notice,
         empty ? /* @__PURE__ */ u("p", {
           class: "empty-guide",
-          children: "チームのルールは任意です。追加する場合は「＋ 節」から始めてください。"
+          children: "チームの散文は任意です。本文を入力して保存できます。"
         }) : null,
         /* @__PURE__ */ u("footer", {
           class: "pf",
@@ -5799,57 +5773,74 @@ function onChangeDraft(r) {
 function AgreePanel({ r }) {
   const both = (r.places || []).length > 1, shadowed = r.place.value === "global" && (r.places || []).includes("project");
   const mode = pmodeOf(r);
-  return /* @__PURE__ */ u("section", {
-    class: "panel agree-p" + (shadowed ? " shadowed" : ""),
-    "data-uid": r.uid,
-    "data-l": r.place.value,
-    "data-key": dkey(r),
-    "data-mode": mode,
+  return /* @__PURE__ */ u("div", {
+    class: "prose-board",
     children: [
-      /* @__PURE__ */ u("header", {
-        class: "ph",
+      /* @__PURE__ */ u("section", {
+        class: "prose-column panel agree-p" + (shadowed ? " shadowed" : ""),
+        "data-uid": r.uid,
+        "data-l": r.place.value,
+        "data-key": dkey(r),
+        "data-mode": mode,
         children: [
-          /* @__PURE__ */ u("code", {
-            class: "path",
-            children: r.agreePath.value
-          }),
-          /* @__PURE__ */ u("span", {
-            class: "phr",
+          /* @__PURE__ */ u("header", {
+            class: "ph",
             children: [
-              both ? /* @__PURE__ */ u("span", {
-                class: "state " + (shadowed ? "off" : "on"),
-                children: shadowed ? "隠れている" : "効いている"
-              }) : null,
+              /* @__PURE__ */ u("strong", {
+                children: r.agreeDraft.value.title || r.name.value
+              }),
+              /* @__PURE__ */ u("code", {
+                class: "path",
+                title: r.agreePath.value,
+                children: [
+                  placeName(r.place.value),
+                  " · teams/",
+                  r.name.value,
+                  "/agreement.md"
+                ]
+              }),
               /* @__PURE__ */ u("span", {
-                class: "seg pview",
-                children: MODES.map(([v, label]) => /* @__PURE__ */ u("button", {
-                  class: mode === v ? "on" : "",
-                  "data-act": "pmode",
-                  "data-v": v,
-                  "aria-pressed": mode === v,
-                  onClick: () => pressPmode(r, v),
-                  children: label
-                }))
+                class: "phr",
+                children: both ? /* @__PURE__ */ u("span", {
+                  class: "state " + (shadowed ? "off" : "on"),
+                  children: shadowed ? "隠れている" : "効いている"
+                }) : null
               })
             ]
+          }),
+          /* @__PURE__ */ u("p", {
+            class: "prose-budget",
+            children: [
+              "散文 ",
+              chars(r.agreeDraft.value.text),
+              " 字 · ひな形 ",
+              r.check.value?.templateSize ?? 0,
+              " 字 · 合計 ",
+              chars(r.agreeDraft.value.text) + (r.check.value?.templateSize ?? 0),
+              " / 1,200 字"
+            ]
+          }),
+          /* @__PURE__ */ u("div", {
+            class: "pmain",
+            children: /* @__PURE__ */ u(RuleDoc2, {
+              row: rowOfPanel(r),
+              issues: agreeIssues(r),
+              hasName: false,
+              onChange: () => onChangeDraft(r),
+              onMode: (v) => pressPmode(r, v),
+              onURL: () => syncURL()
+            })
+          }),
+          /* @__PURE__ */ u(Foot, {
+            r,
+            agree: true
           })
         ]
       }),
-      /* @__PURE__ */ u("div", {
-        class: "pmain",
-        children: /* @__PURE__ */ u(RuleDoc2, {
-          row: rowOfPanel(r),
-          issues: agreeIssues(r),
-          hasName: false,
-          onChange: () => onChangeDraft(r),
-          onMode: (v) => pressPmode(r, v),
-          onURL: () => syncURL()
-        })
-      }),
-      /* @__PURE__ */ u(Foot, {
+      [...new Set(r.draft.value.members.map((m) => m.role).filter(Boolean))].map((name) => /* @__PURE__ */ u(RoleColumn, {
         r,
-        agree: true
-      })
+        name
+      }, name))
     ]
   });
 }
@@ -5862,7 +5853,7 @@ function YamlEmpty() {
         children: "チーム定義はまだありません。"
       }),
       /* @__PURE__ */ u("p", {
-        children: "一覧の『＋ チーム定義を追加』で作ると、ここに team.yaml と agreement.yaml が並びます。"
+        children: "一覧の『＋ チーム定義を追加』で作ると、ここに team.yaml と agreement.md が並びます。"
       }),
       /* @__PURE__ */ u("span", {
         children: /* @__PURE__ */ u("button", {
@@ -5907,7 +5898,7 @@ function YamlPage() {
               }),
               fs.map((f) => {
                 const r = recForFile(f);
-                const n = f.kind === "agreement" && r ? rulesOf2(r.agreeSaved.value || r.agreeDraft.value).length : "";
+                const n = f.kind === "agreement" && r ? Array.from((r.agreeSaved.value || r.agreeDraft.value).text).length : "";
                 const on = chosen === f.file;
                 return /* @__PURE__ */ u("button", {
                   class: ["file", on ? "on" : "", f.hidden ? "hid" : ""].filter(Boolean).join(" "),
@@ -5920,7 +5911,7 @@ function YamlPage() {
                       children: [
                         f.name,
                         "/",
-                        f.kind === "agreement" ? "agreement.yaml" : "team.yaml"
+                        f.kind === "agreement" ? "agreement.md" : "team.yaml"
                       ]
                     }),
                     /* @__PURE__ */ u("span", {

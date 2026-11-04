@@ -45,7 +45,7 @@ Write out a starter team of two, a lead and a worker.
 hergy new myteam        # writes into the project's .hergy/ inside a git repository, into ~/.config/hergy/ outside one
 ```
 
-You get the team's `team.yaml` and `agreement.yaml` (its agreements). The members' roles and profile are picked from what the project or the global settings already hold: a role document or a profile that is there is not written again. Only when neither place holds a role document does `hergy new` write `roles/lead.yaml` and `roles/builder.yaml`, and only when neither defines a profile does it write `claude-default` into `profiles.yaml`. Otherwise it names the roles and profiles to write in `team.yaml`, and `hergy validate` is the next step. A rule file is YAML: each rule has its body, whether it is on, the day it was switched off and a note for people. hergy writes the rule's id itself — four characters such as `K7QF`, with no meaning — when it writes the file; do not write one, and do not change one already there. Only the body of a rule that is on is sent to the agent; a note is never sent.
+You get the team's `team.yaml` and `agreement.md` (its agreements). The members' roles and profile are picked from what the project or the global settings already hold: a role document or a profile that is there is not written again. Only when neither place holds a role document does `hergy new` write `roles/lead.md` and `roles/builder.md`, and only when neither defines a profile does it write `claude-default` into `profiles.yaml`. Otherwise it names the roles and profiles to write in `team.yaml`, and `hergy validate` is the next step. Role and team prose are complete Markdown documents. Their saved text reaches the agent unchanged. The first line supplies the roster title. The team screen edits the team's prose and shared roles side by side; every document has one full-text field and a 1,200-character warning budget. See [migration](CHANGELOG.md#migration-to-markdown-prose) for old YAML settings.
 
 Run it in a herdr shell pane.
 
@@ -72,7 +72,8 @@ Lost, type `hergy cheat` for a short cheatsheet (`hergy cheat --ai` prints the w
 | `hergy hire <name> --purpose X --task "…" [--from <member>]` | Start a worker in its own tab (labelled `worker:<team>/<name>`) and hand it a task (mostly used by members). `--purpose` must be a purpose the hiring member's `workers:` names, and the profile comes from that entry; anything else is refused, naming the purposes the member may hire for. `--from` may be left out when exactly one member hires for that purpose |
 | `hergy ls` | List the available team definitions and the running team names each one booted |
 | `hergy show <definition>` | Print the final team definition and which file each value came from |
-| `hergy validate` | Check every settings file and show each broken one. A team definition is checked once and a role document once (not once per team that uses it); it then prints the count of rules and the size of each team definition's rules and templates and of each role document, warning when one is over the provisional budget (3,000 characters each); a warning does not change the exit code |
+| `hergy migrate [--dry] [--global]` | Convert legacy prose YAML explicitly, retaining adjacent backups; dry-run checks every target without writing |
+| `hergy validate` | Check every settings file and show each broken one. A team definition is checked once and a role document once (not once per team that uses it); it then prints the size of each team definition's prose and templates and of each role document, warning when one is over the provisional budget (1,200 characters each); a warning does not change the exit code |
 | `hergy serve` | Serve the screens on this machine, print the URL and open it in the default browser (`--port`, default 8787; `0` lets the operating system pick a free one; `--no-open` prints the URL and opens nothing). It shows the profiles and the roles: each profile's name, kind, arguments and environment with the members and workers that run it, and the role documents behind the members' rules. It listens on 127.0.0.1 only, and Ctrl-C stops it after the answers in flight |
 | `hergy version` | Print the commit and time of the installed hergy |
 | `hergy cheat` | Print a short cheatsheet. `--ai` prints the whole shape for an agent, in English, without reading any settings |
@@ -105,13 +106,13 @@ version: 1              # required
 description: "which case this team is meant for"  # required; one line, read where a person picks or reads a definition (the team list, a definition's screen, the start sheet, hergy show)
 team: myteam            # optional; if written it must match the team definition name (teams/<definition>/)
 cwd: .                  # working directory (relative to the project root)
-                        # no key points at the documents: teams/<definition>/agreement.yaml
-                        # (this team) and roles/<role>.yaml are read (the project's .hergy/
+                        # no key points at the documents: teams/<definition>/agreement.md
+                        # (this team) and roles/<role>.md are read (the project's .hergy/
                         # first, then ~/.config/hergy/)
 prompt: "…"             # bootstrap prompt template (optional); it must keep %{role_doc} and %{docs}
 members:
   - name: lead            # the member name (short); the herdr name becomes "<team>-lead"
-    role: lead          # reads roles/lead.yaml
+    role: lead          # reads roles/lead.md
     profile: opus       # a named profile from profiles.yaml; kind, args and env are written there, not here
 workers:                # purpose-to-profile pairs a member may hire for (written into the prompt, not enforced)
   - from: lead          # the member that may hire this worker

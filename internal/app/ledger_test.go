@@ -22,8 +22,8 @@ func ledgerProject(t *testing.T, script string) *fixture {
 	writeFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml"),
 		"version: 1\nprofiles:\n  claude-default:\n    kind: claude\n")
 	for _, role := range []string{"lead", "designer"} {
-		writeFile(t, filepath.Join(f.proj, ".hergy", "roles", role+".yaml"),
-			"version: 1\nsections:\n  - rules:\n      - id: R1\n        text: one\n")
+		writeFile(t, filepath.Join(f.proj, ".hergy", "roles", role+".md"),
+			"- one\n")
 	}
 	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml"),
 		"version: 1\ndescription: a description for the test\nmembers:\n"+
@@ -138,8 +138,8 @@ func TestValidateSaysNothingAboutALedgerNoDefinitionWrites(t *testing.T) {
 	f := newFixture(t)
 	writeFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml"),
 		"version: 1\nprofiles:\n  claude-default:\n    kind: claude\n")
-	writeFile(t, filepath.Join(f.proj, ".hergy", "roles", "lead.yaml"),
-		"version: 1\nsections:\n  - rules:\n      - id: R1\n        text: one\n")
+	writeFile(t, filepath.Join(f.proj, ".hergy", "roles", "lead.md"),
+		"- one\n")
 	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml"),
 		"version: 1\ndescription: a description for the test\nmembers:\n  - name: lead\n    role: lead\n    profile: claude-default\n"+
 			"turns:\n  - human -> lead\n  - lead -> human\n")

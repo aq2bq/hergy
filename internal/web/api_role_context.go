@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 
 	"github.com/aq2bq/hergy/internal/catalog"
-	"github.com/aq2bq/hergy/internal/rules"
 	"github.com/aq2bq/hergy/internal/source"
 )
 
@@ -83,17 +82,7 @@ func (s *Server) roleContext(name string, cat *catalog.Catalog, project string, 
 		return out
 	}
 	out.Text, out.Hash = text, source.Hash(text)
-	parsed, problems := rules.ReadAll(text, out.Path)
-	if parsed == nil {
-		out.State = "unreadable"
-		out.Problem = t("web.role_context.unreadable")
-		if len(problems) > 0 {
-			out.Problem = problems[0].Text
-		}
-		return out
-	}
-	one := r2DocOf(parsed)
-	out.Doc = one
+	out.Doc = r2DocOf(text, out.Path)
 	out.State = "readable"
 	out.Problem = ""
 	if out.Place == "project" {

@@ -8,7 +8,7 @@
 // field only when the field stands somewhere else than the screen says, and
 // never while an IME is composing (r-1ee4).
 import { test, expect, type Page } from './fixtures';
-import { press, q, readTo, there, wait } from './helpers';
+import { press, q, readTo, there, wait, ready } from './helpers';
 
 // SIXTY is the letters one field takes: sixty of them, with a word in the middle
 // made by an IME and committed at once.
@@ -139,41 +139,14 @@ test.describe('the team screen’s text fields', () => {
 
 test.describe('the role screen’s text fields', () => {
   test.use({ reads: 'roles' });
-
-  test('TYPING-3 the name, the title, the heading, the rule and the search hold every letter', async ({ page, app }) => {
-    await page.goto(`${app.base}/roles?open=lead`);
-    await wait(page, there('#rows .role.open .panel[data-l=project] .rule'));
-
-    const fields: [string, string][] = [
-      ['the name', q('#rows .role.open .panel[data-l=project] [data-f=name]')],
-      ['the title', q('#rows .role.open .panel[data-l=project] [data-f=title]')],
-      ['the heading', q('#rows .role.open .panel[data-l=project] .sec[data-si="0"] [data-f=heading]')],
-      ['the search', q('#q')],
-    ];
-    for (const [what, find] of fields) {
-      await page.evaluate(`(function(){var el=${find};el.focus();el.setSelectionRange(el.value.length,el.value.length);})()`);
-      const before = Number(await page.evaluate(held(find)));
-      const problems = await typist(page, find, SIXTY);
-      expect(problems, `${what} lost the focus or a letter`).toEqual([]);
-      await readTo<number>(page, held(find), `${what} does not hold the sixty letters`).toBe(before + [...SIXTY].length);
-    }
-
-    // A rule's body and memo: the panel's check comes back while the letters are
-    // still going in, and the rule is the same field all the way.
-    await page.click('#q');
-    await page.keyboard.press('ControlOrMeta+a');
-    await page.keyboard.press('Backspace');
-    await wait(page, there('#rows .role.open .panel[data-l=project] .rule .rsum'));
-    await press(page, `${q('#rows .role.open .panel[data-l=project] .rule')}.querySelector('.rsum')`);
-    await wait(page, there('#rows .role.open .rule.open .redit [data-f=text]'));
-    for (const [what, sel] of [['the body', '[data-f=text]'], ['the memo', '[data-f=note]']]) {
-      const find = q(`#rows .role.open .rule.open .redit ${sel}`);
-      await page.click(`#rows .role.open .rule.open .redit ${sel}`);
-      const before = Number(await page.evaluate(held(find)));
-      const problems = await typist(page, find, SIXTY);
-      expect(problems, `${what} lost the focus or a letter`).toEqual([]);
-      await readTo<number>(page, held(find), `${what} does not hold the sixty letters`).toBe(before + [...SIXTY].length);
-    }
+  test('TYPING-3 full prose keeps focus and every typed character', async ({ page, app }) => {
+    await page.goto(`${app.base}/roles?open=lead`); await ready(page);
+    const input = page.locator('.role.open .panel').getByRole('textbox', { name: '散文の全文' });
+    await input.fill('');
+    await input.pressSequentially(SIXTY, { delay: 15 });
+    await expect(input).toBeFocused(); await expect(input).toHaveValue(SIXTY);
+    await page.keyboard.insertText('日本語の変換');
+    await expect(input).toHaveValue(SIXTY + '日本語の変換');
   });
 });
 

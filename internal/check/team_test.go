@@ -96,15 +96,8 @@ func TestTeamLosesATurnAnOpTookAway(t *testing.T) {
 	if !slices.Equal(got.Problems, want) {
 		t.Errorf("problems = %+v, want check.Definition's %+v", got.Problems, want)
 	}
-	warn := i18n.Tf("validate.turn_not_in_turns", "PAAF", "lead → spec")
-	found := false
-	for _, p := range got.Problems {
-		if p.Text == warn {
-			found = true
-		}
-	}
-	if !found {
-		t.Errorf("problems = %+v, want the turn warning %q", got.Problems, warn)
+	if len(got.Problems) != 0 {
+		t.Fatalf("prose created a topology warning: %+v", got.Problems)
 	}
 
 	if slices.Contains(got.Graph.Turns, [2]string{"lead", "spec"}) {
@@ -171,7 +164,7 @@ func TestALeftoverSharedAgreementIsOneBreakOnEveryDefinition(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(path, []byte("version: 1\nsections:\n  - rules:\n      - id: WAAK\n        text: 全員が読む。\n"), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte("- 全員が読む。\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	docs := cat.SharedAgreements()

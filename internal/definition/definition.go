@@ -34,7 +34,7 @@ type Definition struct {
 	// hergy: it is not a word a person reads (I11).
 	Layer string
 
-	// Agreement is the team's own agreement: agreement.yaml in the definition's
+	// Agreement is the team's own agreement: agreement.md in the definition's
 	// own directory, with HasAgreement saying whether the team wrote one. It is
 	// optional. A member's role document is not the definition's to carry: the
 	// catalog looks it up (catalog.Role), because a name is looked up in one

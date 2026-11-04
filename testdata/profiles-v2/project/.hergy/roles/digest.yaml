@@ -1,5 +1,0 @@
-version: 1
-sections:
-  - rules:
-      - id: ZAAC
-        text: 要点を三つ以内にまとめる。

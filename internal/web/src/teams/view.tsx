@@ -11,8 +11,9 @@ import { Measure } from '../lib/measure.js';
 import { YamlTab } from '../lib/yamltab.js';
 import { Canvas } from './canvas.js';
 import { Rename } from './rename.js';
-import { RoleModal } from './role-modal.js';
-import { RuleDoc, Counts, Vm, OutNote, Sev, rulesOf, outCount, clone } from '../lib/ruledoc.js';
+import { RoleColumn } from './role-modal.js';
+import { RuleDoc, Counts, Vm, Sev, clone } from '../lib/ruledoc.js';
+import { chars } from '../lib/prose-editor.js';
 import { Field } from '../lib/field.js';
 import { ConflictNotice } from '../lib/conflict.js';
 import { RunCell } from '../lib/hq/run.js';
@@ -55,7 +56,6 @@ const placeName = (p: string): string => (p === 'global' ? PLACE.global : PLACE.
 // TABS are the screen's two tabs: 一覧 and YAML.
 const TABS: ['list' | 'yaml', string][] = [['list', '一覧'], ['yaml', 'YAML']];
 // MODES are the rules tab's two views: the editor and its Markdown.
-const MODES: [string, string][] = [['edit', '編集'], ['md', 'Markdown']];
 
 // Tabs is the screen's two tabs: 一覧 and YAML.
 export function Tabs() {
@@ -68,7 +68,7 @@ export function Tabs() {
 export function App() {
   // The 動き column and the group heads are the headquarters' reading: each
   // reads it, so a re-reading draws it without the screen asking (5 章 2).
-  return <>{state.value.tab === 'list' ? <List /> : <><ProjectView projects={HQ?.projects} /><YamlPage /></>}<CanvasToast /><RoleModal /></>;
+  return <>{state.value.tab === 'list' ? <List /> : <><ProjectView projects={HQ?.projects} /><YamlPage /></>}<CanvasToast /></>;
 }
 
 // ---- 一覧 --------------------------------------------------------------
@@ -80,7 +80,7 @@ export function List() {
   // the one project's lists as though the projects were not there (r-1db7 L1).
   if (HQ && HQ.error) return <p class="hq-err" data-role="hq-error">{HQ.error}</p>;
   const head = (
-    <div class="head"><span></span><span>チーム定義名</span><span>説明</span><span>置き場所</span><span>メンバー</span><span>ワーカー</span><span>ルール</span><span>大きさ</span>{HQ ? <span class="hq-runh">状態と操作</span> : null}</div>
+    <div class="head"><span></span><span>チーム定義名</span><span>説明</span><span>置き場所</span><span>メンバー</span><span>ワーカー</span><span>散文</span><span>大きさ</span>{HQ ? <span class="hq-runh">状態と操作</span> : null}</div>
   );
   const body = placeGroups().map((g) => {
     const rows = rowsOfGroup(g.key);
@@ -191,7 +191,7 @@ function placePills(r: Rec): ComponentChildren {
 const runProject = (r: Rec): string => (r.place.value === 'global' ? '' : (r.project || CURRENT));
 
 function Sum({ r, open }: { r: Rec; open: boolean }) {
-  const t = r.draft.value, saved = r.saved.value, rules = rulesOf(r.agreeDraft.value);
+  const t = r.draft.value, saved = r.saved.value;
   // A team.yaml that does not read has no figure and no numbers to count, so
   // its row says 説明 —, keeps the problems validate named, and leaves the
   // counts blank (spec-teams 1.9). It is fixed in the YAML tab.
@@ -214,8 +214,8 @@ function Sum({ r, open }: { r: Rec; open: boolean }) {
       <span class="c-place">{pills}</span>
       <span class="c-members c-num">{broken ? '—' : t.members.length}</span>
       <span class="c-turns c-num">{broken ? '—' : t.workers.length}</span>
-      <span class="c-agree c-num">{rules.length}<OutNote n={outCount(rules)} /></span>
-      <span class="c-size">{broken || !r.limit.value ? <span class="none">—</span> : <Measure chars={r.size.value} limit={r.limit.value} />}</span>
+      <span class="c-agree c-num">{chars(r.agreeDraft.value.text)}</span>
+      <span class="c-size">{broken || !r.limit.value ? <span class="none">—</span> : <Measure chars={chars(r.agreeDraft.value.text) + (r.check.value?.templateSize ?? Math.max(0, r.size.value - chars(r.agreeSaved.value?.text || '')))} limit={r.limit.value} />}</span>
       {HQ && !r.draftRow ? <span class="hq-runc"><RunCell definition={r.name.value} place={r.place.value} project={runProject(r)} /></span> : null}
     </>
   );
@@ -241,7 +241,7 @@ function DtabsNav({ r }: { r: Rec }) {
   const cur = dtabOf(r);
   const tabs: [string, string, string, boolean][] = [
     ['shape', 'トポロジー', '', changeCount(r) > 0],
-    ['agree', 'ルール', String(rulesOf(r.agreeDraft.value).length), r.agreeSaved.value ? agreeDiff(r) > 0 : false],
+    ['agree', '散文', String(chars(r.agreeDraft.value.text)), r.agreeSaved.value ? agreeDiff(r) > 0 : false],
   ];
   return (
     <>
@@ -269,7 +269,7 @@ function Dacts({ r }: { r: Rec }) {
       <button class="btn" data-act="dup" onClick={() => pressDup(r)}>複製</button>
       {!(r.places || []).includes(o) && !copying ? <button class="btn" data-act="copy" onClick={() => pressCopy(r)}>{PLACE[o]}にコピー</button> : null}
       {state.value.confirm[ck]
-        ? <><button class="btn danger solid" data-act="del-yes" onClick={() => pressDelYes(r)}>削除する（team.yaml と agreement.yaml）</button><button class="btn" data-act="del-no" onClick={() => pressDelNo(r)}>やめる</button></>
+        ? <><button class="btn danger solid" data-act="del-yes" onClick={() => pressDelYes(r)}>削除する（team.yaml と agreement.md）</button><button class="btn" data-act="del-no" onClick={() => pressDelNo(r)}>やめる</button></>
         : <button class="btn danger" data-act="del" onClick={() => pressDel(r)}>削除</button>}
     </>
   );
@@ -353,7 +353,7 @@ function CarryNote({ r }: { r: Rec }) {
   const missing = c.roles.length + c.profiles.length;
   return (
     <div class="carry">
-      <div class="st-item"><span>グローバルに書くのは、このチーム定義（team.yaml と agreement.yaml）だけです。{missing
+      <div class="st-item"><span>グローバルに書くのは、このチーム定義（team.yaml と agreement.md）だけです。{missing
         ? 'メンバーが使うロールとプロファイルのうち、グローバルに無いものは、選んだものだけを一緒に書きます。'
         : 'メンバーが使うロールとプロファイルはグローバルにそろっているので、どのプロジェクトからも起動できます。'}</span></div>
       {c.roles.map((name) => (
@@ -444,10 +444,10 @@ function Foot({ r, agree }: { r: Rec; agree?: boolean }) {
     const s = r.agreeSaved.value, d = agreeDiff(r);
     const errs = agreeIssues(r);
     const was = new Set((s && r.agreeSavedIssues.value ? r.agreeSavedIssues.value : errs).filter((m) => m.sev === 'err').map((m) => m.text));
-    const empty = !s && !r.agreeDraft.value.sections.length;
+    const empty = !s && !r.agreeDraft.value.text.length;
     const blocked = empty || (!s ? errs.some((m) => m.sev === 'err') : (errs.some((m) => m.sev === 'err' && !was.has(m.text)) || d === 0));
     return (
-      <>{notice}{empty ? <p class="empty-guide">チームのルールは任意です。追加する場合は「＋ 節」から始めてください。</p> : null}<footer class="pf">
+      <>{notice}{empty ? <p class="empty-guide">チームの散文は任意です。本文を入力して保存できます。</p> : null}<footer class="pf">
         <button class="btn primary" data-act="save" disabled={blocked} onClick={() => pressSave(r)}>保存</button><span class="errline doc" hidden={!refusal}>{refusal}</span><span class="dirty">{s && d ? `${d} か所` : ''}</span><span class="vcount"><Counts list={messagesOf(errs)} /></span>{ok}
         <span class="acts"><button class="btn" data-act="revert" hidden={!(d > 0)} onClick={() => pressRevert(r)}>元に戻す</button></span>
       </footer></>
@@ -473,12 +473,12 @@ function AgreePanel({ r }: { r: Rec }) {
   const both = (r.places || []).length > 1, shadowed = r.place.value === 'global' && (r.places || []).includes('project');
   const mode = pmodeOf(r);
   return (
-    <section class={'panel agree-p' + (shadowed ? ' shadowed' : '')} data-uid={r.uid} data-l={r.place.value} data-key={dkey(r)} data-mode={mode}>
-      <header class="ph"><code class="path">{r.agreePath.value}</code>
+    <div class="prose-board"><section class={'prose-column panel agree-p' + (shadowed ? ' shadowed' : '')} data-uid={r.uid} data-l={r.place.value} data-key={dkey(r)} data-mode={mode}>
+      <header class="ph"><strong>{r.agreeDraft.value.title || r.name.value}</strong><code class="path" title={r.agreePath.value}>{placeName(r.place.value)} · teams/{r.name.value}/agreement.md</code>
         <span class="phr">
           {both ? <span class={'state ' + (shadowed ? 'off' : 'on')}>{shadowed ? '隠れている' : '効いている'}</span> : null}
-          <span class="seg pview">{MODES.map(([v, label]) => <button class={mode === v ? 'on' : ''} data-act="pmode" data-v={v} aria-pressed={mode === v} onClick={() => pressPmode(r, v)}>{label}</button>)}</span>
         </span></header>
+      <p class="prose-budget">散文 {chars(r.agreeDraft.value.text)} 字 · ひな形 {r.check.value?.templateSize ?? 0} 字 · 合計 {chars(r.agreeDraft.value.text) + (r.check.value?.templateSize ?? 0)} / 1,200 字</p>
       <div class="pmain">
         <RuleDoc row={rowOfPanel(r)} issues={agreeIssues(r)} hasName={false}
           onChange={() => onChangeDraft(r)}
@@ -486,7 +486,7 @@ function AgreePanel({ r }: { r: Rec }) {
           onURL={() => syncURL()} />
       </div>
       <Foot r={r} agree={true} />
-    </section>
+    </section>{[...new Set(r.draft.value.members.map((m) => m.role).filter(Boolean))].map((name) => <RoleColumn key={name} r={r} name={name} />)}</div>
   );
 }
 
@@ -503,7 +503,7 @@ function YamlEmpty() {
   return (
     <section class="yed yempty">
       <p>チーム定義はまだありません。</p>
-      <p>一覧の『＋ チーム定義を追加』で作ると、ここに team.yaml と agreement.yaml が並びます。</p>
+      <p>一覧の『＋ チーム定義を追加』で作ると、ここに team.yaml と agreement.md が並びます。</p>
       <span><button class="btn" data-act="tab" data-t="list" onClick={() => pressTab('list')}>一覧へ</button></span></section>
   );
 }
@@ -520,10 +520,10 @@ export function YamlPage() {
       return (
         <div class="fgroup"><div class="gh"><b>{PLACE[p]}</b><code>{DIR[p] || ''}</code></div>{fs.map((f) => {
           const r = recForFile(f);
-          const n = f.kind === 'agreement' && r ? rulesOf(r.agreeSaved.value || r.agreeDraft.value).length : '';
+          const n = f.kind === 'agreement' && r ? Array.from((r.agreeSaved.value || r.agreeDraft.value).text).length : '';
           const on = chosen === f.file;
           return (
-            <button class={['file', on ? 'on' : '', f.hidden ? 'hid' : ''].filter(Boolean).join(' ')} data-act="yfile" data-file={f.file} aria-pressed={on} onClick={() => pressYfile(f.file)}><code>{f.name}/{f.kind === 'agreement' ? 'agreement.yaml' : 'team.yaml'}</code><span class="fs">{fileDirty(f.file) ? <span class="dirty">●</span> : null}{(yIssues(f.file) || []).length ? <Counts list={messagesOf(yIssues(f.file))} /> : (n || '')}</span><span class="ft">{f.hidden ? '隠れている' : f.path}</span></button>
+            <button class={['file', on ? 'on' : '', f.hidden ? 'hid' : ''].filter(Boolean).join(' ')} data-act="yfile" data-file={f.file} aria-pressed={on} onClick={() => pressYfile(f.file)}><code>{f.name}/{f.kind === 'agreement' ? 'agreement.md' : 'team.yaml'}</code><span class="fs">{fileDirty(f.file) ? <span class="dirty">●</span> : null}{(yIssues(f.file) || []).length ? <Counts list={messagesOf(yIssues(f.file))} /> : (n || '')}</span><span class="ft">{f.hidden ? '隠れている' : f.path}</span></button>
           );
         })}</div>
       );

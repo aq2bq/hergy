@@ -8,7 +8,7 @@ import (
 
 	"github.com/aq2bq/hergy/internal/check"
 	"github.com/aq2bq/hergy/internal/i18n"
-	"github.com/aq2bq/hergy/internal/rules"
+	"github.com/aq2bq/hergy/internal/prose"
 )
 
 // sizedTeam is what writeSizedTeam wrote, so a test can build the lines validate
@@ -35,36 +35,26 @@ func writeSizedTeam(t *testing.T, f *fixture, global bool, name string, n int, t
 		display = filepath.Join(base, "teams", name)
 	}
 	var body strings.Builder
-	body.WriteString("version: 1\nsections:\n  - rules:\n")
-	for i := range n {
-		body.WriteString("      - id: R")
-		body.WriteString(strconv.Itoa(i))
-		body.WriteString("\n        text: ")
+	for range n {
+		body.WriteString("- ")
 		body.WriteString(text)
 		body.WriteString("\n")
 	}
-	agreement := filepath.Join(base, "teams", name, "agreement.yaml")
-	role := filepath.Join(base, "roles", "lead.yaml")
-	roleText := "version: 1\nsections:\n  - heading: 仕事\n    rules:\n      - id: PAAF\n        text: 何かをする。\n"
+	agreement := filepath.Join(base, "teams", name, "agreement.md")
+	role := filepath.Join(base, "roles", "lead.md")
+	roleText := "## 仕事\n\n- 何かをする。\n"
 	writeFile(t, agreement, body.String())
 	writeFile(t, filepath.Join(base, "profiles.yaml"), "version: 1\nprofiles:\n  claude-default:\n    kind: claude\n")
 	writeFile(t, filepath.Join(base, "teams", name, "team.yaml"),
 		"version: 1\ndescription: a description for the test\nmembers:\n  - name: lead\n    role: lead\n    profile: claude-default\nturns:\n  - human -> lead\n  - lead -> human\n")
 	writeFile(t, role, roleText)
-	teamDoc, err := rules.Parse(readRule(t, agreement), agreement)
-	if err != nil {
-		t.Fatal(err)
-	}
-	roleDoc, err := rules.Parse(roleText, role)
-	if err != nil {
-		t.Fatal(err)
-	}
+
 	return sizedTeam{
 		dir:       display,
 		agreement: agreement,
 		role:      role,
-		teamChars: rules.CharCount(teamDoc.Markdown()),
-		roleChars: rules.CharCount(roleDoc.Markdown()),
+		teamChars: (prose.Document{Text: body.String()}).Chars(),
+		roleChars: (prose.Document{Text: roleText}).Chars(),
 	}
 }
 
@@ -85,7 +75,7 @@ func TestValidateCountsTheSizeAndWarnsWithoutFailing(t *testing.T) {
 	for _, want := range []string{
 		i18n.Tf("validate.size_team", small.dir, small.teamChars, check.TeamCharLimit),
 		i18n.Tf("validate.size_team", large.dir, large.teamChars, check.TeamCharLimit),
-		i18n.Tf("validate.size_role", ".hergy/roles/lead.yaml", large.roleChars, check.RoleCharLimit),
+		i18n.Tf("validate.size_role", ".hergy/roles/lead.md", large.roleChars, check.RoleCharLimit),
 		i18n.T("validate.size_note"),
 	} {
 		if !strings.Contains(got, want+"\n") {
@@ -104,35 +94,6 @@ func TestValidateCountsTheSizeAndWarnsWithoutFailing(t *testing.T) {
 	}
 	if strings.Contains(got, i18n.T("validate.size_member")) || strings.Contains(got, "member small-lead") {
 		t.Errorf("validate still prints a member's total:\n%s", got)
-	}
-}
-
-// TestValidateCountsOnlyThePromptPart: a rule kept out of the prompt
-// (in_prompt: false) is not part of the team definition's size either: the
-// number is the Markdown a member reads, not the file's bytes (d-00a9). No
-// per-member count line is printed (d-b87a).
-func TestValidateCountsOnlyThePromptPart(t *testing.T) {
-	f := newFixture(t)
-	initLocales(t)
-	team := writeSizedTeam(t, f, false, "small", 2, "rule")
-	writeFile(t, team.agreement, "version: 1\nsections:\n  - rules:\n"+
-		"      - id: R0\n        text: rule 0\n        in_prompt: false\n"+
-		"      - id: R1\n        text: rule 1\n")
-	document, err := rules.Parse(readRule(t, team.agreement), team.agreement)
-	if err != nil {
-		t.Fatal(err)
-	}
-	chars := rules.CharCount(document.Markdown())
-
-	got, _, code := run("validate")
-	if code != 0 {
-		t.Fatalf("a team with a rule kept out of the prompt is a break?\n%s", got)
-	}
-	if want := i18n.Tf("validate.size_team", team.dir, chars, check.TeamCharLimit); !strings.Contains(got, want+"\n") {
-		t.Errorf("validate does not print %q:\n%s", want, got)
-	}
-	if strings.Contains(got, "member ") {
-		t.Errorf("validate prints a member's total:\n%s", got)
 	}
 }
 
@@ -227,7 +188,7 @@ func TestValidateHidesWarningsOfAnUnusedDefinition(t *testing.T) {
 
 	// The hidden definition has a warning (a rule whose arrow no turn holds) and
 	// a stop (a worker whose profile is not there).
-	writeFile(t, global.agreement, "version: 1\nsections:\n  - rules:\n"+
+	writeFile(t, global.agreement, ""+
 		"      - id: G-1\n        text: a → b\n")
 	writeFile(t, filepath.Join(f.cfg, "hergy", "teams", "dup", "team.yaml"),
 		"version: 1\ndescription: a description for the test\nmembers:\n  - name: lead\n    role: lead\n    profile: claude-default\nworkers:\n  - from: lead\n    purpose: 調査\n    profile: absent\nturns:\n  - human -> lead\n  - lead -> human\n")
@@ -253,10 +214,10 @@ func TestValidateHidesWarningsOfAnUnusedDefinition(t *testing.T) {
 func TestValidateSaysWhenAGlobalRoleIsNotUsed(t *testing.T) {
 	f := newFixture(t)
 	initLocales(t)
-	project := filepath.Join(f.proj, ".hergy", "roles", "scout.yaml")
-	writeFile(t, project, "version: 1\ntitle: scout\nsections:\n  - rules:\n      - id: S-1\n        text: 何かをする。\n")
-	global := filepath.Join(f.cfg, "hergy", "roles", "scout.yaml")
-	writeFile(t, global, "version: 1\ntitle: scout\nsections:\n  - rules:\n      - id: S-1\n        text: claude に任せる。\n")
+	project := filepath.Join(f.proj, ".hergy", "roles", "scout.md")
+	writeFile(t, project, "# scout\n\n- 何かをする。\n")
+	global := filepath.Join(f.cfg, "hergy", "roles", "scout.md")
+	writeFile(t, global, "# scout\n\n- claude に任せる。\n")
 
 	got, _, code := run("validate")
 	if code != 0 {
@@ -269,8 +230,40 @@ func TestValidateSaysWhenAGlobalRoleIsNotUsed(t *testing.T) {
 	if strings.Contains(hidden, "claude") {
 		t.Errorf("the hidden role shows a warning that cannot be fixed there:\n%s", hidden)
 	}
-	projectBlock := blockOf(t, got, "file: .hergy/roles/scout.yaml")
+	projectBlock := blockOf(t, got, "file: .hergy/roles/scout.md")
 	if strings.Contains(projectBlock, i18n.Tf("validate.role_hidden", "scout")) {
 		t.Errorf("the effective role says it is not used:\n%s", projectBlock)
+	}
+}
+
+func TestProseBudgetCLIBoundariesDoNotStopUp(t *testing.T) {
+	for _, kind := range []string{"team", "role"} {
+		for _, n := range []int{1200, 1201} {
+			t.Run(kind+strconv.Itoa(n), func(t *testing.T) {
+				f := newFixture(t)
+				files := writeSizedTeam(t, f, false, "demo", 0, "")
+				file := files.agreement
+				key := "size.team_chars"
+				if kind == "role" {
+					file = files.role
+					key = "size.role_chars"
+				}
+				writeFile(t, file, strings.Repeat("あ", n))
+				got, err, code := run("validate")
+				if code != 0 {
+					t.Fatalf("validate: %s %s", got, err)
+				}
+				warning := i18n.Tf(key, n, 1200)
+				count := strings.Count(got, warning)
+				want := 0
+				if n == 1201 {
+					want = 1
+				}
+				if count != want {
+					t.Fatalf("warnings=%d want=%d: %s", count, want, got)
+				}
+				mustRun(t, "up", "demo", "--dry")
+			})
+		}
 	}
 }

@@ -68,8 +68,10 @@ func ExpandSegments(template string, origin definition.PromptOrigin, simple map[
 
 // RosterEntry is one line of the roster.
 type RosterEntry struct {
-	Name string
-	Role string
+	Short string
+	Title string
+	Name  string
+	Role  string
 }
 
 // Roster lists the team, marking the reader. lang is the language the prompt is
@@ -81,7 +83,7 @@ func Roster(lang string, members []RosterEntry, me string) string {
 		if member.Name == me {
 			mark = i18n.Text(lang, "roster.mark")
 		}
-		lines = append(lines, fmt.Sprintf(i18n.Text(lang, "roster.line"), member.Role, member.Name, mark))
+		lines = append(lines, fmt.Sprintf(i18n.Text(lang, "roster.line"), member.Short, member.Title, member.Role, member.Name, mark))
 	}
 	return strings.Join(lines, "\n")
 }

@@ -43,6 +43,8 @@ const (
 	New
 	// Validate checks every settings file and reports each broken one.
 	Validate
+	// Migrate explicitly converts legacy prose definitions.
+	Migrate
 	// Serve opens the web UI: a small server on 127.0.0.1 for this machine.
 	Serve
 	// Help prints usage.
@@ -74,6 +76,7 @@ type Options struct {
 	Task    string
 	From    string // hire: the hiring member; tell: who the message is from (default: the pane's member, else the human)
 
+	Global  bool // migrate: explicitly select the global layer
 	Dry     bool
 	JSON    bool   // --json: print the --dry plan as JSON instead of text
 	AI      bool   // --ai: cheat prints the agent cheatsheet
@@ -228,7 +231,7 @@ func assignPositionals(o *Options, positionals []string) error {
 		if len(positionals) != 0 {
 			return i18n.Errorf("error.ls_no_args", positionals)
 		}
-	case Validate:
+	case Validate, Migrate:
 		if len(positionals) != 0 {
 			return i18n.Errorf("error.validate_no_args", positionals)
 		}
@@ -295,7 +298,7 @@ func validateValues(o *Options) error {
 	// either. The flags are still read, so a person who types one is told what
 	// happened rather than "unknown option".
 	for _, flag := range []string{"global", "local"} {
-		if o.seen[flag] {
+		if o.seen[flag] && (flag != "global" || o.Kind != Migrate) {
 			msg := i18n.Tf("error.layer_flag_gone", flag, flag)
 			if o.Kind == New {
 				// new is told where it writes, on a second line (段 7, H6).

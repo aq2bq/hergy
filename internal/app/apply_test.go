@@ -34,7 +34,7 @@ func TestApplySaysHowEachMemberIsPutRight(t *testing.T) {
 
 	// The lead's role changes after the launch, and the builder has no live
 	// agent: one is sent its prompt again, the other is started.
-	rolePath := filepath.Join(f.proj, ".hergy", "roles", "lead.yaml")
+	rolePath := filepath.Join(f.proj, ".hergy", "roles", "lead.md")
 	role := readFile(t, rolePath)
 	writeFile(t, rolePath, strings.Replace(role, "Hand over a task the receiver can start without reading your conversation.", "Hand over a task the receiver can start without reading your conversation, and name the files to read.", 1))
 
@@ -95,7 +95,7 @@ func TestApplyLeavesAWorkingMemberAndSaysWhy(t *testing.T) {
 	if err := writeLaunch(log, env, r, launchlog.CommandUp, r.starts, launchlog.Workspace{}); err != nil {
 		t.Fatalf("record demo: %v", err)
 	}
-	rolePath := filepath.Join(f.proj, ".hergy", "roles", "lead.yaml")
+	rolePath := filepath.Join(f.proj, ".hergy", "roles", "lead.md")
 	role := readFile(t, rolePath)
 	writeFile(t, rolePath, strings.Replace(role, "Hand over a task the receiver can start without reading your conversation.", "Hand over a task the receiver can start without reading your conversation, and name the files to read.", 1))
 

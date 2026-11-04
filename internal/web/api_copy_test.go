@@ -40,13 +40,13 @@ func newCopyFixture(t *testing.T) copyFixture {
 	if err := os.WriteFile(filepath.Join(dir, "team.yaml"), []byte(text), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	agree := "version: 1\nsections:\n  - rules:\n      - id: OTHER-1\n        text: ほかのプロジェクトのチームのルール。\n"
-	if err := os.WriteFile(filepath.Join(dir, "agreement.yaml"), []byte(agree), 0o644); err != nil {
+	agree := "- ほかのプロジェクトのチームのルール。\n"
+	if err := os.WriteFile(filepath.Join(dir, "agreement.md"), []byte(agree), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	// The other project holds a role document and a profile of its own: what a
 	// copy of its definition can bring into the global layer (r-7e4a).
-	writeUnder(t, other, ".hergy/roles/lead.yaml", "version: 1\ntitle: 仕切る\nsections:\n  - rules:\n      - id: PAAF\n        text: ほかのプロジェクトの lead。\n")
+	writeUnder(t, other, ".hergy/roles/lead.md", "# 仕切る\n\n- ほかのプロジェクトの lead。\n")
 	writeUnder(t, other, ".hergy/profiles.yaml", "version: 1\nprofiles:\n  planner:\n    kind: codex\n")
 
 	// The other project's builder says something this project's builder does
@@ -56,7 +56,7 @@ func newCopyFixture(t *testing.T) copyFixture {
 	if err := os.MkdirAll(roles, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	builder := "# ほかのプロジェクトだけが書いているメモ\nversion: 1\ntitle: 作る\nsections:\n  - heading: 作り方\n    rules:\n      - id: DAAA\n        text: ほかのプロジェクトでは、作る前に見積もりを書く。\n"
+	builder := "# 作る\n\n## 作り方\n\n- ほかのプロジェクトでは、作る前に見積もりを書く。\n"
 	if err := os.WriteFile(filepath.Join(roles, "builder.yaml"), []byte(builder), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -215,14 +215,14 @@ func put(t *testing.T, server *Server, target, body string) (int, string) {
 func TestRoleCopyReadsTheBaseFromItsOwnProject(t *testing.T) {
 	c := newCopyFixture(t)
 	server := c.twoProjects(t)
-	doc := `{"name":"builder","title":"作る","sections":[{"heading":"作り方","level":2,"intro":"",` +
-		`"rules":[{"from":{"section":0,"rule":0},"id":"DAAA","text":"ほかのプロジェクトでは、作る前に見積もりを書く。","in_prompt":true,"note":""}]}]}`
+	text := "# 作る\n\nほかのプロジェクトだけが書いているメモ\nほかのプロジェクトでは、作る前に見積もりを書く。\n"
+	doc := `{"name":"builder","title":"作る","text":` + strconvQuote(text) + `}`
 	body := `{"place":"global","name":"builder","doc":` + doc + `,"base":{"place":"project","name":"builder","project":` + strconvQuote(c.other) + `}}`
 	status, said := put(t, server, "/api/role/builder", body)
 	if status != http.StatusOK {
 		t.Fatalf("save of a role copy answers %d: %s", status, said)
 	}
-	written := readFile(t, filepath.Join(c.global, "roles", "builder.yaml"))
+	written := readFile(t, filepath.Join(c.global, "roles", "builder.md"))
 	if !strings.Contains(written, "ほかのプロジェクトだけが書いているメモ") {
 		t.Errorf("the copy lost the line the source carries, so it was written from another project's document:\n%s", written)
 	}
@@ -241,11 +241,11 @@ func TestCopyCarriesOnlyWhatThePersonChose(t *testing.T) {
 
 	// The other project's definition names its own profile and the role only it
 	// holds: both are what the person may bring to the global layer.
-	builder := "# ほかのプロジェクトだけが書いているメモ\nversion: 1\ntitle: 作る\nsections:\n  - heading: 作り方\n    rules:\n      - id: DAAA\n        text: ほかのプロジェクトでは、作る前に見積もりを書く。\n"
+	builder := "# 作る\n\n## 作り方\n\n- ほかのプロジェクトでは、作る前に見積もりを書く。\n"
 	profiles := "version: 1\nprofiles:\n  other-fast:\n    kind: claude\n    args: [\"--model\", \"claude-haiku-5-5\"]\n    env:\n      A: one\n"
 	// The definition names the two, so the copy is what may bring them.
 	team := "version: 1\ndescription: \"ほかのプロジェクトの定義\"\nmembers:\n  - name: lead\n    role: builder\n    profile: other-fast\nturns:\n  - human -> lead\n  - lead -> human\n"
-	writeUnder(t, c.other, ".hergy/roles/builder.yaml", builder)
+	writeUnder(t, c.other, ".hergy/roles/builder.md", builder)
 	writeUnder(t, c.other, ".hergy/profiles.yaml", profiles)
 	writeUnder(t, c.other, ".hergy/teams/other-dev/team.yaml", team)
 
@@ -281,7 +281,7 @@ func TestCopyCarriesOnlyWhatThePersonChose(t *testing.T) {
 
 	// Nothing chosen: the global layer's profiles and roles are as they were.
 	globalProfiles := filepath.Join(c.global, "profiles.yaml")
-	globalRole := filepath.Join(c.global, "roles", "builder.yaml")
+	globalRole := filepath.Join(c.global, "roles", "builder.md")
 	wasProfiles, hadProfiles := readFileIfThere(t, globalProfiles)
 	save := `{"place":"global","name":"other-dev","part":"folder","doc":{"ops":[]},` + base + `}`
 	if status, said := put(t, server, "/api/team/other-dev", save); status != http.StatusOK {
@@ -316,7 +316,7 @@ func TestCopyCarriesOnlyWhatThePersonChose(t *testing.T) {
 	}
 
 	// A name the global layer already holds is not written over.
-	writeUnder(t, c.global, "roles/builder.yaml", "version: 1\ntitle: グローバルのもの\nsections: []\n")
+	writeUnder(t, c.global, "roles/builder.md", "version: 1\ntitle: グローバルのもの\nsections: []\n")
 	if err := os.RemoveAll(filepath.Join(c.global, "teams", "other-dev")); err != nil {
 		t.Fatal(err)
 	}

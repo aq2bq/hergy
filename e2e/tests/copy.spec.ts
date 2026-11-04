@@ -11,7 +11,7 @@
 import { test, expect, type Page } from './fixtures';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { press, read, readTo, run, set, there, viewport, wait } from './helpers';
+import { press, read, readTo, run, set, there, viewport, wait, ready } from './helpers';
 
 test.use({ reads: 'hq' });
 
@@ -121,8 +121,8 @@ async function countsAfterReload(
 }
 
 test('COPY-P1 a role copied from the project to the global layer', async ({ page, app }) => {
-  const srcFile = path.join(app.proj, '.hergy', 'roles', 'builder.yaml');
-  const dstFile = path.join(app.cfg, 'hergy', 'roles', 'builder.yaml');
+  const srcFile = path.join(app.proj, '.hergy', 'roles', 'builder.md');
+  const dstFile = path.join(app.cfg, 'hergy', 'roles', 'builder.md');
   const before = readFileSync(srcFile, 'utf8');
 
   await page.goto(`${app.base}/roles`);
@@ -146,8 +146,8 @@ test('COPY-P1 a role copied from the project to the global layer', async ({ page
 });
 
 test('COPY-P2 a role copied from the global layer to the project', async ({ page, app }) => {
-  const srcFile = path.join(app.cfg, 'hergy', 'roles', 'lead.yaml');
-  const dstFile = path.join(app.proj, '.hergy', 'roles', 'lead.yaml');
+  const srcFile = path.join(app.cfg, 'hergy', 'roles', 'lead.md');
+  const dstFile = path.join(app.proj, '.hergy', 'roles', 'lead.md');
   const before = readFileSync(srcFile, 'utf8');
 
   await page.goto(`${app.base}/roles`);
@@ -294,8 +294,8 @@ function fillRows(app: { proj: string }, screen: 'roles' | 'profiles' | 'teams',
     mkdirSync(path.join(hergy, 'roles'), { recursive: true });
     for (let i = 1; i <= n; i++) {
       writeFileSync(
-        path.join(hergy, 'roles', `filler-${i}.yaml`),
-        `version: 1\ntitle: 埋め草 ${i}\nsections:\n  - heading: 進め方\n    rules:\n      - text: ${i} 番目の行を書く。\n`,
+        path.join(hergy, 'roles', `filler-${i}.md`),
+        `# 埋め草 ${i}\n\n## 進め方\n${i} 番目の行を書く。\n`,
       );
     }
     return;
@@ -610,8 +610,8 @@ test('COPY-S4 a copy whose source cannot be read says why its save is shut', asy
 });
 
 test('COPY-S5 a role copied from another listed project stands on that project’s document', async ({ page, app }) => {
-  const srcFile = betaFile(app, path.join('roles', 'builder.yaml'));
-  const dstFile = path.join(app.cfg, 'hergy', 'roles', 'builder.yaml');
+  const srcFile = betaFile(app, path.join('roles', 'builder.md'));
+  const dstFile = path.join(app.cfg, 'hergy', 'roles', 'builder.md');
   // A line only this project's document carries: the copy keeps it only when the
   // base it stands on is this project's file.
   writeFileSync(srcFile, '# beta だけが書いているメモ\n' + readFileSync(srcFile, 'utf8'));
@@ -669,18 +669,11 @@ test('COPY-S7 a team definition with its own rules is copied with the rules of i
       '  - lead -> human',
       '',
     ].join('\n'));
-    writeFileSync(path.join(one.file, 'agreement.yaml'), [
-      'version: 1',
-      'sections:',
-      '  - rules:',
-      '      - id: ' + one.id,
-      '        text: ' + one.rule,
-      '',
-    ].join('\n'));
+    writeFileSync(path.join(one.file, 'agreement.md'), one.rule + '\n');
   }
   const srcTeam = readFileSync(path.join(both[1].file, 'team.yaml'), 'utf8');
-  const srcAgree = readFileSync(path.join(both[1].file, 'agreement.yaml'), 'utf8');
-  expect(srcAgree, 'the two projects’ rules differ before the copy').not.toBe(readFileSync(path.join(both[0].file, 'agreement.yaml'), 'utf8'));
+  const srcAgree = readFileSync(path.join(both[1].file, 'agreement.md'), 'utf8');
+  expect(srcAgree, 'the two projects’ rules differ before the copy').not.toBe(readFileSync(path.join(both[0].file, 'agreement.md'), 'utf8'));
 
   await page.goto(`${app.base}/teams`);
   await wait(page, there(TEAMS));
@@ -692,9 +685,9 @@ test('COPY-S7 a team definition with its own rules is copied with the rules of i
   await wait(page, `!!${rowIn(TEAMS, GLOBAL, 'both-dev')}.querySelector('.ok')`);
 
   const dstTeam = path.join(app.cfg, 'hergy', 'teams', 'both-dev', 'team.yaml');
-  const dstAgree = path.join(app.cfg, 'hergy', 'teams', 'both-dev', 'agreement.yaml');
+  const dstAgree = path.join(app.cfg, 'hergy', 'teams', 'both-dev', 'agreement.md');
   expect(existsSync(dstAgree), 'the copy made the rules in the global layer').toBe(true);
-  expect(readFileSync(dstAgree, 'utf8'), 'the global agreement.yaml is beta’s document, byte for byte').toBe(srcAgree);
+  expect(readFileSync(dstAgree, 'utf8'), 'the global agreement.md is beta’s document, byte for byte').toBe(srcAgree);
   expect(readFileSync(dstTeam, 'utf8'), 'the global team.yaml is beta’s document').toBe(srcTeam);
   expect(readFileSync(dstAgree, 'utf8'), 'the other project’s rule is not mixed in').not.toContain('alpha の相談');
 });
@@ -723,10 +716,10 @@ test('COPY-C1 the copy says it brings the definition alone, and names what the g
 
   // The row says what the copy is: the definition's two files alone, and the
   // names it can bring, listed one by one (ac-8ae7, d-dc81).
-  await readTo<string>(page, `${CARRY_NOTE('beta-dev')}.textContent`, 'the copy says the definition is what is written').toContain('グローバルに書くのは、このチーム定義（team.yaml と agreement.yaml）だけです');
+  await readTo<string>(page, `${CARRY_NOTE('beta-dev')}.textContent`, 'the copy says the definition is what is written').toContain('グローバルに書くのは、このチーム定義（team.yaml と agreement.md）だけです');
   await readTo<string>(page, `${CARRY_NOTE('beta-dev')}.textContent`, 'the copy names the role the global layer does not hold').toContain('ロール builder');
   await readTo<string>(page, `${CARRY_NOTE('beta-dev')}.textContent`, 'the copy names the profile the global layer does not hold').toContain('プロファイル beta-fast');
-  await readTo<string>(page, writesOfCopy('beta-dev'), 'before anything is chosen the save writes the definition alone').toBe('team.yaml agreement.yaml');
+  await readTo<string>(page, writesOfCopy('beta-dev'), 'before anything is chosen the save writes the definition alone').toBe('team.yaml agreement.md');
 
   // The problems say where the name is, rather than that there is none: the team
   // can be started from beta, and not from a project that has no beta-fast.
@@ -737,7 +730,7 @@ test('COPY-C1 the copy says it brings the definition alone, and names what the g
 
 test('COPY-C2 a copy with nothing chosen writes the definition alone', async ({ page, app }) => {
   const profiles = path.join(app.cfg, 'hergy', 'profiles.yaml');
-  const role = path.join(app.cfg, 'hergy', 'roles', 'builder.yaml');
+  const role = path.join(app.cfg, 'hergy', 'roles', 'builder.md');
   const beforeProfiles = readFileSync(profiles, 'utf8');
   expect(existsSync(role), 'the global layer holds no builder before the copy').toBe(false);
 
@@ -758,8 +751,8 @@ test('COPY-C2 a copy with nothing chosen writes the definition alone', async ({ 
 
 test('COPY-C3 the names a person chooses are written with the copy, as the project holds them', async ({ page, app }) => {
   const profiles = path.join(app.cfg, 'hergy', 'profiles.yaml');
-  const srcRole = betaFile(app, path.join('roles', 'builder.yaml'));
-  const dstRole = path.join(app.cfg, 'hergy', 'roles', 'builder.yaml');
+  const srcRole = betaFile(app, path.join('roles', 'builder.md'));
+  const dstRole = path.join(app.cfg, 'hergy', 'roles', 'builder.md');
   const beforeProfiles = readFileSync(profiles, 'utf8');
 
   await page.goto(`${app.base}/teams`);
@@ -772,7 +765,7 @@ test('COPY-C3 the names a person chooses are written with the copy, as the proje
   // sentences about them go (ac-2a35).
   await press(page, CARRY_ROLE('builder'));
   await press(page, CARRY_PROFILE('beta-fast'));
-  await readTo<string>(page, writesOfCopy('beta-dev'), 'the chosen names go with the definition').toContain('builder.yaml');
+  await readTo<string>(page, writesOfCopy('beta-dev'), 'the chosen names go with the definition').toContain('builder.md');
   await readTo<string>(page, writesOfCopy('beta-dev'), 'the chosen profile goes with the definition').toContain('profiles.yaml');
   await readTo<string>(page, CARRY_PROBLEMS('beta-dev'), 'the sentence about the role is gone once it is chosen').not.toContain('グローバルにありません');
 
@@ -794,7 +787,7 @@ test('COPY-C3 the names a person chooses are written with the copy, as the proje
 });
 
 test('COPY-C4 a name the global layer holds when the save comes is not written over', async ({ page, app }) => {
-  const dstRole = path.join(app.cfg, 'hergy', 'roles', 'builder.yaml');
+  const dstRole = path.join(app.cfg, 'hergy', 'roles', 'builder.md');
   const mine = 'version: 1\ntitle: グローバルの builder\nsections:\n  - heading: 作り方\n    rules:\n      - id: DAAA\n        text: グローバルが持っている文書。\n';
 
   await page.goto(`${app.base}/teams`);
@@ -842,19 +835,14 @@ test('COPY-R1 a copied role whose name is not a role name says why its save is s
   await sentenceRead(page, footOf(rolePanel()), 'ロール名は英小文字で始め', 'a copied role whose name is not a role name');
 });
 
-test('COPY-R2 a copied role whose rule has no text says why its save is shut', async ({ page, app }) => {
-  await page.goto(`${app.base}/roles`);
-  await wait(page, there(ROLES));
-  await open(page, ROLES, ALPHA, 'builder');
-  await press(page, copyButton(ROLES, ALPHA, 'builder', 'project'));
-  await wait(page, `!!${rowIn(ROLES, GLOBAL, 'builder')}`);
-
-  // The copy's one rule loses its text: the check names it, and the save shuts.
-  await press(page, `${rolePanel()}.querySelector('.rule .rsum')`);
-  await wait(page, `!!${rolePanel()}.querySelector('.redit [data-f=text]')`);
-  await set(page, `${rolePanel()}.querySelector('.redit [data-f=text]')`, '');
-  await readTo<boolean>(page, `${saveOf(rolePanel())}.disabled`, 'the save of the copied role is shut by its rule').toBe(true);
-  await sentenceRead(page, footOf(rolePanel()), '規則の本文を書いてください', 'a copied role whose rule has no text');
+test('COPY-R2 a copied role can save empty prose', async ({ page, app }) => {
+  await page.goto(`${app.base}/roles?open=builder`); await ready(page);
+  const source = page.locator('.role.open .panel[data-l=project]');
+  await source.locator('[data-act=copy]').click();
+  const target = page.locator('.role.open .panel[data-l=global]').filter({ has: page.locator('[data-f=name]') });
+  await target.getByRole('textbox', { name: '散文の全文' }).fill('');
+  await target.locator('[data-act=save]').click(); await expect(target.locator('.ok')).toBeVisible();
+  expect(readFileSync(path.join(app.cfg, 'hergy/roles/builder.md'), 'utf8')).toBe('');
 });
 
 test('COPY-R3 a copied role saved on a name the global layer holds says why it was not written', async ({ page, app }) => {
