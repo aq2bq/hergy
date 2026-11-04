@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.9.7 - 2026-11-04
 
 - Copy or move exact heading ranges between team and role documents, with optional child headings and a chosen insertion point. Review and undo drafts before saving; moves save the destination first and report partial completion. Resize columns or restore equal widths.
 
