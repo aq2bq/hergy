@@ -411,7 +411,7 @@ func (s *Server) buildFileOf(place, kind, name, path string, hidden bool, text s
 		}
 		out.Problems = append(out.Problems, apiProblem{
 			Sev: sev, At: "line", Field: finding.Field, Line: t2YamlLine(text, finding.Field), Text: withoutOwnHead(finding.Text, display),
-			Role: finding.Role, RuleID: finding.RuleID,
+			Role: finding.Role,
 		})
 	}
 	return out
@@ -789,7 +789,7 @@ func t2FigureProblems(findings []check.Finding, own string) []apiProblem {
 		}
 		out = append(out, apiProblem{
 			Sev: sev, At: finding.Field, Field: figureFieldName(finding.Field), Text: withoutOwnHead(finding.Text, own),
-			Role: finding.Role, RuleID: finding.RuleID,
+			Role: finding.Role,
 		})
 	}
 	return out
@@ -848,7 +848,7 @@ func (k apiTeam) checkYAML(in apiIn) (any, *apiErr) {
 		}
 		out.Problems = append(out.Problems, apiProblem{
 			Sev: sev, At: "line", Field: finding.Field, Line: t2YamlLine(in.Text, finding.Field), Text: withoutOwnHead(finding.Text, display),
-			Role: finding.Role, RuleID: finding.RuleID,
+			Role: finding.Role,
 		})
 	}
 	return out, nil

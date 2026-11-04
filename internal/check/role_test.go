@@ -38,7 +38,7 @@ func TestRoleWarnsAboutItsOwnSize(t *testing.T) {
 		t.Fatalf("chars = %d, want over the limit %d", report.Markdown.Chars, RoleCharLimit)
 	}
 	want := RoleProblem{
-		Sev: "warn", Section: -1, Rule: -1, Line: 0,
+		Sev: "warn", Line: 0,
 		Text: i18n.Tf("size.role_chars", report.Markdown.Chars, RoleCharLimit),
 	}
 	if len(report.Problems) != 1 || report.Problems[0] != want {

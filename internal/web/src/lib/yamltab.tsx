@@ -62,13 +62,10 @@ function isProblem(value: unknown): value is Problem {
   return (problem.sev === 'err' || problem.sev === 'warn')
     && typeof problem.at === 'string'
     && typeof problem.text === 'string'
-    && typeof problem.section === 'number'
-    && typeof problem.rule === 'number'
     && (problem.field === undefined || typeof problem.field === 'string')
     && (problem.line === undefined || typeof problem.line === 'number')
     && (problem.definition === undefined || typeof problem.definition === 'string')
-    && (problem.role === undefined || typeof problem.role === 'string')
-    && (problem.rule_id === undefined || typeof problem.rule_id === 'string');
+    && (problem.role === undefined || typeof problem.role === 'string');
 }
 
 function isProblemList(value: unknown): value is Problem[] {

@@ -131,7 +131,7 @@ var behavior = map[options.Kind]string{
 	options.Validate: `      Check the global config.yaml, every profiles.yaml, and every team definition. Exit 1 if any is broken.
       It prints the size of each role and each team (prose plus fixed template words). The provisional budget is 1,200 characters each. Excess warns but does not change the exit code; invalid settings and legacy YAML do.
 `,
-	options.Migrate: `      Inspect all legacy role and team prose files in the project before writing. --global selects shared settings, --dry only prints the plan. Keep adjacent .yaml.bak originals; refuse conflicting destinations. See CHANGELOG for recovery.
+	options.Migrate: `      Inspect all legacy role and team YAML files in the project before writing. --global selects shared settings, --dry only prints the plan. Keep adjacent .yaml.bak originals; refuse conflicting destinations. See CHANGELOG for recovery.
 `,
 	options.Serve: `      Serve the screens over HTTP on 127.0.0.1, print the URL and open it in this machine's default browser, in the foreground, until Ctrl-C. Nothing but this machine can reach it: the listener is bound to 127.0.0.1, a request whose Host is not 127.0.0.1 or localhost is refused, and a write is a POST, PUT or DELETE that must carry the token of this run in the X-Hergy-Token header and come from this page. --port picks the port (default 8787; 0 lets the operating system pick a free one); --no-open prints the URL and opens nothing. A browser that cannot be opened is one line on stderr and serve goes on, with the URL to open by hand. It reads the settings the way the commands do, and it changes nothing but the two profiles.yaml files (a profile's name, kind, args and env, and the profile each member and worker runs), a role document, a team definition's team.yaml and agreement.md, and the projects: list of the global config.yaml. It is the headquarters: it shows the projects config.yaml lists (or, without that key, the project it was started in and the global settings), their teams, roles and profiles with the project each belongs to, the running teams and workspaces, and it starts and stops a listed project's team with the same result as hergy up and hergy down. A start runs in a workspace a person picks and reports its progress and a startup question at /api/hq/launches/<id>.
 `,
@@ -199,7 +199,7 @@ Web UI:
     /profiles/assign  the members' and workers' profiles, one card per team definition; a pick is saved into that team.yaml
     /profiles/yaml  both profiles.yaml files as text, line numbers and validate's problems beside the editor
     /profiles/<profile>  the row of that profile, opened
-    /roles        the three tabs of the role documents: 一覧 (every role, the people that read it, its rules and the amount one reader is handed), 割り当て (each team definition's members and the role each plays) and Markdown (a role document as text with validate's problems beside the editor)
+    /roles        the three tabs of the role documents: 一覧 (every role, the people that read it, its prose and character count), 割り当て (each team definition's members and the role each plays) and Markdown (a role document as text with validate's problems beside the editor)
     /roles/assign  each team definition's members and their roles; a pick is saved into that team.yaml
     /roles/yaml  one role document as text, with line numbers and validate's problems beside the editor
     /roles?open=<role>  the list tab with that role's row opened

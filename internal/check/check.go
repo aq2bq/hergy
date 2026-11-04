@@ -36,7 +36,6 @@ type Finding struct {
 	//	workers[i]                                   the worker at i (0-based)
 	//	workers[i].from                              the worker's from:
 	//	node:human, node:<member>                    a sentence about a node
-	//	rule:<document path>#<rule id>               a sentence about a rule's text
 	//	""                                           the file as a whole
 	Field string
 	// Text is the sentence, as a person reads it, with the paths written the way
@@ -48,24 +47,13 @@ type Finding struct {
 	// Stops says the definition does not read (a break) rather than a warning. A
 	// definition with a finding that stops is one hergy will not run.
 	Stops bool
-	// Doc is the displayed path of the document the finding stands in, when it
-	// stands in one. A sentence about a rule a role document writes names that
-	// document, so a screen can open it (d-8bbf).
+	// Doc is the displayed path of the document the finding stands in.
 	Doc string
-	// At is the document's own field the sentence marks, when the finding
-	// comes from a rule file: "id", "text", "origin.0.refs.0", a report's name.
-	// Field says where the sentence stands (the rule, or the file); At says which
-	// part of that rule a screen marks. A screen showing one file uses it; the
-	// team's figure does not.
+	// At is the document field the finding marks.
 	At string
-	// Role is the role whose document a finding about a combination names, and
-	// RuleID the rule in that document: enough for a screen to open the role at
-	// the rule. Both are empty when the finding is not about a role's rule.
-	Role   string
-	RuleID string
-	// RoleDoc is the displayed path of that role's document. It is what the
-	// command line puts before the sentence ("writer.yaml の規則 WRITE-7 が…"),
-	// so a person reading hergy validate knows which document to fix (T13 R2).
+	// Role names the role whose document the finding concerns.
+	Role string
+	// RoleDoc is the displayed path the command line puts before the finding.
 	RoleDoc string
 }
 

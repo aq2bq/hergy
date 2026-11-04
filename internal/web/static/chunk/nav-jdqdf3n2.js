@@ -51,7 +51,7 @@ function blocks(text) {
   });
   return out;
 }
-function ProseEditor({ text, onChange }) {
+function ProseEditor({ text, budget = true, onChange }) {
   const [outline, setOutline] = d(false);
   const [cursor, setCursor] = d(0);
   const parts = blocks(text);
@@ -64,11 +64,8 @@ function ProseEditor({ text, onChange }) {
         class: "prose-tools",
         children: [
           /* @__PURE__ */ u("span", {
-            class: count > 1200 ? "sev warn" : "",
-            children: [
-              count.toLocaleString(),
-              " / 1,200 字"
-            ]
+            class: budget && count > 1200 ? "sev warn" : "",
+            children: budget ? `${count.toLocaleString()} / 1,200 字` : `散文 ${count.toLocaleString()} 字`
           }),
           /* @__PURE__ */ u("button", {
             type: "button",
@@ -188,7 +185,7 @@ function Vm2({ list }) {
     }))
   });
 }
-function RuleDoc2({ row, hasName = true, nameError, issues, onChange }) {
+function RuleDoc2({ row, hasName = true, budget = true, nameError, issues, onChange }) {
   return /* @__PURE__ */ u(S, {
     children: [
       hasName ? /* @__PURE__ */ u("label", {
@@ -226,6 +223,7 @@ function RuleDoc2({ row, hasName = true, nameError, issues, onChange }) {
         ]
       }) : null,
       /* @__PURE__ */ u(ProseEditor, {
+        budget,
         text: row.draft.text,
         onChange: (text) => {
           row.draft.text = text;

@@ -27,13 +27,13 @@ function record(value) {
 function isProblem(value) {
   if (!record(value))
     return false;
-  return (value.sev === "err" || value.sev === "warn") && typeof value.at === "string" && typeof value.text === "string" && typeof value.section === "number" && typeof value.rule === "number" && (value.field === undefined || typeof value.field === "string") && (value.line === undefined || typeof value.line === "number") && (value.definition === undefined || typeof value.definition === "string") && (value.role === undefined || typeof value.role === "string") && (value.rule_id === undefined || typeof value.rule_id === "string");
+  return (value.sev === "err" || value.sev === "warn") && typeof value.at === "string" && typeof value.text === "string" && (value.field === undefined || typeof value.field === "string") && (value.line === undefined || typeof value.line === "number") && (value.definition === undefined || typeof value.definition === "string") && (value.role === undefined || typeof value.role === "string");
 }
 function isProblemList(value) {
   return Array.isArray(value) && value.every(isProblem);
 }
 function isRolePreviewLine(value) {
-  return record(value) && typeof value.text === "string" && typeof value.part === "string" && typeof value.section === "number" && typeof value.rule === "number";
+  return record(value) && typeof value.text === "string" && typeof value.part === "string";
 }
 function isRolePreview(value) {
   return record(value) && typeof value.chars === "number" && (value.lines === null || Array.isArray(value.lines) && value.lines.every(isRolePreviewLine));

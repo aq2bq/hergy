@@ -33,18 +33,18 @@ export interface paths {
         };
         /**
          * チーム定義を 1 件読む
-         * @description 指定した場所のチーム定義とチームのルールを返す。
+         * @description 指定した場所のチーム定義とチームの散文を返す。
          */
         get: operations["getTeam"];
         /**
          * チーム定義を保存する
-         * @description チーム定義、チームのルール、または YAML の全文を保存する。
+         * @description チーム定義、チームの散文、または YAML の全文を保存する。
          */
         put: operations["saveTeam"];
         post?: never;
         /**
          * チーム定義を消す
-         * @description 指定した場所のチーム定義とチームのルールを消し、残った一覧を返す。
+         * @description 指定した場所のチーム定義とチームの散文を消し、残った一覧を返す。
          */
         delete: operations["deleteTeam"];
         options?: never;
@@ -80,7 +80,7 @@ export interface paths {
         put?: never;
         /**
          * チーム定義の下書きを検査する
-         * @description チーム定義、チームのルール、YAML 全文、またはワーカーの初期プロンプトを検査する。
+         * @description チーム定義、チームの散文、YAML 全文、またはワーカーの初期プロンプトを検査する。
          */
         post: operations["checkTeam"];
         delete?: never;
@@ -524,16 +524,10 @@ export interface components {
             text: string;
             /** @description 文の何行目か（1 から） */
             line?: number;
-            /** @description 規則の文書の節の番号（0 から）。節を指さないときは -1 */
-            section: number;
-            /** @description 節の中の規則の番号（0 から）。規則を指さないときは -1 */
-            rule: number;
             /** @description 問題が立つチーム定義名（並べたプロジェクトの検査など） */
             definition?: string;
             /** @description 組み合わせの問題が指すロール名 */
             role?: string;
-            /** @description 組み合わせの問題が指す規則の ID */
-            rule_id?: string;
         };
         /** @description 断ったときの答え。text は利用者が読む文。 */
         Refusal: {
@@ -560,7 +554,7 @@ export interface components {
             /** @description 最後に書き換えられた時刻（10:42 など、今日でなければ 1/2 10:42） */
             changed?: string;
             /** @description ファイルを種類ごとの形で読んだもの（元に戻すで、画面の下書きの代わりに置く） */
-            doc?: components["schemas"]["RoleDoc"] | components["schemas"]["TeamDocument"] | components["schemas"]["TeamRuleDocument"] | components["schemas"]["ProfileDraft"] | components["schemas"]["ProfileFileDoc"];
+            doc?: components["schemas"]["RoleDoc"] | components["schemas"]["TeamDocument"] | components["schemas"]["TeamProseDocument"] | components["schemas"]["ProfileDraft"] | components["schemas"]["ProfileFileDoc"];
         };
         /** @description 1 つの行が抱える問題の数（spec-boundary 5）。一覧の欄と、置き場所ごとの読みが答える。 */
         Counts: {
@@ -688,16 +682,12 @@ export interface components {
             /** @description 全体の文字数 */
             chars: number;
         };
-        /** @description Markdown の 1 行。どの節のどの規則から来たかも持つ。 */
+        /** @description 散文の Markdown の 1 行。 */
         RolePreviewLine: {
             /** @description 行の文 */
             text: string;
-            /** @description 行の種類（見出し、本文、空行、切った規則など） */
+            /** @description 行の種類（散文は text） */
             part: string;
-            /** @description 行が来た節の番号。節から来ていなければ -1。 */
-            section: number;
-            /** @description 行が来た規則の番号。規則から来ていなければ -1。 */
-            rule: number;
         };
         /** @description 下書きが保存されている文書からどう動いたか。 */
         RoleEffect: {
@@ -1588,7 +1578,7 @@ export interface components {
             hashes: {
                 [key: string]: string;
             };
-            /** @description YAML タブが読むチーム定義とチームのルール */
+            /** @description YAML タブが読むチーム定義とチームの散文 */
             files?: components["schemas"]["TeamFile"][];
         };
         /** @description チーム定義の一覧にある 1 件。 */
@@ -1631,7 +1621,7 @@ export interface components {
             /** @description 読めるが直したほうがよい問題の数 */
             warn: number;
         };
-        /** @description チーム定義の一覧に出す説明、メンバー、ワーカー、チームのルールの集計。 */
+        /** @description チーム定義の一覧に出す説明、メンバー、ワーカー、チームの散文の集計。 */
         TeamSummary: {
             /** @description チーム定義の説明 */
             description: string;
@@ -1678,7 +1668,7 @@ export interface components {
             turns: components["schemas"]["TeamTurn"][] | null;
             /** @description 初期プロンプトに書くターンとワーカー */
             prompt: components["schemas"]["TeamPrompt"];
-            /** @description チーム定義に属するチームのルール */
+            /** @description チーム定義に属するチームの散文 */
             agreement?: components["schemas"]["TeamAgreement"];
             /** @description team.yaml をチーム定義として読めなかったか */
             broken?: boolean;
@@ -1701,18 +1691,18 @@ export interface components {
                 [key: string]: string[];
             } | null;
         };
-        /** @description チーム定義に属するチームのルール。 */
+        /** @description チーム定義に属するチームの散文。 */
         TeamAgreement: {
             /** @description agreement.md のパス */
             path: string;
             /** @description agreement.md のハッシュ */
             hash: string;
-            /** @description チームのルールがあるか */
+            /** @description チームの散文があるか */
             has: boolean;
-            /** @description チームのルールの文書 */
-            doc?: components["schemas"]["TeamRuleDocument"];
+            /** @description チームの散文の文書 */
+            doc?: components["schemas"]["TeamProseDocument"];
         };
-        /** @description YAML タブが読むチーム定義またはチームのルールのファイル。 */
+        /** @description YAML タブが読むチーム定義またはチームの散文のファイル。 */
         TeamFile: {
             /**
              * @description ファイルがある場所。project または global。
@@ -1825,31 +1815,27 @@ export interface components {
             /** @description 初期プロンプトを由来ごとに分けた部分 */
             segments: components["schemas"]["TeamPromptSegment"][] | null;
         };
-        /** @description チームのルールをメンバーが読む Markdown の行。 */
-        TeamRuleMarkdown: {
-            /** @description チームのルールから作った Markdown の行 */
-            lines: components["schemas"]["TeamRuleMarkdownLine"][] | null;
+        /** @description チームの散文をメンバーが読む Markdown の行。 */
+        TeamProseMarkdown: {
+            /** @description チームの散文から作った Markdown の行 */
+            lines: components["schemas"]["TeamProseMarkdownLine"][] | null;
             /** @description Markdown 全体の文字数 */
             chars: number;
         };
         /** @description メンバーが読む Markdown の 1 行。 */
-        TeamRuleMarkdownLine: {
+        TeamProseMarkdownLine: {
             /** @description Markdown の行の文 */
             text: string;
-            /** @description 行が表す規則文書の部分 */
+            /** @description 行が表す文書の部分 */
             part: string;
-            /** @description 規則文書の節の番号。節を指さないときは -1。 */
-            section: number;
-            /** @description 節の中の規則の番号。規則を指さないときは -1。 */
-            rule: number;
         };
-        /** @description チームのルールの Markdown とターンを渡す矢印に対する編集の影響。 */
+        /** @description チームの散文の Markdown に対する編集の影響。 */
         TeamAgreementEffect: {
             /** @description Markdown の行の変化 */
             diff: components["schemas"]["TeamDiff"];
         };
-        /** @description チームのルールを読むメンバー。 */
-        TeamRuleReader: {
+        /** @description チームの散文を読むメンバー。 */
+        TeamProseReader: {
             /** @description メンバーが読むチーム定義名 */
             definition: string;
             /** @description チーム定義のメンバー名 */
@@ -1870,22 +1856,22 @@ export interface components {
             agreement_exists: boolean;
         };
         TeamRenamed: components["schemas"]["TeamSaved"];
-        /** @description 保存済みまたは保存前のチーム定義、チームのルール、YAML 全文の検査結果。 */
+        /** @description 保存済みまたは保存前のチーム定義、チームの散文、YAML 全文の検査結果。 */
         TeamCheckAnswer: {
             /** @description チームとメンバーのひな形の固定文の文字数 */
             template_size?: number;
             rename?: components["schemas"]["TeamRenamePreview"];
             /** @description 検査で見つかった問題 */
             problems: components["schemas"]["Problem"][] | null;
-            /** @description team.yaml またはチームのルールの検査表示 */
-            preview?: components["schemas"]["TeamPreview"] | components["schemas"]["TeamRuleMarkdown"];
-            /** @description 編集で変わる初期プロンプトまたはチームのルール */
+            /** @description team.yaml またはチームの散文の検査表示 */
+            preview?: components["schemas"]["TeamPreview"] | components["schemas"]["TeamProseMarkdown"];
+            /** @description 編集で変わる初期プロンプトまたはチームの散文 */
             effect?: components["schemas"]["TeamEffect"] | components["schemas"]["TeamAgreementEffect"];
-            /** @description チームのルールを読むメンバー */
-            readers?: components["schemas"]["TeamRuleReader"][] | null;
-            /** @description チーム定義またはチームのルールの文字数の上限 */
+            /** @description チームの散文を読むメンバー */
+            readers?: components["schemas"]["TeamProseReader"][] | null;
+            /** @description チーム定義またはチームの散文の文字数の上限 */
             limit?: number;
-            /** @description チーム定義またはチームのルールの文字数 */
+            /** @description チーム定義またはチームの散文の文字数 */
             size?: number;
             /** @description メンバーごとの初期プロンプト */
             members?: components["schemas"]["TeamMemberPrompt"][];
@@ -1929,12 +1915,12 @@ export interface components {
             /** @description グローバルに無く、コピー元のプロジェクトにあるプロファイルの名前 */
             profiles: string[];
         };
-        /** @description 保存したチーム定義またはチームのルールと、保存後の一覧。 */
+        /** @description 保存したチーム定義またはチームの散文と、保存後の一覧。 */
         TeamSaved: {
             name?: string;
             rename?: components["schemas"]["TeamRenamePreview"];
-            /** @description 保存したチーム定義またはチームのルールの文書 */
-            doc: components["schemas"]["TeamDocument"] | components["schemas"]["TeamRuleDocument"];
+            /** @description 保存したチーム定義またはチームの散文の文書 */
+            doc: components["schemas"]["TeamDocument"] | components["schemas"]["TeamProseDocument"];
             /** @description 保存したファイルの全文 */
             text: string;
             /** @description 保存したファイルのハッシュ */
@@ -1951,10 +1937,10 @@ export interface components {
             hashes?: {
                 [key: string]: string;
             };
-            /** @description YAML タブが読むチーム定義とチームのルール */
+            /** @description YAML タブが読むチーム定義とチームの散文 */
             files?: components["schemas"]["TeamFile"][];
         };
-        /** @description チーム定義、チームのルール、YAML 全文、ワーカーの初期プロンプトの検査本文。 */
+        /** @description チーム定義、チームの散文、YAML 全文、ワーカーの初期プロンプトの検査本文。 */
         TeamCheckRequest: {
             rename_to?: string;
             /** @description 検査対象を持つ、並べたプロジェクトのパス */
@@ -1979,10 +1965,10 @@ export interface components {
             base?: components["schemas"]["TeamBase"] | null;
             /** @description YAML 全文を入力するときの文 */
             text?: string;
-            /** @description 検査する編集、チームのルールの文書、またはワーカーの情報 */
+            /** @description 検査する編集、チームの散文の文書、またはワーカーの情報 */
             doc?: (components["schemas"]["TeamOperationDocument"] | components["schemas"]["TeamWorkerPromptRequest"]) | null;
         };
-        /** @description チーム定義またはチームのルールを保存する本文。 */
+        /** @description チーム定義またはチームの散文を保存する本文。 */
         TeamSaveRequest: {
             /** @description コピーで一緒にグローバルに書くロールの文書の名前。選んだものだけを書き、グローバルにある同じ名前は上書きしない（r-7e4a） */
             carry_roles?: string[];
@@ -2010,7 +1996,7 @@ export interface components {
             base?: components["schemas"]["TeamBase"] | null;
             /** @description YAML 全文を保存するときの文 */
             text?: string;
-            /** @description 保存する編集またはチームのルールの文書 */
+            /** @description 保存する編集またはチームの散文の文書 */
             doc?: components["schemas"]["TeamOperationDocument"];
         };
         /** @description チーム定義の複製またはコピー元。 */
@@ -2022,7 +2008,7 @@ export interface components {
             /** @description 元のチーム定義があるプロジェクト（本部に並べたプロジェクトの名前）。省くと serve を起動したプロジェクト。 */
             project?: string;
         };
-        /** @description チーム定義またはチームのルールに加える編集。 */
+        /** @description チーム定義またはチームの散文に加える編集。 */
         TeamOperationDocument: {
             /** @description チーム定義名 */
             name?: string;
@@ -2030,8 +2016,8 @@ export interface components {
             ops?: components["schemas"]["TeamOperation"][] | null;
             /** @description 影響を検査する 1 つの編集 */
             op?: components["schemas"]["TeamOperation"] | null;
-            /** @description 編集するチームのルールの文書 */
-            doc?: components["schemas"]["TeamRuleDocumentRequest"] | null;
+            /** @description 編集するチームの散文の文書 */
+            doc?: components["schemas"]["TeamProseDocumentRequest"] | null;
             /** @description ロールまたはプロファイルを変えるメンバー */
             members?: components["schemas"]["TeamDraftMember"][] | null;
             /** @description プロファイルを変えるワーカー */
@@ -2098,7 +2084,7 @@ export interface components {
             from?: string;
         };
         /** @description Markdown の本文をそのまま保持する文書。 */
-        TeamRuleDocument: {
+        TeamProseDocument: {
             /** @description 文書の名前 */
             name: string;
             /** @description 先頭行から得た表示用の題 */
@@ -2107,7 +2093,7 @@ export interface components {
             text: string;
         };
         /** @description Markdown の本文をそのまま保持する文書。 */
-        TeamRuleDocumentRequest: {
+        TeamProseDocumentRequest: {
             /** @description 文書の名前 */
             name: string;
             /** @description 先頭行から得た表示用の題 */
@@ -2210,7 +2196,7 @@ export interface operations {
             };
             cookie?: never;
         };
-        /** @description 保存するチーム定義またはチームのルール */
+        /** @description 保存するチーム定義またはチームの散文 */
         requestBody: {
             content: {
                 "application/json": components["schemas"]["TeamSaveRequest"];
@@ -2351,7 +2337,7 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        /** @description 検査するチーム定義またはチームのルール */
+        /** @description 検査するチーム定義またはチームの散文 */
         requestBody: {
             content: {
                 "application/json": components["schemas"]["TeamCheckRequest"];

@@ -200,7 +200,7 @@ function isProblem(value) {
   if (typeof value !== "object" || value === null || Array.isArray(value))
     return false;
   const problem = Object.fromEntries(Object.entries(value));
-  return (problem.sev === "err" || problem.sev === "warn") && typeof problem.at === "string" && typeof problem.text === "string" && typeof problem.section === "number" && typeof problem.rule === "number" && (problem.field === undefined || typeof problem.field === "string") && (problem.line === undefined || typeof problem.line === "number") && (problem.definition === undefined || typeof problem.definition === "string") && (problem.role === undefined || typeof problem.role === "string") && (problem.rule_id === undefined || typeof problem.rule_id === "string");
+  return (problem.sev === "err" || problem.sev === "warn") && typeof problem.at === "string" && typeof problem.text === "string" && (problem.field === undefined || typeof problem.field === "string") && (problem.line === undefined || typeof problem.line === "number") && (problem.definition === undefined || typeof problem.definition === "string") && (problem.role === undefined || typeof problem.role === "string");
 }
 function isProblemList(value) {
   return Array.isArray(value) && value.every(isProblem);

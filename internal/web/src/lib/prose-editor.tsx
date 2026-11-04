@@ -29,14 +29,14 @@ export function blocks(text: string): { heading: string; start: number; end: num
   return out;
 }
 
-export function ProseEditor({ text, onChange }: { text: string; onChange: (text: string) => void }) {
+export function ProseEditor({ text, budget = true, onChange }: { text: string; budget?: boolean; onChange: (text: string) => void }) {
   const [outline, setOutline] = useState(false);
   const [cursor, setCursor] = useState(0);
   const parts = blocks(text);
   const current = parts.find((part, i) => cursor >= part.start && (cursor < part.end || i === parts.length - 1));
   const count = chars(text);
   return <div class="prose-editor">
-    <div class="prose-tools"><span class={count > 1200 ? 'sev warn' : ''}>{count.toLocaleString()} / 1,200 字</span>
+    <div class="prose-tools"><span class={budget && count > 1200 ? 'sev warn' : ''}>{budget ? `${count.toLocaleString()} / 1,200 字` : `散文 ${count.toLocaleString()} 字`}</span>
       <button type="button" class="btn sm" title={outline ? '全文を編集する' : '見出しだけを表示する'} aria-label={outline ? '全文を編集する' : '見出しだけを表示する'} aria-pressed={outline} onClick={() => setOutline(!outline)}>{outline ? '✎' : '☷'}</button></div>
     {outline ? <ul class="prose-outline">{parts.map((part) => <li><span>{part.heading}</span><span>{chars(text.slice(part.start, part.end))} 字</span></li>)}</ul>
       : <Field as="textarea" aria-label="散文の全文" value={text} spellcheck={false} onInput={(event: Event) => { const el = event.currentTarget; if (!(el instanceof HTMLTextAreaElement)) return; setCursor(el.selectionStart); onChange(el.value); }} onSelect={(event: Event) => { if (event.currentTarget instanceof HTMLTextAreaElement) setCursor(event.currentTarget.selectionStart); }} />}

@@ -39,16 +39,9 @@ type RoleInput struct {
 	Original string
 }
 
-// RoleProblem is one thing wrong with one role document, as a screen shows it
-// (C6). It carries the document's own C2 problems, the C3 problems of each
-// definition that reads it, the turn warnings, the model-name warnings and the
-// size warnings, told apart by Definition where a definition is what it is
-// about. Section and Rule are the rule's place in the document, or -1; Line is
-// the YAML line (0 when there is none), which the YAML tab marks.
+// RoleProblem is a document finding, optionally tied to a field, line or team.
 type RoleProblem struct {
 	Sev        string `json:"sev"`
-	Section    int    `json:"section"`
-	Rule       int    `json:"rule"`
 	Field      string `json:"field"`
 	Definition string `json:"definition"`
 	Line       int    `json:"line"`
@@ -57,10 +50,8 @@ type RoleProblem struct {
 
 // ProseLine is a physical line of the raw document.
 type ProseLine struct {
-	Text    string `json:"text"`
-	Part    string `json:"part"`
-	Section int    `json:"section"`
-	Rule    int    `json:"rule"`
+	Text string `json:"text"`
+	Part string `json:"part"`
 }
 
 // RoleMarkdown is the raw document preview with its character count.
@@ -87,12 +78,7 @@ type RoleReader struct {
 	Member     string `json:"member"`
 }
 
-// DocReport is what one rule document's check found: the document's own
-// problems, the Markdown a screen draws (C1), how that changed from the saved
-// document, the arrows the document's rules write (for a team's agreement, whose
-// turns are the team's), and the members that read it by name. It is the shape
-// both a role document's check (Role) and a team's agreement check (Agreement,
-// spec-teams C6) answer with, so the two screens share one part (spec-teams 7).
+// DocReport holds a document's problems, raw preview, changed lines and readers.
 type DocReport struct {
 	Problems []RoleProblem `json:"problems"`
 	Markdown RoleMarkdown  `json:"markdown"`
@@ -130,7 +116,7 @@ func Role(in RoleInput) DocReport {
 	report := proseReport(in.Catalog, rolePath(in.Catalog, in.Place, in.Name), text)
 	report.Limit = RoleCharLimit
 	if err := catalog.RoleNameProblem(in.Name); err != nil {
-		report.Problems = append(report.Problems, RoleProblem{Sev: "err", Section: -1, Rule: -1, Field: "name", Text: err.Error()})
+		report.Problems = append(report.Problems, RoleProblem{Sev: "err", Field: "name", Text: err.Error()})
 	}
 	report.Problems = append(report.Problems, roleSizeProblems((prose.Document{Text: text}).Chars())...)
 	for _, def := range roleDefinitions(in.Catalog, in.Name) {
@@ -273,7 +259,7 @@ func proseReport(cat *catalog.Catalog, path, text string) DocReport {
 	saved, _ := cat.Reader().Read(source.Doc{Path: path})
 	var lines []ProseLine
 	for line := range strings.SplitSeq(text, "\n") {
-		lines = append(lines, ProseLine{Text: line, Part: "text", Section: -1, Rule: -1})
+		lines = append(lines, ProseLine{Text: line, Part: "text"})
 	}
 	return DocReport{Markdown: RoleMarkdown{Lines: lines, Chars: (prose.Document{Text: text}).Chars()}, Diff: lineDiff(strings.Split(saved, "\n"), strings.Split(text, "\n"))}
 }

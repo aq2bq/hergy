@@ -161,25 +161,16 @@ type apiFile struct {
 	Problems []apiProblem `json:"problems"`
 }
 
-// apiProblem is one thing a check found (spec-boundary 5): how bad it is, where
-// it stands (a doc field's path, or "line" for a text), and the sentence the
-// server made. The field's own name, the line it sits on and the rule it belongs
-// to travel with it, so a screen puts its mark where it looks without reading
-// the text again.
+// apiProblem is a finding with its field or line and server-written message.
 type apiProblem struct {
 	Sev        string `json:"sev"`
 	At         string `json:"at"`
 	Field      string `json:"field,omitempty"`
 	Text       string `json:"text"`
 	Line       int    `json:"line,omitempty"`
-	Section    int    `json:"section"`
-	Rule       int    `json:"rule"`
 	Definition string `json:"definition,omitempty"`
-	// Role is the role whose document a combination finding names, and RuleID
-	// the rule in it, so the screen can open /roles?open=<role>&rule=<id>
-	// (d-8bbf). Both are empty when the finding names no role's rule.
-	Role   string `json:"role,omitempty"`
-	RuleID string `json:"rule_id,omitempty"`
+	// Role names the role whose document the finding concerns.
+	Role string `json:"role,omitempty"`
 }
 
 // apiCheckDraft is what a check of a definition that is not there yet knows

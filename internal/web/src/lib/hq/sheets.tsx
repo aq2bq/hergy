@@ -5,7 +5,7 @@
 // 押し込みは欄が自分で受ける（webui-preact-design 5 章 1）。
 //
 // 探すのは帯の #hq-q から。並べたプロジェクトとグローバルのチーム定義・
-// ワークスペース・メンバー・ロール・規則・プロファイルを一度に読み、/ で開き、
+// ワークスペース・メンバー・ロール・プロファイルを一度に読み、/ で開き、
 // ↑↓ で選び、Enter で行く（spec 3 章）。
 import { render as draw, signal, computed, useEffect, useLayoutEffect, useRef, useState } from '../preact.js';
 import type { JSX } from 'preact';
@@ -39,7 +39,7 @@ type TeamDocument = components['schemas']['TeamDocument'];
 type RoleDoc = components['schemas']['RoleDoc'];
 type ProfileDoc = components['schemas']['ProfileDoc'];
 type ProfileSummary = components['schemas']['ProfileSummary'];
-type SearchKind = 'live' | 'def' | 'ws' | 'member' | 'role' | 'rule' | 'profile';
+type SearchKind = 'live' | 'def' | 'ws' | 'member' | 'role' | 'profile';
 type SearchEntry = {
   kind: SearchKind;
   group: string;
@@ -538,13 +538,12 @@ export function projectsSheet(): void {
 }
 
 // ---- 横断して探す（spec 3 章） -------------------------------------------
-// KINDS is the order the result groups stand in. A rule's group shows six rows
-// and the rest as ほか N 件; every other group shows five.
+// Each result group shows five rows and the rest as ほか N 件.
 const KINDS: [SearchKind, string][] = [
   ['live', '動いているチーム'], ['def', 'チーム定義'], ['ws', 'ワークスペース'], ['member', 'メンバー'],
-  ['role', 'ロール'], ['rule', '規則'], ['profile', 'プロファイル'],
+  ['role', 'ロール'], ['profile', 'プロファイル'],
 ];
-const CAP = (kind: SearchKind): number => (kind === 'rule' ? 6 : 5);
+const CAP = 5;
 
 let index: SearchEntry[] | null = null;
 let indexTeams: typeof st.groups.value.teams | null = null;
@@ -568,7 +567,7 @@ const profileDoc = (item: ProfileItem): Partial<ProfileDoc> => {
   return (place && place.doc) || {};
 };
 
-// index builds the rows the search reads: names, descriptions, rules' ids and texts,
+// index builds the rows the search reads: names, descriptions, document text,
 // kinds and args — the fields api.md 3.5 names (spec 3 章).
 function buildIndex(): SearchEntry[] {
   const out: SearchEntry[] = [];
@@ -676,7 +675,7 @@ export const searchGroups = computed<SearchGroup[]>(() => {
   return KINDS.map(([kind, title]) => ({ kind, title, items: all.filter((e) => e.kind === kind) })).filter((g) => g.items.length);
 });
 // searchShown is the rows the arrows walk, in the order they stand.
-export const searchShown = computed<SearchEntry[]>(() => searchGroups.value.flatMap((g) => g.items.slice(0, CAP(g.kind))));
+export const searchShown = computed<SearchEntry[]>(() => searchGroups.value.flatMap((g) => g.items.slice(0, CAP)));
 
 export const searchSel = (): number => searchPick.value;
 export const searchBoxOpen = (): boolean => searchOpen.value;
@@ -706,11 +705,11 @@ function Results(): JSX.Element | null {
   const q = text.trim();
   let body: JSX.Element | JSX.Element[];
   if (loading) body = <p class="hq-sub">読み込んでいます…</p>;
-  else if (!groups.length) body = <p class="hq-sub">{`「${q}」に合うものはありません。探すのは、並べたプロジェクトとグローバルの、チーム・ワークスペース・メンバー・ロール・規則・プロファイルです。`}</p>;
+  else if (!groups.length) body = <p class="hq-sub">{`「${q}」に合うものはありません。探すのは、並べたプロジェクトとグローバルの、チーム・ワークスペース・メンバー・ロール・プロファイルです。`}</p>;
   else {
     let i = 0;
     body = groups.map((g) => {
-      const rows = g.items.slice(0, CAP(g.kind)).map((e) => {
+      const rows = g.items.slice(0, CAP).map((e) => {
         const n = i;
         i += 1;
         const inner = <><span class="hq-rp">{e.project || '—'}</span><span class="hq-rl">{marks(e.label, q)}</span><span class="hq-rs">{e.body ? <>{snippet(e.body, q)}{' '}<span class="hq-rw">{e.sub}</span></> : marks(e.sub, q)}</span></>;
@@ -719,7 +718,7 @@ function Results(): JSX.Element | null {
           ? <a class={cls} data-i={n} href={e.href} role="option">{inner}</a>
           : <div class={cls} data-i={n} role="option">{inner}</div>;
       });
-      return <div class="hq-srg"><div class="hq-srh">{g.title}<span class="n">{g.items.length}</span></div>{rows}{g.items.length > CAP(g.kind) ? <div class="hq-srm">ほか {g.items.length - CAP(g.kind)} 件</div> : ''}</div>;
+      return <div class="hq-srg"><div class="hq-srh">{g.title}<span class="n">{g.items.length}</span></div>{rows}{g.items.length > CAP ? <div class="hq-srm">ほか {g.items.length - CAP} 件</div> : ''}</div>;
     });
   }
   return <div class="hq-sr" role="listbox" aria-label="探した結果" ref={box}>{body}</div>;

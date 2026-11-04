@@ -154,8 +154,8 @@ function Editor({ session }: { session: Session }) {
     {editor.check.error.value ? <p role="alert">{problemText(editor.check.error.value, 'ロールを検査できませんでした')}</p> : null}
     {model.error.value ? <p role="alert">{model.error.value}</p> : null}
     </div>
-    <footer>    <p><a href={`/roles?${query}`} onClick={leave}>ロールの画面で開く</a>{ctx?.state === 'unreadable' ? <> · <a href={`/roles/yaml?${query}&file=${ctx.place}.${encodeURIComponent(session.name)}`} onClick={leave}>ロールの Markdown で直す</a></> : null}</p>
-    <button class="btn sm" disabled={editor.saving.value} onClick={() => { if (canClose()) void load(); }}>文書を読み直す</button>
+    <footer><div class="prose-actions"><a class="btn sm" href={`/roles?${query}`} onClick={leave}>ロールの画面で開く</a>{ctx?.state === 'unreadable' ? <a class="btn sm" href={`/roles/yaml?${query}&file=${ctx.place}.${encodeURIComponent(session.name)}`} onClick={leave}>ロールの Markdown で直す</a> : null}
+    <button class="btn sm" disabled={editor.saving.value} onClick={() => { if (canClose()) void load(); }}>文書を読み直す</button></div>
 {e ? <button class="btn primary" disabled={blocked} onClick={() => void save()}>ロールを保存</button> : null}{model.ok.value ? <span role="status">ロールを保存しました</span> : null}</footer>
   </section>;
 }

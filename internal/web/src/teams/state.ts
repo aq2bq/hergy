@@ -248,15 +248,15 @@ export const debounce = (k: string, fn: () => void, ms = 260) => { clearTimeout(
 export type Issue = { sev: string; k: number; f: string; text: string; definition: string };
 // Finding is the figure's problem: the node, the worker or the field it stands
 // beside, and the server's sentence (the role and rule it names, when it does).
-export type Finding = { sev: string; field: string; node: string | null; worker: number | null; text: string; role: string; ruleID: string; ruleKey?: number };
+export type Finding = { sev: string; field: string; node: string | null; worker: number | null; text: string; role: string;  };
 export type CheckDiff = Schemas['TeamDiff'];
 // TeamPreview and RuleMarkdown are the check's two previews, as checkTeam answers
 // them: the team.yaml's lines and the diff (TeamPreview), and the agreement's
-// Markdown with the section and rule each line stands for (TeamRuleMarkdown).
+// Raw Markdown preview and its character count (TeamProseMarkdown).
 // They are read from the operation, not written here (n-e3de).
 export type TeamPreview = Schemas['TeamPreview'];
-export type RuleMarkdown = Schemas['TeamRuleMarkdown'];
-export type Check = { templateSize: number; issues: Issue[]; markdown: RuleMarkdown; diff: CheckDiff; readers: Schemas['TeamRuleReader'][] };
+export type RuleMarkdown = Schemas['TeamProseMarkdown'];
+export type Check = { templateSize: number; issues: Issue[]; markdown: RuleMarkdown; diff: CheckDiff; readers: Schemas['TeamProseReader'][] };
 // Pick is what the canvas has picked: a point of the figure, a worker, or a
 // line between two points.
 export type CanvasPick = { type: 'node'; id: string } | { type: 'worker'; i: number } | { type: 'edge'; k: string };
@@ -720,7 +720,7 @@ function figFindings(r: Rec, problems: Schemas['Problem'][] | null | undefined):
   const t = r.draft.value;
   return (problems || []).map((p) => {
     const at = p.at || p.field || '';
-    let node: string | null = null, worker: number | null = null, field = at, ruleKey = 0, m;
+    let node: string | null = null, worker: number | null = null, field = at, m;
     if ((m = /^members\[(\d+)\]/.exec(at))) { const mem = t.members[Number(m[1])]; node = mem ? mem.name : null; field = 'members'; }
     else if ((m = /^workers\[(\d+)\]/.exec(at))) { worker = Number(m[1]); field = 'workers'; }
     // A sentence about a node ("node:analyst") stands beside that point: the
@@ -728,15 +728,8 @@ function figFindings(r: Rec, problems: Schemas['Problem'][] | null | undefined):
     else if (at.startsWith('node:')) { node = at.slice('node:'.length); field = 'node'; }
     else if (at === 'description') { field = 'description'; }
     else if (at === 'name') { field = 'name'; }
-    else if (at.startsWith('rule:')) {
-      field = at;
-      const path = at.slice('rule:'.length).split('#')[0];
-      if (p.section >= 0 && path.endsWith(`/teams/${r.name.value}/agreement.md`)) {
-        ruleKey = 0;
-      }
-    }
     else { field = ''; }
-    return { sev: p.sev, field, node, worker, text: p.text, role: p.role || '', ruleID: p.rule_id || '', ruleKey };
+    return { sev: p.sev, field, node, worker, text: p.text, role: p.role || '' };
   });
 }
 export const agreeIssues = (r: Rec): Issue[] => (r.check.value ? r.check.value.issues : []);
@@ -804,18 +797,10 @@ export function changeCount(r: Rec): number {
 // those are the team's promises and stand under チームのルール, while the rules of
 // the role documents its members read stand under ロールの文書 (spec-teams 1.4.5,
 // 1.7, 監査 R9).
-const ownAgreement = (r: Rec, m: Finding): boolean => {
-  const path = (m.field || '').replace(/^rule:/, '').split('#')[0];
-  const name = r.name.value;
-  return !!r.agreePath.value && path.endsWith('/teams/' + name + '/agreement.md');
-};
-const ruleID = (m: Finding): string => ((m.field || '').split('#')[1] || '');
 export const vlistParts = (r: Rec) => {
   const issues = teamIssues(r);
-  const at = (m: Finding): boolean => !!m.field && m.field.startsWith('rule:');
-  const out = issues.filter((m) => at(m) && !ownAgreement(r, m));
-  const teamOut = issues.filter((m) => at(m) && ownAgreement(r, m));
-  const own = issues.filter((m) => !at(m));
+  const out = issues.filter((m) => !!m.role);
+  const own = issues.filter((m) => !m.role);
   const purposeOf = (i: number): string => {
     const w = r.draft.value.workers[i];
     return (w && w.purpose) || 'ワーカー';
@@ -827,10 +812,8 @@ export const vlistParts = (r: Rec) => {
     if (m.field === 'name') return 'チーム定義名';
     return '';
   };
-  const file = (m: Finding): string | undefined => (m.field.split('#')[0] || '').replace(/^rule:/, '').split('/').pop();
-  // A finding about a role's own rule opens that role at the rule: the name
-  // the server put on the finding (d-8bbf). A finding that names no role
-  // still opens the roles screen, the way it did.
+  const file = (m: Finding): string => m.role + '.md';
+  // Role findings open the document in the same project as the team.
   const roleHref = (m: Finding): string => {
     if (!m.role) return '/roles';
     void ROLES_REV.value;
@@ -838,10 +821,9 @@ export const vlistParts = (r: Rec) => {
     const group = (ROLES_BY[project] || []).some((role) => role.name === m.role) ? project : 'global';
     const q = new URLSearchParams({ open: roleToken(m.role, group) });
     if (project) q.set('project', project);
-    if (m.ruleID) q.set('rule', m.ruleID);
     return `/roles?${q}`;
   };
-  return { issues, own, teamOut, out, where, file, roleHref, ruleID };
+  return { issues, own, out, where, file, roleHref };
 };
 
 // ---- 検査と保存 --------------------------------------------------------
@@ -1781,16 +1763,6 @@ export function pressRevert(r: Rec): void {
   checkAgree(r);
 }
 export function pressToastUndo() { canvasUndoFromToast(); }
-// pressVrule opens the team's own rule a finding names (spec-teams 1.4.5,
-// 監査 R9) in the ルール tab, with the cursor in its body (監査 R12).
-export function pressVrule(r: Rec, _key: string | number) {
-  if (!r) return;
-  withOpen(r.dom, true);
-  setDtab(r.dom, 'agree');
-  checkAgree(r);
-  syncURL();
-  jumpToRule(r, 0);
-}
 // pressVpick puts the cursor in a finding's own field, or picks what it names on
 // the figure.
 export function pressVpick(r: Rec, m: Finding & { nameField?: boolean }) {

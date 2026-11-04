@@ -42,18 +42,18 @@ test.describe('review 1-8: listed projects', () => {
   test('a team finding opens the same-named role in its own project', async ({ page, app }) => {
     const beta = realpathSync(path.join(app.home, 'src', 'beta'));
     const file = path.join(beta, '.hergy', 'roles', 'builder.md');
-    writeFileSync(file, readFileSync(file, 'utf8').replace('DAAA', 'DAAB').replace('作る前に、確かめ方を 1 つ書く。', 'Use claude for the beta task.'));
+    writeFileSync(file, readFileSync(file, 'utf8').replace('作る前に、確かめ方を 1 つ書く。', 'Use claude for the beta task.'));
     // Supply a role finding at the API boundary; follow its real link into the saved role.
     await page.route('**/api/team/check*', async (route) => {
       const response = await route.fetch();
       const json = await response.json();
       if (route.request().postDataJSON().name === 'beta-dev') {
-        json.problems = [...(json.problems || []), { sev: 'warn', at: 'rule:' + file + '#DAAB', field: 'text', section: 0, rule: 0, role: 'builder', rule_id: 'DAAB', text: 'DAAB beta rule' }];
+        json.problems = [...(json.problems || []), { sev: 'warn', at: 'line', field: 'text', role: 'builder', text: 'beta role document' }];
       }
       await route.fulfill({ response, json });
     });
     await page.goto(`${app.base}/teams?${new URLSearchParams({ open: 'beta-dev|' + beta })}`); await ready(page);
-    const link = page.locator('a.vitem').filter({ hasText: 'DAAB' });
+    const link = page.locator('a.vitem').filter({ hasText: 'beta role document' });
     await expect(link).toHaveCount(1);
     await link.click(); await ready(page);
     await expect(page).toHaveURL(/project=.*beta/);

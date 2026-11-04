@@ -1527,10 +1527,9 @@ var KINDS = [
   ["ws", "ワークスペース"],
   ["member", "メンバー"],
   ["role", "ロール"],
-  ["rule", "規則"],
   ["profile", "プロファイル"]
 ];
-var CAP = (kind) => kind === "rule" ? 6 : 5;
+var CAP = 5;
 var index = null;
 var indexTeams = null;
 var teamDoc = (item) => {
@@ -1655,7 +1654,7 @@ var searchGroups = O(() => {
   const all = liveEntries().concat(searchIndex()).filter((e) => e.text.toLowerCase().includes(low));
   return KINDS.map(([kind, title]) => ({ kind, title, items: all.filter((e) => e.kind === kind) })).filter((g) => g.items.length);
 });
-var searchShown = O(() => searchGroups.value.flatMap((g) => g.items.slice(0, CAP(g.kind))));
+var searchShown = O(() => searchGroups.value.flatMap((g) => g.items.slice(0, CAP)));
 var searchBoxOpen = () => searchOpen.value;
 function Results() {
   const box = A(null);
@@ -1688,12 +1687,12 @@ function Results() {
   else if (!groups.length)
     body = /* @__PURE__ */ u("p", {
       class: "hq-sub",
-      children: `「${q}」に合うものはありません。探すのは、並べたプロジェクトとグローバルの、チーム・ワークスペース・メンバー・ロール・規則・プロファイルです。`
+      children: `「${q}」に合うものはありません。探すのは、並べたプロジェクトとグローバルの、チーム・ワークスペース・メンバー・ロール・プロファイルです。`
     });
   else {
     let i = 0;
     body = groups.map((g) => {
-      const rows = g.items.slice(0, CAP(g.kind)).map((e) => {
+      const rows = g.items.slice(0, CAP).map((e) => {
         const n = i;
         i += 1;
         const inner = /* @__PURE__ */ u(S, {
@@ -1749,11 +1748,11 @@ function Results() {
             ]
           }),
           rows,
-          g.items.length > CAP(g.kind) ? /* @__PURE__ */ u("div", {
+          g.items.length > CAP ? /* @__PURE__ */ u("div", {
             class: "hq-srm",
             children: [
               "ほか ",
-              g.items.length - CAP(g.kind),
+              g.items.length - CAP,
               " 件"
             ]
           }) : ""

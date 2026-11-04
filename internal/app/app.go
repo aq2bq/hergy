@@ -954,7 +954,7 @@ func validateRoleFile(stdout io.Writer, env team.Env, cat *catalog.Catalog, laye
 			}
 		}
 		problems = append(problems, check.RoleProblem{
-			Sev: "warn", Section: -1, Rule: -1,
+			Sev:  "warn",
 			Text: i18n.Tf("validate.role_hidden", name),
 		})
 		return printRoleFindings(stdout, env, path, problems), roleSize{}, false

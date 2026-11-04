@@ -18,13 +18,10 @@ function isProblem(value: unknown): value is components['schemas']['Problem'] {
   return (value.sev === 'err' || value.sev === 'warn')
     && typeof value.at === 'string'
     && typeof value.text === 'string'
-    && typeof value.section === 'number'
-    && typeof value.rule === 'number'
     && (value.field === undefined || typeof value.field === 'string')
     && (value.line === undefined || typeof value.line === 'number')
     && (value.definition === undefined || typeof value.definition === 'string')
-    && (value.role === undefined || typeof value.role === 'string')
-    && (value.rule_id === undefined || typeof value.rule_id === 'string');
+    && (value.role === undefined || typeof value.role === 'string');
 }
 
 function isProblemList(value: unknown): value is components['schemas']['Problem'][] {
@@ -34,9 +31,7 @@ function isProblemList(value: unknown): value is components['schemas']['Problem'
 function isRolePreviewLine(value: unknown): value is components['schemas']['RolePreviewLine'] {
   return record(value)
     && typeof value.text === 'string'
-    && typeof value.part === 'string'
-    && typeof value.section === 'number'
-    && typeof value.rule === 'number';
+    && typeof value.part === 'string';
 }
 
 function isRolePreview(value: unknown): value is components['schemas']['RolePreview'] {

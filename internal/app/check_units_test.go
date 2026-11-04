@@ -51,12 +51,11 @@ var checkToken string
 
 // checkProblems is one check answer's problems as the screens count them.
 type checkProblems struct {
-	Sev    string `json:"sev"`
-	Text   string `json:"text"`
-	At     string `json:"at"`
-	Field  string `json:"field"`
-	Role   string `json:"role"`
-	RuleID string `json:"rule_id"`
+	Sev   string `json:"sev"`
+	Text  string `json:"text"`
+	At    string `json:"at"`
+	Field string `json:"field"`
+	Role  string `json:"role"`
 }
 
 type checkAnswerBody struct {

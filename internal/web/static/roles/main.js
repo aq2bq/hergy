@@ -33,8 +33,8 @@ import {
 import {
   token2,
   parseOpen2
-} from "../chunk/nav-7rgxqdr2.js";
-import"../chunk/nav-8vctx6fw.js";
+} from "../chunk/nav-b83cb4fx.js";
+import"../chunk/nav-t4sxvpzm.js";
 import {
   renameCarries2,
   fromJSON2,
@@ -44,17 +44,17 @@ import {
   Badge2,
   Vm2,
   RuleDoc2
-} from "../chunk/nav-q3nq11g3.js";
+} from "../chunk/nav-jdqdf3n2.js";
 import {
   conflictOf,
   ConflictNotice,
   YamlTab2
-} from "../chunk/nav-980mkyvx.js";
+} from "../chunk/nav-dedhn2tx.js";
 import {
   roleEditor,
   roleProblems,
   Measure
-} from "../chunk/nav-ym23ftqp.js";
+} from "../chunk/nav-4cnq0vav.js";
 import {
   copyGroupOf,
   projectOfGroup,

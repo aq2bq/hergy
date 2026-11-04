@@ -92,7 +92,7 @@ func roleSizeProblems(chars int) []RoleProblem {
 		return nil
 	}
 	return []RoleProblem{{
-		Sev: "warn", Section: -1, Rule: -1,
+		Sev:  "warn",
 		Text: i18n.Tf("size.role_chars", chars, RoleCharLimit),
 	}}
 }

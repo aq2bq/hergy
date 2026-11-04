@@ -38,7 +38,7 @@ func Agreement(in AgreementInput) DocReport {
 		report.Readers = agreementReaders(def)
 		report.TemplateChars = TeamSizeChars(overlay, def) - report.Markdown.Chars
 		for _, finding := range teamSizeFinding(overlay, def) {
-			report.Problems = append(report.Problems, RoleProblem{Sev: "warn", Section: -1, Rule: -1, Text: finding.Text})
+			report.Problems = append(report.Problems, RoleProblem{Sev: "warn", Text: finding.Text})
 		}
 	}
 	report.Limit = TeamCharLimit

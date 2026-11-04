@@ -3,7 +3,6 @@ package web
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"os"
 
@@ -230,7 +229,7 @@ func r2CheckAnswer(report check.DocReport, fromText bool) apiCheck {
 // the document's field each one belongs to is where a screen shows it, and a
 // problem of a whole text, or of the document as a whole, stands on its line.
 // field travels beside at so the screen stands a message under the box it names.
-func r2Problems(problems []check.RoleProblem, fromText bool) []apiProblem {
+func r2Problems(problems []check.RoleProblem, _ bool) []apiProblem {
 	out := make([]apiProblem, 0, len(problems))
 	for _, problem := range problems {
 		at := "line"
@@ -238,15 +237,10 @@ func r2Problems(problems []check.RoleProblem, fromText bool) []apiProblem {
 			// The name stands in the panel's own field, not on a line of the
 			// document: the screen draws the sentence under 名前 (d-841e).
 			at = "name"
-		} else if !fromText && problem.Section >= 0 && problem.Rule >= 0 {
-			at = fmt.Sprintf("sections.%d.rules.%d", problem.Section, problem.Rule)
-			if problem.Field != "" {
-				at += "." + problem.Field
-			}
 		}
 		out = append(out, apiProblem{
 			Sev: problem.Sev, At: at, Field: problem.Field, Text: problem.Text, Line: problem.Line,
-			Section: problem.Section, Rule: problem.Rule, Definition: problem.Definition,
+			Definition: problem.Definition,
 		})
 	}
 	return out

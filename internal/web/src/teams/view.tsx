@@ -29,7 +29,7 @@ import {
   pressTab, pressToggle, pressNew, pressDup, pressCopy, pressDiscard,
   pressStarterRoles, pressStarterProfile, pressCarry,
   pressDel, pressDelNo, pressDelYes, pressName, pressDescription, pressDtab, pressPmode,
-  pressToYaml, pressTSave, pressTRevert, pressSave, pressRevert, pressVrule, pressVpick,
+  pressToYaml, pressTSave, pressTRevert, pressSave, pressRevert, pressVpick,
   pressToastUndo, pressYfile, yamlState, yamlProblems, yamlRevert, yamlSaved, fileText,
   conflictAt, pressOverwrite, pressRevertConflict, pressUndoConflict,
 } from './state.js';
@@ -375,12 +375,11 @@ function CarryNote({ r }: { r: Rec }) {
 // VList is the check column under the canvas: the server's own sentences, each
 // one where it belongs (spec-teams X1).
 function VList({ r }: { r: Rec }) {
-  const { issues, own, teamOut, out, where, file, roleHref, ruleID } = vlistParts(r);
+  const { issues, own, out, where, file, roleHref } = vlistParts(r);
   return (
     <>
       <div class="vhead"><span class="vt">設定の検査</span>{issues.length ? <span class="vcount"><Counts list={messagesOf(issues)} /></span> : <span class="vclean">✓ 問題なし</span>}</div>
       {own.map((m) => <button class="vitem" data-act="vpick" data-node={m.node || null} data-worker={m.worker != null && m.worker >= 0 ? m.worker : null} data-name-field={m.field === 'name' ? 1 : null} onClick={() => pressVpick(r, { ...m, node: m.node, worker: m.worker != null && m.worker >= 0 ? m.worker : null, nameField: m.field === 'name' })}><Sev sev={m.sev} /><span class="lno">{where(m)}</span><span class="msg">{m.text}</span></button>)}
-      {teamOut.length ? <><div class="vsub">チームのルール</div>{teamOut.map((m) => <button class="vitem" data-act="vrule" data-name={r.dom} data-id={ruleID(m)} data-k={m.ruleKey || 0} onClick={() => pressVrule(r, m.ruleKey || ruleID(m))}><Sev sev={m.sev} /><span class="lno">{file(m)}</span><span class="msg">{m.text}</span></button>)}</> : null}
       {out.length ? <><div class="vsub">ロールの文書</div>{out.map((m) => <a class="vitem" href={roleHref(m)}><Sev sev={m.sev} /><span class="lno">{file(m)}</span><span class="msg">{m.text}</span></a>)}</> : null}
     </>
   );
@@ -478,9 +477,9 @@ function AgreePanel({ r }: { r: Rec }) {
         <span class="phr">
           {both ? <span class={'state ' + (shadowed ? 'off' : 'on')}>{shadowed ? '隠れている' : '効いている'}</span> : null}
         </span></header>
-      <p class="prose-budget">散文 {chars(r.agreeDraft.value.text)} 字 · ひな形 {r.check.value?.templateSize ?? 0} 字 · 合計 {chars(r.agreeDraft.value.text) + (r.check.value?.templateSize ?? 0)} / 1,200 字</p>
+      <p class={'prose-budget' + (chars(r.agreeDraft.value.text) + (r.check.value?.templateSize ?? 0) > 1200 ? ' sev warn' : '')}>散文 {chars(r.agreeDraft.value.text)} 字 · ひな形 {r.check.value?.templateSize ?? 0} 字 · 合計 {chars(r.agreeDraft.value.text) + (r.check.value?.templateSize ?? 0)} / 1,200 字</p>
       <div class="pmain">
-        <RuleDoc row={rowOfPanel(r)} issues={agreeIssues(r)} hasName={false}
+        <RuleDoc row={rowOfPanel(r)} issues={agreeIssues(r)} hasName={false} budget={false}
           onChange={() => onChangeDraft(r)}
           onMode={(v: string) => pressPmode(r, v)}
           onURL={() => syncURL()} />

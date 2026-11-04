@@ -48,26 +48,26 @@ import {
   Counts2,
   Vm2,
   RuleDoc2
-} from "../chunk/nav-q3nq11g3.js";
+} from "../chunk/nav-jdqdf3n2.js";
 import {
   st,
   token2,
   parseOpen2,
   projectName2
-} from "../chunk/nav-7rgxqdr2.js";
+} from "../chunk/nav-b83cb4fx.js";
 import {
   RunCell2
-} from "../chunk/nav-8vctx6fw.js";
+} from "../chunk/nav-t4sxvpzm.js";
 import {
   conflictOf,
   ConflictNotice,
   YamlTab2
-} from "../chunk/nav-980mkyvx.js";
+} from "../chunk/nav-dedhn2tx.js";
 import {
   roleEditor,
   roleProblems,
   Measure
-} from "../chunk/nav-ym23ftqp.js";
+} from "../chunk/nav-4cnq0vav.js";
 import {
   copyGroupOf,
   groupPlace,
@@ -386,34 +386,31 @@ function Editor({ session }) {
       }),
       /* @__PURE__ */ u("footer", {
         children: [
-          "    ",
-          /* @__PURE__ */ u("p", {
+          /* @__PURE__ */ u("div", {
+            class: "prose-actions",
             children: [
               /* @__PURE__ */ u("a", {
+                class: "btn sm",
                 href: `/roles?${query}`,
                 onClick: leave,
                 children: "ロールの画面で開く"
               }),
-              ctx?.state === "unreadable" ? /* @__PURE__ */ u(S, {
-                children: [
-                  " · ",
-                  /* @__PURE__ */ u("a", {
-                    href: `/roles/yaml?${query}&file=${ctx.place}.${encodeURIComponent(session.name)}`,
-                    onClick: leave,
-                    children: "ロールの Markdown で直す"
-                  })
-                ]
-              }) : null
+              ctx?.state === "unreadable" ? /* @__PURE__ */ u("a", {
+                class: "btn sm",
+                href: `/roles/yaml?${query}&file=${ctx.place}.${encodeURIComponent(session.name)}`,
+                onClick: leave,
+                children: "ロールの Markdown で直す"
+              }) : null,
+              /* @__PURE__ */ u("button", {
+                class: "btn sm",
+                disabled: editor.saving.value,
+                onClick: () => {
+                  if (canClose())
+                    load();
+                },
+                children: "文書を読み直す"
+              })
             ]
-          }),
-          /* @__PURE__ */ u("button", {
-            class: "btn sm",
-            disabled: editor.saving.value,
-            onClick: () => {
-              if (canClose())
-                load();
-            },
-            children: "文書を読み直す"
           }),
           e ? /* @__PURE__ */ u("button", {
             class: "btn primary",
@@ -1112,7 +1109,7 @@ function figFindings(r, problems) {
   const t = r.draft.value;
   return (problems || []).map((p) => {
     const at = p.at || p.field || "";
-    let node = null, worker = null, field = at, ruleKey = 0, m;
+    let node = null, worker = null, field = at, m;
     if (m = /^members\[(\d+)\]/.exec(at)) {
       const mem = t.members[Number(m[1])];
       node = mem ? mem.name : null;
@@ -1127,16 +1124,10 @@ function figFindings(r, problems) {
       field = "description";
     } else if (at === "name") {
       field = "name";
-    } else if (at.startsWith("rule:")) {
-      field = at;
-      const path = at.slice("rule:".length).split("#")[0];
-      if (p.section >= 0 && path.endsWith(`/teams/${r.name.value}/agreement.md`)) {
-        ruleKey = 0;
-      }
     } else {
       field = "";
     }
-    return { sev: p.sev, field, node, worker, text: p.text, role: p.role || "", ruleID: p.rule_id || "", ruleKey };
+    return { sev: p.sev, field, node, worker, text: p.text, role: p.role || "" };
   });
 }
 var agreeIssues = (r) => r.check.value ? r.check.value.issues : [];
@@ -1210,18 +1201,10 @@ function changeCount(r) {
   });
   return n;
 }
-var ownAgreement = (r, m) => {
-  const path = (m.field || "").replace(/^rule:/, "").split("#")[0];
-  const name = r.name.value;
-  return !!r.agreePath.value && path.endsWith("/teams/" + name + "/agreement.md");
-};
-var ruleID = (m) => (m.field || "").split("#")[1] || "";
 var vlistParts = (r) => {
   const issues = teamIssues(r);
-  const at = (m) => !!m.field && m.field.startsWith("rule:");
-  const out = issues.filter((m) => at(m) && !ownAgreement(r, m));
-  const teamOut = issues.filter((m) => at(m) && ownAgreement(r, m));
-  const own = issues.filter((m) => !at(m));
+  const out = issues.filter((m) => !!m.role);
+  const own = issues.filter((m) => !m.role);
   const purposeOf = (i) => {
     const w = r.draft.value.workers[i];
     return w && w.purpose || "ワーカー";
@@ -1237,7 +1220,7 @@ var vlistParts = (r) => {
       return "チーム定義名";
     return "";
   };
-  const file = (m) => (m.field.split("#")[0] || "").replace(/^rule:/, "").split("/").pop();
+  const file = (m) => m.role + ".md";
   const roleHref = (m) => {
     if (!m.role)
       return "/roles";
@@ -1247,11 +1230,9 @@ var vlistParts = (r) => {
     const q = new URLSearchParams({ open: token2(m.role, group) });
     if (project)
       q.set("project", project);
-    if (m.ruleID)
-      q.set("rule", m.ruleID);
     return `/roles?${q}`;
   };
-  return { issues, own, teamOut, out, where, file, roleHref, ruleID };
+  return { issues, own, out, where, file, roleHref };
 };
 var teamChecks = new Map;
 function checkersFor(r) {
@@ -2094,15 +2075,6 @@ function pressRevert(r) {
 }
 function pressToastUndo() {
   canvasUndoFromToast();
-}
-function pressVrule(r, _key) {
-  if (!r)
-    return;
-  withOpen(r.dom, true);
-  setDtab(r.dom, "agree");
-  checkAgree(r);
-  syncURL();
-  jumpToRule(r, 0);
 }
 function pressVpick(r, m) {
   if (m.nameField) {
@@ -5505,7 +5477,7 @@ function CarryNote({ r }) {
   });
 }
 function VList({ r }) {
-  const { issues, own, teamOut, out, where, file, roleHref, ruleID } = vlistParts(r);
+  const { issues, own, out, where, file, roleHref } = vlistParts(r);
   return /* @__PURE__ */ u(S, {
     children: [
       /* @__PURE__ */ u("div", {
@@ -5547,35 +5519,6 @@ function VList({ r }) {
           })
         ]
       })),
-      teamOut.length ? /* @__PURE__ */ u(S, {
-        children: [
-          /* @__PURE__ */ u("div", {
-            class: "vsub",
-            children: "チームのルール"
-          }),
-          teamOut.map((m) => /* @__PURE__ */ u("button", {
-            class: "vitem",
-            "data-act": "vrule",
-            "data-name": r.dom,
-            "data-id": ruleID(m),
-            "data-k": m.ruleKey || 0,
-            onClick: () => pressVrule(r, m.ruleKey || ruleID(m)),
-            children: [
-              /* @__PURE__ */ u(Sev2, {
-                sev: m.sev
-              }),
-              /* @__PURE__ */ u("span", {
-                class: "lno",
-                children: file(m)
-              }),
-              /* @__PURE__ */ u("span", {
-                class: "msg",
-                children: m.text
-              })
-            ]
-          }))
-        ]
-      }) : null,
       out.length ? /* @__PURE__ */ u(S, {
         children: [
           /* @__PURE__ */ u("div", {
@@ -5809,7 +5752,7 @@ function AgreePanel({ r }) {
             ]
           }),
           /* @__PURE__ */ u("p", {
-            class: "prose-budget",
+            class: "prose-budget" + (chars(r.agreeDraft.value.text) + (r.check.value?.templateSize ?? 0) > 1200 ? " sev warn" : ""),
             children: [
               "散文 ",
               chars(r.agreeDraft.value.text),
@@ -5826,6 +5769,7 @@ function AgreePanel({ r }) {
               row: rowOfPanel(r),
               issues: agreeIssues(r),
               hasName: false,
+              budget: false,
               onChange: () => onChangeDraft(r),
               onMode: (v) => pressPmode(r, v),
               onURL: () => syncURL()

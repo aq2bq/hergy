@@ -246,3 +246,6 @@ textarea.held-why { color: var(--faint); text-decoration: line-through; text-dec
 .prose-column > header .path { display: block; margin-top: 6px; }
 .prose-budget { font-size: 12px; margin: 8px 0; }
 .prose-tools > span { white-space: nowrap; }
+
+.prose-actions { display: flex; gap: 8px; width: 100%; }
+.prose-actions .btn { display: inline-flex; align-items: center; justify-content: center; flex: 1; min-width: 0; margin: 0; box-sizing: border-box; text-decoration: none; }

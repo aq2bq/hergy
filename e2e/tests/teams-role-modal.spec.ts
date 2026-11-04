@@ -61,3 +61,21 @@ test('a failed usage read holds saving and keeps entered prose', async ({ page, 
   await expect(column.getByRole('button', { name: 'ロールを保存', exact: true })).toBeDisabled();
   await expect(column.getByRole('textbox', { name: '散文の全文' })).toHaveValue('# 残す編集\n');
 });
+
+test('the team budget warns on prose plus template while roles count their own text', async ({ page, app }) => {
+  const file = path.join(app.proj, '.hergy/teams/core/team.yaml');
+  writeFileSync(file, readFileSync(file, 'utf8') + '\nprompt: "' + '字'.repeat(100) + '%{agreement}%{roster}%{contact}%{turns}"\n');
+  await page.goto(`${app.base}/teams?open=core&agree=core`); await ready(page);
+  const team = page.locator('.tdef[data-name="core"] .agree-p');
+  await team.getByRole('textbox', { name: '散文の全文' }).fill('文'.repeat(1150));
+  await expect(team.locator('.prose-budget')).toHaveText('散文 1150 字 · ひな形 100 字 · 合計 1250 / 1,200 字');
+  await expect(team.locator('.prose-budget')).toHaveClass(/warn/);
+  await expect(team.locator('.prose-tools > span')).toHaveText('散文 1,150 字');
+  await expect(team.locator('.prose-tools > span')).not.toHaveClass(/warn/);
+  await team.getByRole('textbox', { name: '散文の全文' }).fill('文'.repeat(1100));
+  await expect(team.locator('.prose-budget')).not.toHaveClass(/warn/);
+  const role = page.locator('.role-column').first();
+  await role.getByRole('textbox', { name: '散文の全文' }).fill('文'.repeat(1201));
+  await expect(role.locator('.prose-tools > span')).toHaveText('1,201 / 1,200 字');
+  await expect(role.locator('.prose-tools > span')).toHaveClass(/warn/);
+});

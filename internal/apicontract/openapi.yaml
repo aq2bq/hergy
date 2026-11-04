@@ -39,7 +39,7 @@ paths:
     get:
       operationId: getTeam
       summary: チーム定義を 1 件読む
-      description: 指定した場所のチーム定義とチームのルールを返す。
+      description: 指定した場所のチーム定義とチームの散文を返す。
       parameters:
         - name: name
           in: path
@@ -80,7 +80,7 @@ paths:
     put:
       operationId: saveTeam
       summary: チーム定義を保存する
-      description: チーム定義、チームのルール、または YAML の全文を保存する。
+      description: チーム定義、チームの散文、または YAML の全文を保存する。
       parameters:
         - name: name
           in: path
@@ -102,7 +102,7 @@ paths:
             type: string
       requestBody:
         required: true
-        description: 保存するチーム定義またはチームのルール
+        description: 保存するチーム定義またはチームの散文
         content:
           application/json:
             schema:
@@ -127,7 +127,7 @@ paths:
     delete:
       operationId: deleteTeam
       summary: チーム定義を消す
-      description: 指定した場所のチーム定義とチームのルールを消し、残った一覧を返す。
+      description: 指定した場所のチーム定義とチームの散文を消し、残った一覧を返す。
       parameters:
         - name: name
           in: path
@@ -224,7 +224,7 @@ paths:
     post:
       operationId: checkTeam
       summary: チーム定義の下書きを検査する
-      description: チーム定義、チームのルール、YAML 全文、またはワーカーの初期プロンプトを検査する。
+      description: チーム定義、チームの散文、YAML 全文、またはワーカーの初期プロンプトを検査する。
       parameters:
         - name: X-Hergy-Token
           in: header
@@ -240,7 +240,7 @@ paths:
             type: string
       requestBody:
         required: true
-        description: 検査するチーム定義またはチームのルール
+        description: 検査するチーム定義またはチームの散文
         content:
           application/json:
             schema:
@@ -1224,7 +1224,7 @@ components:
       description: 検査が見つけた問題 1 つ（spec-boundary 5）。どこにあり、どれだけ悪く、サーバーが作った文は何か。
       type: object
       additionalProperties: false
-      required: [sev, at, text, section, rule]
+      required: [sev, at, text]
       properties:
         sev:
           type: string
@@ -1242,21 +1242,12 @@ components:
         line:
           type: integer
           description: 文の何行目か（1 から）
-        section:
-          type: integer
-          description: 規則の文書の節の番号（0 から）。節を指さないときは -1
-        rule:
-          type: integer
-          description: 節の中の規則の番号（0 から）。規則を指さないときは -1
         definition:
           type: string
           description: 問題が立つチーム定義名（並べたプロジェクトの検査など）
         role:
           type: string
           description: 組み合わせの問題が指すロール名
-        rule_id:
-          type: string
-          description: 組み合わせの問題が指す規則の ID
     Refusal:
       description: 断ったときの答え。text は利用者が読む文。
       type: object
@@ -1303,7 +1294,7 @@ components:
           anyOf:
             - $ref: '#/components/schemas/RoleDoc'
             - $ref: '#/components/schemas/TeamDocument'
-            - $ref: '#/components/schemas/TeamRuleDocument'
+            - $ref: '#/components/schemas/TeamProseDocument'
             - $ref: '#/components/schemas/ProfileDraft'
             - $ref: '#/components/schemas/ProfileFileDoc'
 
@@ -1537,23 +1528,17 @@ components:
           minimum: 0
           description: 全体の文字数
     RolePreviewLine:
-      description: Markdown の 1 行。どの節のどの規則から来たかも持つ。
+      description: 散文の Markdown の 1 行。
       type: object
       additionalProperties: false
-      required: [text, part, section, rule]
+      required: [text, part]
       properties:
         text:
           type: string
           description: 行の文
         part:
           type: string
-          description: 行の種類（見出し、本文、空行、切った規則など）
-        section:
-          type: integer
-          description: 行が来た節の番号。節から来ていなければ -1。
-        rule:
-          type: integer
-          description: 行が来た規則の番号。規則から来ていなければ -1。
+          description: 行の種類（散文は text）
     RoleEffect:
       description: 下書きが保存されている文書からどう動いたか。
       type: object
@@ -3152,7 +3137,7 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/TeamFile'
-          description: YAML タブが読むチーム定義とチームのルール
+          description: YAML タブが読むチーム定義とチームの散文
     TeamItem:
       description: チーム定義の一覧にある 1 件。
       type: object
@@ -3223,7 +3208,7 @@ components:
           minimum: 0
           description: 読めるが直したほうがよい問題の数
     TeamSummary:
-      description: チーム定義の一覧に出す説明、メンバー、ワーカー、チームのルールの集計。
+      description: チーム定義の一覧に出す説明、メンバー、ワーカー、チームの散文の集計。
       type: object
       additionalProperties: false
       required: [description, members, workers, size, limit]
@@ -3321,7 +3306,7 @@ components:
         agreement:
           allOf:
             - $ref: '#/components/schemas/TeamAgreement'
-          description: チーム定義に属するチームのルール
+          description: チーム定義に属するチームの散文
         broken:
           type: boolean
           description: team.yaml をチーム定義として読めなかったか
@@ -3362,7 +3347,7 @@ components:
             description: 起動できるワーカーの行
           description: メンバー名ごとのワーカー
     TeamAgreement:
-      description: チーム定義に属するチームのルール。
+      description: チーム定義に属するチームの散文。
       type: object
       additionalProperties: false
       required: [path, hash, has]
@@ -3375,13 +3360,13 @@ components:
           description: agreement.md のハッシュ
         has:
           type: boolean
-          description: チームのルールがあるか
+          description: チームの散文があるか
         doc:
           allOf:
-            - $ref: '#/components/schemas/TeamRuleDocument'
-          description: チームのルールの文書
+            - $ref: '#/components/schemas/TeamProseDocument'
+          description: チームの散文の文書
     TeamFile:
-      description: YAML タブが読むチーム定義またはチームのルールのファイル。
+      description: YAML タブが読むチーム定義またはチームの散文のファイル。
       type: object
       additionalProperties: false
       required: [place, label, path, text, hash, problems]
@@ -3585,8 +3570,8 @@ components:
           items:
             $ref: '#/components/schemas/TeamPromptSegment'
           description: 初期プロンプトを由来ごとに分けた部分
-    TeamRuleMarkdown:
-      description: チームのルールをメンバーが読む Markdown の行。
+    TeamProseMarkdown:
+      description: チームの散文をメンバーが読む Markdown の行。
       type: object
       additionalProperties: false
       required: [lines, chars]
@@ -3595,31 +3580,25 @@ components:
           type: array
           nullable: true
           items:
-            $ref: '#/components/schemas/TeamRuleMarkdownLine'
-          description: チームのルールから作った Markdown の行
+            $ref: '#/components/schemas/TeamProseMarkdownLine'
+          description: チームの散文から作った Markdown の行
         chars:
           type: integer
           description: Markdown 全体の文字数
-    TeamRuleMarkdownLine:
+    TeamProseMarkdownLine:
       description: メンバーが読む Markdown の 1 行。
       type: object
       additionalProperties: false
-      required: [text, part, section, rule]
+      required: [text, part]
       properties:
         text:
           type: string
           description: Markdown の行の文
         part:
           type: string
-          description: 行が表す規則文書の部分
-        section:
-          type: integer
-          description: 規則文書の節の番号。節を指さないときは -1。
-        rule:
-          type: integer
-          description: 節の中の規則の番号。規則を指さないときは -1。
+          description: 行が表す文書の部分
     TeamAgreementEffect:
-      description: チームのルールの Markdown とターンを渡す矢印に対する編集の影響。
+      description: チームの散文の Markdown に対する編集の影響。
       type: object
       additionalProperties: false
       required: [diff]
@@ -3628,8 +3607,8 @@ components:
           allOf:
             - $ref: '#/components/schemas/TeamDiff'
           description: Markdown の行の変化
-    TeamRuleReader:
-      description: チームのルールを読むメンバー。
+    TeamProseReader:
+      description: チームの散文を読むメンバー。
       type: object
       additionalProperties: false
       required: [definition, member]
@@ -3664,7 +3643,7 @@ components:
     TeamRenamed:
       $ref: '#/components/schemas/TeamSaved'
     TeamCheckAnswer:
-      description: 保存済みまたは保存前のチーム定義、チームのルール、YAML 全文の検査結果。
+      description: 保存済みまたは保存前のチーム定義、チームの散文、YAML 全文の検査結果。
       type: object
       additionalProperties: false
       required: [problems]
@@ -3683,25 +3662,25 @@ components:
         preview:
           oneOf:
             - $ref: '#/components/schemas/TeamPreview'
-            - $ref: '#/components/schemas/TeamRuleMarkdown'
-          description: team.yaml またはチームのルールの検査表示
+            - $ref: '#/components/schemas/TeamProseMarkdown'
+          description: team.yaml またはチームの散文の検査表示
         effect:
           oneOf:
             - $ref: '#/components/schemas/TeamEffect'
             - $ref: '#/components/schemas/TeamAgreementEffect'
-          description: 編集で変わる初期プロンプトまたはチームのルール
+          description: 編集で変わる初期プロンプトまたはチームの散文
         readers:
           type: array
           nullable: true
           items:
-            $ref: '#/components/schemas/TeamRuleReader'
-          description: チームのルールを読むメンバー
+            $ref: '#/components/schemas/TeamProseReader'
+          description: チームの散文を読むメンバー
         limit:
           type: integer
-          description: チーム定義またはチームのルールの文字数の上限
+          description: チーム定義またはチームの散文の文字数の上限
         size:
           type: integer
-          description: チーム定義またはチームのルールの文字数
+          description: チーム定義またはチームの散文の文字数
         members:
           type: array
           items:
@@ -3778,7 +3757,7 @@ components:
             type: string
           description: グローバルに無く、コピー元のプロジェクトにあるプロファイルの名前
     TeamSaved:
-      description: 保存したチーム定義またはチームのルールと、保存後の一覧。
+      description: 保存したチーム定義またはチームの散文と、保存後の一覧。
       type: object
       additionalProperties: false
       required: [doc, text, hash, path]
@@ -3789,8 +3768,8 @@ components:
         doc:
           oneOf:
             - $ref: '#/components/schemas/TeamDocument'
-            - $ref: '#/components/schemas/TeamRuleDocument'
-          description: 保存したチーム定義またはチームのルールの文書
+            - $ref: '#/components/schemas/TeamProseDocument'
+          description: 保存したチーム定義またはチームの散文の文書
         text:
           type: string
           description: 保存したファイルの全文
@@ -3823,9 +3802,9 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/TeamFile'
-          description: YAML タブが読むチーム定義とチームのルール
+          description: YAML タブが読むチーム定義とチームの散文
     TeamCheckRequest:
-      description: チーム定義、チームのルール、YAML 全文、ワーカーの初期プロンプトの検査本文。
+      description: チーム定義、チームの散文、YAML 全文、ワーカーの初期プロンプトの検査本文。
       type: object
       additionalProperties: false
       properties:
@@ -3874,9 +3853,9 @@ components:
             - $ref: '#/components/schemas/TeamOperationDocument'
             - $ref: '#/components/schemas/TeamWorkerPromptRequest'
           nullable: true
-          description: 検査する編集、チームのルールの文書、またはワーカーの情報
+          description: 検査する編集、チームの散文の文書、またはワーカーの情報
     TeamSaveRequest:
-      description: チーム定義またはチームのルールを保存する本文。
+      description: チーム定義またはチームの散文を保存する本文。
       type: object
       additionalProperties: false
       properties:
@@ -3928,7 +3907,7 @@ components:
         doc:
           allOf:
             - $ref: '#/components/schemas/TeamOperationDocument'
-          description: 保存する編集またはチームのルールの文書
+          description: 保存する編集またはチームの散文の文書
     TeamBase:
       description: チーム定義の複製またはコピー元。
       type: object
@@ -3944,7 +3923,7 @@ components:
           type: string
           description: 元のチーム定義があるプロジェクト（本部に並べたプロジェクトの名前）。省くと serve を起動したプロジェクト。
     TeamOperationDocument:
-      description: チーム定義またはチームのルールに加える編集。
+      description: チーム定義またはチームの散文に加える編集。
       type: object
       additionalProperties: false
       properties:
@@ -3964,9 +3943,9 @@ components:
           description: 影響を検査する 1 つの編集
         doc:
           allOf:
-            - $ref: '#/components/schemas/TeamRuleDocumentRequest'
+            - $ref: '#/components/schemas/TeamProseDocumentRequest'
           nullable: true
-          description: 編集するチームのルールの文書
+          description: 編集するチームの散文の文書
         members:
           type: array
           nullable: true
@@ -4075,7 +4054,7 @@ components:
         from:
           type: string
           description: ワーカーを起動するメンバー名。空なら目的から決める。
-    TeamRuleDocument:
+    TeamProseDocument:
       description: Markdown の本文をそのまま保持する文書。
       type: object
       additionalProperties: false
@@ -4091,7 +4070,7 @@ components:
           type: string
           description: Markdown の全文
 
-    TeamRuleDocumentRequest:
+    TeamProseDocumentRequest:
       description: Markdown の本文をそのまま保持する文書。
       type: object
       additionalProperties: false
