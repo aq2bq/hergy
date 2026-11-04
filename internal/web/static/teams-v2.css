@@ -668,4 +668,6 @@ textarea.held-why { color: var(--faint); text-decoration: line-through; text-dec
 .role-dialog[open] { display: flex; flex-direction: column; height: min(880px, calc(100dvh - 32px)); overflow: hidden; }
 .role-dialog > header, .role-dialog > footer { flex-shrink: 0; }
 .role-dialog .role-usage { flex-shrink: 0; max-height: 25dvh; overflow: auto; }
-.role-dialog-body { flex: 1; min-height: 0; overflow: auto; }
+/* Inner previews hand wheel scrolling back to the body; the body keeps it in the dialog. */
+.role-dialog-body { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; }
+.role-dialog-body .ybox { overscroll-behavior: auto; }

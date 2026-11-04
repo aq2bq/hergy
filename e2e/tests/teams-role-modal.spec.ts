@@ -153,3 +153,61 @@ for (const outcome of ['success', 'failure'] as const) {
     await expect(trigger).toBeFocused();
   });
 }
+
+for (const viewport of [{ width: 1440, height: 900 }, { width: 1280, height: 720 }, { width: 375, height: 667 }]) {
+  for (const editing of [false, true]) {
+    test(`role dialog wheel returns from a long ${editing ? 'editor' : 'preview'} at ${viewport.width}×${viewport.height}`, async ({ page, app }) => {
+      const text = '規則の本文を読み、作業の前提と結果を確かめてから次の作業へ進む。'.repeat(8).slice(0, 170);
+      const doc = { version: 1, title: '長いロール', sections: Array.from({ length: 4 }, (_, si) => ({
+        heading: `節 ${si + 1}`, rules: Array.from({ length: 10 }, (_, ri) => ({
+          id: `S${si}R${ri}`, text: text + (si === 3 && ri === 9 ? '最後の行を読む' : ''),
+        })),
+      })) };
+      writeFileSync(path.join(app.proj, '.hergy/roles/builder.yaml'), JSON.stringify(doc));
+      await page.setViewportSize(viewport);
+      await page.goto(`${app.base}/teams?open=core`); await ready(page);
+      const row = page.locator('.tdef[data-name="core"]');
+      await row.locator('[data-cv-n="impl-a"]').click();
+      await row.getByRole('button', { name: 'ロールを確認・編集' }).first().click();
+      const dialog = page.getByRole('dialog', { name: 'ロール builder', exact: true });
+      await expect(dialog.getByLabel('タイトル', { exact: true })).toBeEnabled();
+      await expect(dialog.locator('.ybox .yl').last()).toContainText('最後の行を読む');
+      if (editing) await dialog.locator('.rule .rsum').first().click();
+      const body = dialog.locator('.role-dialog-body');
+      const readScroll = () => body.evaluate(el => {
+        const preview = el.querySelector<HTMLElement>('.ybox')!, last = preview.lastElementChild!;
+        const br = el.getBoundingClientRect(), pr = preview.getBoundingClientRect(), lr = last.getBoundingClientRect();
+        const input = el.querySelector<HTMLTextAreaElement>('.rule.open textarea');
+        return {
+          top: el.scrollTop, max: el.scrollHeight - el.clientHeight, clientHeight: el.clientHeight, scrollHeight: el.scrollHeight,
+          windowY: window.scrollY,
+          preview: { height: pr.height, clientHeight: preview.clientHeight, scrollHeight: preview.scrollHeight, top: preview.scrollTop, overscroll: getComputedStyle(preview).overscrollBehaviorY },
+          input: input ? { height: input.clientHeight, scrollHeight: input.scrollHeight, overscroll: getComputedStyle(input).overscrollBehaviorY } : null,
+          lastVisible: lr.top >= Math.max(br.top, pr.top, 0) && lr.bottom <= Math.min(br.bottom, pr.bottom, innerHeight),
+        };
+      });
+      const initial = await readScroll(), box = (await body.boundingBox())!;
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+      let lastSeen = false, backgroundStable = true;
+      for (let i = 0; i < 40; i++) {
+        await page.mouse.wheel(0, 400);
+        const s = await readScroll(); lastSeen ||= s.lastVisible; backgroundStable &&= s.windowY === initial.windowY;
+      }
+      const down = await readScroll(); lastSeen ||= down.lastVisible;
+      for (let i = 0; i < 40; i++) {
+        await page.mouse.wheel(0, -400);
+        const s = await readScroll(); backgroundStable &&= s.windowY === initial.windowY;
+      }
+      const up = await readScroll();
+      await test.info().attach('scroll-measurements', { body: JSON.stringify({ viewport, editing, initial, down, up, lastSeen, backgroundStable }, null, 2), contentType: 'application/json' });
+      expect(Math.abs(down.top - down.max), 'wheel reaches the bottom of the dialog body').toBeLessThanOrEqual(1);
+      expect(lastSeen, 'the last preview line appears while wheeling down').toBe(true);
+      await expect.poll(() => body.evaluate(el => el.scrollTop), 'wheel returns to the top of the dialog body').toBe(0);
+      expect(backgroundStable, 'the page behind the dialog does not move').toBe(true);
+      expect(up.windowY).toBe(initial.windowY);
+      await dialog.getByRole('button', { name: '閉じる', exact: true }).click();
+      await page.goto(`${app.base}/roles?open=builder`); await ready(page);
+      await expect(page.locator('.role.open .ybox')).toHaveCSS('overscroll-behavior-y', 'contain');
+    });
+  }
+}
