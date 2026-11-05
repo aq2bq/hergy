@@ -15,7 +15,10 @@ export function setRun(key: string, team: string): void {
 // no longer running is let go, and a single running team the server took alone
 // is taken here too. So neither panel keeps a stopped team's name, and both
 // name the same team (r-0b69).
-export function keepRun(key: string, answer: { runs?: { team: string }[]; selected?: { team: string } | null }): void {
+export function keepRun(key: string, answer: { status?: string; runs?: { team: string }[]; selected?: { team: string } | null }): void {
+  // A reading of the team state that failed says nothing about which teams run:
+  // the pick stands until a reading that knows (r-0b69).
+  if (answer.status === 'error') return;
   const runs = answer.runs || [];
   const picked = runOf(key);
   if (picked && !runs.some((run) => run.team === picked)) { setRun(key, ''); return; }

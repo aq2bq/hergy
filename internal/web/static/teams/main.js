@@ -3829,6 +3829,8 @@ function setRun(key, team) {
   promptRun.value = { ...promptRun.value, [key]: team };
 }
 function keepRun(key, answer) {
+  if (answer.status === "error")
+    return;
   const runs = answer.runs || [];
   const picked = runOf(key);
   if (picked && !runs.some((run) => run.team === picked)) {

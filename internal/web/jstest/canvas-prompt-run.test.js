@@ -24,7 +24,7 @@ function comparison(over = {}) {
 }
 
 // mode is what the comparison API answers with, changed between the phases.
-let mode = 'one';
+let mode = 'two';
 
 test('the note names the team the shown text was built with, in every case', async () => {
   history.replaceState({}, '', '/teams?open=core');
@@ -69,30 +69,31 @@ test('the note names the team the shown text was built with, in every case', asy
   click(row().querySelector('.cv-n.member[data-cv-n="lead"]')); await settle();
   await openTab();
 
-  // One running team under another name.
-  expect(note()).toContain('実行中のチーム core-hotfix の名前で作っています。');
-  expect(roster()).toContain('core-hotfix-builder');
-  const firstAsk = asked.filter((one) => one.url.startsWith('/api/team/prompt-comparison'));
-  expect(firstAsk.length).toBeGreaterThan(0);
-  expect(firstAsk[0].body.member).toBe('lead');
-  // The first reading names no team: a single running team is the server's pick.
-  expect(firstAsk[0].body.running_team).toBe('');
-  expect(firstAsk.every((one) => one.body.member === 'lead')).toBe(true);
-
-  // The team state cannot be read: the reason is shown, not "no team runs".
-  // The answer also lets the picked team go, which the next phase needs.
-  mode = 'error';
-  await reopen();
-  expect(note()).toContain('チームの状態を読めません そのため、定義名 core で作っています。');
-
-  // Two runs, none picked: the definition's name. The panel's pick is taken.
-  mode = 'two';
-  await reopen();
+  // Two runs, none picked: the definition's name. The panel's pick is taken,
+  // and the column builds with that team's name.
   expect(note()).toContain('動いているチームが 2 つあるため、定義名 core で作っています。');
   click(panel().querySelector('.cv-prompt button')); await settle(); await settle();
   choose(document.querySelector('.prompt-controls select'), 'core-hotfix'); await settle(); await settle();
   click([...document.querySelectorAll('.prompt-comparison button')].find((x) => x.textContent === '閉じる')); await settle(); await settle();
   expect(note()).toContain('実行中のチーム core-hotfix の名前で作っています。');
+  expect(roster()).toContain('core-hotfix-builder');
+
+  // A failed reading of the team state says nothing about the runs, so the pick
+  // stands: the reason is shown, and the next reading still names the pick.
+  mode = 'error';
+  await reopen();
+  expect(note()).toContain('チームの状態を読めません そのため、定義名 core で作っています。');
+  mode = 'two';
+  await reopen();
+  const afterError = asked.filter((one) => one.url.startsWith('/api/team/prompt-comparison'));
+  expect(afterError[afterError.length - 1].body.running_team).toBe('core-hotfix');
+  expect(note()).toContain('実行中のチーム core-hotfix の名前で作っています。');
+
+  // One running team: its name is taken and shown.
+  mode = 'one';
+  await reopen();
+  expect(note()).toContain('実行中のチーム core-hotfix の名前で作っています。');
+  expect(roster()).toContain('core-hotfix-builder');
 
   // The picked team stops, and the full panel is not opened: the column lets
   // the pick go and takes the one team still running.
