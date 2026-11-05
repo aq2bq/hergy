@@ -95,6 +95,10 @@ func (c *Catalog) FileState(path string) (there, readable bool, why string) {
 	return true, false, ""
 }
 
+// StateUnreadable is the API's word for a place whose file cannot be read
+// (r-ea17, d-0d00). It is written here once; the screens and the API copy it.
+const StateUnreadable = "unreadable"
+
 // Unreadable answers the API's two words for a path: why it cannot be read, and
 // the state word (r-ea17, d-0d00). A path that reads answers ("", "").
 func (c *Catalog) Unreadable(path string) (problem, state string) {
@@ -102,7 +106,7 @@ func (c *Catalog) Unreadable(path string) (problem, state string) {
 		return "", ""
 	}
 	if _, ok, why := c.FileState(path); !ok {
-		return why, "unreadable"
+		return why, StateUnreadable
 	}
 	return "", ""
 }

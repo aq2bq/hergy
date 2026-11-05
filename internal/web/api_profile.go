@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/profile"
 	"github.com/aq2bq/hergy/internal/source"
@@ -33,30 +34,43 @@ func (k apiProfile) List() (any, *apiErr) {
 	return k.s.p2List(), nil
 }
 
-// p2List is the profile list answer: one item per name, the two files' hashes,
-// and the two files' own readings.
+// p2List is the profile list answer: one row per place, taken from the owner
+// (ShownRows) so the rows are the same set and order the band counts (r-ea17).
+// A name both files hold is two rows, and a file that cannot be read is the one
+// row the owner returns for it.
 func (s *Server) p2List() apiList {
 	project, shared, defs := s.p2Read()
 	chips := p2Chips(defs)
 	out := apiList{Hashes: map[string]string{p2Project: project.hash, p2Shared: shared.hash}}
-	unreadable := s.p2Unreadable()
-	for _, name := range s.p2Names() {
-		item := p2ItemOf(p2RowOf(name, project, shared, chips, false), project, shared)
-		for place, why := range unreadable[name] {
-			// The file cannot be read: the place stands with the reason, so the
-			// row is still drawn and counted (r-ea17, d-17ab).
-			path, _, _ := s.p2ProfilePath(place)
-			why, state := s.unreadable(path, why)
-			item.Places[place] = apiPlace{
-				Doc: p2Draft{Name: name}, Path: s.cat.Display(path),
-				Problems: apiCounts{Err: 1}, Problem: why, State: state,
+	for _, one := range []struct{ layer, place string }{
+		{source.LayerLocal, p2Project},
+		{source.LayerGlobal, p2Shared},
+	} {
+		for _, listed := range s.cat.ShownRows(catalog.KindProfile, one.layer) {
+			if listed.Problem != "" || listed.Path == "" {
+				why, state := s.unreadable(listed.Path, listed.Problem)
+				out.Items = append(out.Items, apiItem{
+					Name: listed.Name, Places: map[string]apiPlace{}, Effective: one.place,
+					Problems: apiCounts{Err: 1}, Summary: apiProfileSummary{},
+				})
+				item := &out.Items[len(out.Items)-1]
+				item.Places[one.place] = apiPlace{
+					Doc: p2Draft{Name: listed.Name}, Path: s.cat.Display(listed.Path),
+					Problems: apiCounts{Err: 1}, Problem: why, State: state,
+				}
+				continue
 			}
-			item.Problems.Err++
-			if len(item.Places) == 1 {
-				item.Effective = place
+			item := p2ItemOf(p2RowOf(listed.Name, project, shared, chips, false), project, shared)
+			place, ok := item.Places[one.place]
+			if !ok {
+				continue
 			}
+			item.Places = map[string]apiPlace{one.place: place}
+			item.Hidden = nil
+			item.Effective = one.place
+			item.Problems = place.Problems
+			out.Items = append(out.Items, item)
 		}
-		out.Items = append(out.Items, item)
 	}
 	for _, file := range []p2File{project, shared} {
 		out.Files = append(out.Files, s.p2FileOf(file))

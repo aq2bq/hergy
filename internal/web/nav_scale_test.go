@@ -102,8 +102,8 @@ func TestNAV_N11_TheBandNumberFollowsASave(t *testing.T) {
 		t.Fatalf("adding one profile answered %d, want 200: %v", resp.StatusCode, decoded)
 	}
 	items, _ = decoded["items"].([]any)
-	if len(items) != 12 {
-		t.Fatalf("the save's list carries %d profiles, want the fixture's 11 and one more", len(items))
+	if len(items) != 13 {
+		t.Fatalf("the save's list carries %d profile rows, want the fixture's 12 and one more", len(items))
 	}
 	resp, body = f.get(t, server, "/profiles")
 	if resp.StatusCode != http.StatusOK {

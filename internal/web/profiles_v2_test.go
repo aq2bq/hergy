@@ -656,8 +656,8 @@ func TestProfilesPageCarriesTheFixtureScale(t *testing.T) {
 	server := f.server(t)
 
 	profiles := f.islandOf(t, server, "/profiles")
-	if len(profiles.Profile.Items) != 11 {
-		t.Errorf("the list reads %d rows, want 11", len(profiles.Profile.Items))
+	if len(profiles.Profile.Items) != 12 {
+		t.Errorf("the list reads %d rows, want 12", len(profiles.Profile.Items))
 	}
 	warned := false
 	for _, row := range profiles.Profile.Items {

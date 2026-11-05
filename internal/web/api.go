@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/i18n"
 )
@@ -141,7 +142,7 @@ func (s *Server) docUnreadableRefusal(path string) *apiErr {
 // and state, d-0d00). A file that is there and reads is ("", "").
 func (s *Server) unreadable(path, ownerProblem string) (problem, state string) {
 	if ownerProblem != "" {
-		return ownerProblem, "unreadable"
+		return ownerProblem, catalog.StateUnreadable
 	}
 	if path == "" {
 		return "", ""

@@ -9,7 +9,7 @@ import { resource, type Reading } from '../lib/resource';
 import { profileModel, check as apiCheck, save as apiSave, del as apiDel, list as apiList, problemText, bases, type Answer, type Place, type ProfilePanel, type ProfileRow, type Schemas } from '../lib/api.js';
 import { conflictOf } from '../lib/conflict.js';
 import { parseOpen, token as hqToken } from '../lib/hq.js';
-import { copyGroupOf, groupPlace, projectOfGroup } from '../lib/copy';
+import { copyGroupOf, projectOfGroup } from '../lib/copy';
 import { setDirty } from '../lib/nav.js';
 import type {
   Assign, AssignRow, Carried, ChangeSet, Draft, EnvPair, FocusAsk, Island,
@@ -262,18 +262,14 @@ function rowOf(row: ProfileRow & { group?: string }, index: number): Row {
 type ModelRow = ProfileRow & { group?: string };
 type Model = { rows: ModelRow[]; files: YamlFile[] };
 
-function modelOf(list: ProfileList | null, group?: string, narrow = false): Model {
+function modelOf(list: ProfileList | null, group?: string): Model {
   const model = profileModel(list, OPEN_ROWS.map((t) => t.name));
-  // The list draws one place's rows under that place's head (r-410c), the way
-  // the headquarters filters a group's list (web/hq.go's filterPlace). The lists
-  // a save answers with hold both places, so the group's place is the one kept.
-  const want = narrow ? groupPlace(group || '') : null;
-  const rows: ModelRow[] = model.rows
-    .map((row) => {
-      const placed: ModelRow = { ...row, group: group || '', open: isOpenRow({ ...row, group }) };
-      return want ? { ...placed, panels: (row.panels || []).filter((p) => p.file === want) } : placed;
-    })
-    .filter((row) => !want || (row.panels || []).length > 0);
+  // The answer already holds one place per row (r-ea17): a name both files hold
+  // is two items, one under each head, so this copies each item as a row.
+  const rows: ModelRow[] = model.rows.map((row) => {
+    const own = group || ((row.panels || [])[0]?.file === 'global' ? 'global' : '');
+    return { ...row, group: own, open: isOpenRow({ ...row, group: own }) };
+  });
   return { rows, files: model.files };
 }
 
@@ -286,7 +282,7 @@ function readInitial(): { rows: Row[]; files: YamlFile[] } {
     (HQ.profiles || []).forEach((g) => {
       const key = GROUPED ? groupKeyOf(g) : (g.global ? 'global' : '');
       learnFiles(key, g.list || null);
-      all.push(...modelOf(g.list || null, key, true).rows);
+      all.push(...modelOf(g.list || null, key).rows);
     });
     // The island's own list is this serve's project's: a write to its group
     // carries the hashes that list read (r-57d8).
@@ -295,9 +291,7 @@ function readInitial(): { rows: Row[]; files: YamlFile[] } {
   }
   learnFiles('', ISLAND.profile || null);
   const model = modelOf(ISLAND.profile || null);
-  const all: ModelRow[] = [];
-  for (const place of PLACES) all.push(...modelOf(ISLAND.profile || null, place === 'global' ? 'global' : '', true).rows);
-  return { rows: all.map(rowOf), files: model.files || [] };
+  return { rows: model.rows.map(rowOf), files: model.files || [] };
 }
 {
   const first = readInitial();
@@ -669,7 +663,7 @@ function applySaved(panel: Panel, answer: SavedAnswer | null): void {
   // The answer is the list of the group this write named: its files' hashes are
   // that group's, and no other group's panels stand on them (r-57d8).
   learnFiles(group, list);
-  const model = modelOf(list, panel.group, true);
+  const model = modelOf(list, panel.group);
   if (!GROUPED && answer && answer.hashes) {
     hashes.value = { project: answer.hashes.project || hashes.value.project, global: answer.hashes.global || hashes.value.global };
   }

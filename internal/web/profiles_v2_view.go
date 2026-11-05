@@ -269,6 +269,8 @@ func (s *Server) p2ReadFile(file, path string) p2File {
 	// own: the YAML tab asks the same rule the list does (r-ea17, d-0bf1).
 	there, ok, why := s.cat.FileState(path)
 	if !ok {
+		// The owner decides, so a held answer of an earlier read cannot stand
+		// for a file that is now unreadable (r-ea17, d-0d00).
 		out.problem = why
 		return out
 	}

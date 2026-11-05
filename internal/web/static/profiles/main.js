@@ -42,7 +42,6 @@ import {
 } from "../chunk/nav-x2g7eqvj.js";
 import {
   copyGroupOf,
-  groupPlace,
   projectOfGroup,
   bringUnderBand,
   ProjectView
@@ -243,13 +242,12 @@ function rowOf(row, index) {
     panels: (row.panels || []).map((p) => panelOf(p, row.group || "", key))
   };
 }
-function modelOf(list, group, narrow = false) {
+function modelOf(list, group) {
   const model = profileModel2(list, OPEN_ROWS.map((t) => t.name));
-  const want = narrow ? groupPlace(group || "") : null;
   const rows = model.rows.map((row) => {
-    const placed = { ...row, group: group || "", open: isOpenRow({ ...row, group }) };
-    return want ? { ...placed, panels: (row.panels || []).filter((p) => p.file === want) } : placed;
-  }).filter((row) => !want || (row.panels || []).length > 0);
+    const own = group || ((row.panels || [])[0]?.file === "global" ? "global" : "");
+    return { ...row, group: own, open: isOpenRow({ ...row, group: own }) };
+  });
   return { rows, files: model.files };
 }
 var rows = y([]);
@@ -260,17 +258,14 @@ function readInitial() {
     (HQ.profiles || []).forEach((g) => {
       const key = GROUPED ? groupKeyOf(g) : g.global ? "global" : "";
       learnFiles(key, g.list || null);
-      all.push(...modelOf(g.list || null, key, true).rows);
+      all.push(...modelOf(g.list || null, key).rows);
     });
     learnFiles(CURRENT, ISLAND.profile || null);
     return { rows: all.map(rowOf), files: modelOf(ISLAND.profile || null).files || [] };
   }
   learnFiles("", ISLAND.profile || null);
   const model = modelOf(ISLAND.profile || null);
-  const all = [];
-  for (const place of PLACES)
-    all.push(...modelOf(ISLAND.profile || null, place === "global" ? "global" : "", true).rows);
-  return { rows: all.map(rowOf), files: model.files || [] };
+  return { rows: model.rows.map(rowOf), files: model.files || [] };
 }
 {
   const first = readInitial();
@@ -686,7 +681,7 @@ function applySaved(panel, answer) {
   };
   const group = panel.group || "";
   learnFiles(group, list);
-  const model = modelOf(list, panel.group, true);
+  const model = modelOf(list, panel.group);
   if (!GROUPED && answer && answer.hashes) {
     hashes.value = { project: answer.hashes.project || hashes.value.project, global: answer.hashes.global || hashes.value.global };
   }

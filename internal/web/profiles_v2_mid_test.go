@@ -135,28 +135,37 @@ func pv2RemovedBlock(t *testing.T, before, after string) string {
 // GET /api/profile carries sonnet-fast as one row, the project's place in
 // effect and the shared one hidden, because the project's file writes the name
 // and the shared file writes it too (spec-profiles 1.2).
-func TestPROFILES_S3_TheListRowIsOneAndTheProjectIsInEffect(t *testing.T) {
+func TestPROFILES_S3_TheListDrawsOneRowPerPlace(t *testing.T) {
 	f, stop := fixtureProject(t)
 	defer stop()
 	server := f.server(t)
 
 	list := pv2ListBody(t, f, server, "/api/profile")
-	rows := 0
-	var row *apiItem
+	var rows []*apiItem
 	for i := range list.Items {
 		if list.Items[i].Name == "sonnet-fast" {
-			rows++
-			row = &list.Items[i]
+			rows = append(rows, &list.Items[i])
 		}
 	}
-	if rows != 1 {
-		t.Fatalf("the list carries %d sonnet-fast rows, want 1", rows)
+	// The name stands in both files, so it is two rows, one per place (r-ea17).
+	if len(rows) != 2 {
+		t.Fatalf("the list carries %d sonnet-fast rows, want 2 (one per place)", len(rows))
 	}
-	if row.Effective != p2Project {
-		t.Errorf("sonnet-fast is in effect at %q, want %q", row.Effective, p2Project)
+	seen := map[string]bool{}
+	for _, row := range rows {
+		if len(row.Places) != 1 {
+			t.Errorf("a row carries %d places, want 1: %+v", len(row.Places), row.Places)
+		}
+		if len(row.Hidden) != 0 {
+			t.Errorf("a row hides %v, want none", row.Hidden)
+		}
+		if _, ok := row.Places[row.Effective]; !ok {
+			t.Errorf("the effective place %q is not the row's place", row.Effective)
+		}
+		seen[row.Effective] = true
 	}
-	if len(row.Hidden) != 1 || row.Hidden[0] != p2Shared {
-		t.Errorf("sonnet-fast hides %v, want the shared place alone", row.Hidden)
+	if !seen[p2Project] || !seen[p2Shared] {
+		t.Errorf("the rows stand at %v, want both places", seen)
 	}
 }
 
