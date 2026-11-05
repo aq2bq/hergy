@@ -513,7 +513,8 @@ test('TEAMS-R1 team prose and roles use one full-text editor per document', asyn
   await page.goto(`${app.base}/teams?open=core&agree=core`); await ready(page);
   const row = page.locator('.tdef[data-name="core"]');
   await expect(row.locator('.prose-column')).toHaveCount(5);
-  await expect(row.getByRole('textbox', { name: '規則の全文' })).toHaveCount(1);
+  // The rules tab opens with every document of the definition (r-e9a2).
+  await expect(row.getByRole('textbox', { name: '規則の全文' })).toHaveCount(5);
   await row.getByRole('button', { name: 'すべて表示', exact: true }).click();
   await expect(row.getByRole('textbox', { name: '規則の全文' })).toHaveCount(5);
   await expect(row.locator('.prose-budget')).toHaveCount(5);

@@ -11,7 +11,9 @@ for (const width of [1440, 1000, 640]) {
   const row = page.locator('.tdef[data-name="core"]');
   const team = row.locator('.agree-p textarea');
   const role = row.locator('.role-column').filter({ has: page.getByRole('heading', { name: /builder/ }) });
-  await expect(row.locator('.prose-column:visible')).toHaveCount(1);
+  // The rules tab opens with every document of the definition (r-e9a2).
+  const documents = await row.locator('.prose-documents .prose-choice').count();
+  await expect(row.locator('.prose-column:visible')).toHaveCount(documents);
   await expect(row.locator('.hq-runc')).toBeVisible();
   await expect(row.locator('.sum .c-size')).not.toContainText('目安');
   await expect(team).toHaveCSS('font-size', '16px');

@@ -30,6 +30,10 @@ for (const width of [2000, 1440]) for (const theme of ['light', 'dark'] as const
    measurements.push({ screen, band: await measureBand() });
    await page.screenshot({ path: info.outputPath(`${screen}.png`) });
    if (screen !== 'teams' && screen !== 'roles') continue;
+   // The rules tab opens with every document of the definition, and the board
+   // scrolls inside itself; the gutters are measured on one document read alone
+   // (r-e9a2).
+   if (screen === 'teams') await page.locator('.prose-documents').getByRole('button', { name: /^ロール reviewer / }).click();
    const inputs = page.locator(screen === 'teams' ? '.tdef[data-name="core"] .prose-column:visible textarea' : '.role.open textarea');
    if (screen === 'teams') await expect(inputs).toHaveCount(1);
    await expect.poll(() => inputs.evaluateAll(ns => {

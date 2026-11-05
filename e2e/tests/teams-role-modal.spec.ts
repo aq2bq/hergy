@@ -103,6 +103,9 @@ test('caret movement updates the block count, blur clears it, and outline keeps 
   const outline = column.locator('.prose-outline');
   await expect.poll(() => outline.boundingBox()).toEqual(frame);
   await expect(outline.locator('li').nth(1)).toHaveCSS('padding-left', '14px');
+  // Opening the tab no longer sends the page to the editor (r-e9a2): the person
+  // scrolls to the column, and its save stands inside the window.
+  await column.getByRole('button', { name: '保存', exact: true }).scrollIntoViewIfNeeded();
   const save = await column.getByRole('button', { name: '保存', exact: true }).boundingBox();
   expect(save!.y + save!.height).toBeLessThanOrEqual(900);
 });
@@ -141,14 +144,15 @@ test('opening prose allocates a stable viewport below the real band and keeps sa
     const summary = n.closest('.tdef')!.querySelector(':scope > .sum')!.getBoundingClientRect();
     return n.getBoundingClientRect().top >= Math.max(band.bottom, summary.bottom);
   })).toBe(true);
-  // Opening the prose brings its columns under the band in a frame of its own:
-  // the height and the scroll open with requestAnimationFrame (teams/view.tsx,
-  // AgreePanel), and the two readings above answer on the columns' opening
-  // height as well. A frame that came late therefore left those columns where
-  // they opened, below the fold, and the measure below read them there: the
-  // board's bottom stood at 1035.9375 in the 900px window. The board stands
-  // inside the window only once that frame has run, so the walk waits for it
-  // here, before it measures.
+  // Opening the rules tab leaves the page where it is (r-e9a2), so the person
+  // sends it down to the board. The board's own frame is the height below the
+  // band and the summary, and its save stands inside the window.
+  await page.evaluate(() => {
+    const bar = document.querySelector<HTMLElement>('.bar')!;
+    const sum = document.querySelector<HTMLElement>('.tdef > .sum')!;
+    const board = document.querySelector<HTMLElement>('.prose-board')!;
+    window.scrollBy(0, board.getBoundingClientRect().top - bar.offsetHeight - sum.offsetHeight - 8);
+  });
   await expect.poll(async () => {
     const box = (await board.boundingBox())!;
     return box.y + box.height;

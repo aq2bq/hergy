@@ -186,6 +186,9 @@ a { color: inherit; text-decoration: none; }
 .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin-bottom: 14px; }
 /* 開いたチーム定義: トポロジーとルールのタブ */
 .detail { background: var(--sunk); padding: 6px 10px 20px 40px; display: grid; gap: 12px; }
+/* The tab body keeps the row's height floor (r-e9a2); like the panels before it,
+   it may be narrower than what stands inside and scroll there instead. */
+.detail > .dbody { min-width: 0; }
 .dtabs { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 22px; border-bottom: 1px solid var(--line); }
 .dtl { display: flex; flex-wrap: wrap; gap: 22px; }
 .dacts { margin-left: auto; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding-bottom: 6px; }

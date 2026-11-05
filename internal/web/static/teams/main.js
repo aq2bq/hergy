@@ -92,11 +92,19 @@ import {
 
 // teams/rule-selection.ts
 var ruleSelection = y({});
-var selectedRules = (uid) => ruleSelection.value[uid] || ["agreement"];
-function selectRule(uid, name, add = false) {
-  const current = selectedRules(uid);
+var selectedRules = (uid, available) => {
+  const chosen = ruleSelection.value[uid];
+  if (!chosen)
+    return available;
+  return chosen.filter((name) => available.includes(name));
+};
+function selectRule(uid, name, available, add = false) {
+  const current = selectedRules(uid, available);
   const next = add ? current.includes(name) ? current.filter((item) => item !== name) : [...current, name] : [name];
   ruleSelection.value = { ...ruleSelection.value, [uid]: next.length ? next : ["agreement"] };
+}
+function showOnly(uid, name) {
+  ruleSelection.value = { ...ruleSelection.value, [uid]: [name] };
 }
 
 // teams/prose-transfer.ts
@@ -174,7 +182,7 @@ function RoleButton({ r, name, children = "ロールを確認・編集" }) {
     type: "button",
     disabled: !name,
     onClick: () => {
-      selectRule(r.uid, "role:" + name);
+      showOnly(r.uid, "role:" + name);
       focusTarget.value = `prose-${r.uid}-${name}`;
       pressDtab(r, "agree");
     },
@@ -5557,8 +5565,27 @@ function Sum({ r, open }) {
 }
 function Detail({ r }) {
   const hidden = r.hidden.value || [];
+  const body = A(null);
+  const [floor, setFloor] = d(0);
+  const hold = q(() => {
+    const node = body.current;
+    if (node)
+      setFloor((was) => Math.max(was, node.getBoundingClientRect().height));
+  }, []);
+  h(() => {
+    const node = body.current;
+    if (!node)
+      return;
+    const grow = () => setFloor((was) => Math.max(was, node.getBoundingClientRect().height));
+    grow();
+    const observer = new ResizeObserver(grow);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
   return /* @__PURE__ */ u("div", {
     class: "detail",
+    onClickCapture: hold,
+    onKeyDownCapture: hold,
     children: [
       /* @__PURE__ */ u("ul", {
         class: "vm mvm",
@@ -5572,10 +5599,15 @@ function Detail({ r }) {
           r
         })
       }),
-      dtabOf(r) === "shape" ? /* @__PURE__ */ u(TeamPanel, {
-        r
-      }) : /* @__PURE__ */ u(AgreePanel, {
-        r
+      /* @__PURE__ */ u("div", {
+        class: "dbody",
+        ref: body,
+        style: floor ? { minHeight: `${floor}px` } : undefined,
+        children: dtabOf(r) === "shape" ? /* @__PURE__ */ u(TeamPanel, {
+          r
+        }) : /* @__PURE__ */ u(AgreePanel, {
+          r
+        })
       }),
       hidden.map((h) => /* @__PURE__ */ u("section", {
         class: "panel shadowed",
@@ -6124,21 +6156,10 @@ function AgreePanel({ r }) {
   const shadowed = r.place.value === "global" && (r.places || []).includes("project");
   const mode = pmodeOf(r);
   const workspace = A(null);
-  h(() => {
-    const frame = requestAnimationFrame(() => {
-      const node = workspace.current;
-      if (!node)
-        return;
-      const band = document.querySelector(".bar")?.offsetHeight || 0;
-      const summary = node.closest(".tdef")?.querySelector(":scope > .sum")?.offsetHeight || 0;
-      window.scrollBy({ top: node.getBoundingClientRect().top - band - summary, behavior: "instant" });
-    });
-    return () => cancelAnimationFrame(frame);
-  }, []);
   const names = [...new Set(r.draft.value.members.map((m) => m.role).filter(Boolean))];
   const available = ["agreement", ...names.map((name) => "role:" + name)];
-  const selected = selectedRules(r.uid).filter((name) => available.includes(name));
-  const active = selected.length ? selected : ["agreement"];
+  const picked = selectedRules(r.uid, available);
+  const active = picked.length ? picked : ["agreement"];
   h(() => {
     const node = workspace.current;
     if (!node || active.length < 2)
@@ -6153,8 +6174,6 @@ function AgreePanel({ r }) {
     };
     const frame = requestAnimationFrame(() => {
       fit();
-      if (tools)
-        window.scrollBy({ top: tools.getBoundingClientRect().top - (band?.offsetHeight || 0) - (summary?.offsetHeight || 0) - 8, behavior: "instant" });
     });
     const observer = new ResizeObserver(fit);
     for (const element of [band, summary, tools])
@@ -6187,7 +6206,7 @@ function AgreePanel({ r }) {
                 type: "button",
                 class: "btn",
                 "aria-pressed": active.includes(doc.key),
-                onClick: () => selectRule(r.uid, doc.key),
+                onClick: () => selectRule(r.uid, doc.key, available),
                 children: [
                   doc.label,
                   /* @__PURE__ */ u("small", {
@@ -6204,7 +6223,7 @@ function AgreePanel({ r }) {
                     type: "checkbox",
                     "aria-label": `${doc.label} を並べる`,
                     checked: active.includes(doc.key),
-                    onChange: () => selectRule(r.uid, doc.key, true)
+                    onChange: () => selectRule(r.uid, doc.key, available, true)
                   }),
                   "並べる"
                 ]

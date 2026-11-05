@@ -92,7 +92,10 @@ test('column width changes and equal reset keep the full text', async ({ page, a
  await expect.poll(async () => (await role.locator('.prose-budget').boundingBox())!.height).toBe(24);
  await role.getByRole('button', { name: '広く', exact: true }).click();
  await expect(role.locator('.prose-width button').last()).toHaveAttribute('aria-pressed', 'true');
- await expect(role).toHaveCSS('min-width', '480px');
+ // 広く keeps a column above the standard reading width and gives it twice the
+ // share of the board; it never narrows the others (r-e9a2).
+ const otherRole = row.locator('.role-column').filter({ has: page.getByRole('heading', { name: /lead/ }) });
+ await expect.poll(async () => (await role.boundingBox())!.width).toBeGreaterThan((await otherRole.boundingBox())!.width);
  await expect.poll(async () => row.locator('.prose-column').evaluateAll(nodes => nodes.every(n => n.getBoundingClientRect().width >= 240))).toBe(true);
  for (const column of await row.locator('.prose-column').all()) {
   await column.scrollIntoViewIfNeeded();
@@ -113,9 +116,30 @@ test('dragging stages a move and a failed destination never deletes the source',
  const section = '# 移動\n本文  \n', remainder = '# 残す\n次の本文\n';
  writeFileSync(a, section + remainder); const beforeB = readFileSync(b, 'utf8');
  const { row, role } = await open(page, app);
+ // Columns keep the standard reading width (r-e9a2), so the window is widened
+ // to hold the two columns a drag goes between.
+ await page.setViewportSize({ width: 2000, height: 1100 });
  const lead = row.locator('.role-column').filter({ has: page.getByRole('heading', { name: /lead/ }) });
- await role.getByRole('button', { name: '見出しだけ', exact: true }).click();
- await role.locator('.prose-grip').first().dragTo(lead.getByRole('textbox', { name: '規則の全文' }));
+ await role.getByRole('button', { name: '狭く（見出しだけにする）', exact: true }).click();
+ // Columns keep the standard reading width (r-e9a2), so one is narrowed and the
+ // board is sent to the two the drag goes between: the person scrolls the
+ // board, then drags.
+ await page.locator('.prose-board').evaluate((node, column) => {
+  node.scrollLeft += (column as HTMLElement).getBoundingClientRect().left - node.getBoundingClientRect().left - 40;
+ }, await lead.elementHandle());
+ const grip = role.locator('.prose-grip').first();
+ const target = lead.getByRole('textbox', { name: '規則の全文' });
+ await expect(grip).toBeInViewport();
+ await expect(target).toBeInViewport();
+ const from = (await grip.boundingBox())!;
+ const to = (await target.boundingBox())!;
+ await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+ await page.mouse.down();
+ await page.mouse.move(from.x + from.width / 2 + 30, from.y + from.height / 2 + 10, { steps: 5 });
+ // The tail of a column reaches past the window; the pointer goes to a point of
+ // the textarea that stands inside it.
+ await page.mouse.move(to.x + Math.min(to.width / 2, 300), to.y + 40, { steps: 12 });
+ await page.mouse.up();
  const dialog = page.getByRole('dialog', { name: '見出しを写す・移す' });
  await expect(dialog.getByLabel('操作', { exact: true })).toHaveValue('move');
  await expect(dialog.getByLabel('挿入位置')).toHaveValue('-1');

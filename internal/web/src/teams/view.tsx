@@ -226,12 +226,34 @@ function Sum({ r, open }: { r: Rec; open: boolean }) {
 // ---- detail ------------------------------------------------------------
 function Detail({ r }: { r: Rec }) {
   const hidden = r.hidden.value || [];
+  const body = useRef<HTMLDivElement>(null);
+  const [floor, setFloor] = useState(0);
+  // The tab body never shrinks below the tallest it has been for this
+  // definition: switching the tab or picking other documents changes what
+  // stands there, not where the page is (r-e9a2, ac-4ba8, ac-c66a). The floor is
+  // raised at the press itself, before the switch is drawn, and by its own
+  // size afterwards, so the browser never has a shorter page to clamp into.
+  const hold = useCallback(() => {
+    const node = body.current;
+    if (node) setFloor((was) => Math.max(was, node.getBoundingClientRect().height));
+  }, []);
+  useEffect(() => {
+    const node = body.current;
+    if (!node) return;
+    const grow = () => setFloor((was) => Math.max(was, node.getBoundingClientRect().height));
+    grow();
+    const observer = new ResizeObserver(grow);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
   return (
-    <div class="detail">
+    <div class="detail" onClickCapture={hold} onKeyDownCapture={hold}>
       <ul class="vm mvm"><Vm list={[...(r.nameIssues.value || []), ...r.findings.value.filter((m) => m.field === 'description')].map((m) => ({ sev: m.sev, text: m.text }))} /></ul>
       <nav class="dtabs"><DtabsNav r={r} /></nav>
 
-      {dtabOf(r) === 'shape' ? <TeamPanel r={r} /> : <AgreePanel r={r} />}
+      <div class="dbody" ref={body} style={floor ? { minHeight: `${floor}px` } : undefined}>
+        {dtabOf(r) === 'shape' ? <TeamPanel r={r} /> : <AgreePanel r={r} />}
+      </div>
       {hidden.map((h) => (
         <section class="panel shadowed"><header class="ph"><span class="ln">{placeName(h.place)}</span><code class="path">{(DIR[h.place] || '') + r.name.value}/</code><span class="state off">隠れている</span><span class="phr"><button class="btn sm" data-act="to-yaml" data-key={`${r.name.value}.${h.place}.team`} onClick={() => pressToYaml(`${r.name.value}.${h.place}.team`)}>YAML</button></span></header></section>
       ))}
@@ -479,20 +501,13 @@ function AgreePanel({ r }: { r: Rec }) {
   const shadowed = r.place.value === 'global' && (r.places || []).includes('project');
   const mode = pmodeOf(r);
   const workspace = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-   const frame = requestAnimationFrame(() => {
-    const node = workspace.current;
-    if (!node) return;
-    const band = document.querySelector<HTMLElement>('.bar')?.offsetHeight || 0;
-    const summary = node.closest('.tdef')?.querySelector<HTMLElement>(':scope > .sum')?.offsetHeight || 0;
-    window.scrollBy({ top: node.getBoundingClientRect().top - band - summary, behavior: 'instant' });
-   });
-   return () => cancelAnimationFrame(frame);
-  }, []);
+  // Opening the tab, and picking other documents, only changes what stands in
+  // the board: the page keeps the place it had (r-e9a2, ac-4ba8, ac-c66a). The
+  // row's own floor of height (Detail) keeps the place reachable.
   const names = [...new Set(r.draft.value.members.map(m => m.role).filter(Boolean))];
   const available = ['agreement', ...names.map(name => 'role:' + name)];
-  const selected = selectedRules(r.uid).filter(name => available.includes(name));
-  const active = selected.length ? selected : ['agreement'];
+  const picked = selectedRules(r.uid, available);
+  const active = picked.length ? picked : ['agreement'];
   useEffect(() => {
    const node = workspace.current;
    if (!node || active.length < 2) return;
@@ -506,7 +521,6 @@ function AgreePanel({ r }: { r: Rec }) {
    };
    const frame = requestAnimationFrame(() => {
     fit();
-    if (tools) window.scrollBy({ top: tools.getBoundingClientRect().top - (band?.offsetHeight || 0) - (summary?.offsetHeight || 0) - 8, behavior: 'instant' });
    });
    const observer = new ResizeObserver(fit);
    for (const element of [band, summary, tools]) if (element) observer.observe(element);
@@ -519,8 +533,8 @@ function AgreePanel({ r }: { r: Rec }) {
     <div class="prose-workspace" ref={workspace} data-mode={active.length === 1 ? 'single' : active.length === 2 ? 'compare' : 'all'}>
      <div class="prose-documents" aria-label="読む文書">
       {docs.map(doc => <div class={'prose-choice' + (active.includes(doc.key) ? ' on' : '')}>
-       <button type="button" class="btn" aria-pressed={active.includes(doc.key)} onClick={() => selectRule(r.uid, doc.key)}>{doc.label}<small>{doc.members}</small><small>{doc.status}</small></button>
-       <label><input type="checkbox" aria-label={`${doc.label} を並べる`} checked={active.includes(doc.key)} onChange={() => selectRule(r.uid, doc.key, true)} />並べる</label>
+       <button type="button" class="btn" aria-pressed={active.includes(doc.key)} onClick={() => selectRule(r.uid, doc.key, available)}>{doc.label}<small>{doc.members}</small><small>{doc.status}</small></button>
+       <label><input type="checkbox" aria-label={`${doc.label} を並べる`} checked={active.includes(doc.key)} onChange={() => selectRule(r.uid, doc.key, available, true)} />並べる</label>
       </div>)}
       <button class="btn" type="button" onClick={() => { ruleSelection.value = { ...ruleSelection.value, [r.uid]: available }; }}>すべて表示</button>
      </div>

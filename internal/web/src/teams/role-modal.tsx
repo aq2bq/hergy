@@ -1,4 +1,4 @@
-import { selectRule } from './rule-selection.js';
+import { showOnly } from './rule-selection.js';
 import { transferTargets } from './prose-transfer.js';
 import { documentID, documents } from '../lib/prose-transfer.js';
 import type { TransferSource } from '../lib/prose-transfer.js';
@@ -23,7 +23,7 @@ let ids = 1000000;
 const focusTarget = signal('');
 export function RoleButton({ r, name, children = 'ロールを確認・編集' }: { r: Rec; name: string; expectedPlace?: string; children?: string }) {
   return <button class="btn sm" type="button" disabled={!name} onClick={() => {
-    selectRule(r.uid, 'role:' + name);
+    showOnly(r.uid, 'role:' + name);
     focusTarget.value = `prose-${r.uid}-${name}`;
     pressDtab(r, 'agree');
   }}>{children}</button>;
