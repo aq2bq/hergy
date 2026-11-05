@@ -1672,6 +1672,7 @@ async function renamed(r, name, json) {
     place: f.place,
     name: f.name || "",
     kind: f.kind || "",
+    problem: f.problem || "",
     label: PLACE[f.place],
     path: f.path,
     hash: f.hash || "",
@@ -1874,7 +1875,8 @@ var yfiles = y((LIST.files || []).map((f) => ({
   hash: f.hash || "",
   text: f.text || "",
   hidden: !!f.hidden,
-  problems: f.problems || []
+  problems: f.problems || [],
+  problem: f.problem || ""
 })));
 var fileOf = (file) => yfiles.value.find((f) => f.file === file) || null;
 var fileKeys = () => PLACES.flatMap((p) => yfiles.value.filter((f) => f.place === p).map((f) => f.file));
@@ -6662,6 +6664,7 @@ function YamlFile({ f }) {
       name: f.name,
       extra: { part: f.kind },
       problems: yIssues(f.file),
+      problem: f.problem || "",
       onProblems: (probs) => yamlProblems(f.file, probs),
       onRevert: () => yamlRevert(f.file),
       onState: ({ text }) => yamlState(f.file, { text }),

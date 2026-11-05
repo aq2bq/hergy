@@ -33,7 +33,7 @@ function YamlFile({ file }: { file: SavedFileEntry }) {
     <YamlTab key={keyOfYed(r, l)} label={LNAME[l]} path={pathOf(l, e.saved)}
       badge={both ? { cls: 'state ' + (hid ? 'off' : 'on'), text: hid ? '隠れている' : '効いている' } : null}
       text={docText(r, l)} hash={e.hash || ''} kind="role" place={l} name={name}
-      problems={ychecksOf(l, name) || []}
+      problems={ychecksOf(l, name) || []} problem={e.problem || ''}
       onProblems={(probs: components['schemas']['Problem'][]) => setYchecks(l, name, probs)}
       onRevert={() => pressYamlRevert(r, l)}
       onState={({ text }: { text: string }) => { e.ytext = text; }}

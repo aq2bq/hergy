@@ -480,7 +480,7 @@ var ychecksOf = (place, name) => ychecks.value[ykey(place, name)];
 var setYchecks = (place, name, list) => {
   ychecks.value = { ...ychecks.value, [ykey(place, name)]: list };
 };
-var filesList = () => allEntries().filter((entry) => !!entry.e.saved && live(entry.r, entry.l) && (!GROUPED || entry.r.group === CURRENT || entry.r.group === "global"));
+var filesList = () => allEntries().filter((entry) => (!!entry.e.saved || !!entry.e.problem) && live(entry.r, entry.l) && (!GROUPED || entry.r.group === CURRENT || entry.r.group === "global")).map((entry) => ({ ...entry, e: { ...entry.e, saved: entry.e.saved || { name: curName(entry.r), title: "", text: "", __path: entry.r.paths?.[entry.l] } } }));
 var docText = (r, l) => {
   const e = r[l];
   return e && e.ytext !== undefined ? e.ytext : e && e.text || "";
@@ -1215,6 +1215,7 @@ function YamlFile({ file }) {
       place: l,
       name,
       problems: ychecksOf(l, name) || [],
+      problem: e.problem || "",
       onProblems: (probs) => setYchecks(l, name, probs),
       onRevert: () => pressYamlRevert(r, l),
       onState: ({ text }) => {

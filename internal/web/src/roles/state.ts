@@ -548,7 +548,12 @@ export const setYchecks = (place: Place, name: string, list: components['schemas
 // filesList is the YAML tab's files: this serve's project and the global layer,
 // which are the two places the tab writes to. Another project's rows are read and
 // written in the list, not here.
-export const filesList = (): SavedFileEntry[] => allEntries().filter((entry): entry is SavedFileEntry => !!entry.e.saved && live(entry.r, entry.l) && (!GROUPED || entry.r.group === CURRENT || entry.r.group === 'global'));
+// filesList is every document the YAML tab opens: the saved ones, and the rows
+// whose file cannot be read, which open read-only with the reason (r-ea17,
+// d-0d00; the same shape the team and profile tabs use).
+export const filesList = (): SavedFileEntry[] => allEntries()
+  .filter((entry) => (!!entry.e.saved || !!entry.e.problem) && live(entry.r, entry.l) && (!GROUPED || entry.r.group === CURRENT || entry.r.group === 'global'))
+  .map((entry): SavedFileEntry => ({ ...entry, e: { ...entry.e, saved: entry.e.saved || { name: curName(entry.r), title: '', text: '', __path: entry.r.paths?.[entry.l] } } }));
 export const docText = (r: RoleRow, l: Place): string => { const e = r[l]; return e && e.ytext !== undefined ? e.ytext : (e && e.text) || ''; };
 
 // ---- operations ------------------------------------------------------

@@ -1200,7 +1200,7 @@ export async function renamed(r: Rec, name: string, json: Schemas['TeamSaved']):
   setDtab(next.dom, tab);
   const files = (json.files || []).filter((f) => f.place === r.place.value && f.name === name);
   yfiles.value = yfiles.value.filter((f) => !(f.place === r.place.value && f.name === old)).concat(files.map((f): YFile => ({
-    file: `${f.name}.${f.place}.${f.kind}`, place: f.place, name: f.name || '', kind: f.kind || '', problem: f.problem || '',
+    file: `${f.name}.${f.place}.${f.kind}`, place: f.place, name: f.name || '', kind: f.kind || '', problem: (f as { problem?: string }).problem || '',
     label: PLACE[f.place], path: f.path, hash: f.hash || '', text: f.text || '', hidden: !!f.hidden, problems: f.problems || [],
   })));
   await checkTeam(next);
@@ -1423,7 +1423,7 @@ export type YFile = {
 export const yfiles = signal<YFile[]>((LIST.files || []).map((f): YFile => ({
   file: `${f.name}.${f.place}.${f.kind}`, place: f.place, name: f.name || '', kind: f.kind || '',
   label: PLACE[f.place] || '', path: f.path || '', hash: f.hash || '',
-  text: f.text || '', hidden: !!f.hidden, problems: f.problems || [], problem: f.problem || '',
+  text: f.text || '', hidden: !!f.hidden, problems: f.problems || [], problem: (f as { problem?: string }).problem || '',
 })));
 export const fileOf = (file: string): YFile | null => yfiles.value.find((f) => f.file === file) || null;
 export const fileKeys = (): string[] => PLACES.flatMap((p) => yfiles.value.filter((f) => f.place === p).map((f) => f.file));
