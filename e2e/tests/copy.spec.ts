@@ -840,6 +840,12 @@ test('COPY-R2 a copied role can save empty prose', async ({ page, app }) => {
   const source = page.locator('.role.open .panel[data-l=project]');
   await source.locator('[data-act=copy]').click();
   const target = page.locator('.role.open .panel[data-l=global]').filter({ has: page.locator('[data-f=name]') });
+  // Playwright writes into a textarea by selecting it and then sending the text
+  // as keys; an empty text is the Delete key. The copy puts its cursor in the
+  // name when the check answers, so a key sent before that landed in the name
+  // and emptied it (the save then wrote roles/.md, #7). The cursor stands in the
+  // name once the copy is ready for a person to type there.
+  await expect(target.locator('[data-f=name]'), 'the copy puts the cursor in its name').toBeFocused();
   await target.getByRole('textbox', { name: '規則の全文' }).fill('');
   await target.locator('[data-act=save]').click(); await expect(target.locator('.ok')).toBeVisible();
   expect(readFileSync(path.join(app.cfg, 'hergy/roles/builder.md'), 'utf8')).toBe('');
