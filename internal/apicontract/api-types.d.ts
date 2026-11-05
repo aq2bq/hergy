@@ -620,6 +620,11 @@ export interface components {
             problems: components["schemas"]["Counts"];
             /** @description その置き場所の文書が読めない理由。行は出て、件数にも数える（r-ea17、d-17ab） */
             problem?: string;
+            /**
+             * @description その置き場所のファイルが読めないという印。行は出て、件数にも数える（r-ea17、d-0d00）
+             * @enum {string}
+             */
+            state?: "unreadable";
         };
         /** @description Markdown の本文をそのまま保持する文書。 */
         RoleDoc: {
@@ -839,6 +844,11 @@ export interface components {
             problems: components["schemas"]["Counts"];
             /** @description そのファイルが読めない理由。行は出て、件数にも数える（r-ea17、d-17ab） */
             problem?: string;
+            /**
+             * @description その置き場所のファイルが読めないという印。行は出て、件数にも数える（r-ea17、d-0d00）
+             * @enum {string}
+             */
+            state?: "unreadable";
         };
         /** @description profiles.yaml 1 つの文書。ファイルに書いた順のプロファイルを持つ。 */
         ProfileFileDoc: {
@@ -1643,6 +1653,11 @@ export interface components {
             problems: components["schemas"]["TeamCounts"];
             /** @description team.yaml が読めない理由。行は出て、件数にも数える（r-ea17、d-17ab） */
             problem?: string;
+            /**
+             * @description その置き場所のファイルが読めないという印。行は出て、件数にも数える（r-ea17、d-0d00）
+             * @enum {string}
+             */
+            state?: "unreadable";
         };
         /** @description チーム定義にある問題と警告の数。 */
         TeamCounts: {

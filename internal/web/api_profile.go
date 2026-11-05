@@ -48,7 +48,7 @@ func (s *Server) p2List() apiList {
 			path, _, _ := s.p2ProfilePath(place)
 			item.Places[place] = apiPlace{
 				Doc: p2Draft{Name: name}, Path: s.cat.Display(path),
-				Problems: apiCounts{Err: 1}, Problem: why,
+				Problems: apiCounts{Err: 1}, Problem: why, State: "unreadable",
 			}
 			item.Problems.Err++
 			if len(item.Places) == 1 {

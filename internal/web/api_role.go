@@ -69,7 +69,7 @@ func (s *Server) r2ListOf(reading r2Reading) apiList {
 			if place.problem != "" {
 				item.Places[place.name] = apiPlace{
 					Doc: r2Doc{Name: item.Name}, Path: s.cat.Display(s.cat.RolePath(place.name, item.Name)),
-					Problems: apiCounts{Err: 1}, Problem: place.problem,
+					Problems: apiCounts{Err: 1}, Problem: place.problem, State: "unreadable",
 				}
 				item.Problems.Err++
 				continue

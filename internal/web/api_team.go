@@ -178,7 +178,7 @@ func (s *Server) t2ItemOf(listing catalog.Listing, ver string) apiItem {
 			// row is still drawn and counted (r-ea17, d-17ab).
 			item.Places[place] = apiPlace{
 				Doc: s.t2DocOf(listing.Name, layer, nil), Path: s.cat.Display(path),
-				Problems: apiCounts{Err: 1}, Problem: err.Error(),
+				Problems: apiCounts{Err: 1}, Problem: err.Error(), State: "unreadable",
 			}
 			continue
 		}
@@ -378,7 +378,7 @@ func (s *Server) t2FilesOf(listing catalog.Listing) []apiFile {
 				out = append(out, apiFile{
 					Place: place, Name: listing.Name, Kind: kind, Label: t2PlaceWord(place),
 					Path: s.cat.Display(path), Problem: why,
-					Problems: []apiProblem{{Sev: "err", At: "line", Line: 1, Text: why}},
+					Problems: []apiProblem{{Sev: "err", At: "line", Line: 1, Text: why}}, State: "unreadable",
 				})
 				return
 			}

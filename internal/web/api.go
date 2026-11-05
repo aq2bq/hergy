@@ -157,6 +157,10 @@ type apiPlace struct {
 	SavedLine     bool      `json:"savedLine,omitempty"`
 	Problems      apiCounts `json:"problems"`
 	Problem       string    `json:"problem,omitempty"`
+	// State is the place's word for a file that cannot be read: "unreadable".
+	// The list draws it the way the three kinds always draw a problem row
+	// (r-ea17, d-0d00).
+	State string `json:"state,omitempty"`
 }
 
 // apiFile is one file of a kind whose files hold many names: what the YAML tab
@@ -177,6 +181,10 @@ type apiFile struct {
 	// Problem is why the file cannot be read: the YAML tab says it and offers no
 	// save over it (r-ea17, d-0bf1).
 	Problem string `json:"problem,omitempty"`
+	// State is the place's word for a file that cannot be read: "unreadable".
+	// The list draws it the way the three kinds always draw a problem row
+	// (r-ea17, d-0d00).
+	State string `json:"state,omitempty"`
 }
 
 // apiProblem is a finding with its field or line and server-written message.
