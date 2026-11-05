@@ -1289,7 +1289,7 @@ var agreeDiff = (r) => !r.agreeSaved.value && !r.agreeDraft.value.text ? 0 : dif
 var teamIssues = (r) => r.findings.value;
 var pcountList = (c) => [...Array(c && c.err || 0)].map(() => ({ sev: "err" })).concat([...Array(c && c.warn || 0)].map(() => ({ sev: "warn" })));
 var rowIssues = (r) => r.draftRow ? teamIssues(r) : pcountList(r.problems.value);
-var dirtyDef = (r) => r.draftRow || changeCount(r) > 0 || (r.agreeSaved.value ? agreeDiff(r) > 0 : false);
+var dirtyDef = (r) => r.broken.value || r.problem.value ? false : r.draftRow || changeCount(r) > 0 || (r.agreeSaved.value ? agreeDiff(r) > 0 : false);
 function workerOrigin(w, ops) {
   let { from, purpose, profile } = w;
   for (let i = ops.length - 1;i >= 0; i--) {
@@ -1687,7 +1687,6 @@ async function renamed(r, name, json) {
     path: f.path,
     hash: f.hash || "",
     text: f.text || "",
-    hidden: !!f.hidden,
     problems: f.problems || []
   })));
   await checkTeam(next);
@@ -1884,7 +1883,6 @@ var yfiles = y((LIST.files || []).map((f) => ({
   path: f.path || "",
   hash: f.hash || "",
   text: f.text || "",
-  hidden: !!f.hidden,
   problems: f.problems || [],
   problem: f.problem || "",
   mark: f.mark || ""

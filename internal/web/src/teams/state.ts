@@ -789,7 +789,9 @@ const pcountList = (c: Schemas['TeamCounts'] | null | undefined): { sev: string 
 export const rowIssues = (r: Rec) => (r.draftRow ? teamIssues(r) : pcountList(r.problems.value));
 // A definition that is not there yet counts as unsaved whatever it holds: it is
 // written only when 保存 is pressed (spec-teams B2).
-export const dirtyDef = (r: Rec) => r.draftRow || changeCount(r) > 0 || (r.agreeSaved.value ? agreeDiff(r) > 0 : false);
+// A row whose team.yaml cannot be read is never a change: there is no document
+// it would write (r-1e9a; seen when the list draws a broken row with ●).
+export const dirtyDef = (r: Rec) => (r.broken.value || r.problem.value ? false : (r.draftRow || changeCount(r) > 0 || (r.agreeSaved.value ? agreeDiff(r) > 0 : false)));
 
 // workerOrigin is the worker of the saved file a draft worker stands in, read
 // back through the ops that changed its purpose or profile, or null when the
@@ -1213,7 +1215,7 @@ export async function renamed(r: Rec, name: string, json: Schemas['TeamSaved']):
   const files = (json.files || []).filter((f) => f.place === r.place.value && f.name === name);
   yfiles.value = yfiles.value.filter((f) => !(f.place === r.place.value && f.name === old)).concat(files.map((f): YFile => ({
     file: `${f.name}.${f.place}.${f.kind}`, place: f.place, name: f.name || '', kind: f.kind || '', problem: (f as { problem?: string }).problem || '', mark: (f as { mark?: string }).mark || '',
-    label: PLACE[f.place], path: f.path, hash: f.hash || '', text: f.text || '', hidden: !!f.hidden, problems: f.problems || [],
+    label: PLACE[f.place], path: f.path, hash: f.hash || '', text: f.text || '', problems: f.problems || [],
   })));
   await checkTeam(next);
   if (next.agreeSaved.value) await checkAgree(next);
@@ -1427,7 +1429,7 @@ const bumpRoles = () => { ROLES_REV.value += 1; };
 // opens it by.
 export type YFile = {
   file: string; place: Place; name: string; kind: string; label: string;
-  path: string; hash: string; text: string; hidden: boolean; problems: Schemas['Problem'][];
+  path: string; hash: string; text: string; problems: Schemas['Problem'][];
   // problem is why the file cannot be read: the YAML tab says it and offers no
   // save over it (r-ea17, d-0bf1).
   problem?: string;
@@ -1436,14 +1438,13 @@ export type YFile = {
 export const yfiles = signal<YFile[]>((LIST.files || []).map((f): YFile => ({
   file: `${f.name}.${f.place}.${f.kind}`, place: f.place, name: f.name || '', kind: f.kind || '',
   label: PLACE[f.place] || '', path: f.path || '', hash: f.hash || '',
-  text: f.text || '', hidden: !!f.hidden, problems: f.problems || [], problem: (f as { problem?: string }).problem || '', mark: (f as { mark?: string }).mark || '',
+  text: f.text || '', problems: f.problems || [], problem: (f as { problem?: string }).problem || '', mark: (f as { mark?: string }).mark || '',
 })));
 export const fileOf = (file: string): YFile | null => yfiles.value.find((f) => f.file === file) || null;
 export const fileKeys = (): string[] => PLACES.flatMap((p) => yfiles.value.filter((f) => f.place === p).map((f) => f.file));
 export const fileText = (file: string): string => (state.value.ytext[file] !== undefined ? state.value.ytext[file] : ((fileOf(file) || {}).text || ''));
 export const fileDirty = (file: string): boolean => state.value.ytext[file] !== undefined && state.value.ytext[file] !== ((fileOf(file) || {}).text || '');
 export const yIssues = (file: string): Schemas['Problem'][] => state.value.yc[file] || (fileOf(file) || {}).problems || [];
-export const recForFile = (f: YFile) => recs.value.find((x) => x.name.value === f.name && x.place.value === f.place && (x.project === CURRENT || x.project === '')) || null;
 // pickFile chooses one file for the address when the tab opens: the first the
 // places hold. The drawing itself asks chosenFile, which writes nothing.
 export function pickFile() {

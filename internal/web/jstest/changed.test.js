@@ -46,6 +46,10 @@ describe('changed', () => {
     expect(dirty(PROFILE, p(), p())).toBe(false);
     type: expect(lost(PROFILE, p(), { ...p(), args: [] })).toEqual(['引数']);
   });
+  test('a field with no value is the same as the field being absent', () => {
+    expect(dirty(ROLE_DOC, { ...role(), extra: undefined }, role())).toBe(false);
+    expect(same({ a: 1, b: undefined }, { a: 1 })).toBe(true);
+  });
   test('snapshot is a copy: changing it does not change the original', () => {
     const from = role();
     const copy = snapshot(from);

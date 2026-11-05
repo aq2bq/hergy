@@ -21,7 +21,10 @@ export function same(a: unknown, b: unknown): boolean {
     return a.every((one, i) => same(one, b[i]));
   }
   if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return false;
-  const ka = Object.keys(a), kb = Object.keys(b);
+  // A field whose value is undefined is no field at all: the value is handed to
+  // the API as JSON, where undefined and missing are the same (r-1e9a).
+  const ka = Object.keys(a).filter((key) => (a as Record<string, unknown>)[key] !== undefined);
+  const kb = Object.keys(b).filter((key) => (b as Record<string, unknown>)[key] !== undefined);
   if (ka.length !== kb.length) return false;
   return ka.every((key) => key in (b as object) && same((a as Record<string, unknown>)[key], (b as Record<string, unknown>)[key]));
 }
