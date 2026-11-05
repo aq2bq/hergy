@@ -6,7 +6,7 @@ import { CurrentPrompt, OriginLegend, OriginMarks, originLines, sectionAt, secti
 import type { OriginLine } from './prompt-origins.js';
 import { dkey, promptComparisonInput } from '../state.js';
 import type { Rec } from '../state.js';
-import { runOf, setRun } from './prompt-run.js';
+import { keepRun, runOf, setRun } from './prompt-run.js';
 
 type View = 'recorded' | 'current' | 'diff';
 type Answer = Schemas['PromptComparison'];
@@ -35,13 +35,16 @@ export function PromptComparison({ r, member, close }: {r: Rec; member: string; 
  }, [reading]);
  useEffect(() => { void load(); return () => reading.abort(); }, [reading, payload]);
  const answer = reading.value.value;
+
  // A pick that is gone from the runs is let go, and a single running team is
- // taken the way the server took it, so the prompt column reads the same name.
+ // taken the way the server took it, so the prompt column reads the same name
+ // (the same call stands in prompt.tsx).
  useEffect(() => {
   if (!answer) return;
-  if (runOf(key) && !answer.runs.some(run => run.team === runOf(key))) { setRun(key, ''); setRunning(''); return; }
-  if (!runOf(key) && answer.selected) setRun(key, answer.selected.team);
- }, [answer, key]);
+  keepRun(key, answer);
+  const next = runOf(key);
+  if (next !== running) setRunning(next);
+ }, [answer, key, running]);
  const lines = useMemo(() => answer?.current !== null && answer?.current !== undefined ? originLines(answer.current, answer.segments) : null, [answer]);
  const busy = reading.loading.value;
  const error = reading.error.value;

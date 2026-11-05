@@ -14,7 +14,7 @@ import { topologySections } from './prompt-origins.js';
 import { dkey, memberOf, promptBlockedOf, promptComparisonInput, promptsOf, workerPrompt } from '../state.js';
 import type { Member, PromptSegment, Rec, Worker, WorkerPrompt as WorkerPromptText } from '../state.js';
 import { selOf } from './shared.js';
-import { runOf } from './prompt-run.js';
+import { keepRun, runOf } from './prompt-run.js';
 
 // lineAtMaker reads which line an offset of the whole prompt stands on.
 function lineAtMaker(full: string): (off: number) => number {
@@ -108,6 +108,9 @@ export function MemberPrompt({ r, m }: { r: Rec; m: Member }): JSX.Element {
   }, [reading, key, m.name, tick, blocked, runOf(key)]);
   const answer = reading.value.value;
   const failure = reading.error.value;
+  // The same follow-up the whole-text panel makes: a picked team that stopped
+  // is let go, a single running team is taken (r-0b69).
+  useEffect(() => { if (answer) keepRun(key, answer); }, [answer, key]);
   // A text the server could not build with a running team's name falls back to
   // the check's own segments, which stand on the definition's name.
   const fallback = promptsOf(r).find(item => item.name === m.name);
@@ -115,8 +118,14 @@ export function MemberPrompt({ r, m }: { r: Rec; m: Member }): JSX.Element {
   const shown = answer ? answer.team : r.name.value;
   const name = r.name.value;
   const runs = (answer && answer.runs) || [];
-  const note = failure ? `${problemText(failure, '本文を読めませんでした')} そのため、定義名 ${name} で作っています。`
+  const note = failure
+    // A failed re-read keeps the text it already had: the note names the team
+    // that text was built with, not the one that failed (r-0b69).
+    ? answer
+      ? `${problemText(failure, '本文を読めませんでした')} 直前に作った文は、${answer.selected ? `実行中のチーム ${answer.team}` : `定義名 ${answer.team}`} の名前で作ったものです。`
+      : `${problemText(failure, '本文を読めませんでした')} そのため、定義名 ${name} で作っています。`
     : !answer ? ''
+    : answer.status === 'error' ? `${answer.reason || 'チームの状態を読めませんでした'} そのため、定義名 ${name} で作っています。`
     : answer.selected ? `実行中のチーム ${shown} の名前で作っています。`
     : runs.length > 1 ? `動いているチームが ${runs.length} つあるため、定義名 ${name} で作っています。全文と差分のパネルでチームを選ぶと、その名前で作ります。`
     : runs.length === 0 ? `この定義から動いているチームが無いため、定義名 ${name} で作っています。`

@@ -3828,6 +3828,16 @@ function setRun(key, team) {
     return;
   promptRun.value = { ...promptRun.value, [key]: team };
 }
+function keepRun(key, answer) {
+  const runs = answer.runs || [];
+  const picked = runOf(key);
+  if (picked && !runs.some((run) => run.team === picked)) {
+    setRun(key, "");
+    return;
+  }
+  if (!picked && answer.selected)
+    setRun(key, answer.selected.team);
+}
 
 // teams/canvas/prompt-comparison.tsx
 function PromptComparison({ r, member, close }) {
@@ -3866,14 +3876,11 @@ function PromptComparison({ r, member, close }) {
   h(() => {
     if (!answer)
       return;
-    if (runOf(key) && !answer.runs.some((run) => run.team === runOf(key))) {
-      setRun(key, "");
-      setRunning("");
-      return;
-    }
-    if (!runOf(key) && answer.selected)
-      setRun(key, answer.selected.team);
-  }, [answer, key]);
+    keepRun(key, answer);
+    const next = runOf(key);
+    if (next !== running)
+      setRunning(next);
+  }, [answer, key, running]);
   const lines = T(() => answer?.current !== null && answer?.current !== undefined ? originLines(answer.current, answer.segments) : null, [answer]);
   const busy = reading.loading.value;
   const error = reading.error.value;
@@ -4255,12 +4262,16 @@ function MemberPrompt({ r, m }) {
   }, [reading, key, m.name, tick, blocked, runOf(key)]);
   const answer = reading.value.value;
   const failure = reading.error.value;
+  h(() => {
+    if (answer)
+      keepRun(key, answer);
+  }, [answer, key]);
   const fallback = promptsOf(r).find((item) => item.name === m.name);
   const segments = answer ? answer.segments : fallback?.segments || [];
   const shown = answer ? answer.team : r.name.value;
   const name = r.name.value;
   const runs = answer && answer.runs || [];
-  const note = failure ? `${problemText2(failure, "本文を読めませんでした")} そのため、定義名 ${name} で作っています。` : !answer ? "" : answer.selected ? `実行中のチーム ${shown} の名前で作っています。` : runs.length > 1 ? `動いているチームが ${runs.length} つあるため、定義名 ${name} で作っています。全文と差分のパネルでチームを選ぶと、その名前で作ります。` : runs.length === 0 ? `この定義から動いているチームが無いため、定義名 ${name} で作っています。` : `定義名 ${name} で作っています。`;
+  const note = failure ? answer ? `${problemText2(failure, "本文を読めませんでした")} 直前に作った文は、${answer.selected ? `実行中のチーム ${answer.team}` : `定義名 ${answer.team}`} の名前で作ったものです。` : `${problemText2(failure, "本文を読めませんでした")} そのため、定義名 ${name} で作っています。` : !answer ? "" : answer.status === "error" ? `${answer.reason || "チームの状態を読めませんでした"} そのため、定義名 ${name} で作っています。` : answer.selected ? `実行中のチーム ${shown} の名前で作っています。` : runs.length > 1 ? `動いているチームが ${runs.length} つあるため、定義名 ${name} で作っています。全文と差分のパネルでチームを選ぶと、その名前で作ります。` : runs.length === 0 ? `この定義から動いているチームが無いため、定義名 ${name} で作っています。` : `定義名 ${name} で作っています。`;
   return /* @__PURE__ */ u("section", {
     class: "cv-sec cv-prompt cv-topology-prompt",
     children: [
