@@ -1365,7 +1365,7 @@ components:
             type: string
           description: 置き場所とロール名（project.builder）ごとの、ロールの文書が入っているファイルのハッシュ
     RoleItem:
-      description: ロールの一覧の 1 行。置き場所ごとの読みと、一覧の欄が読む数を持つ。
+      description: ロールの一覧の 1 行。1 つの置き場所の読みを持つ（置き場所ごとに 1 行、r-ea17）。
       type: object
       additionalProperties: false
       required: [name, places, effective, hidden, summary, problems]
@@ -1377,7 +1377,7 @@ components:
           type: object
           additionalProperties:
             $ref: "#/components/schemas/RolePlace"
-          description: 置き場所（project か global）ごとの、そのロール名の読み
+          description: その行の置き場所（project か global）1 つだけの読み
         effective:
           type: string
           description: 使われる置き場所。両方に文書があれば project、グローバルのものだけなら global。
@@ -1762,7 +1762,7 @@ components:
           items:
             $ref: "#/components/schemas/File"
     ProfileItem:
-      description: プロファイルの一覧の 1 行。置き場所ごとの読みと、一覧の欄が読む数を持つ。
+      description: プロファイルの一覧の 1 行。1 つの置き場所の読みを持つ（置き場所ごとに 1 行、r-ea17）。
       type: object
       additionalProperties: false
       required: [name, places, effective, hidden, summary, problems]
@@ -1774,7 +1774,7 @@ components:
           type: object
           additionalProperties:
             $ref: "#/components/schemas/ProfilePlace"
-          description: 置き場所（project か global）ごとの、そのプロファイル名の読み
+          description: その行の置き場所（project か global）1 つだけの読み
         effective:
           type: string
           description: 使われる置き場所。両方にあれば project、グローバルのものだけなら global。

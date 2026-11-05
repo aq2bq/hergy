@@ -1117,7 +1117,14 @@ function orderRows(r, at) {
   all.splice(Math.max(0, Math.min(at < 0 ? 0 : at, all.length)), 0, r);
   recs.value = all;
 }
-var rowsOfGroup = (key) => recs.value.filter((r) => groupOfRecord(r) === key);
+var groupRecs = (key) => recs.value.filter((r) => groupOfRecord(r) === key);
+var rowsInGroup = (key) => {
+  if (HQ && HQ.teams && HQ.teams.length) {
+    const g = HQ.teams.find((one) => (GROUPED ? groupKeyOf(one) : one.global ? "global" : "") === key);
+    return (g && g.list && g.list.items || []).length;
+  }
+  return (LIST.items || []).filter((item) => (item.effective === "global" ? "global" : "") === key || key === "" && item.effective !== "global").length;
+};
 function draftRecord(how, place, name, base, project) {
   const r = recOf({
     dom: "~new" + ++uids,
@@ -1571,10 +1578,9 @@ async function saveAgree(r, over) {
 }
 function itemInGroup(item, group) {
   const place = groupPlace(group);
-  const one = item.places && item.places[place];
-  if (!one)
-    return { ...item, places: {}, effective: place, hidden: [] };
-  return { ...item, places: { [place]: one }, effective: place, hidden: [] };
+  if (item.places && item.places[place])
+    return item;
+  return { ...item, places: {}, effective: place, hidden: [] };
 }
 async function saveFolder(r) {
   const doc = toDoc2(r.agreeDraft.value, r.agreeSaved.value);
@@ -5426,14 +5432,14 @@ function List() {
     ]
   });
   const body = placeGroups().map((g) => {
-    const rows = rowsOfGroup(g.key);
+    const rows = groupRecs(g.key);
     return /* @__PURE__ */ u(S, {
       children: [
         PlaceHead({ g }),
         rows.map((r) => /* @__PURE__ */ u(Row, {
           r
         }, r.key.value)),
-        rows.length === 0 ? /* @__PURE__ */ u("div", {
+        rowsInGroup(g.key) === 0 ? /* @__PURE__ */ u("div", {
           class: "hq-empty",
           children: /* @__PURE__ */ u("span", {
             class: "none",
@@ -5474,7 +5480,7 @@ function PlaceHead({ g }) {
   const key = g.key;
   const target = key === "global" ? "global" : "project";
   const said = key === "global" ? "グローバル" : g.name;
-  const count = rowsOfGroup(key).length;
+  const count = rowsInGroup(key);
   const live = (st.running.value && st.running.value.teams || []).filter((t) => t.project === (key || CURRENT || HQ?.projects?.current?.path)).length;
   return /* @__PURE__ */ u("div", {
     class: "hq-gh" + (g.global ? " global" : ""),

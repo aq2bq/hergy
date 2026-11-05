@@ -602,7 +602,20 @@ export function orderRows(r: Rec, at: number): void {
   all.splice(Math.max(0, Math.min(at < 0 ? 0 : at, all.length)), 0, r);
   recs.value = all;
 }
-export const rowsOfGroup = (key: string) => recs.value.filter((r: Rec) => groupOfRecord(r) === key);
+// groupRecs is the records the group draws: one per row of its own list answer
+// (r-ea17).
+export const groupRecs = (key: string) => recs.value.filter((r: Rec) => groupOfRecord(r) === key);
+
+// rowsInGroup is the group's rows as its own list answer holds them: a group
+// head counts the rows the answer drew, not the records the screen rebuilt
+// (r-ea17, lead's answer 1).
+export const rowsInGroup = (key: string): number => {
+  if (HQ && HQ.teams && HQ.teams.length) {
+    const g = HQ.teams.find((one) => (GROUPED ? groupKeyOf(one) : (one.global ? 'global' : '')) === key);
+    return ((g && g.list && g.list.items) || []).length;
+  }
+  return (LIST.items || []).filter((item) => (item.effective === 'global' ? 'global' : '') === key || key === '' && item.effective !== 'global').length;
+};
 
 // ---- まだ無い定義（B2, B3） --------------------------------------------
 // A definition that is not there yet is one row the screen holds rather than a
@@ -1098,10 +1111,8 @@ export async function saveAgree(r: Rec, over?: string) {
   checkAgree(r);
 }
 // itemInGroup is one item of a list answer as a grouped screen's group reads
-// it: only the place that group stands in, the way the headquarters filters a
-// group's list (web/hq.go's filterPlace). A list a save answers with holds both
-// places, and the side a person is looking at is the one the row must keep
-// (r-f781). Without projects listed the row keeps both places.
+// it: the answer already holds one place per row (r-ea17), so this only checks
+// that the item stands in the group's place and leaves it as it is.
 function itemInGroup(item: DefItem, group: string): DefItem {
   const place = groupPlace(group);
   if (item.places && item.places[place]) return item;

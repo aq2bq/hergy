@@ -26,7 +26,7 @@ import { copyGroupOf } from '../lib/copy.js';
 import { bringUnderBand } from '../lib/band.js';
 import { askConfirm, ConfirmDialog } from '../lib/confirm.js';
 import {
-  PLACES, PLACE, DIR, HQ, GROUPED, GROUPS, CURRENT, state, allRecs, rowsOfGroup, placeGroups,
+  PLACES, PLACE, DIR, HQ, GROUPED, GROUPS, CURRENT, state, allRecs, groupRecs, rowsInGroup, placeGroups,
   dkey, currentProjectName, teamLabel, dtabOf, isOpen, missingOpen,
   rowIssues, dirtyDef, teamIssues, agreeIssues, agreeDiff, changeCount, vlistParts,
   rowOfPanel, okOf, refusalOf, pmodeOf, yfiles, fileOf, fileDirty, yIssues,
@@ -88,9 +88,9 @@ export function List() {
     <div class="head"><span></span><span>チーム定義名</span><span>説明</span><span>メンバー</span><span>ワーカー</span><span>規則とひな形（目安 1,200 字）</span>{HQ ? <span class="hq-runh">状態と操作</span> : null}</div>
   );
   const body = placeGroups().map((g) => {
-    const rows = rowsOfGroup(g.key);
+    const rows = groupRecs(g.key);
     return <>{PlaceHead({ g })}{rows.map((r) => <Row key={r.key.value} r={r} />)}
-      {rows.length === 0 ? <div class="hq-empty"><span class="none">{g.name} にはチーム定義がありません。</span></div> : null}
+      {rowsInGroup(g.key) === 0 ? <div class="hq-empty"><span class="none">{g.name} にはチーム定義がありません。</span></div> : null}
     </>;
   });
   return <>{missingOpen.value.length ? <p role="status">チーム定義 {missingOpen.value.join('、')} が見つかりません。<a href="/teams">一覧を見る</a></p> : null}<div class="list hq-grouped">{head}{body}</div></>;
@@ -103,7 +103,7 @@ function PlaceHead({ g }: { g: TeamGroup }) {
   const key = g.key;
   const target = key === 'global' ? 'global' : 'project';
   const said = key === 'global' ? 'グローバル' : g.name;
-  const count = rowsOfGroup(key).length;
+  const count = rowsInGroup(key);
   const live = ((hq.running.value && hq.running.value.teams) || []).filter((t: { project?: string }) => t.project === (key || CURRENT || HQ?.projects?.current?.path)).length;
   return <div class={'hq-gh' + (g.global ? ' global' : '')} data-group={key} data-place={target} aria-label={`置き場所: ${said}`}>
       <span class="hq-gn">{g.name}</span><span class="hq-gp">{g.display || ''}</span>

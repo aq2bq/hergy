@@ -345,7 +345,7 @@ func (s *Server) globalCatalog() *catalog.Catalog {
 	if s.projects != nil {
 		return s.projects.GlobalCatalog()
 	}
-	return s.cat.LayerOnly(source.LayerGlobal)
+	return s.cat
 }
 
 // catalogAt is the catalog of one project, or this server's own for an empty

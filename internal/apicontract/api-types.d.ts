@@ -589,11 +589,11 @@ export interface components {
                 [key: string]: string;
             };
         };
-        /** @description ロールの一覧の 1 行。置き場所ごとの読みと、一覧の欄が読む数を持つ。 */
+        /** @description ロールの一覧の 1 行。1 つの置き場所の読みを持つ（置き場所ごとに 1 行、r-ea17）。 */
         RoleItem: {
             /** @description ロール名 */
             name: string;
-            /** @description 置き場所（project か global）ごとの、そのロール名の読み */
+            /** @description その行の置き場所（project か global）1 つだけの読み */
             places: {
                 [key: string]: components["schemas"]["RolePlace"];
             };
@@ -813,11 +813,11 @@ export interface components {
             /** @description 2 つのプロファイルのファイル（プロジェクトのものとグローバルのもの） */
             files: components["schemas"]["File"][];
         };
-        /** @description プロファイルの一覧の 1 行。置き場所ごとの読みと、一覧の欄が読む数を持つ。 */
+        /** @description プロファイルの一覧の 1 行。1 つの置き場所の読みを持つ（置き場所ごとに 1 行、r-ea17）。 */
         ProfileItem: {
             /** @description プロファイル名 */
             name: string;
-            /** @description 置き場所（project か global）ごとの、そのプロファイル名の読み */
+            /** @description その行の置き場所（project か global）1 つだけの読み */
             places: {
                 [key: string]: components["schemas"]["ProfilePlace"];
             };
