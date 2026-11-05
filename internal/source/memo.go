@@ -12,7 +12,11 @@ import (
 // the file it read: its size and the moment it was last written. A request asks
 // for the same file twice, or the next request asks for it again, and the file is
 // not opened unless its version moved. A file that changed is read again on the
-// next answer: nothing is held for a time (d-e00b).
+// next answer: nothing is held for a time (d-e00b). A file whose permissions,
+// owner or directory changed can stop reading without moving its version, so a
+// held copy is answered only after the file opens once more; a file that no
+// longer opens is answered with its error, and the copy is dropped (d-e00b, the
+// same rule for a change no timestamp shows).
 //
 // A Memo is safe for concurrent use: hergy serve answers several requests at
 // once. One Memo is one file system's reading; a serve builds one and hands it
@@ -60,11 +64,24 @@ func (m *Memo) Read(d Doc) (string, error) {
 	m.mu.Lock()
 	cached, ok := m.files[d.Path]
 	if ok && cached.exist == exist && cached.size == size && cached.mod == mod {
-		m.hits++
 		m.mu.Unlock()
 		if !exist {
 			return "", &os.PathError{Op: "open", Path: d.Path, Err: os.ErrNotExist}
 		}
+		// The version did not move, but the file may have stopped opening: a
+		// permission or owner change moves neither size nor time. Open it once
+		// (and close it) before the held text answers.
+		held, err := os.Open(d.Path) //nolint:gosec // G304: a path the catalog named
+		if err != nil {
+			m.mu.Lock()
+			delete(m.files, d.Path)
+			m.mu.Unlock()
+			return "", err
+		}
+		_ = held.Close()
+		m.mu.Lock()
+		m.hits++
+		m.mu.Unlock()
 		return cached.text, nil
 	}
 	m.mu.Unlock()
