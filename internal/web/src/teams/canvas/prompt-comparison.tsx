@@ -65,16 +65,31 @@ function FullText({text}: {text: string}) {
 }
 function Difference({answer, lines}: {answer: Answer; lines: OriginLine[] | null}) {
  if (!answer.recorded || answer.current===null) return <p>両方の本文がそろわないため、比較できません。</p>;
- // The band follows the current text's lines, so only rows the current text
- // still has (unchanged and added) stand inside it (r-04fc).
+ // The band follows the current text's lines: unchanged and added rows stand
+ // on them, and a removed row between them stays in the band without a mark
+ // (r-04fc, d-2f04). The first and last rows of the band are the rows the
+ // current text still has.
  const spans = lines ? sectionSpans(lines).map(span => {
   const present = answer.diff.flatMap(line => (line.new && line.new - 1 >= span.start && line.new - 1 < span.end ? [line.new - 1] : []));
   return { ...span, first: present.length ? Math.min(...present) : -1, last: present.length ? Math.max(...present) : -1 };
  }) : [];
+ // gap is the band a removed row stands inside: the nearest rows the current
+ // text still has above and below it, both in one band.
+ const gap = (() => {
+  const before: number[] = [], after: number[] = new Array(answer.diff.length).fill(-1);
+  let seen = -1;
+  answer.diff.forEach((line, i) => { before[i] = seen; if (line.new) seen = line.new - 1; });
+  seen = -1;
+  for (let i = answer.diff.length - 1; i >= 0; i--) { after[i] = seen; if (answer.diff[i].new) seen = answer.diff[i].new - 1; }
+  return answer.diff.map((line, i) => {
+   if (line.new || before[i] < 0 || after[i] < 0) return undefined;
+   return spans.find(span => span.first >= 0 && before[i] >= span.first && after[i] <= span.last && after[i] === before[i] + 1);
+  });
+ })();
  return <>{!lines && <p role="alert">本文と由来が一致しないため、印を表示できません。再取得してください。</p>}{answer.recorded.text===answer.current && <p>差はありません。</p>}{answer.diff.map((line,i) => {
   const at = line.new ? line.new - 1 : -1;
-  const span = at >= 0 ? sectionAt(spans, at) : undefined;
-  return <div key={i} class={`prompt-diff-line ${line.kind}`} data-new-line={line.new || undefined} data-section={span?.kind} data-section-start={span && span.first === at ? '' : undefined} data-section-end={span && span.last === at ? '' : undefined}>
+  const span = at >= 0 ? sectionAt(spans, at) : gap[i];
+  return <div key={i} class={`prompt-diff-line ${line.kind}`} data-new-line={line.new || undefined} data-section={span?.kind} data-section-start={span && at >= 0 && span.first === at ? '' : undefined} data-section-end={span && at >= 0 && span.last === at ? '' : undefined}>
    <span class="prompt-line-number" aria-label="記録の行">{line.old || ''}</span><span class="prompt-line-number" aria-label="今の行">{line.new || ''}</span><span aria-label={line.kind==='add' ? '追加' : line.kind==='remove' ? '削除' : '変更なし'}>{line.kind==='add' ? '+' : line.kind==='remove' ? '−' : ' '}</span><OriginMarks segments={line.new ? lines?.[line.new - 1]?.segments || [] : []}/><div><pre>{line.text}</pre>{!line.text.endsWith('\n') && <span class="prompt-eof">末尾に改行はありません</span>}</div>
   </div>;
  })}</>;

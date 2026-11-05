@@ -90,9 +90,27 @@ for (const theme of ['light','dark'] as const) {
   await expect(panel.locator('.prompt-diff-line.remove')).not.toHaveCount(0);
   await expect(panel.locator('.prompt-diff-line.remove')).toContainText('core-impl-a');
   await expect(panel.locator('.prompt-diff-line.remove .prompt-origin')).toHaveCount(0);
-  // The band follows the current text: removed rows stand outside it, and the
-  // heading that stays keeps the band's start.
-  await expect(panel.locator('.prompt-diff-line.remove[data-section]')).toHaveCount(0);
+  // A removed row inside a band stays in it (d-2f04). This fixture takes one
+  // turn away, so the turns band runs through the removed row without a mark.
+  await expect(panel.locator('.prompt-diff-line.remove[data-section="turns"]')).toHaveCount(1);
+  await expect.poll(() => panel.locator('.prompt-diff-line').evaluateAll((rows) => {
+   const inside = rows.flatMap((row, i) => (row.getAttribute('data-section') === 'turns' ? [i] : []));
+   return inside.length > 0 && inside[inside.length - 1] - inside[0] + 1 === inside.length;
+  })).toBe(true);
+  // Every removed row wears a band exactly when the rows around it share one.
+  await expect.poll(() => panel.locator('.prompt-diff-line').evaluateAll((rows) => {
+   const bad: string[] = [];
+   rows.forEach((row, i) => {
+    if (!row.classList.contains('remove')) return;
+    let above = i - 1; while (above >= 0 && rows[above].classList.contains('remove')) above -= 1;
+    let below = i + 1; while (below < rows.length && rows[below].classList.contains('remove')) below += 1;
+    const around = above >= 0 && below < rows.length ? rows[above].getAttribute('data-section') : null;
+    const shared = around !== null && rows[below].getAttribute('data-section') === around;
+    if (shared && row.getAttribute('data-section') !== around) bad.push(`removed ${i}: lost the band`);
+    if (!shared && row.getAttribute('data-section')) bad.push(`removed ${i}: band outside one`);
+   });
+   return bad;
+  })).toEqual([]);
   const firstRoster = panel.locator('.prompt-diff-line[data-section="roster"]').first();
   await expect(firstRoster).toHaveAttribute('data-section-start');
   await expect(firstRoster.locator('pre')).toHaveText('## 名簿');

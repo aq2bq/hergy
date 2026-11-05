@@ -3770,7 +3770,7 @@ function OriginLegend({ diff }) {
     children: [
       "トポロジー由来: 名簿・連絡・ターン・ワーカー ／ 規則: ロールの規則・チームの規則。",
       diff && "印は今の文の由来。削除行の由来は記録にありません。",
-      "トポロジーの 4 節は、見出しから節の終わりまでを帯で囲みます。見出しがひな形の文字でも、印は付けません。"
+      "トポロジーの 4 節は、見出しから節の終わりまでを帯で示します。見出しがひな形の文字でも、印は付けません。"
     ]
   });
 }
@@ -4051,6 +4051,26 @@ function Difference({ answer, lines }) {
     const present = answer.diff.flatMap((line) => line.new && line.new - 1 >= span.start && line.new - 1 < span.end ? [line.new - 1] : []);
     return { ...span, first: present.length ? Math.min(...present) : -1, last: present.length ? Math.max(...present) : -1 };
   }) : [];
+  const gap = (() => {
+    const before = [], after = new Array(answer.diff.length).fill(-1);
+    let seen = -1;
+    answer.diff.forEach((line, i) => {
+      before[i] = seen;
+      if (line.new)
+        seen = line.new - 1;
+    });
+    seen = -1;
+    for (let i = answer.diff.length - 1;i >= 0; i--) {
+      after[i] = seen;
+      if (answer.diff[i].new)
+        seen = answer.diff[i].new - 1;
+    }
+    return answer.diff.map((line, i) => {
+      if (line.new || before[i] < 0 || after[i] < 0)
+        return;
+      return spans.find((span) => span.first >= 0 && before[i] >= span.first && after[i] <= span.last && after[i] === before[i] + 1);
+    });
+  })();
   return /* @__PURE__ */ u(S, {
     children: [
       !lines && /* @__PURE__ */ u("p", {
@@ -4062,13 +4082,13 @@ function Difference({ answer, lines }) {
       }),
       answer.diff.map((line, i) => {
         const at = line.new ? line.new - 1 : -1;
-        const span = at >= 0 ? sectionAt(spans, at) : undefined;
+        const span = at >= 0 ? sectionAt(spans, at) : gap[i];
         return /* @__PURE__ */ u("div", {
           class: `prompt-diff-line ${line.kind}`,
           "data-new-line": line.new || undefined,
           "data-section": span?.kind,
-          "data-section-start": span && span.first === at ? "" : undefined,
-          "data-section-end": span && span.last === at ? "" : undefined,
+          "data-section-start": span && at >= 0 && span.first === at ? "" : undefined,
+          "data-section-end": span && at >= 0 && span.last === at ? "" : undefined,
           children: [
             /* @__PURE__ */ u("span", {
               class: "prompt-line-number",

@@ -61,7 +61,7 @@ export function OriginMarks({segments}: {segments: Segment[]}) {
  })}</span>;
 }
 export function OriginLegend({diff}: {diff: boolean}) {
- return <p class="prompt-origin-legend">トポロジー由来: 名簿・連絡・ターン・ワーカー ／ 規則: ロールの規則・チームの規則。{diff && '印は今の文の由来。削除行の由来は記録にありません。'}トポロジーの 4 節は、見出しから節の終わりまでを帯で囲みます。見出しがひな形の文字でも、印は付けません。</p>;
+ return <p class="prompt-origin-legend">トポロジー由来: 名簿・連絡・ターン・ワーカー ／ 規則: ロールの規則・チームの規則。{diff && '印は今の文の由来。削除行の由来は記録にありません。'}トポロジーの 4 節は、見出しから節の終わりまでを帯で示します。見出しがひな形の文字でも、印は付けません。</p>;
 }
 export function CurrentPrompt({text, lines}: {text: string; lines: OriginLine[] | null}) {
  if (!lines) return <><p role="alert">本文と由来が一致しないため、印を表示できません。再取得してください。</p><pre class="prompt-full">{text}</pre></>;
