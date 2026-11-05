@@ -13,7 +13,7 @@ import (
 
 // p2ProfilesData builds the profile tab: the filter, the search, the open rows
 // and the list.
-func (s *Server) p2ProfilesData(data p2Data, project, shared p2File, defs []p2Def, q url.Values) p2Data {
+func (s *Server) p2ProfilesData(data p2Data, project, shared p2File, _ []p2Def, q url.Values) p2Data {
 	data.ProfileCount = s.p2RowCount()
 	data.Kinds = p2KindChips(project, shared)
 	data.KindFilter = q.Get("kind")
@@ -23,17 +23,6 @@ func (s *Server) p2ProfilesData(data p2Data, project, shared p2File, defs []p2De
 	}
 	data.Empty = data.ProfileCount == 0
 	return data
-}
-
-// p2OpenSet is the open= names of the URL.
-func p2OpenSet(value string) map[string]bool {
-	out := map[string]bool{}
-	for name := range strings.SplitSeq(value, ",") {
-		if name != "" {
-			out[name] = true
-		}
-	}
-	return out
 }
 
 // p2KindChips is the toolbar's chips: すべて and every kind a profile runs, in

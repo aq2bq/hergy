@@ -7,7 +7,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/profile"
 	"github.com/aq2bq/hergy/internal/source"
 	"go.yaml.in/yaml/v3"
@@ -290,14 +289,6 @@ func (s *Server) p2ReadFile(file, path string) p2File {
 	return out
 }
 
-// placeOfFile is the layer a profile file stands in, in the list's words.
-func placeOfFile(file string) string {
-	if file == p2Shared {
-		return catalog.PlaceGlobal
-	}
-	return catalog.PlaceProject
-}
-
 // p2Label is the word the screen uses for one file's place.
 func p2Label(file string) string {
 	if file == p2Shared {
@@ -378,23 +369,6 @@ func p2Chips(defs []p2Def) map[string][]p2UserChip {
 }
 
 // p2Names is every profile name the two files hold, the project's order first.
-
-// p2Unreadable is the reason a name's place cannot be read, by place: the rows
-// the owner stands for a file that cannot be read (r-ea17, d-17ab).
-func (s *Server) p2Unreadable() map[string]map[string]string {
-	out := map[string]map[string]string{}
-	for _, layer := range []string{source.LayerLocal, source.LayerGlobal} {
-		for _, row := range s.cat.ShownRows(catalog.KindProfile, layer) {
-			if ok, why := s.cat.ReadableOf(row); !ok {
-				if out[row.Name] == nil {
-					out[row.Name] = map[string]string{}
-				}
-				out[row.Name][row.Place] = why
-			}
-		}
-	}
-	return out
-}
 
 // p2Find is one name's entry in one file, and whether the file holds it.
 func p2Find(file p2File, name string) (profile.Entry, bool) {

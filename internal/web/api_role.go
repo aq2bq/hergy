@@ -143,12 +143,6 @@ func r2RowName(row r2Row) string {
 	return ""
 }
 
-// r2RowLive is whether one place holds a written document for a row.
-func (s *Server) r2RowLive(row r2Row, place string) bool {
-	doc := r2PlaceDoc(row, place)
-	return doc != nil && doc.Name != "" && !row.NoDoc
-}
-
 // r2PlaceDoc is the document one place of a row holds, if either does.
 func r2PlaceDoc(row r2Row, place string) *r2Doc {
 	if place == catalog.PlaceGlobal {

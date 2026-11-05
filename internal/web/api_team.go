@@ -239,18 +239,6 @@ func (s *Server) t2FilesAt(name, place string) []apiFile {
 	return out
 }
 
-// t2Effective is which place of a definition is in effect and which is hidden,
-// the same words a row's pills carry (spec-teams 1.4.5).
-func t2Effective(listing catalog.Listing) (string, []string) {
-	switch {
-	case listing.Local && listing.Global:
-		return catalog.PlaceProject, []string{catalog.PlaceGlobal}
-	case listing.Global:
-		return catalog.PlaceGlobal, nil
-	}
-	return catalog.PlaceProject, nil
-}
-
 // t2DocOf is one place's team definition in the screen's shape.
 func (s *Server) t2DocOf(name, layer string, def *definition.Definition) apiTeamDoc {
 	return s.t2DocWithAgree(s.cat, name, def, s.t2AgreeOf(name, layer))
@@ -401,37 +389,6 @@ func (s *Server) buildCountsOf(name, layer string) apiCounts {
 	return out
 }
 
-// t2FilesOf is every team.yaml and agreement.md a layer holds for one name,
-// the files the YAML tab can open.
-func (s *Server) t2FilesOf(listing catalog.Listing) []apiFile {
-	var out []apiFile
-	add := func(place, kind, path string, hidden bool) {
-		if path == "" {
-			return
-		}
-		if why, _ := s.unreadable(path, ""); why != "" {
-			// The file is there and cannot be read: the YAML tab stands with the
-			// reason and no save over it (r-ea17, d-0bf1).
-			out = append(out, apiFile{
-				Place: place, Name: listing.Name, Kind: kind, Label: t2PlaceWord(place),
-				Path: s.cat.Display(path), Problem: why,
-				Problems: []apiProblem{{Sev: "err", At: "line", Line: 1, Text: why}},
-			})
-			return
-		}
-		out = append(out, s.t2FileOf(place, kind, listing.Name, path, hidden))
-	}
-	if listing.Local {
-		add(catalog.PlaceProject, "team", listing.LocalPath, false)
-		add(catalog.PlaceProject, "agreement", filepath.Join(filepath.Dir(listing.LocalPath), "agreement.md"), false)
-	}
-	if listing.Global {
-		add(catalog.PlaceGlobal, "team", listing.GlobalPath, listing.Local)
-		add(catalog.PlaceGlobal, "agreement", filepath.Join(filepath.Dir(listing.GlobalPath), "agreement.md"), listing.Local)
-	}
-	return out
-}
-
 // t2FileOf is one file of the YAML tab, with the problems its own check finds.
 // A team.yaml finding carries a field rather than a line, so the line of the
 // key it names travels beside it (spec-teams 1.8).
@@ -464,18 +421,6 @@ func (s *Server) buildFileOf(place, kind, name, path string, hidden bool, text s
 			Sev: sev, At: "line", Field: finding.Field, Line: t2YamlLine(text, finding.Field), Text: withoutOwnHead(finding.Text, display),
 			Role: finding.Role,
 		})
-	}
-	return out
-}
-
-// t2PlacesOf is every layer this name is in, the project's first.
-func t2PlacesOf(listing catalog.Listing) []string {
-	var out []string
-	if listing.Local {
-		out = append(out, catalog.PlaceProject)
-	}
-	if listing.Global {
-		out = append(out, catalog.PlaceGlobal)
 	}
 	return out
 }

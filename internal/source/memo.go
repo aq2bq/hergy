@@ -71,7 +71,7 @@ func (m *Memo) Read(d Doc) (string, error) {
 		// The version did not move, but the file may have stopped opening: a
 		// permission or owner change moves neither size nor time. Open it once
 		// (and close it) before the held text answers.
-		held, err := os.Open(d.Path) //nolint:gosec // G304: a path the catalog named
+		held, err := os.Open(d.Path)
 		if err != nil {
 			m.mu.Lock()
 			delete(m.files, d.Path)

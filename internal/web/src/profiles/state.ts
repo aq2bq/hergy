@@ -266,8 +266,13 @@ function modelOf(list: ProfileList | null, group?: string): Model {
   const model = profileModel(list, OPEN_ROWS.map((t) => t.name));
   // The answer already holds one place per row (r-ea17): a name both files hold
   // is two items, one under each head, so this copies each item as a row.
+  // Each row is one place: a global row stands under the global head, and a
+  // project row under the group the answer was asked for (a listed project's
+  // key, or this project's ""). A save in the global row does not move the
+  // project rows to the global head.
+  const base = group && group !== 'global' ? group : '';
   const rows: ModelRow[] = model.rows.map((row) => {
-    const own = group || ((row.panels || [])[0]?.file === 'global' ? 'global' : '');
+    const own = (row.panels || [])[0]?.file === 'global' ? 'global' : base;
     return { ...row, group: own, open: isOpenRow({ ...row, group: own }) };
   });
   return { rows, files: model.files };

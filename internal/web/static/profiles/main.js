@@ -244,8 +244,9 @@ function rowOf(row, index) {
 }
 function modelOf(list, group) {
   const model = profileModel2(list, OPEN_ROWS.map((t) => t.name));
+  const base = group && group !== "global" ? group : "";
   const rows = model.rows.map((row) => {
-    const own = group || ((row.panels || [])[0]?.file === "global" ? "global" : "");
+    const own = (row.panels || [])[0]?.file === "global" ? "global" : base;
     return { ...row, group: own, open: isOpenRow({ ...row, group: own }) };
   });
   return { rows, files: model.files };
