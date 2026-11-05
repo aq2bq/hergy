@@ -19,7 +19,7 @@ import {
   save2,
   saved2,
   problemText2
-} from "./nav-7t7hyw1j.js";
+} from "./nav-sk3m5qf3.js";
 
 // lib/conflict.tsx
 var str = (v) => typeof v === "string" ? v : "";

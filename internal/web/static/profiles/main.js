@@ -27,19 +27,19 @@ import {
   bases2,
   problemText2,
   profileModel2
-} from "../chunk/nav-7t7hyw1j.js";
+} from "../chunk/nav-sk3m5qf3.js";
 import {
   token2,
   parseOpen2,
   askConfirm,
   ConfirmDialog
-} from "../chunk/nav-v78t4xz0.js";
-import"../chunk/nav-evzrqbpq.js";
+} from "../chunk/nav-55eq49ew.js";
+import"../chunk/nav-vjrb6rnv.js";
 import {
   conflictOf,
   ConflictNotice,
   YamlTab2
-} from "../chunk/nav-2wpnf38f.js";
+} from "../chunk/nav-nj0tphxe.js";
 import {
   copyGroupOf,
   projectOfGroup,
@@ -47,8 +47,12 @@ import {
   ProjectView
 } from "../chunk/nav-2krt94z2.js";
 import {
+  snapshot,
+  dirty,
+  diff,
+  PROFILE,
   Field
-} from "../chunk/nav-hrc2s6sc.js";
+} from "../chunk/nav-jwnybnrd.js";
 import {
   installWheel,
   resource
@@ -202,8 +206,6 @@ function panelOf(p, group, rowKey) {
     path: p.path || pathFor(p.file, group),
     label: p.label,
     otherLabel: p.otherLabel,
-    both: !!p.both,
-    shadowed: !!p.shadowed,
     saved: p.saved ? { name: p.savedName, kind: p.savedKind, args: stringList(p.savedArgs), env: envList(p.savedEnv) } : null,
     hash: p.hash || "",
     users: p.users || 0,
@@ -280,7 +282,7 @@ function changedOf(panel) {
   const draft = panel.draft;
   const beforeArgs = saved && saved.args || [];
   const beforeEnv = saved && saved.env || [];
-  const out = { name: false, kind: false, args: [], env: [], count: 0 };
+  const out = { name: false, kind: false, args: [], env: [], count: profileChanges(panel).length };
   out.name = !saved || draft.name !== saved.name;
   out.kind = !saved || draft.kind !== saved.kind;
   draft.args.forEach((arg, i) => {
@@ -309,12 +311,16 @@ function changedOf(panel) {
   });
   if (beforeEnv.length > draft.env.length)
     n += beforeEnv.length - draft.env.length;
-  out.count = n;
   return out;
 }
-var isDirtyPanel = (panel) => panel.saved === null || changedOf(panel).count > 0;
+var profileDoc = (d) => ({ name: d.name || "", kind: d.kind || "", args: d.args || [], env: d.env || [] });
+var writtenProfile = (panel) => profileDoc(panel.draft);
+var savedProfile = (panel) => panel.saved ? profileDoc(panel.saved) : null;
+var profileChanges = (panel) => diff(PROFILE, savedProfile(panel), writtenProfile(panel), !panel.problem);
+var profileDirty = (panel) => dirty(PROFILE, savedProfile(panel), writtenProfile(panel), !panel.problem);
+var isDirtyPanel = (panel) => profileDirty(panel);
 var rowUnsaved = (row) => row.panels.some(isDirtyPanel);
-var saveBlocked = (panel) => panel.errors > 0 || (panel.saved ? changedOf(panel).count === 0 : false) || panel.draft.name === "";
+var saveBlocked = (panel) => panel.errors > 0 || (panel.saved ? !profileDirty(panel) : false) || panel.draft.name === "";
 var focusAsk = y(null);
 function askFocus(key, field, index, select, scroll) {
   focusAsk.value = { key, field, index: index || 0, select: !!select, scroll: !!scroll, seq: (focusAsk.value && focusAsk.value.seq || 0) + 1 };
@@ -353,14 +359,8 @@ function closeRow(key) {
   openKeys.value = next;
   updateRow((r) => r.key === key ? { ...r, open: false } : r);
 }
-var bornOf = (panel) => ({ name: panel.draft.name, kind: panel.draft.kind, args: panel.draft.args.slice(), env: panel.draft.env.map((pair) => ({ ...pair })) });
-var sameBorn = (panel) => {
-  const was = panel.born;
-  if (!was)
-    return false;
-  const now = panel.draft;
-  return was.name === now.name && was.kind === now.kind && was.args.length === now.args.length && was.env.length === now.env.length && was.args.every((arg, i) => arg === now.args[i]) && was.env.every((pair, i) => pair.key === now.env[i].key && pair.value === now.env[i].value);
-};
+var bornOf = (panel) => snapshot({ name: panel.draft.name, kind: panel.draft.kind, args: panel.draft.args.slice(), env: panel.draft.env.map((pair) => ({ ...pair })) });
+var sameBorn = (panel) => !panel.born || !dirty(PROFILE, profileDoc(panel.born), writtenProfile(panel));
 function addRow(file, group) {
   const key = newKey();
   const g = group || (file === "global" ? "global" : "");
@@ -385,8 +385,6 @@ function addRow(file, group) {
     rename_targets: 0,
     err: 0,
     warn: 0,
-    shadowed: false,
-    both: false,
     other: otherOf(file),
     savedLine: false,
     problem: ""
@@ -474,8 +472,6 @@ function duplicateRow(panel) {
       rename_targets: 0,
       err: 0,
       warn: 0,
-      shadowed: false,
-      both: false,
       other: otherOf(panel.file),
       savedLine: false,
       problem: ""
@@ -518,8 +514,6 @@ function copyPanel(panel) {
     rename_targets: 0,
     err: 0,
     warn: 0,
-    shadowed: false,
-    both: false,
     other: otherOf(file),
     savedLine: false,
     problem: ""
@@ -561,7 +555,7 @@ function copyPanel(panel) {
   return fresh;
 }
 function canCopy(panel) {
-  if (!panel.saved || panel.both)
+  if (!panel.saved)
     return false;
   const file = otherOf(panel.file);
   const group = copyGroupOf(file, panel.group, CURRENT);
@@ -768,14 +762,14 @@ var chips = O(() => {
   });
   return out;
 });
-function dirty() {
+function dirty2() {
   const panels = allPanels().some(({ panel }) => isDirtyPanel(panel));
   const ytexts = yamlTexts().some((one) => one.text !== one.base);
   const picks = assignTeams().some((team) => (team.rows || []).some((row) => pickChanged(row)));
   return panels || ytexts || picks;
 }
 function tellDirty() {
-  setDirty2(dirty());
+  setDirty2(dirty2());
 }
 function take() {
   const out = { rows: [], ytexts: [], picks: [] };
@@ -1537,7 +1531,7 @@ function Panel({ panel }) {
     ]
   });
   return /* @__PURE__ */ u("section", {
-    class: "panel" + (panel.shadowed ? " shadowed" : ""),
+    class: "panel",
     "data-key": panel.key,
     "data-file": panel.file,
     "data-group": panel.group || "",
@@ -2429,7 +2423,7 @@ function App() {
     ]
   });
 }
-var page = { screen: "profiles", dirty, take, tellDirty, settled: true };
+var page = { screen: "profiles", dirty: dirty2, take, tellDirty, settled: true };
 Object.assign(window, { hergyPage: page });
 view.replaceChildren();
 R(/* @__PURE__ */ u(App, {}), view);

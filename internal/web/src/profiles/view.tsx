@@ -221,7 +221,7 @@ function Panel({ panel }: { panel: PanelState }) {
     </>
   );
   return (
-    <section class={'panel' + (panel.shadowed ? ' shadowed' : '')} data-key={panel.key} data-file={panel.file} data-group={panel.group || ''} data-saved={saved ? '1' : undefined} data-users={panel.users} data-rename-users={panel.rename_targets} data-hash={panel.hash}>
+    <section class="panel" data-key={panel.key} data-file={panel.file} data-group={panel.group || ''} data-saved={saved ? '1' : undefined} data-users={panel.users} data-rename-users={panel.rename_targets} data-hash={panel.hash}>
       <header class="ph">
         <span class="ln">{groupName(panel.group)}</span>
         <code class="path">{panel.path}</code>

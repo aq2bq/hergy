@@ -10,6 +10,7 @@ import { profileModel, check as apiCheck, save as apiSave, del as apiDel, list a
 import { conflictOf } from '../lib/conflict.js';
 import { parseOpen, token as hqToken } from '../lib/hq.js';
 import { copyGroupOf, projectOfGroup } from '../lib/copy';
+import { PROFILE, diff as changedDiff, dirty as changedDirty, snapshot as changedSnapshot } from '../lib/changed.js';
 import { setDirty } from '../lib/nav.js';
 import type {
   Assign, AssignRow, Carried, ChangeSet, Draft, EnvPair, FocusAsk, Island,
@@ -212,8 +213,6 @@ function panelOf(p: ProfilePanel, group: string | undefined, rowKey: string): Pa
     path: p.path || pathFor(p.file, group),
     label: p.label,
     otherLabel: p.otherLabel,
-    both: !!p.both,
-    shadowed: !!p.shadowed,
     saved: p.saved ? { name: p.savedName, kind: p.savedKind, args: stringList(p.savedArgs), env: envList(p.savedEnv) } : null,
     hash: p.hash || '',
     users: p.users || 0,
@@ -312,7 +311,7 @@ export function changedOf(panel: Panel): ChangeSet {
   const draft = panel.draft;
   const beforeArgs = (saved && saved.args) || [];
   const beforeEnv = (saved && saved.env) || [];
-  const out: ChangeSet = { name: false, kind: false, args: [], env: [], count: 0 };
+  const out: ChangeSet = { name: false, kind: false, args: [], env: [], count: profileChanges(panel).length };
   out.name = !saved || draft.name !== saved.name;
   out.kind = !saved || draft.kind !== saved.kind;
   draft.args.forEach((arg, i) => { out.args[i] = !saved || beforeArgs[i] !== arg; });
@@ -327,14 +326,18 @@ export function changedOf(panel: Panel): ChangeSet {
   if (beforeArgs.length > draft.args.length) n += beforeArgs.length - draft.args.length;
   out.env.forEach((one) => { if (one.key) n++; if (one.value) n++; });
   if (beforeEnv.length > draft.env.length) n += beforeEnv.length - draft.env.length;
-  out.count = n;
   return out;
 }
 
-export const isDirtyPanel = (panel: Panel): boolean => panel.saved === null || changedOf(panel).count > 0;
+const profileDoc = (d: { name: string; kind: string; args: string[]; env: { key: string; value: string }[] }) => ({ name: d.name || '', kind: d.kind || '', args: d.args || [], env: d.env || [] });
+export const writtenProfile = (panel: Panel) => profileDoc(panel.draft);
+const savedProfile = (panel: Panel) => (panel.saved ? profileDoc(panel.saved) : null);
+export const profileChanges = (panel: Panel) => changedDiff(PROFILE, savedProfile(panel), writtenProfile(panel), !panel.problem);
+export const profileDirty = (panel: Panel): boolean => changedDirty(PROFILE, savedProfile(panel), writtenProfile(panel), !panel.problem);
+export const isDirtyPanel = (panel: Panel): boolean => profileDirty(panel);
 export const rowUnsaved = (row: Row): boolean => row.panels.some(isDirtyPanel);
 export const saveBlocked = (panel: Panel): boolean =>
-  panel.errors > 0 || (panel.saved ? changedOf(panel).count === 0 : false) || panel.draft.name === '';
+  panel.errors > 0 || (panel.saved ? !profileDirty(panel) : false) || panel.draft.name === '';
 
 // ---- what the screen asks the page to do after a press -------------------
 // Focus is put only where a person just pressed (webui-preact-design 5 章 5):
@@ -396,15 +399,8 @@ export function closeAllConfirm(): void {
 // newRow is a row a person is adding under one place's head: it opens at once,
 // and its panel starts from the kind the head would give it (r-410c).
 // bornOf is a panel's draft as the row was made with it (r-d480).
-export const bornOf = (panel: Panel) => ({ name: panel.draft.name, kind: panel.draft.kind, args: panel.draft.args.slice(), env: panel.draft.env.map((pair) => ({ ...pair })) });
-export const sameBorn = (panel: Panel): boolean => {
-  const was = panel.born;
-  if (!was) return false;
-  const now = panel.draft;
-  return was.name === now.name && was.kind === now.kind && was.args.length === now.args.length && was.env.length === now.env.length
-    && was.args.every((arg, i) => arg === now.args[i])
-    && was.env.every((pair, i) => pair.key === now.env[i].key && pair.value === now.env[i].value);
-};
+export const bornOf = (panel: Panel) => changedSnapshot({ name: panel.draft.name, kind: panel.draft.kind, args: panel.draft.args.slice(), env: panel.draft.env.map((pair) => ({ ...pair })) });
+export const sameBorn = (panel: Panel): boolean => !panel.born || !changedDirty(PROFILE, profileDoc(panel.born), writtenProfile(panel));
 
 export function addRow(file: Place, group: string | undefined): Row {
   const key = newKey();
@@ -413,7 +409,7 @@ export function addRow(file: Place, group: string | undefined): Row {
     file, label: labelOf(file), otherLabel: labelOf(otherOf(file)), path: pathFor(file, g),
     saved: false, name: '', kind: 'claude', args: ['--model', ''], env: [], argsJSON: '[]', envJSON: '[]',
     savedName: '', savedKind: '', savedArgs: '[]', savedEnv: '[]', hash: '', users: 0, rename_targets: 0, err: 0, warn: 0,
-    shadowed: false, both: false, other: otherOf(file), savedLine: false, problem: '',
+    other: otherOf(file), savedLine: false, problem: '',
   }, g, key);
   panel.born = bornOf(panel);
   const row: Row = {
@@ -455,7 +451,7 @@ export function duplicateRow(panel: Panel): Row | null {
       env: saved.env.map((pair) => ({ key: pair.key, value: pair.value })),
       argsJSON: '[]', envJSON: '[]', savedName: '', savedKind: '', savedArgs: '[]', savedEnv: '[]',
       hash: '', users: 0, rename_targets: 0, err: 0, warn: 0,
-      shadowed: false, both: false, other: otherOf(panel.file), savedLine: false, problem: '',
+      other: otherOf(panel.file), savedLine: false, problem: '',
     }, panel.group, `${saved.name}-${suffix}`)],
   };
   row.panels[0].key = row.key + ':' + panel.file;
@@ -483,7 +479,7 @@ export function copyPanel(panel: Panel): Panel | null {
     env: saved.env.map((pair) => ({ key: pair.key, value: pair.value })),
     argsJSON: '[]', envJSON: '[]', savedName: '', savedKind: '', savedArgs: '[]', savedEnv: '[]',
     hash: '', users: 0, rename_targets: 0, err: 0, warn: 0,
-    shadowed: false, both: false, other: otherOf(file), savedLine: false, problem: '',
+    other: otherOf(file), savedLine: false, problem: '',
   }, group, panel.rowKey);
   const row: Row = {
     key: newKey(), name: '', group, kind: saved.kind, kindClass: classOf(saved.kind), mark: '',
@@ -511,7 +507,7 @@ export function copyPanel(panel: Panel): Panel | null {
 // place must not already hold that name, in this row or in the row the copy
 // would stand beside (r-f781).
 export function canCopy(panel: Panel): boolean {
-  if (!panel.saved || panel.both) return false;
+  if (!panel.saved) return false;
   const file = otherOf(panel.file);
   const group = copyGroupOf(file, panel.group, CURRENT);
   return !rows.value.some((row) => row.group === group && row.panels.some((p) => p.file === file && p.draft.name === panel.saved!.name));

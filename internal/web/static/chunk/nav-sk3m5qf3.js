@@ -140,7 +140,6 @@ function profileRow(item, isOpen) {
   const hidden = item.hidden || [];
   const s = item.summary;
   const names = PLACES.filter((f) => places[f]);
-  const both = hidden.length > 0;
   const panels = names.map((file) => {
     const place = places[file] || {}, doc = place.doc || {};
     const other = file === "project" ? "global" : "project";
@@ -150,8 +149,6 @@ function profileRow(item, isOpen) {
       label: PLACE_LABEL[file],
       path: place.path || "",
       saved: true,
-      shadowed: hidden.indexOf(file) >= 0,
-      both,
       other,
       otherLabel: PLACE_LABEL[other],
       name: doc.name || "",
@@ -165,7 +162,7 @@ function profileRow(item, isOpen) {
       savedArgs: jsonOf(doc.args),
       savedEnv: jsonOf(doc.env),
       hash: place.hash || "",
-      users: both ? 0 : s.users || 0,
+      users: hidden.length > 0 ? 0 : s.users || 0,
       rename_targets: place.rename_targets || 0,
       err: c.err,
       warn: c.warn,

@@ -38,16 +38,8 @@ import {
   saved2,
   bases2,
   problemText2
-} from "../chunk/nav-7t7hyw1j.js";
+} from "../chunk/nav-sk3m5qf3.js";
 import {
-  snapshot,
-  dirty,
-  diff,
-  TEAM,
-  TEAM_AGREEMENT,
-  YAML_TEXT,
-  teamNow,
-  roleDirty,
   num,
   documents,
   documentID,
@@ -63,7 +55,7 @@ import {
   Counts2,
   Vm2,
   RuleDoc2
-} from "../chunk/nav-6zzwdkqh.js";
+} from "../chunk/nav-44qmw1p4.js";
 import {
   st,
   token2,
@@ -71,19 +63,19 @@ import {
   projectName2,
   askConfirm,
   ConfirmDialog
-} from "../chunk/nav-v78t4xz0.js";
+} from "../chunk/nav-55eq49ew.js";
 import {
   RunCell2
-} from "../chunk/nav-evzrqbpq.js";
+} from "../chunk/nav-vjrb6rnv.js";
 import {
   conflictOf,
   ConflictNotice,
   YamlTab2
-} from "../chunk/nav-2wpnf38f.js";
+} from "../chunk/nav-nj0tphxe.js";
 import {
   roleEditor,
   roleProblems
-} from "../chunk/nav-kf2hrsrg.js";
+} from "../chunk/nav-j0bacxcx.js";
 import {
   copyGroupOf,
   groupPlace,
@@ -92,8 +84,16 @@ import {
   ProjectView
 } from "../chunk/nav-2krt94z2.js";
 import {
+  snapshot,
+  dirty,
+  diff,
+  TEAM,
+  TEAM_AGREEMENT,
+  YAML_TEXT,
+  teamNow,
+  roleDirty,
   Field
-} from "../chunk/nav-hrc2s6sc.js";
+} from "../chunk/nav-jwnybnrd.js";
 import {
   installWheel,
   resource

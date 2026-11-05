@@ -18,116 +18,11 @@ import {
 } from "./nav-wtffyt4p.js";
 import {
   problemText2
-} from "./nav-7t7hyw1j.js";
+} from "./nav-sk3m5qf3.js";
 import {
+  roleDirty,
   Field
-} from "./nav-hrc2s6sc.js";
-
-// lib/changed.ts
-function same(a, b) {
-  if (Object.is(a, b))
-    return true;
-  if (Array.isArray(a) || Array.isArray(b)) {
-    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length)
-      return false;
-    return a.every((one, i) => same(one, b[i]));
-  }
-  if (typeof a !== "object" || typeof b !== "object" || a === null || b === null)
-    return false;
-  const ka = Object.keys(a).filter((key) => a[key] !== undefined);
-  const kb = Object.keys(b).filter((key) => b[key] !== undefined);
-  if (ka.length !== kb.length)
-    return false;
-  return ka.every((key) => (key in b) && same(a[key], b[key]));
-}
-function snapshot(v) {
-  if (Array.isArray(v))
-    return v.map((one) => snapshot(one));
-  if (v && typeof v === "object") {
-    const out = {};
-    for (const [key, one] of Object.entries(v))
-      out[key] = snapshot(one);
-    return out;
-  }
-  return v;
-}
-function dirty(_shape, from, to, readable = true) {
-  if (!readable)
-    return false;
-  if (from === null || from === undefined)
-    return to !== null && to !== undefined;
-  return !same(from, to);
-}
-function diff(shape, from, to, readable = true) {
-  if (!dirty(shape, from, to, readable))
-    return [];
-  if (from === null || from === undefined) {
-    const out = shape.fields.filter((f) => !empty(f.get(to)));
-    return out.length ? out : [{ key: "*", label: "そのほかの変更", get: () => {
-      return;
-    } }];
-  }
-  const out = shape.fields.filter((f) => !same(f.get(from), f.get(to)));
-  if (out.length === 0)
-    return [{ key: "*", label: "そのほかの変更", get: () => {
-      return;
-    } }];
-  return out;
-}
-function empty(v) {
-  if (v === null || v === undefined || v === "")
-    return true;
-  if (Array.isArray(v))
-    return v.length === 0;
-  if (typeof v === "object")
-    return Object.keys(v).length === 0;
-  return false;
-}
-var ROLE_DOC = { fields: [
-  { key: "name", label: "名前（保存先のファイルも変わる）", get: (v) => v.name },
-  { key: "title", label: "題名", get: (v) => v.title },
-  { key: "text", label: "本文", get: (v) => v.text }
-] };
-var TEAM = { fields: [
-  { key: "description", label: "説明", get: (v) => v.description },
-  { key: "turns", label: "ターン", get: (v) => v.turns },
-  { key: "members", label: "メンバー", get: (v) => v.members.map((m) => ({ name: m.name, role: m.role, profile: m.profile })) },
-  { key: "workers", label: "ワーカー", get: (v) => v.workers.map((w) => ({ from: w.from, purpose: w.purpose, profile: w.profile })) }
-] };
-var TEAM_AGREEMENT = { fields: [
-  { key: "text", label: "チームの規則", get: (v) => v.text }
-] };
-var PROFILE_ASSIGN = { fields: [
-  { key: "picks", label: "割り当て", get: (v) => v.picks }
-] };
-var YAML_TEXT = { fields: [
-  { key: "text", label: "本文", get: (v) => v.text }
-] };
-function teamNow(w, ops) {
-  let { from, purpose, profile } = w;
-  for (let i = ops.length - 1;i >= 0; i--) {
-    const op = ops[i];
-    if (op.kind === "workerPurpose" && op.from === from && op.new === purpose)
-      purpose = op.old;
-    else if (op.kind === "workerProfile" && op.from === from && op.purpose === purpose)
-      profile = op.profile;
-    else if (op.kind === "moveWorker" && op.to === from && op.purpose === purpose)
-      from = op.from;
-    else if (op.kind === "addWorker" && op.from === from && op.purpose === purpose)
-      return null;
-  }
-  return { from, purpose, profile };
-}
-var docOf = (d) => ({ name: d.name || "", title: d.title || "", text: d.text || "" });
-function roleDirty(e) {
-  return dirty(ROLE_DOC, e.saved ? docOf(e.saved) : null, docOf(e.draft), !e.problem);
-}
-function assignDirty(m) {
-  return dirty(PROFILE_ASSIGN, { picks: [{ member: m.name, role: m.saved }] }, { picks: [{ member: m.name, role: m.draft }] });
-}
-function yamlDirty(text, typed) {
-  return dirty(YAML_TEXT, { text }, { text: typed === undefined ? text : typed });
-}
+} from "./nav-jwnybnrd.js";
 
 // lib/measure.tsx
 var num = (n) => Number(n || 0).toLocaleString("ja-JP");
@@ -1061,4 +956,4 @@ function RuleDoc2({ row, hasName = true, heading, nameError, issues, onChange, t
   });
 }
 
-export { snapshot, dirty, diff, ROLE_DOC, TEAM, TEAM_AGREEMENT, YAML_TEXT, teamNow, roleDirty, assignDirty, yamlDirty, num, Measure, documents, documentID, transferKeys, EqualWidths, chars, title, ProseIdentity, renameCarries2, clone2, fromJSON2, toDoc2, Sev2, Counts2, Badge2, Vm2, RuleDoc2 };
+export { num, Measure, documents, documentID, transferKeys, EqualWidths, chars, title, ProseIdentity, renameCarries2, clone2, fromJSON2, toDoc2, Sev2, Counts2, Badge2, Vm2, RuleDoc2 };

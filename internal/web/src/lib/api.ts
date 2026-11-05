@@ -265,7 +265,7 @@ export function profileModel(list: Answer<'profile', 'list'> | null, openNames?:
 // place holds, what it saved, and the counts beside it.
 export type ProfilePanel = {
   file: Place; label: string; path: string; saved: boolean;
-  shadowed: boolean; both: boolean; other: Place; otherLabel: string;
+  other: Place; otherLabel: string;
   name: string; kind: string;
   args: string[]; env: Schemas['ProfileEnvPair'][];
   argsJSON: string; envJSON: string;
@@ -295,22 +295,19 @@ function profileRow(item: ListItem<'profile'>, isOpen: boolean): ProfileRow {
   const hidden = item.hidden || [];
   const s = item.summary;
   const names = PLACES.filter((f) => places[f]);
-  // The owner marks a name both files hold: its rows say 効いている / 隠れている
-  // (r-ea17).
-  const both = hidden.length > 0;
   const panels = names.map((file): ProfilePanel => {
     const place = places[file] || {}, doc = place.doc || {};
     const other: Place = file === 'project' ? 'global' : 'project';
     const c = countOf(place.problems);
     return {
       file, label: PLACE_LABEL[file], path: place.path || '', saved: true,
-      shadowed: hidden.indexOf(file) >= 0, both, other, otherLabel: PLACE_LABEL[other],
+      other, otherLabel: PLACE_LABEL[other],
       name: doc.name || '', kind: doc.kind || '',
       args: doc.args || [], env: doc.env || [],
       argsJSON: jsonOf(doc.args), envJSON: jsonOf(doc.env),
       savedName: doc.name || '', savedKind: doc.kind || '',
       savedArgs: jsonOf(doc.args), savedEnv: jsonOf(doc.env),
-      hash: place.hash || '', users: both ? 0 : (s.users || 0),
+      hash: place.hash || '', users: hidden.length > 0 ? 0 : (s.users || 0),
       rename_targets: place.rename_targets || 0, err: c.err, warn: c.warn,
       savedLine: !!place.savedLine, problem: place.problem || '', mark: (item.mark as string) || '',
     };
