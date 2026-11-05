@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/profile"
@@ -64,12 +65,20 @@ func (s *Server) p2Page(w http.ResponseWriter, r *http.Request, tab string) {
 	_, _ = w.Write(buf.Bytes())
 }
 
+// p2RowCount is how many rows the profile list draws: the owner's rows for both
+// layers, one row per place (r-ea17). A name both layers hold is two rows, so
+// the list's own すべて count is the same number as the rows (its audit).
+func (s *Server) p2RowCount() int {
+	return len(s.cat.ShownRows(catalog.KindProfile, source.LayerLocal)) +
+		len(s.cat.ShownRows(catalog.KindProfile, source.LayerGlobal))
+}
+
 // p2Data gathers one tab.
 func (s *Server) p2Data(tab string, q url.Values) p2Data {
 	project, shared, defs := s.p2Read()
 	data := p2Data{
 		Lang: i18n.Language(), Nav: s.navOf("profiles"), Tab: tab, Token: s.token,
-		ProfileCount: len(s.p2Names()), AssignCount: p2People(defs),
+		ProfileCount: s.p2RowCount(), AssignCount: p2People(defs),
 		HashProject: project.hash, HashShared: shared.hash,
 		PathProject: s.cat.Display(s.cat.ProjectProfileFile()),
 		PathShared:  s.cat.Display(s.cat.SharedProfileFile()),

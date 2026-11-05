@@ -1,8 +1,8 @@
 # The owners gate's exceptions (tools/check/owners.go, r-ea17 / ac-f62f / d-4d88).
 #
-# enforce: true prints the findings and passes, so copies can be merged before
+# enforce: false prints the findings and passes, so copies can be merged before
 # the gate fails. done is enforce: true with no finding.
-enforce: false
+enforce: true
 #
 # Every entry needs the path, the name, why the owner is not the place for it,
 # and the decision that allowed it (gy's d-…). An entry without all four fails

@@ -1551,10 +1551,6 @@ export const rowOfPanel = (r: Rec) => {
 };
 
 // ---- 帯と、ページの外への受け渡し ------------------------------------------
-// savedCount is the number the band shows: the definitions, which are the rows
-// that are saved — a row that is not there yet is not one (spec-nav 1.1,
-// 監査 R7). main.js keeps the band's number on it.
-export const savedCount = () => recs.value.filter((r: Rec) => !r.draftRow).length;
 // dirty is whether the screen holds anything the files do not: a row's ops, a
 // rules draft, a YAML text. The band asks it through window.hergyPage (nav.js
 // 1.5), the same way it asks the other screens. main.js keeps the band's dot on
