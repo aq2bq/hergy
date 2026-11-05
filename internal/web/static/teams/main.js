@@ -151,6 +151,11 @@ function empty(v) {
     return Object.keys(v).length === 0;
   return false;
 }
+var ROLE_DOC = { fields: [
+  { key: "name", label: "名前（保存先のファイルも変わる）", get: (v) => v.name },
+  { key: "title", label: "題名", get: (v) => v.title },
+  { key: "text", label: "本文", get: (v) => v.text }
+] };
 var TEAM = { fields: [
   { key: "description", label: "説明", get: (v) => v.description },
   { key: "turns", label: "ターン", get: (v) => v.turns },
@@ -306,10 +311,13 @@ function newModel(session) {
   };
 }
 var models = new Map;
+function roleEntryDirty(e) {
+  return dirty(ROLE_DOC, { name: e.saved.name, title: e.saved.title, text: e.saved.text }, { name: e.draft.name, title: e.draft.title, text: e.draft.text });
+}
 function roleDraftsDirty() {
   return [...models.values()].some((model) => {
     const e = model.entry.value;
-    return !!e && e.draft.text !== e.saved.text;
+    return !!e && roleEntryDirty(e);
   });
 }
 function roleSummary(r, name) {
@@ -319,7 +327,7 @@ function roleSummary(r, name) {
   const entry = model.entry.value;
   const context = model.context.value.value;
   const problems = model.editor.check.value.value?.json?.problems || [];
-  const status = entry && entry.draft.text !== entry.saved.text ? "未保存" : "保存済み";
+  const status = entry && roleEntryDirty(entry) ? "未保存" : "保存済み";
   if (model.context.loading.value)
     return "読み込み中";
   if (model.context.error.value || context?.errors.length || context?.state !== "readable" || model.error.value || model.editor.check.error.value)
@@ -1307,7 +1315,12 @@ function groupStart(group) {
   return j >= 0 ? j : recs.value.length;
 }
 var bornNow = (r) => snapshot({ name: r.name.value, team: writtenTeam(r), agreement: r.agreeDraft.value.text });
-var bornTouched = (r) => r.born.value === null || !same(r.born.value, bornNow(r));
+var BORN = { fields: [
+  { key: "name", label: "名前（保存先のファイルも変わる）", get: (v) => v.name },
+  { key: "team", label: "チーム定義", get: (v) => v.team },
+  { key: "agreement", label: "チームの規則", get: (v) => v.agreement }
+] };
+var bornTouched = (r) => r.born.value === null || dirty(BORN, r.born.value, bornNow(r));
 async function addDraft(how, place, name, base, project) {
   const r = draftRecord(how, place, name, base, project);
   await checkTeam(r);

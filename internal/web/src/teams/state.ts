@@ -29,7 +29,8 @@ import {
   fromJSON, toDoc, clone,
 } from '../lib/ruledoc.js';
 import { parseOpen, token as roleToken } from '../lib/hq.js';
-import { TEAM as CHANGED_TEAM, TEAM_AGREEMENT as CHANGED_AGREEMENT, YAML_TEXT as CHANGED_YAML, diff as changedDiff, dirty as changedDirty, same as changedSame, snapshot as changedSnapshot, teamNow as changedTeamNow } from '../lib/changed.js';
+import { TEAM as CHANGED_TEAM, TEAM_AGREEMENT as CHANGED_AGREEMENT, YAML_TEXT as CHANGED_YAML, diff as changedDiff, dirty as changedDirty, snapshot as changedSnapshot, teamNow as changedTeamNow } from '../lib/changed.js';
+import type { Shape } from '../lib/changed.js';
 import type { TeamWritten } from '../lib/changed.js';
 import { copyGroupOf, groupPlace, projectOfGroup } from '../lib/copy';
 import { roleDraftsDirty } from './role-modal.js';
@@ -704,7 +705,14 @@ function groupStart(group: string): number {
 // write, and the team's rules, as one snapshot (r-d480).
 export type Born = { name: string; team: TeamWritten; agreement: string };
 export const bornNow = (r: Rec): Born => changedSnapshot({ name: r.name.value, team: writtenTeam(r), agreement: r.agreeDraft.value.text });
-export const bornTouched = (r: Rec): boolean => r.born.value === null || !changedSame(r.born.value, bornNow(r));
+// BORN is the table of what 取り消し would lose; the decision is changed.dirty on
+// the whole value (r-d480, r-1e9a).
+const BORN: Shape<Born> = { fields: [
+  { key: 'name', label: '名前（保存先のファイルも変わる）', get: (v) => v.name },
+  { key: 'team', label: 'チーム定義', get: (v) => v.team },
+  { key: 'agreement', label: 'チームの規則', get: (v) => v.agreement },
+] };
+export const bornTouched = (r: Rec): boolean => r.born.value === null || changedDirty(BORN, r.born.value, bornNow(r));
 
 // addDraft makes a row for a definition that is not there yet, checks it once,
 // and draws it: its figure, its rules and its preview are the server's own

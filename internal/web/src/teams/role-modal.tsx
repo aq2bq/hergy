@@ -1,3 +1,4 @@
+import { ROLE_DOC, dirty } from '../lib/changed.js';
 import { showOnly } from './rule-selection.js';
 import { transferTargets } from './prose-transfer.js';
 import { documentID, documents } from '../lib/prose-transfer.js';
@@ -49,10 +50,15 @@ function newModel(session: Session) {
 }
 
 const models = new Map<string, ReturnType<typeof newModel>>();
+// roleEntryDirty is whether the role's written document differs from the file's:
+// the change test is the one owner's (r-1e9a).
+function roleEntryDirty(e: { draft: { name: string; title: string; text: string }; saved: { name: string; title: string; text: string } }): boolean {
+  return dirty(ROLE_DOC, { name: e.saved.name, title: e.saved.title, text: e.saved.text }, { name: e.draft.name, title: e.draft.title, text: e.draft.text });
+}
 export function roleDraftsDirty(): boolean {
   return [...models.values()].some((model) => {
     const e = model.entry.value;
-    return !!e && e.draft.text !== e.saved.text;
+    return !!e && roleEntryDirty(e);
   });
 }
 
@@ -62,7 +68,7 @@ export function roleSummary(r: Rec, name: string): string {
  const entry = model.entry.value;
  const context = model.context.value.value;
  const problems = model.editor.check.value.value?.json?.problems || [];
- const status = entry && entry.draft.text !== entry.saved.text ? '未保存' : '保存済み';
+ const status = entry && roleEntryDirty(entry) ? '未保存' : '保存済み';
  if (model.context.loading.value) return '読み込み中';
  if (model.context.error.value || context?.errors.length || context?.state !== 'readable' || model.error.value || model.editor.check.error.value) return `${status} · 読み込み・保存の確認が必要`;
  return `${status}${problems.length ? ` · 問題・警告 ${problems.length}` : ''}`;
