@@ -38,7 +38,7 @@ import {
   saved2,
   bases2,
   problemText2
-} from "../chunk/nav-6mzp8cwt.js";
+} from "../chunk/nav-7t7hyw1j.js";
 import {
   num,
   documents,
@@ -56,7 +56,7 @@ import {
   Counts2,
   Vm2,
   RuleDoc2
-} from "../chunk/nav-7pn230er.js";
+} from "../chunk/nav-d2pxfj06.js";
 import {
   st,
   token2,
@@ -64,19 +64,19 @@ import {
   projectName2,
   askConfirm,
   ConfirmDialog
-} from "../chunk/nav-gkhsyqbe.js";
+} from "../chunk/nav-v78t4xz0.js";
 import {
   RunCell2
-} from "../chunk/nav-9jet2tba.js";
+} from "../chunk/nav-evzrqbpq.js";
 import {
   conflictOf,
   ConflictNotice,
   YamlTab2
-} from "../chunk/nav-744v0ch7.js";
+} from "../chunk/nav-2wpnf38f.js";
 import {
   roleEditor,
   roleProblems
-} from "../chunk/nav-wjmaydjz.js";
+} from "../chunk/nav-kf2hrsrg.js";
 import {
   copyGroupOf,
   groupPlace,
@@ -1682,6 +1682,7 @@ async function renamed(r, name, json) {
     name: f.name || "",
     kind: f.kind || "",
     problem: f.problem || "",
+    mark: f.mark || "",
     label: PLACE[f.place],
     path: f.path,
     hash: f.hash || "",
@@ -1885,7 +1886,8 @@ var yfiles = y((LIST.files || []).map((f) => ({
   text: f.text || "",
   hidden: !!f.hidden,
   problems: f.problems || [],
-  problem: f.problem || ""
+  problem: f.problem || "",
+  mark: f.mark || ""
 })));
 var fileOf = (file) => yfiles.value.find((f) => f.file === file) || null;
 var fileKeys = () => PLACES.flatMap((p) => yfiles.value.filter((f) => f.place === p).map((f) => f.file));
@@ -2134,11 +2136,6 @@ function pressDtab(r, t) {
 }
 function pressPmode(r, v) {
   put({ pmode: { ...state.value.pmode, [dkey(r)]: v } });
-}
-function pressToYaml(key) {
-  put({ tab: "yaml", yfile: `${key}.team` });
-  syncURL();
-  window.scrollTo(0, 0);
 }
 function pressTSave(r) {
   saveTeam(r);
@@ -5638,11 +5635,11 @@ function NameCell({ r, open }) {
 var groupLabel = (r) => r.project === "global" ? "グローバル" : r.project ? projectName2(r.project) : currentProjectName();
 function placePills(r) {
   const label = groupLabel(r);
-  const globalGroup = (GROUPS || []).find((g) => g.global);
+  const globalGroup = (HQ && HQ.teams || GROUPS || []).find((g) => g.global);
   const over = globalGroup && globalGroup.overridden_by || {};
   const name = r.name.value;
-  const shadow = r.project && r.project !== "global" && (over[name] || []).includes(r.project);
-  const overriding = r.project === "global" ? over[name] || [] : [];
+  const shadow = r.mark.value === "in_effect";
+  const overriding = r.place.value === "global" ? over[name] || [] : [];
   return /* @__PURE__ */ u(S, {
     children: [
       /* @__PURE__ */ u("span", {
@@ -5749,7 +5746,6 @@ function Sum({ r, open }) {
   });
 }
 function Detail({ r }) {
-  const hidden = r.hidden.value || [];
   const body = A(null);
   const [floor, setFloor] = d(0);
   const hold = q(() => {
@@ -5793,40 +5789,7 @@ function Detail({ r }) {
         }) : /* @__PURE__ */ u(AgreePanel, {
           r
         })
-      }),
-      hidden.map((h) => /* @__PURE__ */ u("section", {
-        class: "panel shadowed",
-        children: /* @__PURE__ */ u("header", {
-          class: "ph",
-          children: [
-            /* @__PURE__ */ u("span", {
-              class: "ln",
-              children: placeName(h.place)
-            }),
-            /* @__PURE__ */ u("code", {
-              class: "path",
-              children: [
-                (DIR[h.place] || "") + r.name.value,
-                "/"
-              ]
-            }),
-            /* @__PURE__ */ u("span", {
-              class: "state off",
-              children: "隠れている"
-            }),
-            /* @__PURE__ */ u("span", {
-              class: "phr",
-              children: /* @__PURE__ */ u("button", {
-                class: "btn sm",
-                "data-act": "to-yaml",
-                "data-key": `${r.name.value}.${h.place}.team`,
-                onClick: () => pressToYaml(`${r.name.value}.${h.place}.team`),
-                children: "YAML"
-              })
-            })
-          ]
-        })
-      }))
+      })
     ]
   });
 }
@@ -6609,7 +6572,7 @@ function YamlPage() {
                 const n = f.kind === "agreement" && r ? Array.from((r.agreeSaved.value || r.agreeDraft.value).text).length : "";
                 const on = chosen === f.file;
                 return /* @__PURE__ */ u("button", {
-                  class: ["file", on ? "on" : "", f.hidden ? "hid" : ""].filter(Boolean).join(" "),
+                  class: ["file", on ? "on" : ""].filter(Boolean).join(" "),
                   "data-act": "yfile",
                   "data-file": f.file,
                   "aria-pressed": on,
@@ -6636,7 +6599,7 @@ function YamlPage() {
                     }),
                     /* @__PURE__ */ u("span", {
                       class: "ft",
-                      children: f.hidden ? "隠れている" : f.path
+                      children: f.path
                     })
                   ]
                 });
@@ -6656,7 +6619,8 @@ function YamlPage() {
 }
 function YamlFile({ f }) {
   const r = recForFile(f);
-  const both = r ? !!r.mark.value : false;
+  const mark = (r ? r.mark.value : "") || f.mark || "";
+  const both = !!mark;
   return /* @__PURE__ */ u("section", {
     class: "yed",
     "data-key": keyOfFile(f),
@@ -6664,7 +6628,7 @@ function YamlFile({ f }) {
     children: /* @__PURE__ */ u(YamlTab2, {
       label: f.label,
       path: f.path,
-      badge: both ? { cls: "state " + (f.hidden ? "off" : "on"), text: f.hidden ? "隠れている" : "効いている" } : null,
+      badge: both ? { cls: "state " + (mark === "hidden" ? "off" : "on"), text: mark === "hidden" ? "隠れている" : "効いている" } : null,
       text: f.text,
       carried: state.value.ytext[f.file],
       hash: f.hash,

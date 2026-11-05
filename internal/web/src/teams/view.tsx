@@ -34,7 +34,7 @@ import {
   pressTab, pressToggle, pressNew, pressDup, pressCopy, pressDiscard,
   pressStarterRoles, pressStarterProfile, pressCarry,
   pressDelYes, pressName, pressDtab, pressPmode, bornOf,
-  pressToYaml, pressTSave, pressTRevert, pressSave, pressRevert, pressVpick,
+  pressTSave, pressTRevert, pressSave, pressRevert, pressVpick,
   pressToastUndo, pressYfile, yamlState, yamlProblems, yamlRevert, yamlSaved, fileText,
   conflictAt, pressOverwrite, pressRevertConflict, pressUndoConflict,
 } from './state.js';
@@ -183,11 +183,13 @@ const groupLabel = (r: Rec): string => (r.project === 'global' ? 'グローバ�
 // the global row says which projects override it.
 function placePills(r: Rec): ComponentChildren {
   const label = groupLabel(r);
-  const globalGroup = (GROUPS || []).find((g) => g.global);
+  const globalGroup = (HQ && HQ.teams || GROUPS || []).find((g) => g.global);
   const over = (globalGroup && globalGroup.overridden_by) || {};
   const name = r.name.value;
-  const shadow = r.project && r.project !== 'global' && (over[name] || []).includes(r.project);
-  const overriding = r.project === 'global' ? (over[name] || []) : [];
+  // The crossed-out グローバル is the owner's mark on the project's row; a
+  // global row names the listed projects that override it (r-ea17).
+  const shadow = r.mark.value === 'in_effect';
+  const overriding = r.place.value === 'global' ? (over[name] || []) : [];
   return <><span class="pill on">{label}</span>{shadow ? <span class="pill shadow">グローバル</span> : null}{overriding.map((p) => <span class="pill hq-ov">{hqProjectName(p)} で上書き</span>)}</>;
 }
 
@@ -226,7 +228,6 @@ function Sum({ r, open }: { r: Rec; open: boolean }) {
 
 // ---- detail ------------------------------------------------------------
 function Detail({ r }: { r: Rec }) {
-  const hidden = r.hidden.value || [];
   const body = useRef<HTMLDivElement>(null);
   const [floor, setFloor] = useState(0);
   // The tab body never shrinks below the tallest it has been for this
@@ -255,9 +256,6 @@ function Detail({ r }: { r: Rec }) {
       <div class="dbody" ref={body} style={floor ? { minHeight: `${floor}px` } : undefined}>
         {dtabOf(r) === 'shape' ? <TeamPanel r={r} /> : <AgreePanel r={r} />}
       </div>
-      {hidden.map((h) => (
-        <section class="panel shadowed"><header class="ph"><span class="ln">{placeName(h.place)}</span><code class="path">{(DIR[h.place] || '') + r.name.value}/</code><span class="state off">隠れている</span><span class="phr"><button class="btn sm" data-act="to-yaml" data-key={`${r.name.value}.${h.place}.team`} onClick={() => pressToYaml(`${r.name.value}.${h.place}.team`)}>YAML</button></span></header></section>
-      ))}
     </div>
   );
 }
@@ -614,7 +612,7 @@ export function YamlPage() {
           const n = f.kind === 'agreement' && r ? Array.from((r.agreeSaved.value || r.agreeDraft.value).text).length : '';
           const on = chosen === f.file;
           return (
-            <button class={['file', on ? 'on' : '', f.hidden ? 'hid' : ''].filter(Boolean).join(' ')} data-act="yfile" data-file={f.file} aria-pressed={on} onClick={() => pressYfile(f.file)}><code>{f.name}/{f.kind === 'agreement' ? 'agreement.md' : 'team.yaml'}</code><span class="fs">{fileDirty(f.file) ? <span class="dirty">●</span> : null}{(yIssues(f.file) || []).length ? <Counts list={messagesOf(yIssues(f.file))} /> : (n || '')}</span><span class="ft">{f.hidden ? '隠れている' : f.path}</span></button>
+            <button class={['file', on ? 'on' : ''].filter(Boolean).join(' ')} data-act="yfile" data-file={f.file} aria-pressed={on} onClick={() => pressYfile(f.file)}><code>{f.name}/{f.kind === 'agreement' ? 'agreement.md' : 'team.yaml'}</code><span class="fs">{fileDirty(f.file) ? <span class="dirty">●</span> : null}{(yIssues(f.file) || []).length ? <Counts list={messagesOf(yIssues(f.file))} /> : (n || '')}</span><span class="ft">{f.path}</span></button>
           );
         })}</div>
       );
@@ -628,11 +626,12 @@ export function YamlPage() {
 // draws what stands inside it and reads the file and the hash as props.
 function YamlFile({ f }: { f: YFile }) {
   const r = recForFile(f);
-  const both = r ? !!r.mark.value : false;
+  const mark = (r ? r.mark.value : '') || f.mark || '';
+  const both = !!mark;
   return (
     <section class="yed" data-key={keyOfFile(f)} data-hash={f.hash}>
       <YamlTab label={f.label} path={f.path}
-        badge={both ? { cls: 'state ' + (f.hidden ? 'off' : 'on'), text: f.hidden ? '隠れている' : '効いている' } : null}
+        badge={both ? { cls: 'state ' + (mark === 'hidden' ? 'off' : 'on'), text: mark === 'hidden' ? '隠れている' : '効いている' } : null}
         text={f.text} carried={state.value.ytext[f.file]} hash={f.hash} kind="team" place={f.place} name={f.name} extra={{ part: f.kind }}
         problems={yIssues(f.file)} problem={f.problem || ''}
         onProblems={(probs: Schemas['Problem'][]) => yamlProblems(f.file, probs)}

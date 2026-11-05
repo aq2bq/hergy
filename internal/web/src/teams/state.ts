@@ -1212,7 +1212,7 @@ export async function renamed(r: Rec, name: string, json: Schemas['TeamSaved']):
   setDtab(next.dom, tab);
   const files = (json.files || []).filter((f) => f.place === r.place.value && f.name === name);
   yfiles.value = yfiles.value.filter((f) => !(f.place === r.place.value && f.name === old)).concat(files.map((f): YFile => ({
-    file: `${f.name}.${f.place}.${f.kind}`, place: f.place, name: f.name || '', kind: f.kind || '', problem: (f as { problem?: string }).problem || '',
+    file: `${f.name}.${f.place}.${f.kind}`, place: f.place, name: f.name || '', kind: f.kind || '', problem: (f as { problem?: string }).problem || '', mark: (f as { mark?: string }).mark || '',
     label: PLACE[f.place], path: f.path, hash: f.hash || '', text: f.text || '', hidden: !!f.hidden, problems: f.problems || [],
   })));
   await checkTeam(next);
@@ -1431,11 +1431,12 @@ export type YFile = {
   // problem is why the file cannot be read: the YAML tab says it and offers no
   // save over it (r-ea17, d-0bf1).
   problem?: string;
+  mark?: string;
 };
 export const yfiles = signal<YFile[]>((LIST.files || []).map((f): YFile => ({
   file: `${f.name}.${f.place}.${f.kind}`, place: f.place, name: f.name || '', kind: f.kind || '',
   label: PLACE[f.place] || '', path: f.path || '', hash: f.hash || '',
-  text: f.text || '', hidden: !!f.hidden, problems: f.problems || [], problem: (f as { problem?: string }).problem || '',
+  text: f.text || '', hidden: !!f.hidden, problems: f.problems || [], problem: (f as { problem?: string }).problem || '', mark: (f as { mark?: string }).mark || '',
 })));
 export const fileOf = (file: string): YFile | null => yfiles.value.find((f) => f.file === file) || null;
 export const fileKeys = (): string[] => PLACES.flatMap((p) => yfiles.value.filter((f) => f.place === p).map((f) => f.file));

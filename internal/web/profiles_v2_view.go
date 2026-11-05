@@ -83,8 +83,6 @@ type p2Panel struct {
 	Label       string            `json:"label"`
 	Path        string            `json:"path"`
 	Saved       bool              `json:"saved"`
-	Shadowed    bool              `json:"shadowed"`
-	Both        bool              `json:"both"`
 	Other       string            `json:"other"`
 	OtherLabel  string            `json:"otherLabel"`
 	Name        string            `json:"name"`

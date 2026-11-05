@@ -272,6 +272,7 @@ export type ProfilePanel = {
   savedName: string; savedKind: string; savedArgs: string; savedEnv: string;
   hash: string; users: number; rename_targets: number; err: number; warn: number;
   savedLine: boolean;
+  mark?: string;
   // problem is why this place's file cannot be read: the row stands and says so
   // (r-ea17, d-17ab).
   problem: string;
@@ -311,7 +312,7 @@ function profileRow(item: ListItem<'profile'>, isOpen: boolean): ProfileRow {
       savedArgs: jsonOf(doc.args), savedEnv: jsonOf(doc.env),
       hash: place.hash || '', users: both ? 0 : (s.users || 0),
       rename_targets: place.rename_targets || 0, err: c.err, warn: c.warn,
-      savedLine: !!place.savedLine, problem: place.problem || '',
+      savedLine: !!place.savedLine, problem: place.problem || '', mark: (item.mark as string) || '',
     };
   });
   const c = countOf(item.problems);

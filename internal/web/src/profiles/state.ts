@@ -223,6 +223,7 @@ function panelOf(p: ProfilePanel, group: string | undefined, rowKey: string): Pa
     errors: 0,
     savedLine: !!p.savedLine,
     problem: p.problem || '',
+    mark: p.mark || '',
     refusal: '',
     conflict: null,
     confirming: false,

@@ -25,6 +25,16 @@ test.describe('one project', () => {
     const one = rows.filter({ has: page.locator('.c-name .nm', { hasText: /^research$/ }) });
     await expect(one).not.toContainText('効いている');
     await expect(one).not.toContainText('隠れている');
+    // The place column carries the same answer: the project's row crosses out
+    // the global place, and the global row names the project that overrides it.
+    const projectRow = both.filter({ has: page.locator('.c-place .pill.shadow') });
+    await expect(projectRow).toHaveCount(1);
+    await expect(both.filter({ has: page.locator('.c-place .pill.hq-ov') })).toHaveCount(1);
+    // The YAML tab's badge is the file row's mark, not the file's layer.
+    await page.goto(`${app.base}/teams/yaml`); await ready(page);
+    const yaml = page.locator('.yed .ph .state');
+    await expect(yaml.filter({ hasText: '効いている' })).toHaveCount(1);
+    await expect(yaml.filter({ hasText: '隠れている' })).toHaveCount(1);
   });
 });
 

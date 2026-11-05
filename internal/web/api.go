@@ -227,8 +227,9 @@ type apiFile struct {
 	Hash     string       `json:"hash"`
 	Name     string       `json:"name,omitempty"`
 	Kind     string       `json:"kind,omitempty"`
-	Hidden   bool         `json:"hidden,omitempty"`
 	Problems []apiProblem `json:"problems"`
+	// Mark is the row's owner answer for a name both layers hold (r-ea17).
+	Mark string `json:"mark,omitempty"`
 	// Problem is why the file cannot be read: the YAML tab says it and offers no
 	// save over it (r-ea17, d-0bf1).
 	Problem string `json:"problem,omitempty"`

@@ -170,7 +170,8 @@ function profileRow(item, isOpen) {
       err: c.err,
       warn: c.warn,
       savedLine: !!place.savedLine,
-      problem: place.problem || ""
+      problem: place.problem || "",
+      mark: item.mark || ""
     };
   });
   const c = countOf(item.problems);

@@ -89,6 +89,8 @@ export type Panel = {
   otherLabel: string;
   both: boolean;
   shadowed: boolean;
+  // mark is the row's owner answer (r-ea17).
+  mark: string;
   saved: SavedProfile | null;
   hash: string;
   users: number;

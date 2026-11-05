@@ -116,21 +116,20 @@ func p2RowOf(name string, project, shared p2File, chips map[string][]p2UserChip,
 // p2Panels is one row's open panels: the project's file on the left, the shared
 // one on the right, either of them alone when only one holds the profile.
 func p2Panels(projectEntry profile.Entry, hasProject bool, sharedEntry profile.Entry, hasShared bool, users, projectReaders, sharedReaders int, project, shared p2File) []p2Panel {
-	both := hasProject && hasShared
 	var out []p2Panel
 	if hasProject {
 		shown := users
 		if hasShared {
 			shown = 0
 		}
-		out = append(out, p2PanelOf(p2Project, projectEntry, both, false, shown, projectReaders, project.hash, project.display))
+		out = append(out, p2PanelOf(p2Project, projectEntry, shown, projectReaders, project.hash, project.display))
 	}
 	if hasShared {
 		shown := users
 		if hasProject {
 			shown = 0
 		}
-		out = append(out, p2PanelOf(p2Shared, sharedEntry, both, hasProject, shown, sharedReaders, shared.hash, shared.display))
+		out = append(out, p2PanelOf(p2Shared, sharedEntry, shown, sharedReaders, shared.hash, shared.display))
 	}
 	return out
 }
@@ -155,10 +154,10 @@ func p2Readers(users []p2UserChip, hasProject bool) (project, shared int) {
 // p2PanelOf is one file's panel. shadowed says the project's file hides this one;
 // users is the number of people shown on the panel, which only a file that is
 // the only one holding the name shows.
-func p2PanelOf(file string, entry profile.Entry, both, shadowed bool, users, renameUsers int, hash, path string) p2Panel {
+func p2PanelOf(file string, entry profile.Entry, users, renameUsers int, hash, path string) p2Panel {
 	errs, warns := p2Counts(entry.Problems)
 	return p2Panel{
-		File: file, Label: p2Label(file), Path: path, Saved: true, Both: both, Shadowed: shadowed,
+		File: file, Label: p2Label(file), Path: path, Saved: true,
 		Other:       p2Other(file),
 		OtherLabel:  p2Label(p2Other(file)),
 		Name:        entry.Name,

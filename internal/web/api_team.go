@@ -218,6 +218,19 @@ func (s *Server) t2ItemAt(name, place, ver string) apiItem {
 }
 
 // t2FilesAt is the YAML tab's files of one place: team.yaml and agreement.md.
+// fileMark is the row's mark for one of its files: the owner's answer, so the
+// YAML tab's badge is not the file's layer (r-ea17).
+func (s *Server) fileMark(name, place string) string {
+	effective, hidden := s.effectiveOf(catalog.KindTeam, name)
+	if len(hidden) == 0 {
+		return ""
+	}
+	if place == effective {
+		return "in_effect"
+	}
+	return "hidden"
+}
+
 func (s *Server) t2FilesAt(name, place string) []apiFile {
 	layer := catalog.Layer(place)
 	var out []apiFile
@@ -236,7 +249,7 @@ func (s *Server) t2FilesAt(name, place string) []apiFile {
 			})
 			continue
 		}
-		out = append(out, s.t2FileOf(place, one.kind, name, one.path, false))
+		out = append(out, s.t2FileOf(place, one.kind, name, one.path))
 	}
 	return out
 }
@@ -394,20 +407,20 @@ func (s *Server) buildCountsOf(name, layer string) apiCounts {
 // t2FileOf is one file of the YAML tab, with the problems its own check finds.
 // A team.yaml finding carries a field rather than a line, so the line of the
 // key it names travels beside it (spec-teams 1.8).
-func (s *Server) t2FileOf(place, kind, name, path string, hidden bool) apiFile {
+func (s *Server) t2FileOf(place, kind, name, path string) apiFile {
 	text, _ := s.cat.Reader().Read(source.Doc{Path: path})
-	key := "team.file|" + s.cat.Base() + "|" + place + "|" + kind + "|" + name + "|" + path + "|" + source.Hash(text) + "|" + map[bool]string{true: "hidden", false: "shown"}[hidden]
-	return s.cached(key, func() any { return s.buildFileOf(place, kind, name, path, hidden, text) }).(apiFile)
+	key := "team.file|" + s.cat.Base() + "|" + place + "|" + kind + "|" + name + "|" + path + "|" + source.Hash(text)
+	return s.cached(key, func() any { return s.buildFileOf(place, kind, name, path, text) }).(apiFile)
 }
 
 // buildFileOf is one YAML tab file with its problems, built when no held answer
 // stands for the file's version.
-func (s *Server) buildFileOf(place, kind, name, path string, hidden bool, text string) apiFile {
+func (s *Server) buildFileOf(place, kind, name, path, text string) apiFile {
 	layer := catalog.Layer(place)
 	display := s.cat.Display(path)
 	out := apiFile{
 		Place: place, Name: name, Kind: kind, Label: t2PlaceWord(place),
-		Path: display, Hash: source.Hash(text), Text: text, Hidden: hidden,
+		Path: display, Hash: source.Hash(text), Text: text, Mark: s.fileMark(name, place),
 	}
 	if kind == "agreement" {
 		report := check.Agreement(check.AgreementInput{Catalog: s.cat, Name: name, Place: layer, Text: text})

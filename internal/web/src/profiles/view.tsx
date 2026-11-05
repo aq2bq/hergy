@@ -225,7 +225,7 @@ function Panel({ panel }: { panel: PanelState }) {
       <header class="ph">
         <span class="ln">{groupName(panel.group)}</span>
         <code class="path">{panel.path}</code>
-        {panel.both ? <span class={'state ' + (panel.shadowed ? 'off' : 'on')}>{panel.shadowed ? '隠れている' : '効いている'}</span> : ''}
+        {panel.mark ? <span class={'state ' + (panel.mark === 'hidden' ? 'off' : 'on')}>{panel.mark === 'hidden' ? '隠れている' : '効いている'}</span> : ''}
         <span class="acts">{acts}</span>
       </header>
       <div class="field"><label>プロファイル名</label><div>

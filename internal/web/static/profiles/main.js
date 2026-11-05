@@ -27,19 +27,19 @@ import {
   bases2,
   problemText2,
   profileModel2
-} from "../chunk/nav-6mzp8cwt.js";
+} from "../chunk/nav-7t7hyw1j.js";
 import {
   token2,
   parseOpen2,
   askConfirm,
   ConfirmDialog
-} from "../chunk/nav-gkhsyqbe.js";
-import"../chunk/nav-9jet2tba.js";
+} from "../chunk/nav-v78t4xz0.js";
+import"../chunk/nav-evzrqbpq.js";
 import {
   conflictOf,
   ConflictNotice,
   YamlTab2
-} from "../chunk/nav-744v0ch7.js";
+} from "../chunk/nav-2wpnf38f.js";
 import {
   copyGroupOf,
   projectOfGroup,
@@ -213,6 +213,7 @@ function panelOf(p, group, rowKey) {
     errors: 0,
     savedLine: !!p.savedLine,
     problem: p.problem || "",
+    mark: p.mark || "",
     refusal: "",
     conflict: null,
     confirming: false,
@@ -1556,9 +1557,9 @@ function Panel({ panel }) {
             class: "path",
             children: panel.path
           }),
-          panel.both ? /* @__PURE__ */ u("span", {
-            class: "state " + (panel.shadowed ? "off" : "on"),
-            children: panel.shadowed ? "隠れている" : "効いている"
+          panel.mark ? /* @__PURE__ */ u("span", {
+            class: "state " + (panel.mark === "hidden" ? "off" : "on"),
+            children: panel.mark === "hidden" ? "隠れている" : "効いている"
           }) : "",
           /* @__PURE__ */ u("span", {
             class: "acts",
