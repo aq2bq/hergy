@@ -1263,6 +1263,10 @@ function Row({ row }) {
                   children: "—"
                 })
               }),
+              (row.panels || []).some((p) => p.both) ? /* @__PURE__ */ u("span", {
+                class: "state " + (row.group === "global" ? "off" : "on"),
+                children: row.group === "global" ? "隠れている" : "効いている"
+              }) : null,
               row.isNew ? /* @__PURE__ */ u("span", {
                 class: "tag",
                 children: "新規"

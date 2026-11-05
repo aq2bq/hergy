@@ -115,11 +115,7 @@ func p2ItemOf(row p2Row, project, shared p2File) apiItem {
 		},
 	}
 	for _, panel := range row.Panels {
-		if panel.Shadowed {
-			it.Hidden = append(it.Hidden, panel.File)
-		} else {
-			it.Effective = panel.File
-		}
+		it.Effective = panel.File
 		it.Places[panel.File] = apiPlace{
 			Doc:           p2Draft{Name: panel.Name, Kind: panel.Kind, Args: panel.Args, Env: p2EnvPairs(panel.Env)},
 			Text:          texts[panel.File],

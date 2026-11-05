@@ -181,7 +181,7 @@ func (k apiRole) Get(name, place string) (any, *apiErr) {
 	if err != nil {
 		return nil, refuse(http.StatusNotFound, t("web.error.not_found"))
 	}
-	effective, hidden := s.r2RowPlaces(name)
+	effective, hidden := s.effectiveOf(catalog.KindRole, name)
 	return map[string]any{
 		"doc":       r2DocOf(text, path),
 		"text":      text,
@@ -190,22 +190,6 @@ func (k apiRole) Get(name, place string) (any, *apiErr) {
 		"effective": effective,
 		"hidden":    hidden,
 	}, nil
-}
-
-// r2RowPlaces is which place of a name is in effect and which is hidden.
-func (s *Server) r2RowPlaces(name string) (string, []string) {
-	project := s.cat.RolePath(catalog.PlaceProject, name)
-	shared := s.cat.RolePath(catalog.PlaceGlobal, name)
-	_, projectErr := s.cat.Reader().Read(source.Doc{Path: project})
-	_, sharedErr := s.cat.Reader().Read(source.Doc{Path: shared})
-	hasProject, hasShared := projectErr == nil, sharedErr == nil
-	switch {
-	case hasProject && hasShared:
-		return catalog.PlaceProject, []string{catalog.PlaceGlobal}
-	case hasShared:
-		return catalog.PlaceGlobal, nil
-	}
-	return catalog.PlaceProject, nil
 }
 
 // Check is POST /api/role/check: what is wrong with a panel's draft, or with the
@@ -385,7 +369,7 @@ func (k apiRole) saveYAML(in apiIn) (any, *apiErr) {
 func (k apiRole) savedAnswer(place, name string, doc *r2Doc, text string) apiSaved {
 	list := k.s.r2List()
 	out := apiSaved{Doc: doc, Text: text, Hash: source.Hash(text), Path: k.s.cat.Display(k.s.cat.RolePath(place, name)), Items: list.Items, Hashes: list.Hashes}
-	out.Effective, out.Hidden = k.s.r2RowPlaces(name)
+	out.Effective, out.Hidden = k.s.effectiveOf(catalog.KindRole, name)
 	return out
 }
 

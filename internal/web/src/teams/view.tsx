@@ -212,7 +212,7 @@ function Sum({ r, open }: { r: Rec; open: boolean }) {
   return (
     <>
       <button type="button" class="chev disclosure" aria-label={`${teamLabel(r)} を開閉する`} aria-expanded={open} onClick={(e) => { e.stopPropagation(); pressToggle(r); }}></button>
-      <span class="c-name"><NameCell r={r} open={open} /><span class="vcount"><Counts list={messagesOf(rowIssues(r))} /></span></span>
+      <span class="c-name"><NameCell r={r} open={open} />{r.hidden.value.length ? <span class={'state ' + (r.place.value === 'global' ? 'off' : 'on')}>{r.place.value === 'global' ? '隠れている' : '効いている'}</span> : null}<span class="vcount"><Counts list={messagesOf(rowIssues(r))} /></span></span>
       <span class={'c-description' + (broken || !(t.description || open) ? ' none' : '')}>{cell}</span>
       <span class="c-place">{pills}</span>
       <span class="c-members c-num">{broken ? '—' : t.members.length}</span>

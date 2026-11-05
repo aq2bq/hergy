@@ -120,6 +120,7 @@ export function Row({ row }: { row: Row }) {
         <button type="button" class="chev disclosure" ref={sum} aria-label={`${name || '新しいプロファイル'} を開閉する`} aria-expanded={row.open} onClick={(e) => { e.stopPropagation(); pressToggle(row.key); }}></button>
         <span class="c-name">
           <span class="nm">{name ? name : <span class="none">—</span>}</span>
+          {(row.panels || []).some((p) => p.both) ? <span class={'state ' + (row.group === 'global' ? 'off' : 'on')}>{row.group === 'global' ? '隠れている' : '効いている'}</span> : null}
           {row.isNew ? <span class="tag">新規</span> : ''}
           {row.err > 0 ? <span class="sev err">問題 {row.err}</span> : row.warn > 0 ? <span class="sev warn">警告 {row.warn}</span> : ''}
         </span>

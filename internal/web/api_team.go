@@ -508,25 +508,11 @@ func (k apiTeam) Get(name, place string) (any, *apiErr) {
 		return nil, refuse(http.StatusNotFound, t("web.error.not_found"))
 	}
 	def, _ := s.cat.Definition(name, layer)
-	effective, hidden := s.t2Places(name)
+	effective, hidden := s.effectiveOf(catalog.KindTeam, name)
 	return apiTeamGet{
 		Doc: s.t2DocOf(name, layer, def), Text: text, Hash: source.Hash(text),
 		Path: s.cat.Display(path), Effective: effective, Hidden: hidden,
 	}, nil
-}
-
-// t2Places is which place of a definition is in effect and which is hidden,
-// asked of the catalog rather than of a listing.
-func (s *Server) t2Places(name string) (string, []string) {
-	_, projectErr := s.cat.Reader().Read(source.Doc{Path: s.cat.TeamYAML(name, catalog.Layer(catalog.PlaceProject))})
-	_, globalErr := s.cat.Reader().Read(source.Doc{Path: s.cat.TeamYAML(name, catalog.Layer(catalog.PlaceGlobal))})
-	switch {
-	case projectErr == nil && globalErr == nil:
-		return catalog.PlaceProject, []string{catalog.PlaceGlobal}
-	case globalErr == nil:
-		return catalog.PlaceGlobal, nil
-	}
-	return catalog.PlaceProject, nil
 }
 
 // Check is POST /api/team/check: what is wrong with a draft, an effect, or a

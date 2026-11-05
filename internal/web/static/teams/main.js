@@ -5689,6 +5689,10 @@ function Sum({ r, open }) {
             r,
             open
           }),
+          r.hidden.value.length ? /* @__PURE__ */ u("span", {
+            class: "state " + (r.place.value === "global" ? "off" : "on"),
+            children: r.place.value === "global" ? "隠れている" : "効いている"
+          }) : null,
           /* @__PURE__ */ u("span", {
             class: "vcount",
             children: /* @__PURE__ */ u(Counts2, {

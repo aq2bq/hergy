@@ -4,7 +4,6 @@ import (
 	"path/filepath"
 
 	"github.com/aq2bq/hergy/internal/profile"
-	"github.com/aq2bq/hergy/internal/source"
 )
 
 // This file is what the headquarters (d-73fc) reads of one project's layer: how
@@ -50,21 +49,4 @@ func (c *Catalog) HoldsProfile(name, layer string) bool {
 		return found
 	}
 	return false
-}
-
-// LayerOnly returns a catalog that reads one layer and nothing else: the other
-// layer's directory is a name nothing stands at. It is how the headquarters shows
-// the global rows once, without every project's shadow of them (d-73fc).
-func (c *Catalog) LayerOnly(layer string) *Catalog {
-	out := *c
-	none := filepath.Join(c.globalDir, ".hq", "no-layer")
-	if layer == source.LayerGlobal {
-		out.localDir = none
-	} else {
-		out.globalDir = none
-	}
-	out.overlays = nil
-	out.hidden = nil
-	out.reader = c.reader
-	return &out
 }

@@ -10,6 +10,7 @@ import (
 	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/i18n"
+	"github.com/aq2bq/hergy/internal/source"
 )
 
 // This file is the one boundary the screens read and write through
@@ -135,6 +136,27 @@ func (s *Server) docUnreadableRefusal(path string) *apiErr {
 		return refuse(http.StatusUnprocessableEntity, why)
 	}
 	return nil
+}
+
+// effectiveOf is which place a name is in effect at, and which places are
+// hidden: the owner's rows answer it (ListedRow.InEffect/Hidden, r-ea17), so a
+// file that cannot be read does not change the answer.
+func (s *Server) effectiveOf(kind, name string) (string, []string) {
+	for _, one := range s.cat.ShownRows(kind, source.LayerLocal) {
+		if one.Name != name {
+			continue
+		}
+		if one.InEffect {
+			return catalog.PlaceProject, []string{catalog.PlaceGlobal}
+		}
+		return catalog.PlaceProject, nil
+	}
+	for _, one := range s.cat.ShownRows(kind, source.LayerGlobal) {
+		if one.Name == name {
+			return catalog.PlaceGlobal, nil
+		}
+	}
+	return catalog.PlaceProject, nil
 }
 
 // unreadable is the one place web names a file that cannot be read: the owner

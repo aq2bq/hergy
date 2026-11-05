@@ -52,7 +52,7 @@ type Catalog struct {
 	// held is the parsed readings every catalog of one reader shares: a team
 	// definition read for one request is the same value the next request draws
 	// from, until a file it was read from changes (d-e00b). A catalog is copied
-	// by value (With, LayerOnly), so the map stands behind a pointer.
+	// by value (With), so the map stands behind a pointer.
 	held *heldReadings
 }
 
