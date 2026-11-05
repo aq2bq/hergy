@@ -39,8 +39,23 @@ func (s *Server) p2List() apiList {
 	project, shared, defs := s.p2Read()
 	chips := p2Chips(defs)
 	out := apiList{Hashes: map[string]string{p2Project: project.hash, p2Shared: shared.hash}}
-	for _, name := range p2Names(project, shared) {
-		out.Items = append(out.Items, p2ItemOf(p2RowOf(name, project, shared, chips, false), project, shared))
+	unreadable := s.p2Unreadable()
+	for _, name := range s.p2Names() {
+		item := p2ItemOf(p2RowOf(name, project, shared, chips, false), project, shared)
+		for place, why := range unreadable[name] {
+			// The file cannot be read: the place stands with the reason, so the
+			// row is still drawn and counted (r-ea17, d-17ab).
+			path, _, _ := s.p2ProfilePath(place)
+			item.Places[place] = apiPlace{
+				Doc: p2Draft{Name: name}, Path: s.cat.Display(path),
+				Problems: apiCounts{Err: 1}, Problem: why,
+			}
+			item.Problems.Err++
+			if len(item.Places) == 1 {
+				item.Effective = place
+			}
+		}
+		out.Items = append(out.Items, item)
 	}
 	for _, file := range []p2File{project, shared} {
 		out.Files = append(out.Files, s.p2FileOf(file))

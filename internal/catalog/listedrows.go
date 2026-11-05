@@ -13,11 +13,12 @@ import (
 // A row is one name in one place: a team definition's directory, a role's
 // document (or, on the project's side, a name the list still shows without one:
 // a legacy .yaml, or a name only a member names), and a profile in a layer's
-// profiles.yaml. Both the list answers and the band's numbers are built from
+// profiles.yaml — or, where the file cannot be read, the one row that stands
+// for the file. Both the list answers and the band's numbers are built from
 // ListedRows, and a number is the number of rows: nothing else counts rows.
 //
-// 読めない文書を持つ行を出すかは、いまは利用者への確認（q-a8a3）の答え待ち。
-// 答えが来たら rowShown の一行だけを変える（A: 出す・数える、B: 出さない・数えない）。
+// 読めない（壊れた・権限の無い）文書の行も、一覧に出して件数に数える（d-17ab、
+// q-a8a3 の答え A）。行を出すかは rowShown の一行が決め、理由は ReadableOf が返す。
 
 // ListedRow is one row of a list: a name in one place.
 type ListedRow struct {
@@ -27,6 +28,10 @@ type ListedRow struct {
 	Path   string // the document the row stands on, empty for a name without one
 	Legacy bool   // role: only a legacy .yaml stands behind the name
 	NoDoc  bool   // role: no layer holds a document; a member names it
+	// Problem is why a row that stands for a whole file (a profiles.yaml that
+	// cannot be read) cannot be read. The row is drawn and counted anyway
+	// (r-ea17, d-17ab).
+	Problem string
 }
 
 // Bands' kinds, as the API and the screens name them.
@@ -63,25 +68,27 @@ func (c *Catalog) ShownRows(kind, layer string) []ListedRow {
 	return out
 }
 
-// rowShown is the one place the unreadable-row decision lives. Until the
-// master's answer, it keeps what each list does today: a team definition's row
-// stands even when its team.yaml does not read, a role's row stands only when
-// its document reads, and a profile's row stands when its file reads (the file
-// is parsed to know the names at all).
-func (c *Catalog) rowShown(row ListedRow) bool {
-	if row.Kind == KindTeam {
-		return true
-	}
-	if row.Legacy || row.NoDoc {
-		return true
-	}
-	return row.Path != "" && c.roleReads(row.Path)
-}
+// rowShown is the one place the unreadable-row decision lives: every row stands
+// and is counted, whether or not its document reads (d-17ab).
+func (c *Catalog) rowShown(_ ListedRow) bool { return true }
 
-// roleReads is whether one role document can be read.
-func (c *Catalog) roleReads(path string) bool {
-	_, ok, err := c.fileText(path)
-	return ok && err == nil
+// ReadableOf is whether the row's document can be read, with the sentence a
+// list shows beside a row that cannot (d-17ab: the row stands and is counted).
+func (c *Catalog) ReadableOf(row ListedRow) (bool, string) {
+	if row.Problem != "" {
+		return false, row.Problem
+	}
+	if row.Legacy || row.NoDoc || row.Path == "" {
+		return true, ""
+	}
+	_, ok, err := c.fileText(row.Path)
+	if err == nil && ok {
+		return true, ""
+	}
+	if err != nil {
+		return false, err.Error()
+	}
+	return false, ""
 }
 
 func (c *Catalog) teamRows(layer string) []ListedRow {
@@ -132,20 +139,32 @@ func (c *Catalog) roleRows(layer string) []ListedRow {
 	return out
 }
 
+// profileRows is the rows one layer's profiles.yaml draws. A file that is not
+// there is empty and draws none; a file that cannot be read, or that names no
+// profile because it cannot be read as profiles.yaml, draws the one row that
+// stands for the file, with the reason (r-ea17, d-17ab).
 func (c *Catalog) profileRows(layer string) []ListedRow {
 	dir := c.LayerDir(layer)
 	path := filepath.Join(dir, "profiles.yaml")
+	place := placeOfLayer(layer)
 	text, ok, err := c.fileText(path)
-	if err != nil || !ok {
-		return nil
-	}
-	parsed, err := profile.ParseProfiles(text, c.Display(path))
 	if err != nil {
+		return []ListedRow{{Kind: KindProfile, Name: filepath.Base(path), Place: place, Path: path, Problem: err.Error()}}
+	}
+	if !ok {
 		return nil
 	}
-	out := make([]ListedRow, 0, len(parsed))
-	for name := range parsed {
-		out = append(out, ListedRow{Kind: KindProfile, Name: name, Place: placeOfLayer(layer), Path: path})
+	entries, problems := profile.ReadAll(text, c.Display(path))
+	if len(entries) == 0 {
+		for _, problem := range problems {
+			if problem.Sev == profile.Err {
+				return []ListedRow{{Kind: KindProfile, Name: filepath.Base(path), Place: place, Path: path, Problem: problem.Text}}
+			}
+		}
+	}
+	out := make([]ListedRow, 0, len(entries))
+	for _, entry := range entries {
+		out = append(out, ListedRow{Kind: KindProfile, Name: entry.Name, Place: place, Path: path})
 	}
 	return out
 }

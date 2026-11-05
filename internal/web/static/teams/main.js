@@ -38,7 +38,7 @@ import {
   saved2,
   bases2,
   problemText2
-} from "../chunk/nav-fy1k69g7.js";
+} from "../chunk/nav-52v6896m.js";
 import {
   num,
   documents,
@@ -56,7 +56,7 @@ import {
   Counts2,
   Vm2,
   RuleDoc2
-} from "../chunk/nav-djsfngdj.js";
+} from "../chunk/nav-1krhdr63.js";
 import {
   st,
   token2,
@@ -64,19 +64,19 @@ import {
   projectName2,
   askConfirm,
   ConfirmDialog
-} from "../chunk/nav-75h44pf3.js";
+} from "../chunk/nav-601y94px.js";
 import {
   RunCell2
-} from "../chunk/nav-yw4r063q.js";
+} from "../chunk/nav-n7h5c10c.js";
 import {
   conflictOf,
   ConflictNotice,
   YamlTab2
-} from "../chunk/nav-8saftp8n.js";
+} from "../chunk/nav-5knnnn56.js";
 import {
   roleEditor,
   roleProblems
-} from "../chunk/nav-qbedfr24.js";
+} from "../chunk/nav-vpxvg8je.js";
 import {
   copyGroupOf,
   groupPlace,
@@ -957,6 +957,7 @@ function recOf(init) {
     hash: y(init.hash),
     agreeHash: y(init.agreeHash),
     broken: y(init.broken),
+    problem: y(init.problem),
     hidden: y(init.hidden),
     ops: y(init.ops),
     saved: y(init.saved),
@@ -1052,6 +1053,7 @@ function defOf(item, project, only) {
     hash: place?.hash || "",
     agreeHash: agree.hash || "",
     broken: !!doc?.broken,
+    problem: place?.problem || "",
     hidden,
     ops: [],
     saved: cloneTeam(doc),
@@ -1131,6 +1133,7 @@ function draftRecord(how, place, name, base, project) {
     hash: "",
     agreeHash: "",
     broken: false,
+    problem: "",
     hidden: [],
     ops: [],
     saved: cloneTeam(null),
@@ -5961,7 +5964,24 @@ function TeamPanel({ r }) {
       "data-key": k,
       children: [
         head,
-        /* @__PURE__ */ u("div", {
+        r.problem.value ? /* @__PURE__ */ u("div", {
+          class: "dh",
+          "data-problem": "team",
+          children: /* @__PURE__ */ u("ul", {
+            class: "vm dhvm",
+            children: /* @__PURE__ */ u("li", {
+              children: [
+                /* @__PURE__ */ u("span", {
+                  class: "sev err",
+                  children: "問題"
+                }),
+                /* @__PURE__ */ u("span", {
+                  children: `${r.teamPath.value} を読めません: ${r.problem.value}`
+                })
+              ]
+            })
+          })
+        }) : /* @__PURE__ */ u("div", {
           class: "gbody",
           children: /* @__PURE__ */ u("div", {
             class: "vlist",

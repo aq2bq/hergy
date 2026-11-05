@@ -272,6 +272,9 @@ export type ProfilePanel = {
   savedName: string; savedKind: string; savedArgs: string; savedEnv: string;
   hash: string; users: number; rename_targets: number; err: number; warn: number;
   savedLine: boolean;
+  // problem is why this place's file cannot be read: the row stands and says so
+  // (r-ea17, d-17ab).
+  problem: string;
 };
 
 // ProfileRow is one item read as the row the list draws.
@@ -306,7 +309,7 @@ function profileRow(item: ListItem<'profile'>, isOpen: boolean): ProfileRow {
       savedArgs: jsonOf(doc.args), savedEnv: jsonOf(doc.env),
       hash: place.hash || '', users: both ? 0 : (s.users || 0),
       rename_targets: place.rename_targets || 0, err: c.err, warn: c.warn,
-      savedLine: !!place.savedLine,
+      savedLine: !!place.savedLine, problem: place.problem || '',
     };
   });
   const c = countOf(item.problems);
@@ -330,8 +333,9 @@ export type HQRoleList = NonNullable<ApiAnswer<'listHQRoles'>['groups']>[number]
 export type RoleListLike = Answer<'role', 'list'>;
 
 // RolePlaceDoc is one place's role document as the screen holds it: the document
-// the server answered and the file it came from.
-export type RolePlaceDoc = Schemas['RoleDoc'] & { hash: string; text: string; path: string };
+// the server answered and the file it came from. problem is the sentence the
+// row shows when that file cannot be read (r-ea17, d-17ab).
+export type RolePlaceDoc = Schemas['RoleDoc'] & { hash: string; text: string; path: string; problem?: string };
 
 // RoleRow is one role of the list: its two places, one of them the effective
 // one, or the Markdown a role with no document is drawn from.
@@ -366,7 +370,7 @@ function roleRow(item: RoleListRow, i: number): RoleRow {
   PLACES.forEach((l) => {
     const place = places[l];
     row[l] = (place && place.doc)
-      ? Object.assign({}, place.doc, { hash: place.hash || '', text: place.text || '', path: place.path || '' })
+      ? Object.assign({}, place.doc, { hash: place.hash || '', text: place.text || '', path: place.path || '', problem: place.problem || '' })
       : null;
   });
   if (s.noDoc) row.noDoc = true;

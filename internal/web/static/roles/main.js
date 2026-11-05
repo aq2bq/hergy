@@ -23,7 +23,7 @@ import {
   problemText2,
   roleModel2,
   teamModel2
-} from "../chunk/nav-fy1k69g7.js";
+} from "../chunk/nav-52v6896m.js";
 import {
   takeDraft2,
   setDirty2
@@ -33,8 +33,8 @@ import {
   parseOpen2,
   askConfirm,
   ConfirmDialog
-} from "../chunk/nav-75h44pf3.js";
-import"../chunk/nav-yw4r063q.js";
+} from "../chunk/nav-601y94px.js";
+import"../chunk/nav-n7h5c10c.js";
 import {
   Measure,
   renameCarries2,
@@ -45,16 +45,16 @@ import {
   Badge2,
   Vm2,
   RuleDoc2
-} from "../chunk/nav-djsfngdj.js";
+} from "../chunk/nav-1krhdr63.js";
 import {
   conflictOf,
   ConflictNotice,
   YamlTab2
-} from "../chunk/nav-8saftp8n.js";
+} from "../chunk/nav-5knnnn56.js";
 import {
   roleEditor,
   roleProblems
-} from "../chunk/nav-qbedfr24.js";
+} from "../chunk/nav-vpxvg8je.js";
 import {
   copyGroupOf,
   projectOfGroup,
@@ -136,8 +136,10 @@ function rowsOf(model, group, place) {
       }
       if (r[l]) {
         const draft = fromJSON2(r[l]);
-        const saved = r.noDoc ? null : draft;
+        const saved = r.noDoc || r[l].problem ? null : draft;
         row[l] = { saved, draft: clone(draft), hash: r[l].hash || "", text: r[l].text || "" };
+        if (r[l].problem)
+          row[l].problem = r[l].problem;
         if (r[l].path)
           row.paths[l] = r[l].path;
       } else {
@@ -1847,7 +1849,24 @@ function detail(r) {
       }),
       /* @__PURE__ */ u("div", {
         class: "panels",
-        children: ls.map((l) => /* @__PURE__ */ u(Panel, {
+        children: ls.map((l) => r[l].problem ? /* @__PURE__ */ u("div", {
+          class: "dh",
+          "data-problem": l,
+          children: /* @__PURE__ */ u("ul", {
+            class: "vm dhvm",
+            children: /* @__PURE__ */ u("li", {
+              children: [
+                /* @__PURE__ */ u("span", {
+                  class: "sev err",
+                  children: "問題"
+                }),
+                /* @__PURE__ */ u("span", {
+                  children: `${r.paths?.[l] || ""} を読めません: ${r[l].problem}`
+                })
+              ]
+            })
+          })
+        }) : /* @__PURE__ */ u(Panel, {
           r,
           l
         }, l))

@@ -618,6 +618,8 @@ export interface components {
             /** @description いま保存した欄か（保存の答えだけが立てる） */
             savedLine?: boolean;
             problems: components["schemas"]["Counts"];
+            /** @description その置き場所の文書が読めない理由。行は出て、件数にも数える（r-ea17、d-17ab） */
+            problem?: string;
         };
         /** @description Markdown の本文をそのまま保持する文書。 */
         RoleDoc: {
@@ -835,6 +837,8 @@ export interface components {
             /** @description いま保存した欄か（保存の答えだけが立てる） */
             savedLine?: boolean;
             problems: components["schemas"]["Counts"];
+            /** @description そのファイルが読めない理由。行は出て、件数にも数える（r-ea17、d-17ab） */
+            problem?: string;
         };
         /** @description profiles.yaml 1 つの文書。ファイルに書いた順のプロファイルを持つ。 */
         ProfileFileDoc: {
@@ -1635,6 +1639,8 @@ export interface components {
             path: string;
             /** @description チーム定義の問題と警告の数 */
             problems: components["schemas"]["TeamCounts"];
+            /** @description team.yaml が読めない理由。行は出て、件数にも数える（r-ea17、d-17ab） */
+            problem?: string;
         };
         /** @description チーム定義にある問題と警告の数。 */
         TeamCounts: {

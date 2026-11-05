@@ -342,7 +342,12 @@ function TeamPanel({ r }: { r: Rec }) {
     return (
       <section class="panel team-p" data-key={k}>
         {head}
-        <div class="gbody"><div class="vlist"><VList r={r} /></div></div>
+        {r.problem.value
+          // The file cannot be read: one problem line says why, in the words
+          // the role and profile rows use (r-ea17, d-17ab), and the check has
+          // nothing else to add.
+          ? <div class="dh" data-problem="team"><ul class="vm dhvm"><li><span class="sev err">問題</span><span>{`${r.teamPath.value} を読めません: ${r.problem.value}`}</span></li></ul></div>
+          : <div class="gbody"><div class="vlist"><VList r={r} /></div></div>}
         {r.draftRow ? <Foot r={r} /> : null}
       </section>
     );

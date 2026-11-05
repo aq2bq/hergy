@@ -69,7 +69,7 @@ func (s *Server) p2Data(tab string, q url.Values) p2Data {
 	project, shared, defs := s.p2Read()
 	data := p2Data{
 		Lang: i18n.Language(), Nav: s.navOf("profiles"), Tab: tab, Token: s.token,
-		ProfileCount: len(p2Names(project, shared)), AssignCount: p2People(defs),
+		ProfileCount: len(s.p2Names()), AssignCount: p2People(defs),
 		HashProject: project.hash, HashShared: shared.hash,
 		PathProject: s.cat.Display(s.cat.ProjectProfileFile()),
 		PathShared:  s.cat.Display(s.cat.SharedProfileFile()),

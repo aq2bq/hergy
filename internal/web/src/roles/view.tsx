@@ -190,7 +190,9 @@ function detail(r: RoleRow) {
   const ls = PLACES.filter((l) => r[l]);
   return <div class="detail">
       <div class="usage">{usage(r)}</div>
-      <div class="panels">{ls.map((l) => <Panel key={l} r={r} l={l} />)}</div>
+      <div class="panels">{ls.map((l) => r[l]!.problem
+        ? <div class="dh" data-problem={l}><ul class="vm dhvm"><li><span class="sev err">問題</span><span>{`${r.paths?.[l] || ''} を読めません: ${r[l]!.problem}`}</span></li></ul></div>
+        : <Panel key={l} r={r} l={l} />)}</div>
     </div>;
 }
 

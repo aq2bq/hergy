@@ -174,6 +174,12 @@ func (s *Server) t2ItemOf(listing catalog.Listing, ver string) apiItem {
 		path := s.cat.TeamYAML(listing.Name, layer)
 		text, err := s.cat.Reader().Read(source.Doc{Path: path})
 		if err != nil {
+			// The file cannot be read: the place stands with the reason, so the
+			// row is still drawn and counted (r-ea17, d-17ab).
+			item.Places[place] = apiPlace{
+				Doc: s.t2DocOf(listing.Name, layer, nil), Path: s.cat.Display(path),
+				Problems: apiCounts{Err: 1}, Problem: err.Error(),
+			}
 			continue
 		}
 		def, _ := s.cat.Definition(listing.Name, layer)

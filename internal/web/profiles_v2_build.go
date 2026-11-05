@@ -15,7 +15,7 @@ import (
 // and the list.
 func (s *Server) p2ProfilesData(data p2Data, project, shared p2File, defs []p2Def, q url.Values) p2Data {
 	chips := p2Chips(defs)
-	names := p2Names(project, shared)
+	names := s.p2Names()
 	data.ProfileCount = len(names)
 	data.Kinds = p2KindChips(project, shared)
 	data.KindFilter = q.Get("kind")

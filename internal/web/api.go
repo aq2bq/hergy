@@ -142,6 +142,7 @@ type apiPlace struct {
 	RenameTargets int       `json:"rename_targets,omitempty"`
 	SavedLine     bool      `json:"savedLine,omitempty"`
 	Problems      apiCounts `json:"problems"`
+	Problem       string    `json:"problem,omitempty"`
 }
 
 // apiFile is one file of a kind whose files hold many names: what the YAML tab

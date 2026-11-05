@@ -94,11 +94,11 @@ func TestListedRolesLeavesOutUnreadableDocuments(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = os.Chmod(bad, 0o644) })
 	cat := New(global, local, local, source.Disk{}, func(p string) string { return p })
-	if got := len(cat.ShownRows(KindRole, source.LayerLocal)); got != 1 {
-		t.Errorf("ListedRoles(project) = %d, want 1", got)
+	if got := len(cat.ShownRows(KindRole, source.LayerLocal)); got != 2 {
+		t.Errorf("role rows (project) = %d, want 2 (good and bad)", got)
 	}
-	if _, counts, _ := cat.Counts(source.LayerLocal); counts != 1 {
-		t.Fatalf("Counts(project).roles = %d, want the row count 1", counts)
+	if _, counts, _ := cat.Counts(source.LayerLocal); counts != 2 {
+		t.Fatalf("Counts(project).roles = %d, want the row count 2", counts)
 	}
 }
 
@@ -133,10 +133,10 @@ func TestListedRowsAreTheRowsTheListsDraw(t *testing.T) {
 	if got := len(cat.ShownRows(KindTeam, source.LayerGlobal)); got != 1 {
 		t.Errorf("team rows (global) = %d, want 1 (shared)", got)
 	}
-	// lead, old (legacy), ghost (no document). bad.md cannot be read, so the
-	// list leaves it out until the master answers q-a8a3.
-	if got := len(cat.ShownRows(KindRole, source.LayerLocal)); got != 3 {
-		t.Errorf("role rows (project) = %d, want 3 (lead, old, ghost)", got)
+	// lead, old (legacy), ghost (no document), and bad.md, which cannot be read:
+	// every row stands and is counted (d-17ab, answer A to q-a8a3).
+	if got := len(cat.ShownRows(KindRole, source.LayerLocal)); got != 4 {
+		t.Errorf("role rows (project) = %d, want 4 (lead, old, ghost, bad)", got)
 	}
 	if got := len(cat.ShownRows(KindRole, source.LayerGlobal)); got != 1 {
 		t.Errorf("role rows (global) = %d, want 1 (shared)", got)
@@ -149,7 +149,48 @@ func TestListedRowsAreTheRowsTheListsDraw(t *testing.T) {
 	}
 	// The counts are those rows, and nothing else.
 	defs, roles, profiles := cat.Counts(source.LayerLocal)
-	if defs != 3 || roles != 3 || profiles != 1 {
-		t.Errorf("Counts(project) = %d, %d, %d, want the rows 3, 3, 1", defs, roles, profiles)
+	if defs != 3 || roles != 4 || profiles != 1 {
+		t.Errorf("Counts(project) = %d, %d, %d, want the rows 3, 4, 1", defs, roles, profiles)
+	}
+}
+
+// TestAProfilesFileThatCannotBeReadStandsAsOneRow: the file the list could not
+// read is one row named after the file, with the reason, and the band counts it
+// (r-ea17, d-17ab). A file that cannot be read as profiles.yaml is the same.
+func TestAProfilesFileThatCannotBeReadStandsAsOneRow(t *testing.T) {
+	global := t.TempDir()
+	local := t.TempDir()
+	writeFile(t, filepath.Join(local, "profiles.yaml"), "version: 1\nprofiles:\n  fast:\n    kind: claude\n")
+	if err := os.Chmod(filepath.Join(local, "profiles.yaml"), 0o000); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(filepath.Join(local, "profiles.yaml"), 0o644) })
+	cat := New(global, local, local, source.Disk{}, func(p string) string { return p })
+
+	rows := cat.ShownRows(KindProfile, source.LayerLocal)
+	if len(rows) != 1 {
+		t.Fatalf("profile rows = %d, want 1 (the file)", len(rows))
+	}
+	if rows[0].Name != "profiles.yaml" {
+		t.Errorf("row name = %q, want profiles.yaml", rows[0].Name)
+	}
+	if ok, why := cat.ReadableOf(rows[0]); ok || why == "" {
+		t.Errorf("ReadableOf = %v, %q, want false and the reason", ok, why)
+	}
+	if _, _, profiles := cat.Counts(source.LayerLocal); profiles != 1 {
+		t.Errorf("Counts(project).profiles = %d, want 1", profiles)
+	}
+
+	// A file that reads, but not as profiles.yaml, is the same row.
+	if err := os.Chmod(filepath.Join(local, "profiles.yaml"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, filepath.Join(local, "profiles.yaml"), "not: [a file")
+	rows = cat.ShownRows(KindProfile, source.LayerLocal)
+	if len(rows) != 1 {
+		t.Fatalf("profile rows = %d, want 1 (the broken file)", len(rows))
+	}
+	if ok, why := cat.ReadableOf(rows[0]); ok || why == "" {
+		t.Errorf("ReadableOf = %v, %q, want false and the reason", ok, why)
 	}
 }

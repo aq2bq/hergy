@@ -8,7 +8,7 @@ import path from 'node:path';
 // that cannot be read, a name only a member names, and one name in both layers.
 test.use({ reads: 'teams' });
 
-test('the band counts every kind of role row, on every screen', async ({ page, app }) => {
+test('the band counts every kind of role row, on every screen', async ({ page, app }, info) => {
   const project = path.join(app.proj, '.hergy/roles');
   const global = path.join(app.cfg, 'hergy/roles');
   mkdirSync(project, { recursive: true });
@@ -18,7 +18,7 @@ test('the band counts every kind of role row, on every screen', async ({ page, a
   // One name in both layers: two rows, one on each side.
   writeFileSync(path.join(project, 'shared.md'), '# shared\n');
   writeFileSync(path.join(global, 'shared.md'), '# shared\n');
-  // A document that cannot be read: the list leaves it out.
+  // A document that cannot be read: the row stands with the reason (d-17ab).
   const broken = path.join(project, 'broken.md');
   writeFileSync(broken, '# broken\n');
   chmodSync(broken, 0o000);
@@ -35,11 +35,12 @@ test('the band counts every kind of role row, on every screen', async ({ page, a
   await page.goto(`${app.base}/roles`); await ready(page);
   const rows = page.locator('#rows .role');
   const count = await rows.count();
-  const named = (name: string) => rows.filter({ has: page.locator('.c-name .nm', { hasText: name }) });
+  // exact, so "broken" does not also find "broken-global".
+  const named = (name: string) => rows.filter({ has: page.locator('.c-name .nm', { hasText: new RegExp(`^${name}$`) }) });
   await expect(named('old')).toHaveCount(1);
-  // A document that cannot be read is not drawn, so it is not counted.
-  await expect(named('broken')).toHaveCount(0);
-  await expect(named('broken-global')).toHaveCount(0);
+  // A document that cannot be read is a row and is counted (A, d-17ab).
+  await expect(named('broken')).toHaveCount(1);
+  await expect(named('broken-global')).toHaveCount(1);
   await expect(named('ghost')).toHaveCount(1);
   await expect(named('shared')).toHaveCount(2);
   const band = () => page.locator('.scr[data-screen="roles"] .n').textContent();
@@ -50,6 +51,13 @@ test('the band counts every kind of role row, on every screen', async ({ page, a
   }
   await page.goto(`${app.base}/roles`); await ready(page);
   await expect.poll(band).toBe(String(count));
+  // The reason is readable in the row (ac-ad92).
+  await named('broken').locator('.sum').click();
+  await expect(named('broken').locator('[data-problem]')).toContainText('読めません');
+  for (const scheme of ['light', 'dark'] as const) {
+    await page.emulateMedia({ colorScheme: scheme });
+    await page.screenshot({ path: info.outputPath(`unreadable-${scheme}.png`) });
+  }
   chmodSync(broken, 0o644);
   chmodSync(brokenGlobal, 0o644);
 });

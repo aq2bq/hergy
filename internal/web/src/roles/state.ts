@@ -48,6 +48,7 @@ type RoleEntry = {
   hash: string;
   text: string;
   ytext?: string;
+  problem?: string;
   __savedIssues?: RuleIssue[];
 };
 export type RoleRow = {
@@ -189,10 +190,11 @@ function rowsOf(model: RoleModel, group: string, place: Place): RoleRow[] {
       if (r[l]) {
         const draft = fromJSON(r[l]);
         // A role no layer holds a document for opens as a new one (spec-roles
-        // 1.2.10): nothing is saved yet, so the first 保存 writes the file, and
-        // the row counts no rules until it is saved.
-        const saved = r.noDoc ? null : draft;
+        // 1.2.10), and a file that cannot be read keeps its row with the reason
+        // (r-ea17, d-17ab): neither stands on a saved document.
+        const saved = r.noDoc || r[l].problem ? null : draft;
         row[l] = { saved, draft: clone(draft), hash: r[l].hash || '', text: r[l].text || '' };
+        if (r[l].problem) row[l]!.problem = r[l].problem;
         if (r[l].path) row.paths[l] = r[l].path;
       } else { row[l] = null; }
     }

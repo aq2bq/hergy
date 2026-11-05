@@ -59,9 +59,21 @@ func (s *Server) r2ListOf(reading r2Reading) apiList {
 			item.Hidden = []string{catalog.PlaceGlobal}
 		}
 		for _, place := range []struct {
-			name string
-			doc  *r2Doc
-		}{{catalog.PlaceProject, row.Project}, {catalog.PlaceGlobal, row.Global}} {
+			name    string
+			doc     *r2Doc
+			problem string
+		}{
+			{catalog.PlaceProject, row.Project, row.ProjectProblem},
+			{catalog.PlaceGlobal, row.Global, row.GlobalProblem},
+		} {
+			if place.problem != "" {
+				item.Places[place.name] = apiPlace{
+					Doc: r2Doc{Name: item.Name}, Path: s.cat.Display(s.cat.RolePath(place.name, item.Name)),
+					Problems: apiCounts{Err: 1}, Problem: place.problem,
+				}
+				item.Problems.Err++
+				continue
+			}
 			if place.doc == nil {
 				continue
 			}

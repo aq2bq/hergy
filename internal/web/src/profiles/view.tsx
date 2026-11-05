@@ -190,6 +190,19 @@ function Panel({ panel }: { panel: PanelState }) {
   }, [focusAsk.value]);
 
   const saved = panel.saved;
+  if (panel.problem) {
+    // The file cannot be read: the row stands and says why (r-ea17, d-17ab),
+    // with no form that would write over what it could not read.
+    return (
+      <section class="panel" data-key={panel.key} data-file={panel.file} data-group={panel.group || ''} data-problem={panel.file}>
+        <header class="ph">
+          <span class="ln">{groupName(panel.group)}</span>
+          <code class="path">{panel.path}</code>
+        </header>
+        <div class="dh"><ul class="vm dhvm"><li><span class="sev err">問題</span><span>{`${panel.path} を読めません: ${panel.problem}`}</span></li></ul></div>
+      </section>
+    );
+  }
   const acts = (
     <>
       {saved ? <button class="btn" data-act="dup" onClick={() => pressDup(panel.key)}>複製</button> : ''}

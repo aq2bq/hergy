@@ -168,7 +168,8 @@ function profileRow(item, isOpen) {
       rename_targets: place.rename_targets || 0,
       err: c.err,
       warn: c.warn,
-      savedLine: !!place.savedLine
+      savedLine: !!place.savedLine,
+      problem: place.problem || ""
     };
   });
   const c = countOf(item.problems);
@@ -204,7 +205,7 @@ function roleRow(item, i) {
   }
   PLACES.forEach((l) => {
     const place = places[l];
-    row[l] = place && place.doc ? Object.assign({}, place.doc, { hash: place.hash || "", text: place.text || "", path: place.path || "" }) : null;
+    row[l] = place && place.doc ? Object.assign({}, place.doc, { hash: place.hash || "", text: place.text || "", path: place.path || "", problem: place.problem || "" }) : null;
   });
   if (s.noDoc)
     row.noDoc = true;

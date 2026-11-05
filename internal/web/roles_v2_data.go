@@ -29,13 +29,15 @@ type r2Reading struct {
 // offers to make one (W8); a name whose document is still legacy YAML carries the
 // sentence that says so instead of a panel (設計 1.2.10).
 type r2Row struct {
-	UID      int    `json:"uid"`
-	Name     string `json:"name,omitempty"`
-	Project  *r2Doc `json:"project"`
-	Global   *r2Doc `json:"global"`
-	IsNew    bool   `json:"isNew,omitempty"`
-	NoDoc    bool   `json:"noDoc,omitempty"`
-	Markdown string `json:"markdown,omitempty"`
+	UID            int    `json:"uid"`
+	Name           string `json:"name,omitempty"`
+	Project        *r2Doc `json:"project"`
+	Global         *r2Doc `json:"global"`
+	IsNew          bool   `json:"isNew,omitempty"`
+	NoDoc          bool   `json:"noDoc,omitempty"`
+	Markdown       string `json:"markdown,omitempty"`
+	ProjectProblem string `json:"projectProblem,omitempty"`
+	GlobalProblem  string `json:"globalProblem,omitempty"`
 }
 
 // r2Doc is one role document as the screen drafts and reads it. From is where a
@@ -67,39 +69,55 @@ func (s *Server) r2ReadingOf() r2Reading {
 		catalog.PlaceGlobal:  s.cat.Display(s.cat.LayerDir(catalog.Layer(catalog.PlaceGlobal))) + "/roles/",
 	}
 	uid := 0
-	for _, entry := range s.cat.Roles() {
-		row := r2Row{}
-		switch {
-		case entry.HasDocument && entry.Outside:
-			row.Global = s.r2Read(entry.Path)
-		case entry.HasDocument:
-			row.Project = s.r2Read(entry.Path)
-			if entry.UnusedPath != "" {
-				row.Global = s.r2Read(entry.UnusedPath)
-			}
-		default:
-			// A member names this role and no layer holds a .md for it. A
-			// legacy YAML document is named as such, and hergy does not write
-			// over it: hergy migrate converts it explicitly.
-			if md, ok := s.cat.LegacyRole(entry.Name); ok {
-				row.Name = entry.Name
-				row.Markdown = tf("error.role_markdown", entry.Name, s.cat.Display(md.Path))
-				break
-			}
-			// Otherwise the row keeps its name with no place chosen and opens
-			// a new role's content (設計 1.2.10). The panel's place switch
-			// starts on the project, where the document would go (W8).
-			row.Name = entry.Name
-			row.NoDoc = true
-			row.IsNew = true
-			row.Project = r2NewRole(entry.Name)
+	rows := map[string]*r2Row{}
+	order := []string{}
+	get := func(name string) *r2Row {
+		if row, ok := rows[name]; ok {
+			return row
 		}
-		if row.Project == nil && row.Global == nil && row.Markdown == "" {
+		row := &r2Row{}
+		rows[name] = row
+		order = append(order, name)
+		return row
+	}
+	for _, listed := range s.cat.ShownRows(catalog.KindRole, source.LayerLocal) {
+		row := get(listed.Name)
+		if ok, why := s.cat.ReadableOf(listed); !ok {
+			// The row keeps its name and its reason: the list draws it and
+			// counts it (r-ea17, d-17ab).
+			row.Name = listed.Name
+			row.ProjectProblem = why
+			continue
+		}
+		switch {
+		case listed.Legacy:
+			row.Name = listed.Name
+			row.Markdown = tf("error.role_markdown", listed.Name, s.cat.Display(listed.Path))
+		case listed.NoDoc:
+			row.Name = listed.Name
+			row.NoDoc, row.IsNew = true, true
+			row.Project = r2NewRole(listed.Name)
+		default:
+			row.Project = s.r2Read(listed.Path)
+		}
+	}
+	for _, listed := range s.cat.ShownRows(catalog.KindRole, source.LayerGlobal) {
+		row := get(listed.Name)
+		if ok, why := s.cat.ReadableOf(listed); !ok {
+			row.Name = listed.Name
+			row.GlobalProblem = why
+			continue
+		}
+		row.Global = s.r2Read(listed.Path)
+	}
+	for _, name := range order {
+		row := rows[name]
+		if row.Project == nil && row.Global == nil && row.Markdown == "" && row.ProjectProblem == "" && row.GlobalProblem == "" {
 			continue
 		}
 		uid++
 		row.UID = uid
-		out.Roles = append(out.Roles, row)
+		out.Roles = append(out.Roles, *row)
 	}
 	return out
 }

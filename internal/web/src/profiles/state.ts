@@ -222,6 +222,7 @@ function panelOf(p: ProfilePanel, group: string | undefined, rowKey: string): Pa
     problems: [],
     errors: 0,
     savedLine: !!p.savedLine,
+    problem: p.problem || '',
     refusal: '',
     conflict: null,
     confirming: false,
@@ -411,7 +412,7 @@ export function addRow(file: Place, group: string | undefined): Row {
     file, label: labelOf(file), otherLabel: labelOf(otherOf(file)), path: pathFor(file, g),
     saved: false, name: '', kind: 'claude', args: ['--model', ''], env: [], argsJSON: '[]', envJSON: '[]',
     savedName: '', savedKind: '', savedArgs: '[]', savedEnv: '[]', hash: '', users: 0, rename_targets: 0, err: 0, warn: 0,
-    shadowed: false, both: false, other: otherOf(file), savedLine: false,
+    shadowed: false, both: false, other: otherOf(file), savedLine: false, problem: '',
   }, g, key);
   panel.born = bornOf(panel);
   const row: Row = {
@@ -452,7 +453,7 @@ export function duplicateRow(panel: Panel): Row | null {
       env: saved.env.map((pair) => ({ key: pair.key, value: pair.value })),
       argsJSON: '[]', envJSON: '[]', savedName: '', savedKind: '', savedArgs: '[]', savedEnv: '[]',
       hash: '', users: 0, rename_targets: 0, err: 0, warn: 0,
-      shadowed: false, both: false, other: otherOf(panel.file), savedLine: false,
+      shadowed: false, both: false, other: otherOf(panel.file), savedLine: false, problem: '',
     }, panel.group, `${saved.name}-${suffix}`)],
   };
   row.panels[0].key = row.key + ':' + panel.file;
@@ -480,7 +481,7 @@ export function copyPanel(panel: Panel): Panel | null {
     env: saved.env.map((pair) => ({ key: pair.key, value: pair.value })),
     argsJSON: '[]', envJSON: '[]', savedName: '', savedKind: '', savedArgs: '[]', savedEnv: '[]',
     hash: '', users: 0, rename_targets: 0, err: 0, warn: 0,
-    shadowed: false, both: false, other: otherOf(file), savedLine: false,
+    shadowed: false, both: false, other: otherOf(file), savedLine: false, problem: '',
   }, group, panel.rowKey);
   const row: Row = {
     key: newKey(), name: '', group, kind: saved.kind, kindClass: classOf(saved.kind),

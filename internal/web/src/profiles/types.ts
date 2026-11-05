@@ -97,6 +97,8 @@ export type Panel = {
   problems: Problem[];
   errors: number;
   savedLine: boolean;
+  // problem is why this place's file cannot be read (r-ea17, d-17ab).
+  problem: string;
   refusal: string;
   // conflict stands where a save was refused because the file moved: the file as
   // the answer showed it, and the panel before 元に戻す (r-3c77).

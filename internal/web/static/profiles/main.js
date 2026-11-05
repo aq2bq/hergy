@@ -27,19 +27,19 @@ import {
   bases2,
   problemText2,
   profileModel2
-} from "../chunk/nav-fy1k69g7.js";
+} from "../chunk/nav-52v6896m.js";
 import {
   token2,
   parseOpen2,
   askConfirm,
   ConfirmDialog
-} from "../chunk/nav-75h44pf3.js";
-import"../chunk/nav-yw4r063q.js";
+} from "../chunk/nav-601y94px.js";
+import"../chunk/nav-n7h5c10c.js";
 import {
   conflictOf,
   ConflictNotice,
   YamlTab2
-} from "../chunk/nav-8saftp8n.js";
+} from "../chunk/nav-5knnnn56.js";
 import {
   copyGroupOf,
   groupPlace,
@@ -213,6 +213,7 @@ function panelOf(p, group, rowKey) {
     problems: [],
     errors: 0,
     savedLine: !!p.savedLine,
+    problem: p.problem || "",
     refusal: "",
     conflict: null,
     confirming: false,
@@ -389,7 +390,8 @@ function addRow(file, group) {
     shadowed: false,
     both: false,
     other: otherOf(file),
-    savedLine: false
+    savedLine: false,
+    problem: ""
   }, g, key);
   panel.born = bornOf(panel);
   const row = {
@@ -475,7 +477,8 @@ function duplicateRow(panel) {
       shadowed: false,
       both: false,
       other: otherOf(panel.file),
-      savedLine: false
+      savedLine: false,
+      problem: ""
     }, panel.group, `${saved.name}-${suffix}`)]
   };
   row.panels[0].key = row.key + ":" + panel.file;
@@ -518,7 +521,8 @@ function copyPanel(panel) {
     shadowed: false,
     both: false,
     other: otherOf(file),
-    savedLine: false
+    savedLine: false,
+    problem: ""
   }, group, panel.rowKey);
   const row = {
     key: newKey(),
@@ -1414,6 +1418,47 @@ function Panel({ panel }) {
     }
   }, [focusAsk.value]);
   const saved = panel.saved;
+  if (panel.problem) {
+    return /* @__PURE__ */ u("section", {
+      class: "panel",
+      "data-key": panel.key,
+      "data-file": panel.file,
+      "data-group": panel.group || "",
+      "data-problem": panel.file,
+      children: [
+        /* @__PURE__ */ u("header", {
+          class: "ph",
+          children: [
+            /* @__PURE__ */ u("span", {
+              class: "ln",
+              children: groupName(panel.group)
+            }),
+            /* @__PURE__ */ u("code", {
+              class: "path",
+              children: panel.path
+            })
+          ]
+        }),
+        /* @__PURE__ */ u("div", {
+          class: "dh",
+          children: /* @__PURE__ */ u("ul", {
+            class: "vm dhvm",
+            children: /* @__PURE__ */ u("li", {
+              children: [
+                /* @__PURE__ */ u("span", {
+                  class: "sev err",
+                  children: "問題"
+                }),
+                /* @__PURE__ */ u("span", {
+                  children: `${panel.path} を読めません: ${panel.problem}`
+                })
+              ]
+            })
+          })
+        })
+      ]
+    });
+  }
   const acts = /* @__PURE__ */ u(S, {
     children: [
       saved ? /* @__PURE__ */ u("button", {
