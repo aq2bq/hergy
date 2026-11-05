@@ -99,3 +99,28 @@ func TestWidthMatchesTheLayoutCheck(t *testing.T) {
 		}
 	}
 }
+
+// TestWidthAtEveryBoundary: every range Width counts as two columns is asked at
+// both ends, with the rune just outside it. A change to a bound is then a
+// different width, not a number a mutation run can move without a test failing
+// (nightly's i18n mutants lived on these bounds).
+func TestWidthAtEveryBoundary(t *testing.T) {
+	cases := []struct {
+		r    rune
+		want int
+	}{
+		{0x10FF, 1}, {0x1100, 2}, {0x115F, 2}, {0x1160, 1}, // Hangul Jamo
+		{0x2E7F, 1}, {0x2E80, 2}, {0xA4CF, 2}, {0xA4D0, 1}, // CJK radicals, kana, ideographs
+		{0xABFF, 1}, {0xAC00, 2}, {0xD7A3, 2}, {0xD7A4, 1}, // Hangul syllables
+		{0xF8FF, 1}, {0xF900, 2}, {0xFAFF, 2}, {0xFB00, 1}, // CJK compatibility
+		{0xFE2F, 1}, {0xFE30, 2}, {0xFE4F, 2}, {0xFE50, 1}, // CJK compatibility forms
+		{0xFEFF, 1}, {0xFF00, 2}, {0xFF60, 2}, {0xFF61, 1}, // full-width forms
+		{0xFFDF, 1}, {0xFFE0, 2}, {0xFFE6, 2}, {0xFFE7, 1}, // full-width signs
+		{'a', 1}, {'あ', 2}, {'한', 2}, {0x1F600, 1}, // beyond every range
+	}
+	for _, one := range cases {
+		if got := Width(string(one.r)); got != one.want {
+			t.Errorf("Width(%U) = %d, want %d", one.r, got, one.want)
+		}
+	}
+}
