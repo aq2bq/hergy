@@ -117,7 +117,7 @@ function PlaceHead({ g }: { g: TeamGroup }) {
 // under itself (spec-teams B1). The field a press asked for is put in place after
 // the draw, by the row itself (5 章 5): nobody puts the focus back later.
 function Row({ r }: { r: Rec }) {
-  const open = isOpen(r.dom);
+  const open = isOpen(r.dom, r.place.value);
   const el = useRef<HTMLDivElement>(null);
   const wasOpen = useRef(false);
   useEffect(() => {

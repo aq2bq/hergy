@@ -15,9 +15,9 @@ const projects = {
   ],
 };
 
-const team = (name) => ({
-  name, effective: 'project',
-  places: { project: { path: `.hergy/teams/${name}/team.yaml`, hash: 'h1', doc: {
+const team = (name, place = 'project') => ({
+  name, effective: place,
+  places: { [place]: { path: `.hergy/teams/${name}/team.yaml`, hash: 'h1', doc: {
     description: `${name} の説明`, members: [], workers: [], turns: [],
   } } },
 });
@@ -33,7 +33,8 @@ test('the teams list stands under the three projects and the global layer', asyn
     profiles: ['coder'],
     hq: {
       projects,
-      teams: [...groups(team), { global: true, list: { items: [team('shared')] } }],
+      teams: [...groups(team).map((g, i) => i === 0 ? { ...g, list: { items: [...g.list.items, team('shared')] } } : g),
+        { global: true, list: { items: [team('shared', 'global')] } }],
       roles: [], profiles: [],
     },
     team: { items: [], files: [] },
@@ -44,8 +45,24 @@ test('the teams list stands under the three projects and the global layer', asyn
     return undefined;
   });
   await import('../src/teams/main');
+  const S = await import('../src/teams/state');
   await settle();
 
   expect(document.querySelectorAll('.hq-gh:not(.global)').length).toBe(3);
   expect(document.querySelectorAll('.hq-gh.global').length).toBe(1);
+  for (const [group, place] of [['global', 'global'], ['/work/alpha', 'project']]) {
+    const ref = `shared|${group}`;
+    history.replaceState({}, '', `/teams?${new URLSearchParams({ open: ref, agree: ref })}`);
+    S.readAddress();
+    await settle();
+    expect([...document.querySelectorAll('.tdef.open')].map((r) => r.dataset.key)).toEqual([`${ref}.${place}`]);
+    S.syncURL();
+    expect(new URLSearchParams(location.search).get('open')).toBe(ref);
+    expect(new URLSearchParams(location.search).get('agree')).toBe(ref);
+  }
+  // The listed view's legacy unqualified agree key is left as it was.
+  S.state.value = { ...S.state.value, dtab: {} };
+  history.replaceState({}, '', '/teams?open=shared&agree=shared');
+  S.readAddress();
+  expect(S.dtabOf(S.byName('shared|/work/alpha'))).toBe('shape');
 });

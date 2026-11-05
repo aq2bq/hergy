@@ -784,13 +784,15 @@ function setYc(key, list) {
 }
 var withOpen = (dom, on) => {
   const s = new Set(state.value.open);
+  s.forEach((ref) => {
+    if (openDom(ref) === dom)
+      s.delete(ref);
+  });
   if (on)
     s.add(dom);
-  else
-    s.delete(dom);
   put({ open: s });
 };
-var isOpen = (dom) => state.value.open.has(dom);
+var isOpen = (dom, place) => [...state.value.open].some((ref) => openDom(ref) === dom && (!place || ref === dom || recordOfRef(ref)?.place.value === place));
 var dtabOf = (r) => state.value.dtab[r.dom] || "shape";
 var pmodeOf = (r) => state.value.pmode[dkey(r)] || "edit";
 var okOf = (key) => !!state.value.ok[key];
@@ -1081,7 +1083,19 @@ function defOf(item, project, only) {
 var allRecs = () => recs.value;
 var byKey = (k) => recs.value.find((r) => r.key.value === k) || null;
 var byName = (n) => recs.value.find((r) => r.dom === n) || null;
-var byRef = (name, group) => group ? byName(domOf(name, group)) : byName(name) || byRealName(name);
+var byRef = (name, group) => {
+  if (!group)
+    return byName(name) || byRealName(name);
+  if (GROUPED)
+    return byName(domOf(name, group));
+  const place = group === "global" ? "global" : group === CURRENT ? "project" : null;
+  return recs.value.find((r) => r.name.value === name && r.place.value === place && !r.draftRow) || null;
+};
+var openDom = (ref) => GROUPED ? ref : parseOpen2(ref)[0]?.name || ref;
+var recordOfRef = (ref) => {
+  const one = parseOpen2(ref)[0];
+  return one ? byRef(one.name, one.group) : null;
+};
 var byRealName = (name) => recs.value.find((r) => r.name.value === name && (r.project === CURRENT || r.project === "")) || recs.value.find((r) => r.name.value === name) || null;
 var groupOfRecord = (r) => r.project || (r.place.value === "global" ? "global" : GROUPED ? CURRENT : "");
 var firstIndexOf = (want) => recs.value.findIndex((x) => want(x));
@@ -1769,7 +1783,7 @@ function canvasUndo(r) {
   canvasToast(r, point.label || "元に戻した", false);
 }
 function undoRow() {
-  return recs.value.filter((x) => isOpen(x.dom) && (cundo.get(dkey(x)) || []).length).sort((a, b) => (b.lastAct.value || 0) - (a.lastAct.value || 0))[0] || null;
+  return recs.value.filter((x) => isOpen(x.dom, x.place.value) && (cundo.get(dkey(x)) || []).length).sort((a, b) => (b.lastAct.value || 0) - (a.lastAct.value || 0))[0] || null;
 }
 function resetCanvas(r) {
   if (!r)
@@ -1903,13 +1917,13 @@ function syncURL() {
       params.set("file", s.yfile);
   } else {
     const opens = [...s.open].filter((n) => {
-      const r = byName(n);
+      const r = recordOfRef(n);
       return r && !r.draftRow;
     });
     if (opens.length)
       params.set("open", opens.join(","));
     const agrees = opens.filter((n) => {
-      const r = byName(n);
+      const r = recordOfRef(n);
       return r && dtabOf(r) === "agree";
     });
     if (agrees.length)
@@ -1925,17 +1939,20 @@ function readURL() {
   missingOpen.value = (parseOpen2(open || "") || []).filter(({ name, group }) => !byRef(name, group)).map(({ name }) => name);
   if (open) {
     const rows = parseOpen2(open) || [];
+    const refs = new Set(state.value.open);
     rows.forEach(({ name, group }) => {
       const r = byRef(name, group);
       if (r)
-        withOpen(r.dom, true);
+        refs.add(!GROUPED && group ? token2(name, group) : r.dom);
     });
+    put({ open: refs });
   }
   const agree = p.get("agree");
   if (agree) {
     const m = { ...state.value.dtab };
-    agree.split(",").filter(Boolean).forEach((n) => {
-      m[n] = "agree";
+    agree.split(",").filter(Boolean).forEach((ref) => {
+      const r = recordOfRef(ref);
+      m[!GROUPED && r ? r.dom : ref] = "agree";
     });
     put({ dtab: m });
   }
@@ -5329,7 +5346,7 @@ function PlaceHead({ g }) {
   });
 }
 function Row({ r }) {
-  const open = isOpen(r.dom);
+  const open = isOpen(r.dom, r.place.value);
   const el = A(null);
   const wasOpen = A(false);
   h(() => {

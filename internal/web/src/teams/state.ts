@@ -221,10 +221,14 @@ function setYc(key: string, list: Schemas['Problem'][] | undefined): void {
 }
 const withOpen = (dom: string, on: boolean) => {
   const s = new Set(state.value.open);
-  if (on) s.add(dom); else s.delete(dom);
+  // Ordinary operations keep their existing dom-wide opening/closing. Remove
+  // qualified URL references too, so a row opened by an address can be closed.
+  s.forEach((ref) => { if (openDom(ref) === dom) s.delete(ref); });
+  if (on) s.add(dom);
   put({ open: s });
 };
-export const isOpen = (dom: string): boolean => state.value.open.has(dom);
+export const isOpen = (dom: string, place?: Place): boolean => [...state.value.open].some((ref) =>
+  openDom(ref) === dom && (!place || ref === dom || recordOfRef(ref)?.place.value === place));
 export const dtabOf = (r: Rec): string => state.value.dtab[r.dom] || 'shape';
 export const pmodeOf = (r: Rec): string => state.value.pmode[dkey(r)] || 'edit';
 export const okOf = (key: string): boolean => !!state.value.ok[key];
@@ -560,7 +564,19 @@ export const byKey = (k: string): Rec | null => recs.value.find((r: Rec) => r.ke
 export const byName = (n: string): Rec | null => recs.value.find((r: Rec) => r.dom === n) || null;
 // byRef is the record one address names: the row of one group, or, with no
 // group, the row the screen wrote before the headquarters (its name alone).
-const byRef = (name: string, group?: string): Rec | null => (group ? byName(domOf(name, group)) : (byName(name) || byRealName(name)));
+const byRef = (name: string, group?: string): Rec | null => {
+  if (!group) return byName(name) || byRealName(name);
+  if (GROUPED) return byName(domOf(name, group));
+  const place = group === 'global' ? 'global' : group === CURRENT ? 'project' : null;
+  return recs.value.find((r) => r.name.value === name && r.place.value === place && !r.draftRow) || null;
+};
+// Only URL opening state carries qualified references in the one-project view.
+// The records and all editing state keep their existing dom/dkey identities.
+const openDom = (ref: string): string => GROUPED ? ref : (parseOpen(ref)[0]?.name || ref);
+const recordOfRef = (ref: string): Rec | null => {
+  const one = parseOpen(ref)[0];
+  return one ? byRef(one.name, one.group) : null;
+};
 // byRealName is the first row of a name, the project's own first: a link the
 // older screens wrote names a definition, not a group.
 const byRealName = (name: string): Rec | null => recs.value.find((r: Rec) => r.name.value === name && (r.project === CURRENT || r.project === ''))
@@ -1297,7 +1313,7 @@ export function canvasUndo(r: Rec): void {
 // The row the newest operation stands on: ⌘Z acts on it even when nothing is
 // picked (監査 1-1).
 export function undoRow() {
-  return recs.value.filter((x) => isOpen(x.dom) && (cundo.get(dkey(x)) || []).length)
+  return recs.value.filter((x) => isOpen(x.dom, x.place.value) && (cundo.get(dkey(x)) || []).length)
     .sort((a, b) => (b.lastAct.value || 0) - (a.lastAct.value || 0))[0] || null;
 }
 // resetCanvas forgets the canvas's picks and places for one row (a save, a
@@ -1456,9 +1472,9 @@ export function syncURL() {
   const params = new URLSearchParams();
   if (s.tab === 'yaml') { if (s.yfile) params.set('file', s.yfile); }
   else {
-    const opens = [...s.open].filter((n) => { const r = byName(n); return r && !r.draftRow; });
+    const opens = [...s.open].filter((n) => { const r = recordOfRef(n); return r && !r.draftRow; });
     if (opens.length) params.set('open', opens.join(','));
-    const agrees = opens.filter((n) => { const r = byName(n); return r && dtabOf(r) === 'agree'; });
+    const agrees = opens.filter((n) => { const r = recordOfRef(n); return r && dtabOf(r) === 'agree'; });
     if (agrees.length) params.set('agree', agrees.join(','));
 
   }
@@ -1472,12 +1488,20 @@ export function readURL() {
   missingOpen.value = (parseOpen(open || '') || []).filter(({ name, group }) => !byRef(name, group)).map(({ name }) => name);
   if (open) {
     const rows = parseOpen(open) || [];
-    rows.forEach(({ name, group }) => { const r = byRef(name, group); if (r) withOpen(r.dom, true); });
+    const refs = new Set(state.value.open);
+    rows.forEach(({ name, group }) => {
+      const r = byRef(name, group);
+      if (r) refs.add(!GROUPED && group ? roleToken(name, group) : r.dom);
+    });
+    put({ open: refs });
   }
   const agree = p.get('agree');
   if (agree) {
     const m = { ...state.value.dtab };
-    agree.split(',').filter(Boolean).forEach((n) => { m[n] = 'agree'; });
+    agree.split(',').filter(Boolean).forEach((ref) => {
+      const r = recordOfRef(ref);
+      m[!GROUPED && r ? r.dom : ref] = 'agree';
+    });
     put({ dtab: m });
   }
   const rule = p.get('rule');
