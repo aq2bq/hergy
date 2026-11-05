@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -149,10 +150,21 @@ func (k apiTeam) List() (any, *apiErr) {
 	return k.s.t2List(), nil
 }
 
+// listLayers is List over the layers given: a headquarters group is one layer's
+// rows, decided by the same owner the band asks (r-ea17).
+func (k apiTeam) listLayers(layers []string) apiList {
+	return k.s.t2ListLayers(layers)
+}
+
 // t2List is the team list answer: one row per place, taken from the owner
 // (ShownRows) so the rows are the set and order the band counts (r-ea17), plus
 // the YAML tab's files.
 func (s *Server) t2List() apiList {
+	return s.t2ListLayers([]string{source.LayerLocal, source.LayerGlobal})
+}
+
+// t2ListLayers is the list over the layers given.
+func (s *Server) t2ListLayers(layers []string) apiList {
 	out := apiList{Hashes: map[string]string{}}
 	ver := s.cat.Version()
 	seenFile := map[string]bool{}
@@ -160,6 +172,9 @@ func (s *Server) t2List() apiList {
 		{source.LayerLocal, catalog.PlaceProject},
 		{source.LayerGlobal, catalog.PlaceGlobal},
 	} {
+		if !slices.Contains(layers, one.layer) {
+			continue
+		}
 		for _, listed := range s.cat.ShownRows(catalog.KindTeam, one.layer) {
 			out.Items = append(out.Items, s.t2ItemAt(listed.Name, one.place, ver))
 			for _, file := range s.t2FilesAt(listed.Name, one.place) {

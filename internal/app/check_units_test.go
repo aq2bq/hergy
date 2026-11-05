@@ -355,13 +355,13 @@ func TestCHECK_ValidateSplitsTheUnitsAndSizes(t *testing.T) {
 	for _, item := range teamList(t, base) {
 		wantTeams[strings.TrimSuffix(item.Places[item.Effective].Path, "/team.yaml")] = item.Summary.Size
 	}
-	for path, size := range wantTeams {
-		if got, ok := teamSizes[path]; !ok || got != size {
-			t.Errorf("the size list reads %q = %d (%v), want %d", path, got, ok, size)
+	// validate names each definition once (by name); the list draws one row per
+	// place, so a name both layers hold is two rows (r-ea17). Every row validate
+	// names must stand in the list, at its own place.
+	for path, size := range teamSizes {
+		if got, ok := wantTeams[path]; !ok || got != size {
+			t.Errorf("the size list reads %q = %d (%v), the screen has %d", path, size, ok, got)
 		}
-	}
-	if len(teamSizes) != len(wantTeams) {
-		t.Errorf("the size list names %d definitions, the screen lists %d: %v", len(teamSizes), len(wantTeams), teamSizes)
 	}
 
 	var roles struct {
@@ -385,12 +385,9 @@ func TestCHECK_ValidateSplitsTheUnitsAndSizes(t *testing.T) {
 			wantRoles[path] = item.Summary.Chars
 		}
 	}
-	for path, size := range wantRoles {
-		if got, ok := roleSizes[path]; !ok || got != size {
-			t.Errorf("the role size list reads %q = %d (%v), want %d", path, got, ok, size)
+	for path, size := range roleSizes {
+		if got, ok := wantRoles[path]; !ok || got != size {
+			t.Errorf("the role size list reads %q = %d (%v), the screen has %d", path, size, ok, got)
 		}
-	}
-	if len(roleSizes) != len(wantRoles) {
-		t.Errorf("the role size list names %d documents, the screen lists %d: %v", len(roleSizes), len(wantRoles), roleSizes)
 	}
 }

@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"strings"
 
 	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/source"
@@ -515,6 +514,30 @@ func (s *Server) hqGroupsOf(projects HQProjects, kindName string) (HQGroups, *ap
 	return out, nil
 }
 
+// layeredLister is a kind that can answer one layer's rows: the headquarters'
+// groups ask for their own layer, of the same catalog the band's count reads
+// (r-ea17). A layer's rows may depend on the other layer (a role only the global
+// layer holds is still a row of the project's), so the catalog keeps both.
+type layeredLister interface {
+	listLayers(layers []string) apiList
+}
+
+// listOneLayer is one kind's rows in one layer, as the group answers them.
+func listOneLayer(kind apiKind, layer string) (apiList, *apiErr) {
+	if one, ok := kind.(layeredLister); ok {
+		return one.listLayers([]string{layer}), nil
+	}
+	value, refusal := kind.List()
+	if refusal != nil {
+		return apiList{}, refusal
+	}
+	list, ok := value.(apiList)
+	if !ok {
+		return apiList{}, refuse(http.StatusInternalServerError, tf("web.error.internal", "list"))
+	}
+	return list, nil
+}
+
 // hqShownProjects is the projects the headquarters shows: the listed ones, or
 // the project serve was started in when config.yaml names no projects.
 func hqShownProjects(projects HQProjects) []HQProject {
@@ -540,16 +563,12 @@ func (s *Server) hqKindGroup(kindName string, project HQProject) (HQGroup, *apiE
 	if !ok {
 		return HQGroup{}, refuse(http.StatusNotFound, t("web.error.not_found"))
 	}
-	value, refusal := kind.List()
+	list, refusal := listOneLayer(kind, source.LayerLocal)
 	if refusal != nil {
 		return HQGroup{}, refusal
 	}
-	list, ok := value.(apiList)
-	if !ok {
-		return HQGroup{}, refuse(http.StatusInternalServerError, tf("web.error.internal", "list"))
-	}
 	ref := &HQRef{Path: project.Path, Name: project.Name, Display: project.Display}
-	return HQGroup{Project: ref, Name: project.Name, Path: project.Path, Display: project.Display, List: filterPlace(list, catalog.PlaceProject)}, nil
+	return HQGroup{Project: ref, Name: project.Name, Path: project.Path, Display: project.Display, List: list}, nil
 }
 
 // hqGlobalGroup is the global layer's own names of one kind, read once.
@@ -561,43 +580,11 @@ func (s *Server) hqGlobalGroup(kindName string, projects HQProjects) (HQGroup, *
 	if !ok {
 		return HQGroup{}, refuse(http.StatusNotFound, t("web.error.not_found"))
 	}
-	value, refusal := kind.List()
+	list, refusal := listOneLayer(kind, source.LayerGlobal)
 	if refusal != nil {
 		return HQGroup{}, refusal
 	}
-	list, ok := value.(apiList)
-	if !ok {
-		return HQGroup{}, refuse(http.StatusInternalServerError, tf("web.error.internal", "list"))
-	}
-	return HQGroup{Global: true, Name: t("web.hq.global"), Path: projects.Global.Path, Display: projects.Global.Display, List: filterPlace(list, catalog.PlaceGlobal)}, nil
-}
-
-// filterPlace keeps the items and files that stand in one place, and makes that
-// place the item's only one: a group is one layer's rows, not a name's effective
-// reading across two.
-func filterPlace(list apiList, place string) apiList {
-	out := apiList{Items: []apiItem{}, Hashes: map[string]string{}}
-	for _, item := range list.Items {
-		one, ok := item.Places[place]
-		if !ok {
-			continue
-		}
-		item.Places = map[string]apiPlace{place: one}
-		item.Effective = place
-		item.Hidden = nil
-		out.Items = append(out.Items, item)
-	}
-	for _, file := range list.Files {
-		if file.Place == place {
-			out.Files = append(out.Files, file)
-		}
-	}
-	for key, hash := range list.Hashes {
-		if key == place || strings.HasPrefix(key, place+".") {
-			out.Hashes[key] = hash
-		}
-	}
-	return out
+	return HQGroup{Global: true, Name: t("web.hq.global"), Path: projects.Global.Path, Display: projects.Global.Display, List: list}, nil
 }
 
 // overrideNames is the global group's overridden_by: which listed project

@@ -3,6 +3,7 @@ package web
 import (
 	"encoding/json"
 	"net/http"
+	"slices"
 
 	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/i18n"
@@ -34,18 +35,33 @@ func (k apiProfile) List() (any, *apiErr) {
 	return k.s.p2List(), nil
 }
 
+// listLayers is List over the layers given: a headquarters group is one layer's
+// rows, decided by the same owner the band asks (r-ea17).
+func (k apiProfile) listLayers(layers []string) apiList {
+	return k.s.p2ListLayers(layers)
+}
+
 // p2List is the profile list answer: one row per place, taken from the owner
 // (ShownRows) so the rows are the same set and order the band counts (r-ea17).
 // A name both files hold is two rows, and a file that cannot be read is the one
 // row the owner returns for it.
 func (s *Server) p2List() apiList {
+	return s.p2ListLayers([]string{source.LayerLocal, source.LayerGlobal})
+}
+
+// p2ListLayers is the list over the layers given.
+func (s *Server) p2ListLayers(layers []string) apiList {
 	project, shared, defs := s.p2Read()
 	chips := p2Chips(defs)
-	out := apiList{Hashes: map[string]string{p2Project: project.hash, p2Shared: shared.hash}}
-	for _, one := range []struct{ layer, place string }{
+	all := []struct{ layer, place string }{
 		{source.LayerLocal, p2Project},
 		{source.LayerGlobal, p2Shared},
-	} {
+	}
+	out := apiList{Hashes: map[string]string{p2Project: project.hash, p2Shared: shared.hash}}
+	for _, one := range all {
+		if !slices.Contains(layers, one.layer) {
+			continue
+		}
 		for _, listed := range s.cat.ShownRows(catalog.KindProfile, one.layer) {
 			if listed.Problem != "" || listed.Path == "" {
 				why, state := s.unreadable(listed.Path, listed.Problem)

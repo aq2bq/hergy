@@ -39,19 +39,25 @@ func (k apiRole) List() (any, *apiErr) {
 	return k.s.r2List(), nil
 }
 
+// listLayers is List over the layers given: a headquarters group is one layer's
+// rows, decided by the same owner the band asks (r-ea17).
+func (k apiRole) listLayers(layers []string) apiList {
+	return k.s.r2ListOf(k.s.r2ReadingOf(), layers)
+}
+
 // r2List is the role list answer: the rows the screen reads, as items.
 func (s *Server) r2List() apiList {
-	return s.r2ListOf(s.r2ReadingOf())
+	return s.r2ListOf(s.r2ReadingOf(), []string{source.LayerLocal, source.LayerGlobal})
 }
 
 // r2ListOf is the list answer of one reading, one row per place (r-ea17): a
 // name both layers hold is two rows, and the rows are the owner's
 // (ListedRows/ShownRows) in the owner's order.
-func (s *Server) r2ListOf(reading r2Reading) apiList {
+func (s *Server) r2ListOf(reading r2Reading, layers []string) apiList {
 	out := apiList{Hashes: map[string]string{}}
 	rows := make([]r2Row, 0, len(reading.Roles))
 	rows = append(rows, reading.Roles...)
-	for _, layer := range []string{source.LayerLocal, source.LayerGlobal} {
+	for _, layer := range layers {
 		place := catalog.PlaceProject
 		if layer == source.LayerGlobal {
 			place = catalog.PlaceGlobal

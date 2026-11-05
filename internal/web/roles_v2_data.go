@@ -139,7 +139,7 @@ type r2Island struct {
 // are built from.
 func (s *Server) r2PageIsland() r2Island {
 	reading := s.r2ReadingOf()
-	return r2Island{Role: s.r2ListOf(reading), Team: s.t2List(), Texts: reading.Texts, Places: reading.Places,
+	return r2Island{Role: s.r2ListOf(reading, []string{source.LayerLocal, source.LayerGlobal}), Team: s.t2List(), Texts: reading.Texts, Places: reading.Places,
 		HQ: s.hqScreenIsland(apiRoleKind, apiTeamKind)}
 }
 

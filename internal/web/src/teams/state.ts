@@ -1104,9 +1104,8 @@ export async function saveAgree(r: Rec, over?: string) {
 // (r-f781). Without projects listed the row keeps both places.
 function itemInGroup(item: DefItem, group: string): DefItem {
   const place = groupPlace(group);
-  const one = item.places && item.places[place];
-  if (!one) return { ...item, places: {}, effective: place, hidden: [] };
-  return { ...item, places: { [place]: one }, effective: place, hidden: [] };
+  if (item.places && item.places[place]) return item;
+  return { ...item, places: {}, effective: place, hidden: [] };
 }
 
 // saveFolder writes a definition that is not there yet, whole (spec-teams B2,
