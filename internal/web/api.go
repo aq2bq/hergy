@@ -136,6 +136,19 @@ func (s *Server) docUnreadableRefusal(path string) *apiErr {
 	return nil
 }
 
+// unreadable is the one place web names a file that cannot be read: the owner
+// says whether it reads, and this answers the API's two words for it (problem
+// and state, d-0d00). A file that is there and reads is ("", "").
+func (s *Server) unreadable(path string) (problem, state string) {
+	if path == "" {
+		return "", ""
+	}
+	if _, ok, why := s.cat.FileState(path); !ok {
+		return why, "unreadable"
+	}
+	return "", ""
+}
+
 // apiCounts is how many errors and warnings one row carries.
 type apiCounts struct {
 	Err  int `json:"err"`

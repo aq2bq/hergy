@@ -172,16 +172,17 @@ func (s *Server) t2ItemOf(listing catalog.Listing, ver string) apiItem {
 	for _, place := range t2PlacesOf(listing) {
 		layer := catalog.Layer(place)
 		path := s.cat.TeamYAML(listing.Name, layer)
-		text, err := s.cat.Reader().Read(source.Doc{Path: path})
-		if err != nil {
+		if _, ok, why := s.cat.FileState(path); !ok {
 			// The file cannot be read: the place stands with the reason, so the
-			// row is still drawn and counted (r-ea17, d-17ab).
+			// row is still drawn and counted (r-ea17, d-17ab), and the reason is
+			// the owner's answer.
 			item.Places[place] = apiPlace{
 				Doc: s.t2DocOf(listing.Name, layer, nil), Path: s.cat.Display(path),
-				Problems: apiCounts{Err: 1}, Problem: err.Error(), State: "unreadable",
+				Problems: apiCounts{Err: 1}, Problem: why, State: "unreadable",
 			}
 			continue
 		}
+		text, _ := s.cat.Reader().Read(source.Doc{Path: path})
 		def, _ := s.cat.Definition(listing.Name, layer)
 		item.Places[place] = apiPlace{
 			Doc:      s.t2DocOf(listing.Name, layer, def),
@@ -374,11 +375,11 @@ func (s *Server) t2FilesOf(listing catalog.Listing) []apiFile {
 		if _, err := s.cat.Reader().Read(source.Doc{Path: path}); err != nil {
 			// The file is there and cannot be read: the YAML tab stands with the
 			// reason and no save over it (r-ea17, d-0bf1).
-			if ok, why := s.cat.ReadableOf(catalog.ListedRow{Kind: catalog.KindTeam, Name: listing.Name, Place: place, Path: path}); !ok {
+			if _, ok, why := s.cat.FileState(path); !ok {
 				out = append(out, apiFile{
 					Place: place, Name: listing.Name, Kind: kind, Label: t2PlaceWord(place),
 					Path: s.cat.Display(path), Problem: why,
-					Problems: []apiProblem{{Sev: "err", At: "line", Line: 1, Text: why}}, State: "unreadable",
+					Problems: []apiProblem{{Sev: "err", At: "line", Line: 1, Text: why}},
 				})
 				return
 			}
