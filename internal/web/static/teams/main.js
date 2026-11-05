@@ -4888,7 +4888,7 @@ function onKey(e) {
       target.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     else {
       const id = target.dataset.cvN || "w" + target.dataset.cvW;
-      selectPick(r, target.dataset.cvN ? { type: "node", id } : { type: "worker", i: Number(target.dataset.cvW) }, "attr");
+      selectPick(r, target.dataset.cvN ? { type: "node", id } : { type: "worker", i: Number(target.dataset.cvW) });
     }
   }
 }

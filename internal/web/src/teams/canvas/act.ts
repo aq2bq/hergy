@@ -414,8 +414,10 @@ function onKey(e: KeyboardEvent): void {
     if (target.matches('.cv-hit')) selectPick(r, { type: 'edge', k: target.dataset.cvE || '' }, 'attr');
     else if (target.matches('.cv-ex')) target.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     else {
+      // Enter and Space pick a point the way a press does, and leave the column
+      // where the person put it (r-f0be).
       const id = target.dataset.cvN || ('w' + target.dataset.cvW);
-      selectPick(r, target.dataset.cvN ? { type: 'node', id } : { type: 'worker', i: Number(target.dataset.cvW) }, 'attr');
+      selectPick(r, target.dataset.cvN ? { type: 'node', id } : { type: 'worker', i: Number(target.dataset.cvW) });
     }
   }
 }

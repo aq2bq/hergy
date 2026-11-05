@@ -67,3 +67,24 @@ test('PROMPT-TAB-2 a worker\'s preview stands open under the tab', async ({ page
   await expect(side.locator('[data-cv-f="w-profile"]')).toBeVisible();
   await expect(side.locator('details.cv-prompt')).toHaveCount(0);
 });
+
+test('PROMPT-TAB-3 a point picked by the keyboard keeps the tab', async ({ page, app }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(`${app.base}/teams?open=core`); await ready(page);
+  const side = page.locator('.tdef[data-name="core"] .cv-side');
+  const promptTab = side.getByRole('button', { name: 'プロンプト', exact: true });
+  await page.locator('.cv-n.member[data-cv-n="lead"]').click();
+  await promptTab.click();
+  // Enter on a point picks it the way a press does, and the column stays.
+  const analyst = page.locator('.cv-n.member[data-cv-n="analyst"]');
+  await analyst.focus();
+  await analyst.press('Enter');
+  await expect(promptTab).toHaveClass(/on/);
+  await expect(side.locator('.cv-topology-prompt')).toBeVisible();
+  // Space does the same for a worker.
+  const worker = page.locator('.cv-n.worker[data-cv-w="0"]');
+  await worker.focus();
+  await worker.press(' ');
+  await expect(promptTab).toHaveClass(/on/);
+  await expect(side.locator('details.cv-prompt')).toBeVisible();
+});
