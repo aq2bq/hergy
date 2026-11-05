@@ -23,6 +23,7 @@ import {
 } from './actions.js';
 import type { ChangeSet, Panel as PanelState, Problem, ProfileChip, Row } from './types.js';
 import type { PlaceGroup } from './state.js';
+import { sameBorn } from './state.js';
 import { askConfirm } from '../lib/confirm.js';
 
 // inputValue is what a field holds after a person typed in it. A field is an
@@ -199,10 +200,8 @@ function Panel({ panel }: { panel: PanelState }) {
         label: `削除する${panel.users ? `（${panel.users} 人が使っている）` : ''}`,
         run: () => pressDelYes(panel.key),
       })}>削除</button> : <button class="btn danger" data-act="discard" onClick={() => {
-        // A new panel starts on the defaults; nothing else there is the person's
-        // input (r-d480).
-        const untouched = !panel.saved && panel.draft.name === '' && panel.draft.args.length === 0 && panel.draft.env.length === 0 && panel.draft.kind === 'claude';
-        if (untouched) { pressDiscard(panel.key); return; }
+        // A panel nobody touched since it was made goes at once (r-d480).
+        if (!panel.saved && sameBorn(panel)) { pressDiscard(panel.key); return; }
         askConfirm({ title: '入力した内容を捨てますか', body: <p>保存していない入力があります。<b>取り消せません。</b></p>, label: '破棄する', run: () => pressDiscard(panel.key) });
       }}>取り消し</button>}
     </>

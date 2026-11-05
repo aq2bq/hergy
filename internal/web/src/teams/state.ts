@@ -293,6 +293,9 @@ export type Rec = {
   findings: Sig<Finding[]>; problems: Sig<Schemas['TeamCounts']>; check: Sig<Check | null>;
   size: Sig<number>; limit: Sig<number>;
   drawMark: Sig<number>; seeded: Sig<boolean>;
+  // born is the row's content when it was made (new, duplicate or copy), so 取り消し
+  // can tell a row nothing was put into from one the person changed (r-d480).
+  born: Sig<string>;
   writes: Sig<string[]>; nameIssues: Sig<Schemas['Problem'][]>;
   hasRoles: Sig<boolean>; hasProfiles: Sig<boolean>;
   starterRoles: Sig<boolean>; starterProfile: Sig<boolean>;
@@ -419,7 +422,7 @@ type RecInit = {
   ops: Op[]; saved: Team;
   agreeSaved: RuleDoc | null; agreeDraft: RuleDoc; agreeSavedIssues: Issue[] | null;
   findings: Finding[]; problems: Schemas['TeamCounts']; check: Check | null;
-  size: number; limit: number; drawMark: number; seeded: boolean;
+  size: number; limit: number; drawMark: number; seeded: boolean; born?: string;
   writes: string[]; nameIssues: Schemas['Problem'][];
   hasRoles: boolean; hasProfiles: boolean; starterRoles: boolean; starterProfile: boolean;
   carry: Carry | null;
@@ -445,6 +448,7 @@ function recOf(init: RecInit): Rec {
     agreeSaved: signal(init.agreeSaved), agreeDraft: signal(init.agreeDraft), agreeSavedIssues: signal(init.agreeSavedIssues),
     findings: signal(init.findings), problems: signal(init.problems), check: signal(init.check),
     size: signal(init.size), limit: signal(init.limit), drawMark: signal(init.drawMark), seeded: signal(init.seeded),
+    born: signal(init.born || ''),
     writes: signal(init.writes), nameIssues: signal(init.nameIssues),
     hasRoles: signal(init.hasRoles), hasProfiles: signal(init.hasProfiles),
     starterRoles: signal(init.starterRoles), starterProfile: signal(init.starterProfile),
@@ -676,12 +680,18 @@ function groupStart(group: string): number {
   return j >= 0 ? j : recs.value.length;
 }
 
+// bornOf is a row's content as one string: the name, the description and the
+// team document, which are what 取り消し would throw away (r-d480).
+export const bornOf = (r: Rec): string => JSON.stringify([r.name.value, r.draft.value.description || '', r.agreeDraft.value.text]);
+
 // addDraft makes a row for a definition that is not there yet, checks it once,
 // and draws it: its figure, its rules and its preview are the server's own
 // reading of the base (spec-teams B2).
 export async function addDraft(how: string, place: Place, name: string, base: TeamBase | null, project?: string): Promise<Rec> {
   const r = draftRecord(how, place, name, base, project);
   await checkTeam(r);
+  // What the row was made with, the server's own reading of a new one included.
+  r.born.value = bornOf(r);
   // The row stands where the mock draws it: one added from the scaffold stands
   // first, and a duplicate or a copy stands right under the row it came from
   // (spec-teams B1, B3, B4).
@@ -1346,7 +1356,7 @@ export function workerPrompt(r: Rec, i: number) {
   // not write a signal (5 章 1).
   if (r.wpromptReq[k]) return null;
   r.wpromptReq[k] = true;
-  apiCheck('team', { place: r.place.value, name: r.name.value, part: 'worker', ...projectIn(r.project), doc: { name: WRK_NAME, purpose: w.purpose, task: WRK_TASK, from: w.from } }).then((res) => {
+  apiCheck('team', { place: r.place.value, name: r.name.value, part: 'worker', ...projectIn(r.project), doc: { name: WRK_NAME, purpose: w.purpose, task: WRK_TASK, from: w.from, preview: true } }).then((res) => {
     delete r.wpromptReq[k];
     const ans = res.json;
     r.wprompts.value = {

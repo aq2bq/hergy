@@ -1563,3 +1563,34 @@ func TestTEAMS_R54B8_TheStarterRolesGoInOnlyWhenThePersonChoseThem(t *testing.T)
 		t.Errorf("profiles.yaml does not hold the starter profile:\n%s", got)
 	}
 }
+
+// TestTEAMS_WorkerPreviewIgnoresThePlaceholderLength: the preview's text is
+// built whatever the placeholder name's length, and the hire's own check still
+// refuses a herdr name over 32 (r-933c, d-26ce).
+func TestTEAMS_WorkerPreviewIgnoresThePlaceholderLength(t *testing.T) {
+	f := newFixture(t)
+	long := strings.Repeat("a", 20)
+	f.write(t, "teams/"+long+"/team.yaml", "version: 1\ndescription: 長い名前\nmembers:\n  - name: lead\n    role: lead\n    profile: coder\nworkers:\n  - from: lead\n    purpose: 試作\n    profile: coder\nturns:\n  - human -> lead\n  - lead -> human\n")
+	f.write(t, "teams/"+long+"/agreement.md", "# 長い名前\n")
+	server := f.server(t)
+	ask := func(preview bool) (*http.Response, string) {
+		doc := map[string]any{"name": "zz-worker-name-0", "purpose": "試作", "task": "read the thing", "from": "lead"}
+		if preview {
+			doc["preview"] = true
+		}
+		return f.api(t, server, http.MethodPost, "/api/team/check", map[string]any{
+			"place": "project", "name": long, "part": "worker", "doc": doc,
+		})
+	}
+	resp, body := ask(true)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("the preview answers %d: %s", resp.StatusCode, body)
+	}
+	if got := teamsCheck(t, body); len(got.Prompt) == 0 {
+		t.Fatal("the preview has no prompt segments")
+	}
+	resp, body = ask(false)
+	if resp.StatusCode == http.StatusOK {
+		t.Fatalf("the hire's check took a herdr name over 32: %s", body)
+	}
+}

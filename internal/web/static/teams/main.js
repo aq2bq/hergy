@@ -77,7 +77,7 @@ import {
 import {
   roleEditor,
   roleProblems
-} from "../chunk/nav-3swfaejk.js";
+} from "../chunk/nav-xmnvjrnr.js";
 import {
   copyGroupOf,
   groupPlace,
@@ -91,7 +91,7 @@ import {
 import {
   installWheel,
   resource
-} from "../chunk/nav-y1258m5z.js";
+} from "../chunk/nav-xgdfw3q1.js";
 
 // teams/rule-selection.ts
 var ruleSelection = y({});
@@ -971,6 +971,7 @@ function recOf(init) {
     limit: y(init.limit),
     drawMark: y(init.drawMark),
     seeded: y(init.seeded),
+    born: y(init.born || ""),
     writes: y(init.writes),
     nameIssues: y(init.nameIssues),
     hasRoles: y(init.hasRoles),
@@ -1206,9 +1207,11 @@ function groupStart(group) {
   const j = recs.value.findIndex((r) => order.indexOf(groupOfRecord(r)) > rank);
   return j >= 0 ? j : recs.value.length;
 }
+var bornOf = (r) => JSON.stringify([r.name.value, r.draft.value.description || "", r.agreeDraft.value.text]);
 async function addDraft(how, place, name, base, project) {
   const r = draftRecord(how, place, name, base, project);
   await checkTeam(r);
+  r.born.value = bornOf(r);
   let at = groupStart(project || (place === "global" ? "global" : ""));
   if (base && how !== "copy") {
     const i = firstIndexOf((x) => x.name.value === base.name);
@@ -1821,7 +1824,7 @@ function workerPrompt(r, i) {
   if (r.wpromptReq[k])
     return null;
   r.wpromptReq[k] = true;
-  check2("team", { place: r.place.value, name: r.name.value, part: "worker", ...projectIn(r.project), doc: { name: WRK_NAME, purpose: w.purpose, task: WRK_TASK, from: w.from } }).then((res) => {
+  check2("team", { place: r.place.value, name: r.name.value, part: "worker", ...projectIn(r.project), doc: { name: WRK_NAME, purpose: w.purpose, task: WRK_TASK, from: w.from, preview: true } }).then((res) => {
     delete r.wpromptReq[k];
     const ans = res.json;
     r.wprompts.value = {
@@ -5879,7 +5882,7 @@ function Dacts({ r }) {
     label: "削除する（team.yaml と agreement.md）",
     run: () => pressDelYes(r)
   });
-  const touched = () => changeCount(r) > 0 || r.name.value !== "" || (r.agreeSaved.value ? agreeDiff(r) > 0 : false);
+  const touched = () => r.born.value !== "" && r.born.value !== bornOf(r);
   const discard = () => {
     if (!touched()) {
       pressDiscard(r);

@@ -393,6 +393,17 @@ export function closeAllConfirm(): void {
 
 // newRow is a row a person is adding under one place's head: it opens at once,
 // and its panel starts from the kind the head would give it (r-410c).
+// bornOf is a panel's draft as the row was made with it (r-d480).
+export const bornOf = (panel: Panel) => ({ name: panel.draft.name, kind: panel.draft.kind, args: panel.draft.args.slice(), env: panel.draft.env.map((pair) => ({ ...pair })) });
+export const sameBorn = (panel: Panel): boolean => {
+  const was = panel.born;
+  if (!was) return false;
+  const now = panel.draft;
+  return was.name === now.name && was.kind === now.kind && was.args.length === now.args.length && was.env.length === now.env.length
+    && was.args.every((arg, i) => arg === now.args[i])
+    && was.env.every((pair, i) => pair.key === now.env[i].key && pair.value === now.env[i].value);
+};
+
 export function addRow(file: Place, group: string | undefined): Row {
   const key = newKey();
   const g = group || (file === 'global' ? 'global' : '');
@@ -402,6 +413,7 @@ export function addRow(file: Place, group: string | undefined): Row {
     savedName: '', savedKind: '', savedArgs: '[]', savedEnv: '[]', hash: '', users: 0, rename_targets: 0, err: 0, warn: 0,
     shadowed: false, both: false, other: otherOf(file), savedLine: false,
   }, g, key);
+  panel.born = bornOf(panel);
   const row: Row = {
     key, name: '', group: g, kind: 'claude', kindClass: classOf('claude'), args: '', env: [], more: 0,
     users: 0, roles: '', err: 0, warn: 0, chips: [], places: [], isNew: true, open: true, panels: [panel],
@@ -445,6 +457,7 @@ export function duplicateRow(panel: Panel): Row | null {
   };
   row.panels[0].key = row.key + ':' + panel.file;
   row.panels[0].rowKey = row.key;
+  row.panels[0].born = bornOf(row.panels[0]);
   const next = new Set(openKeys.value);
   next.add(row.key);
   openKeys.value = next;
@@ -476,6 +489,7 @@ export function copyPanel(panel: Panel): Panel | null {
   };
   fresh.rowKey = row.key;
   fresh.key = row.key + ':' + file;
+  fresh.born = bornOf(fresh);
   const next = new Set(openKeys.value);
   next.add(row.key);
   openKeys.value = next;

@@ -60,6 +60,10 @@ export type RoleRow = {
   name?: string;
   noDoc?: boolean;
   isNew?: boolean;
+  // born is the document the row was made with (a new one, a duplicate or a
+  // copy), so 取り消し can tell an untouched row from one the person changed
+  // (r-d480).
+  born?: { name: string; title: string; text: string };
 };
 type RoleMember = { name: string; saved: string; draft: string };
 type TeamCard = Omit<ApiTeamCard, 'group'> & { group: string };
@@ -638,6 +642,7 @@ export function pressNew(group?: string): void {
   const place: Place = key === 'global' ? 'global' : 'project';
   const nr: RoleRow = { uid: nextUid(), isNew: true, group: key, project: null, global: null };
   nr[place] = { saved: null, draft: d, hash: '', text: '' };
+  nr.born = { name: d.name, title: d.title || '', text: d.text };
   // The row stands at the top of the head it was added under.
   const order = roleGroups().map((g) => g.key);
   const rank = order.indexOf(key);
@@ -689,6 +694,7 @@ export function pressDup(id: number | string, l: Place): void {
   d.name += '-2';
   const nr: RoleRow = { uid: nextUid(), isNew: true, group: r.group, project: null, global: null };
   nr[l] = { saved: null, draft: d, base: clone(src), basePlace: basePlaceOf(r, l), hash: '', text: '' };
+  nr.born = { name: d.name, title: d.title || '', text: d.text };
   const at = roles.value.indexOf(r);
   roles.value = [...roles.value.slice(0, at + 1), nr, ...roles.value.slice(at + 1)];
   const open = new Set(state.value.open);
@@ -708,6 +714,7 @@ export function pressCopy(id: number | string, l: Place): void {
   const group = copyGroupOf(to, groupOfRow(r), CURRENT);
   const nr: RoleRow = { uid: nextUid(), isNew: true, group, project: null, global: null };
   nr[to] = e;
+  nr.born = { name: e.draft.name, title: e.draft.title || '', text: e.draft.text };
   const order = roleGroups().map((g) => g.key);
   const rank = order.indexOf(group);
   let at = roles.value.findIndex((x) => groupOfRow(x) === group);

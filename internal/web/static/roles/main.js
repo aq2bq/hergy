@@ -54,7 +54,7 @@ import {
 import {
   roleEditor,
   roleProblems
-} from "../chunk/nav-3swfaejk.js";
+} from "../chunk/nav-xmnvjrnr.js";
 import {
   copyGroupOf,
   projectOfGroup,
@@ -66,7 +66,7 @@ import {
 } from "../chunk/nav-hrc2s6sc.js";
 import {
   installWheel
-} from "../chunk/nav-y1258m5z.js";
+} from "../chunk/nav-xgdfw3q1.js";
 
 // roles/state.ts
 var view = document.getElementById("view");
@@ -563,6 +563,7 @@ function pressNew(group) {
   const place = key === "global" ? "global" : "project";
   const nr = { uid: nextUid(), isNew: true, group: key, project: null, global: null };
   nr[place] = { saved: null, draft: d, hash: "", text: "" };
+  nr.born = { name: d.name, title: d.title || "", text: d.text };
   const order = roleGroups().map((g) => g.key);
   const rank = order.indexOf(key);
   let at = roles.value.findIndex((r) => groupOfRow(r) === key);
@@ -598,6 +599,7 @@ function pressDup(id, l) {
   d.name += "-2";
   const nr = { uid: nextUid(), isNew: true, group: r.group, project: null, global: null };
   nr[l] = { saved: null, draft: d, base: clone(src), basePlace: basePlaceOf(r, l), hash: "", text: "" };
+  nr.born = { name: d.name, title: d.title || "", text: d.text };
   const at = roles.value.indexOf(r);
   roles.value = [...roles.value.slice(0, at + 1), nr, ...roles.value.slice(at + 1)];
   const open = new Set(state.value.open);
@@ -618,6 +620,7 @@ function pressCopy(id, l) {
   const group = copyGroupOf(to, groupOfRow(r), CURRENT);
   const nr = { uid: nextUid(), isNew: true, group, project: null, global: null };
   nr[to] = e;
+  nr.born = { name: e.draft.name, title: e.draft.title || "", text: e.draft.text };
   const order = roleGroups().map((g) => g.key);
   const rank = order.indexOf(group);
   let at = roles.value.findIndex((x) => groupOfRow(x) === group);
@@ -1955,7 +1958,8 @@ function Panel({ r, l }) {
                 class: "btn danger",
                 "data-act": "discard",
                 onClick: () => {
-                  const untouched = e.draft.name === "" && e.draft.title === "" && e.draft.text === `## 責務
+                  const was = r.born;
+                  const untouched = was ? was.name === e.draft.name && was.title === (e.draft.title || "") && was.text === e.draft.text : e.draft.name === "" && e.draft.title === "" && e.draft.text === `## 責務
 `;
                   if (untouched) {
                     pressDiscard(r.uid, l);

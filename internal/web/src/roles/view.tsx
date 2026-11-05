@@ -247,9 +247,12 @@ function Panel({ r, l }: { r: RoleRow; l: Place }) {
           {e.saved ? <button class="btn" data-act="dup" onClick={() => pressDup(r.uid, l)}>複製</button> : ''}
           {canCopy(r, l) ? <button class="btn" data-act="copy" onClick={() => pressCopy(r.uid, l)}>{LNAME[other(l)]}にコピー</button> : ''}
           {!e.saved ? <button class="btn danger" data-act="discard" onClick={() => {
-            // A new row starts with the editor's own heading; anything else is
-            // the person's input (r-d480).
-            const untouched = e.draft.name === '' && e.draft.title === '' && e.draft.text === '## 責務\n';
+            // Compared with what the row was made with (a new one, a duplicate
+            // or a copy), so a fresh copy that nobody touched goes at once
+            // (r-d480).
+            const was = r.born;
+            const untouched = was ? was.name === e.draft.name && was.title === (e.draft.title || '') && was.text === e.draft.text
+              : e.draft.name === '' && e.draft.title === '' && e.draft.text === '## 責務\n';
             if (untouched) { pressDiscard(r.uid, l); return; }
             askConfirm({ title: '入力した内容を捨てますか', body: <p>保存していない入力があります。<b>取り消せません。</b></p>, label: '破棄する', run: () => pressDiscard(r.uid, l) });
           }}>取り消し</button>

@@ -43,7 +43,7 @@ import {
 import {
   installWheel,
   resource
-} from "../chunk/nav-y1258m5z.js";
+} from "../chunk/nav-xgdfw3q1.js";
 
 // activity/state.ts
 var POLL = 1e4;

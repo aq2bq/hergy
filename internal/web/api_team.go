@@ -563,6 +563,10 @@ type apiWorkerIn struct {
 	Purpose string `json:"purpose"`
 	Task    string `json:"task"`
 	From    string `json:"from"`
+	// Preview is the screen's reading before a hire: the name and task are the
+	// screen's placeholders, replaced by <ワーカー名> and <依頼> when drawn, so
+	// the herdr name's length is not held against them (r-933c, d-26ce).
+	Preview bool `json:"preview"`
 }
 
 // checkWorkerPrompt answers one worker's prompt as segments, before the hire
@@ -589,7 +593,9 @@ func (k apiTeam) checkWorkerPrompt(in apiIn) (any, *apiErr) {
 		return nil, refuse(http.StatusUnprocessableEntity, err.Error())
 	}
 	herdr := in.Name + "-" + body.Name
-	if !profile.NamePattern.MatchString(herdr) {
+	// The hire's own naming rule stands as it was; a preview's placeholders are
+	// not a name anyone is hired under (r-933c).
+	if !body.Preview && !profile.NamePattern.MatchString(herdr) {
 		return nil, refuse(http.StatusUnprocessableEntity, i18n.Tf("error.herdr_name_pattern", herdr))
 	}
 	built, err := prompt.Worker(prompt.WorkerInput{

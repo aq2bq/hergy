@@ -2171,6 +2171,8 @@ export interface components {
             task?: string;
             /** @description ワーカーを起動するメンバー名。空なら目的から決める。 */
             from?: string;
+            /** @description 画面が hire の前に読むプレビュー。名前と依頼は仮の値なので、herdr 名の長さの検査をしない（r-933c）。 */
+            preview?: boolean;
         };
         /** @description Markdown の本文をそのまま保持する文書。 */
         TeamProseDocument: {

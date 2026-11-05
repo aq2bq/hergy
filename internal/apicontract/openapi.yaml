@@ -4201,6 +4201,9 @@ components:
         from:
           type: string
           description: ワーカーを起動するメンバー名。空なら目的から決める。
+        preview:
+          type: boolean
+          description: 画面が hire の前に読むプレビュー。名前と依頼は仮の値なので、herdr 名の長さの検査をしない（r-933c）。
     TeamProseDocument:
       description: Markdown の本文をそのまま保持する文書。
       type: object

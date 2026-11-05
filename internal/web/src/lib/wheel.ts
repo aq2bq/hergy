@@ -4,20 +4,25 @@
 // are left to the browser.
 const LINE = 16;
 
+// Inside a modal the body of the modal takes the place of the page; outside it,
+// the page itself is what the wheel sends, whatever scrollers stand around the
+// input (r-ddb7, ac-6dec).
 function scrollHostOf(target: HTMLElement): HTMLElement | null {
-  // Inside a modal, the body of the modal takes the place of the page.
-  const dialog = target.closest('dialog[open]');
+  const dialog = target.closest<HTMLElement>('dialog[open]');
+  if (!dialog) return null;
   for (let node: HTMLElement | null = target.parentElement; node; node = node.parentElement) {
     const style = getComputedStyle(node);
     if ((style.overflowY === 'auto' || style.overflowY === 'scroll') && node.scrollHeight > node.clientHeight) return node;
-    if (node === dialog) return node;
+    if (node === dialog) return dialog;
   }
-  return null;
+  return dialog;
 }
 
-function pixels(event: WheelEvent, host: HTMLElement): number {
+// One wheel's amount in pixels: a line wheel is a line, and a page wheel is the
+// height of what it moves, the way the browser's own scroll is (lead's condition 2).
+function pixels(event: WheelEvent, height: number): number {
   if (event.deltaMode === 1) return event.deltaY * LINE;
-  if (event.deltaMode === 2) return event.deltaY * (host.clientHeight || LINE);
+  if (event.deltaMode === 2) return event.deltaY * (height || LINE);
   return event.deltaY;
 }
 
@@ -29,8 +34,8 @@ export function installWheel(): void {
     if (!(target instanceof HTMLTextAreaElement)) return;
     if (document.activeElement === target) return;
     event.preventDefault();
-    const amount = pixels(event, target);
     const host = scrollHostOf(target);
+    const amount = pixels(event, host ? host.clientHeight : window.innerHeight);
     if (host) host.scrollTop += amount;
     else window.scrollBy(0, amount);
   }, { passive: false, capture: true });

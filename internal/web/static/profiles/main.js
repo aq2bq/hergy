@@ -53,7 +53,7 @@ import {
 import {
   installWheel,
   resource
-} from "../chunk/nav-y1258m5z.js";
+} from "../chunk/nav-xgdfw3q1.js";
 
 // profiles/state.ts
 function mustElement(id) {
@@ -354,6 +354,14 @@ function closeRow(key) {
   openKeys.value = next;
   updateRow((r) => r.key === key ? { ...r, open: false } : r);
 }
+var bornOf = (panel) => ({ name: panel.draft.name, kind: panel.draft.kind, args: panel.draft.args.slice(), env: panel.draft.env.map((pair) => ({ ...pair })) });
+var sameBorn = (panel) => {
+  const was = panel.born;
+  if (!was)
+    return false;
+  const now = panel.draft;
+  return was.name === now.name && was.kind === now.kind && was.args.length === now.args.length && was.env.length === now.env.length && was.args.every((arg, i) => arg === now.args[i]) && was.env.every((pair, i) => pair.key === now.env[i].key && pair.value === now.env[i].value);
+};
 function addRow(file, group) {
   const key = newKey();
   const g = group || (file === "global" ? "global" : "");
@@ -383,6 +391,7 @@ function addRow(file, group) {
     other: otherOf(file),
     savedLine: false
   }, g, key);
+  panel.born = bornOf(panel);
   const row = {
     key,
     name: "",
@@ -471,6 +480,7 @@ function duplicateRow(panel) {
   };
   row.panels[0].key = row.key + ":" + panel.file;
   row.panels[0].rowKey = row.key;
+  row.panels[0].born = bornOf(row.panels[0]);
   const next = new Set(openKeys.value);
   next.add(row.key);
   openKeys.value = next;
@@ -531,6 +541,7 @@ function copyPanel(panel) {
   };
   fresh.rowKey = row.key;
   fresh.key = row.key + ":" + file;
+  fresh.born = bornOf(fresh);
   const next = new Set(openKeys.value);
   next.add(row.key);
   openKeys.value = next;
@@ -1448,8 +1459,7 @@ function Panel({ panel }) {
         class: "btn danger",
         "data-act": "discard",
         onClick: () => {
-          const untouched = !panel.saved && panel.draft.name === "" && panel.draft.args.length === 0 && panel.draft.env.length === 0 && panel.draft.kind === "claude";
-          if (untouched) {
+          if (!panel.saved && sameBorn(panel)) {
             pressDiscard(panel.key);
             return;
           }

@@ -77,6 +77,9 @@ export type SavedProfile = { name: string; kind: string; args: string[]; env: En
 export type Draft = { name: string; kind: string; args: string[]; env: EnvPair[] };
 
 export type Panel = {
+  // born is the draft the panel was made with (new, duplicate or copy), so 取り消し
+  // can tell an untouched panel from one the person changed (r-d480).
+  born?: { name: string; kind: string; args: string[]; env: { key: string; value: string }[] };
   key: string;
   rowKey: string;
   file: Place;

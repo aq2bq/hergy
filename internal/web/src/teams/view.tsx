@@ -33,7 +33,7 @@ import {
   recForFile, chosenFile, scheduleAgree, syncURL, focusAsk, groupOfRecord,
   pressTab, pressToggle, pressNew, pressDup, pressCopy, pressDiscard,
   pressStarterRoles, pressStarterProfile, pressCarry,
-  pressDelYes, pressName, pressDtab, pressPmode,
+  pressDelYes, pressName, pressDtab, pressPmode, bornOf,
   pressToYaml, pressTSave, pressTRevert, pressSave, pressRevert, pressVpick,
   pressToastUndo, pressYfile, yamlState, yamlProblems, yamlRevert, yamlSaved, fileText,
   conflictAt, pressOverwrite, pressRevertConflict, pressUndoConflict,
@@ -291,7 +291,7 @@ function Dacts({ r }: { r: Rec }) {
   // The starter's words stand on the base the row was seeded with, so the same
   // rule as the other screens holds: nothing changed since it was made is thrown
   // away at once, and anything the person put in is asked for (r-d480).
-  const touched = () => changeCount(r) > 0 || r.name.value !== '' || (r.agreeSaved.value ? agreeDiff(r) > 0 : false);
+  const touched = () => r.born.value !== '' && r.born.value !== bornOf(r);
   const discard = () => {
     if (!touched()) { pressDiscard(r); return; }
     askConfirm({

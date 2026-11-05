@@ -15,20 +15,22 @@ import {
 var LINE = 16;
 function scrollHostOf(target) {
   const dialog = target.closest("dialog[open]");
+  if (!dialog)
+    return null;
   for (let node = target.parentElement;node; node = node.parentElement) {
     const style = getComputedStyle(node);
     if ((style.overflowY === "auto" || style.overflowY === "scroll") && node.scrollHeight > node.clientHeight)
       return node;
     if (node === dialog)
-      return node;
+      return dialog;
   }
-  return null;
+  return dialog;
 }
-function pixels(event, host) {
+function pixels(event, height) {
   if (event.deltaMode === 1)
     return event.deltaY * LINE;
   if (event.deltaMode === 2)
-    return event.deltaY * (host.clientHeight || LINE);
+    return event.deltaY * (height || LINE);
   return event.deltaY;
 }
 function installWheel() {
@@ -43,8 +45,8 @@ function installWheel() {
     if (document.activeElement === target)
       return;
     event.preventDefault();
-    const amount = pixels(event, target);
     const host = scrollHostOf(target);
+    const amount = pixels(event, host ? host.clientHeight : window.innerHeight);
     if (host)
       host.scrollTop += amount;
     else
