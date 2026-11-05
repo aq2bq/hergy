@@ -56,3 +56,28 @@ func TestLayerOnlyReadsOneLayer(t *testing.T) {
 		t.Errorf("LayerOnly(global).Definitions = %+v", rows)
 	}
 }
+
+// TestListedRolesCountsTheRowsTheListDraws: the band's number is the list's
+// rows (r-929e): a legacy .yaml row and a name only a member names stand on the
+// project's side, and a name in both layers is one row on each side.
+func TestListedRolesCountsTheRowsTheListDraws(t *testing.T) {
+	global := t.TempDir()
+	local := t.TempDir()
+	writeFile(t, filepath.Join(local, "roles", "lead.md"), "# lead\n")
+	writeFile(t, filepath.Join(local, "roles", "builder.md"), "# builder\n")
+	writeFile(t, filepath.Join(local, "roles", "old.yaml"), "version: 1\n")
+	writeFile(t, filepath.Join(global, "roles", "lead.md"), "# lead\n")
+	writeFile(t, filepath.Join(global, "roles", "docs.md"), "# docs\n")
+	writeFile(t, filepath.Join(local, "teams", "core", "team.yaml"), "version: 1\nmembers:\n  - name: a\n    role: ghost\n    profile: fast\n")
+	cat := New(global, local, local, source.Disk{}, func(p string) string { return p })
+	if got := cat.ListedRoles(source.LayerLocal); got != 4 {
+		t.Errorf("ListedRoles(project) = %d, want 4 (lead, builder, old, ghost)", got)
+	}
+	if got := cat.ListedRoles(source.LayerGlobal); got != 2 {
+		t.Errorf("ListedRoles(global) = %d, want 2 (lead, docs)", got)
+	}
+	_, counts, _ := cat.Counts(source.LayerLocal)
+	if counts != 3 {
+		t.Fatalf("Counts(project).roles = %d, want 3: this test needs the old count to differ", counts)
+	}
+}

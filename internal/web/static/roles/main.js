@@ -13,14 +13,8 @@ import {
   h,
   A,
   y,
-  x,
   u
 } from "../chunk/nav-wtffyt4p.js";
-import {
-  takeDraft2,
-  setDirty2,
-  setCount2
-} from "../chunk/nav-b2ph1bfx.js";
 import {
   save2,
   del2,
@@ -30,6 +24,10 @@ import {
   roleModel2,
   teamModel2
 } from "../chunk/nav-59pgz9xy.js";
+import {
+  takeDraft2,
+  setDirty2
+} from "../chunk/nav-b2ph1bfx.js";
 import {
   token2,
   parseOpen2
@@ -280,7 +278,6 @@ function touch() {
 function redraw() {
   roles.value = roles.value.slice();
   tellDirty();
-  setCount2("roles", savedRoles().length);
 }
 var editors = new Map;
 function editorFor(k) {
@@ -2052,9 +2049,6 @@ if (view) {
   window.hergyPage = page;
   R(/* @__PURE__ */ u(Tabs, {}), tabsEl);
   R(/* @__PURE__ */ u(App, {}), view);
-  x(() => {
-    setCount2("roles", savedRoles().length);
-  });
   boot().catch(() => {}).finally(() => {
     page.settled = true;
   });

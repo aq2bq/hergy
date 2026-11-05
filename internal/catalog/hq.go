@@ -39,6 +39,30 @@ func (c *Catalog) Counts(layer string) (definitions, roles, profiles int) {
 	return definitions, roles, len(parsed)
 }
 
+// ListedRoles is how many role rows one layer's list draws (r-929e): a row per
+// name the layer holds a document for, plus, on the project's side, the names
+// the list still shows without a document of their own — a legacy .yaml, and a
+// name only a team member names. A name standing in both layers is two rows,
+// one on each side.
+func (c *Catalog) ListedRoles(layer string) int {
+	n := 0
+	for _, entry := range c.Roles() {
+		hasProject := entry.HasDocument && !entry.Outside
+		hasGlobal := entry.Outside || entry.UnusedPath != ""
+		switch layer {
+		case source.LayerLocal:
+			if hasProject || !entry.HasDocument {
+				n++
+			}
+		case source.LayerGlobal:
+			if hasGlobal {
+				n++
+			}
+		}
+	}
+	return n
+}
+
 // HoldsDefinition reports whether one layer holds a team definition of this name.
 func (c *Catalog) HoldsDefinition(name, layer string) bool {
 	return c.hasFile(c.TeamYAML(name, layer))

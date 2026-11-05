@@ -8,7 +8,7 @@
 // signal に入れる。
 import { signal } from '../lib/preact.js';
 import { roleEditor, roleProblems } from '../lib/role-editor.js';
-import { takeDraft, setCount, setDirty } from '../lib/nav.js';
+import { takeDraft, setDirty } from '../lib/nav.js';
 import { parseOpen, token as hqToken } from '../lib/hq.js';
 import { copyGroupOf, projectOfGroup } from '../lib/copy';
 import {
@@ -355,7 +355,6 @@ export function touch(): void {
 function redraw(): void {
   roles.value = roles.value.slice();
   tellDirty();
-  setCount('roles', savedRoles().length);
 }
 
 // ---- server checks ---------------------------------------------------

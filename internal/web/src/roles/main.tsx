@@ -3,9 +3,8 @@
 // mount と、住所・帯への受け渡しだけを持つ。描くのは view.js / assign.js / yaml.js、
 // 状態は state.js の signal、押し込みは部品が自分の onClick / onInput から
 // state.js の関数を直接呼ぶ。ここも DOM を書かない（5 章 1）。
-import { effect, render } from '../lib/preact.js';
-import { setCount } from '../lib/nav.js';
-import { view, tabsEl, dirty, take, savedRoles, boot } from './state.js';
+import { render } from '../lib/preact.js';
+import { view, tabsEl, dirty, take, boot } from './state.js';
 import { Tabs, App } from './view.js';
 
 if (view) {
@@ -20,9 +19,8 @@ if (view) {
   render(<Tabs />, tabsEl!);
   render(<App />, view);
 
-  // The band's number is the list's own: it counts the definitions that are saved
-  // (spec-nav 1.1).
-  effect(() => { setCount('roles', savedRoles().length); });
+  // The band's numbers come from the headquarters reading alone (r-929e): this
+  // screen writes none of them, so the four screens show one value.
 
   // boot reads the address and the saved documents; the band's promise (what the
   // screen before this one left unsaved) is part of it.
