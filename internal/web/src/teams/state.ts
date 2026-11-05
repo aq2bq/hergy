@@ -26,10 +26,10 @@ export type CheckAnswer = ApiAnswer<'checkTeam'>;
 type TeamSaveBody = Request<'team', 'save'>;
 type TeamCheckBody = Request<'team', 'check'>;
 import {
-  fromJSON, toDoc, diffCount, clone,
+  fromJSON, toDoc, clone,
 } from '../lib/ruledoc.js';
 import { parseOpen, token as roleToken } from '../lib/hq.js';
-import { TEAM as CHANGED_TEAM, diff as changedDiff, dirty as changedDirty, snapshot as changedSnapshot, teamNow as changedTeamNow } from '../lib/changed.js';
+import { TEAM as CHANGED_TEAM, TEAM_AGREEMENT as CHANGED_AGREEMENT, YAML_TEXT as CHANGED_YAML, diff as changedDiff, dirty as changedDirty, same as changedSame, snapshot as changedSnapshot, teamNow as changedTeamNow } from '../lib/changed.js';
 import type { TeamWritten } from '../lib/changed.js';
 import { copyGroupOf, groupPlace, projectOfGroup } from '../lib/copy';
 import { roleDraftsDirty } from './role-modal.js';
@@ -302,7 +302,7 @@ export type Rec = {
   drawMark: Sig<number>; seeded: Sig<boolean>;
   // born is the row's content when it was made (new, duplicate or copy), so 取り消し
   // can tell a row nothing was put into from one the person changed (r-d480).
-  born: Sig<string>;
+  born: Sig<Born | null>;
   writes: Sig<string[]>; nameIssues: Sig<Schemas['Problem'][]>;
   hasRoles: Sig<boolean>; hasProfiles: Sig<boolean>;
   starterRoles: Sig<boolean>; starterProfile: Sig<boolean>;
@@ -429,7 +429,7 @@ type RecInit = {
   ops: Op[]; saved: Team;
   agreeSaved: RuleDoc | null; agreeDraft: RuleDoc; agreeSavedIssues: Issue[] | null;
   findings: Finding[]; problems: Schemas['TeamCounts']; check: Check | null;
-  size: number; limit: number; drawMark: number; seeded: boolean; born?: string;
+  size: number; limit: number; drawMark: number; seeded: boolean; born?: Born | null;
   writes: string[]; nameIssues: Schemas['Problem'][];
   hasRoles: boolean; hasProfiles: boolean; starterRoles: boolean; starterProfile: boolean;
   carry: Carry | null;
@@ -455,7 +455,7 @@ function recOf(init: RecInit): Rec {
     agreeSaved: signal(init.agreeSaved), agreeDraft: signal(init.agreeDraft), agreeSavedIssues: signal(init.agreeSavedIssues),
     findings: signal(init.findings), problems: signal(init.problems), check: signal(init.check),
     size: signal(init.size), limit: signal(init.limit), drawMark: signal(init.drawMark), seeded: signal(init.seeded),
-    born: signal(init.born || ''),
+    born: signal(init.born || null),
     writes: signal(init.writes), nameIssues: signal(init.nameIssues),
     hasRoles: signal(init.hasRoles), hasProfiles: signal(init.hasProfiles),
     starterRoles: signal(init.starterRoles), starterProfile: signal(init.starterProfile),
@@ -700,10 +700,11 @@ function groupStart(group: string): number {
   return j >= 0 ? j : recs.value.length;
 }
 
-// bornOf is everything 取り消し would throw away, as one string: the name, the
-// whole document a save would write (members, turns, workers, the description),
-// and the team's rules (r-d480).
-export const bornOf = (r: Rec): string => JSON.stringify([r.name.value, changedSnapshot(writtenTeam(r)), r.agreeDraft.value.text]);
+// Born is what 取り消し compares with: the name, the whole document a save would
+// write, and the team's rules, as one snapshot (r-d480).
+export type Born = { name: string; team: TeamWritten; agreement: string };
+export const bornNow = (r: Rec): Born => changedSnapshot({ name: r.name.value, team: writtenTeam(r), agreement: r.agreeDraft.value.text });
+export const bornTouched = (r: Rec): boolean => r.born.value === null || !changedSame(r.born.value, bornNow(r));
 
 // addDraft makes a row for a definition that is not there yet, checks it once,
 // and draws it: its figure, its rules and its preview are the server's own
@@ -712,7 +713,7 @@ export async function addDraft(how: string, place: Place, name: string, base: Te
   const r = draftRecord(how, place, name, base, project);
   await checkTeam(r);
   // What the row was made with, the server's own reading of a new one included.
-  r.born.value = bornOf(r);
+  r.born.value = bornNow(r);
   // The row stands where the mock draws it: one added from the scaffold stands
   // first, and a duplicate or a copy stands right under the row it came from
   // (spec-teams B1, B3, B4).
@@ -782,7 +783,6 @@ function figFindings(r: Rec, problems: Schemas['Problem'][] | null | undefined):
   });
 }
 export const agreeIssues = (r: Rec): Issue[] => (r.check.value ? r.check.value.issues : []);
-export const agreeDiff = (r: Rec): number => !r.agreeSaved.value && !r.agreeDraft.value.text ? 0 : diffCount({ saved: r.agreeSaved.value, draft: r.agreeDraft.value });
 export const teamIssues = (r: Rec): Finding[] => r.findings.value;
 const pcountList = (c: Schemas['TeamCounts'] | null | undefined): { sev: string }[] => [...Array((c && c.err) || 0)].map(() => ({ sev: 'err' })).concat([...Array((c && c.warn) || 0)].map(() => ({ sev: 'warn' })));
 // rowIssues is the problems a row's own chip shows: the server's count for a
@@ -793,7 +793,7 @@ export const rowIssues = (r: Rec) => (r.draftRow ? teamIssues(r) : pcountList(r.
 // written only when 保存 is pressed (spec-teams B2).
 // A row whose team.yaml cannot be read is never a change: there is no document
 // it would write (r-1e9a; seen when the list draws a broken row with ●).
-export const dirtyDef = (r: Rec) => (r.draftRow || changedDirty(CHANGED_TEAM, savedTeam(r.saved.value), writtenTeam(r), !(r.broken.value || r.problem.value)) || (r.agreeSaved.value ? agreeDiff(r) > 0 : false));
+export const dirtyDef = (r: Rec) => (r.draftRow || changedDirty(CHANGED_TEAM, savedTeam(r.saved.value), writtenTeam(r), !(r.broken.value || r.problem.value)) || agreementChanged(r));
 
 // writtenTeam is the definition a save writes: its ops applied to the saved
 // document, with each worker's origin read back through them. The save and the
@@ -806,10 +806,12 @@ export const writtenTeam = (r: Rec): TeamWritten => ({
 });
 const savedTeam = (s: Team): TeamWritten => ({ description: s.description, turns: s.turns, members: s.members, workers: s.workers || [] });
 
-// changeCount is 1.4.6's `N か所`, from the owner's diff of the written value.
-export function changeCount(r: Rec): number {
-  return changedDiff(CHANGED_TEAM, savedTeam(r.saved.value), writtenTeam(r)).length;
-}
+// teamChanges is 1.4.6's `N か所`, from the owner's diff of the written value.
+export const teamChanges = (r: Rec): number => changedDiff(CHANGED_TEAM, savedTeam(r.saved.value), writtenTeam(r), !(r.broken.value || r.problem.value)).length;
+// agreementChanged is whether the team's rules differ from the file's.
+export const agreementChanged = (r: Rec): boolean => (r.agreeSaved.value
+  ? changedDirty(CHANGED_AGREEMENT, { text: r.agreeSaved.value.text }, { text: r.agreeDraft.value.text })
+  : !!r.agreeDraft.value.text);
 
 // ownAgreement is whether a rule finding is about the team's own agreement:
 // those are the team's promises and stand under チームの規則, while the rules of
@@ -977,7 +979,7 @@ export async function checkAgree(r: Rec) {
   const json = await one.agree.run(agreeIn(r, { doc: { ops: r.ops.value, doc } }));
   if (!json) return;
   r.check.value = buildCheck(r.agreeDraft.value, json);
-  if (!agreeDiff(r)) r.agreeSavedIssues.value = r.check.value.issues;
+  if (!agreementChanged(r)) r.agreeSavedIssues.value = r.check.value.issues;
 }
 export const scheduleAgree = (r: Rec) => {
   setOk('a' + dkey(r), false);
@@ -1192,7 +1194,7 @@ export async function renamed(r: Rec, name: string, json: Schemas['TeamSaved']):
   apiSaved();
 }
 
-export const renameDirty = (r: Rec): boolean => dirtyDef(r) || yfiles.value.some((f) => f.name === r.name.value && f.place === r.place.value && fileDirty(f.file));
+export const renameDirty = (r: Rec): boolean => dirtyDef(r) || yfiles.value.some((f) => f.name === r.name.value && f.place === r.place.value && yamlChanged(f.file));
 // answered waits for a save's or a delete's answer and answers its document, or,
 // when the server refused it, puts the server's sentence on the row's foot and
 // answers null (spec-boundary 3): a screen builds no sentence of its own.
@@ -1412,7 +1414,7 @@ export const yfiles = signal<YFile[]>((LIST.files || []).map((f): YFile => ({
 export const fileOf = (file: string): YFile | null => yfiles.value.find((f) => f.file === file) || null;
 export const fileKeys = (): string[] => PLACES.flatMap((p) => yfiles.value.filter((f) => f.place === p).map((f) => f.file));
 export const fileText = (file: string): string => (state.value.ytext[file] !== undefined ? state.value.ytext[file] : ((fileOf(file) || {}).text || ''));
-export const fileDirty = (file: string): boolean => state.value.ytext[file] !== undefined && state.value.ytext[file] !== ((fileOf(file) || {}).text || '');
+export const yamlChanged = (file: string): boolean => changedDirty(CHANGED_YAML, { text: (fileOf(file) || {}).text || '' }, { text: state.value.ytext[file] ?? ((fileOf(file) || {}).text || '') });
 export const yIssues = (file: string): Schemas['Problem'][] => state.value.yc[file] || (fileOf(file) || {}).problems || [];
 // pickFile chooses one file for the address when the tab opens: the first the
 // places hold. The drawing itself asks chosenFile, which writes nothing.
@@ -1544,7 +1546,7 @@ export const rowOfPanel = (r: Rec) => {
 export function dirty() {
   if (roleDraftsDirty()) return true;
   for (const r of recs.value) if (dirtyDef(r)) return true;
-  for (const f of yfiles.value) if (fileDirty(f.file)) return true;
+  for (const f of yfiles.value) if (yamlChanged(f.file)) return true;
   return false;
 }
 // tellDirty says it again now, for a part that changed something without a
@@ -1590,10 +1592,10 @@ export function restore(carried: Carried) {
 
 export function take() {
   const teams = [];
-  for (const r of recs.value) if (!r.draftRow && changeCount(r) > 0) teams.push({ place: r.place.value, group: groupOfRecord(r), name: r.name.value, hash: r.hash.value, ops: r.ops.value });
+  for (const r of recs.value) if (!r.draftRow && teamChanges(r) > 0) teams.push({ place: r.place.value, group: groupOfRecord(r), name: r.name.value, hash: r.hash.value, ops: r.ops.value });
   const agrees = [];
-  for (const r of recs.value) if (!r.draftRow && r.agreeSaved.value && agreeDiff(r)) agrees.push({ place: r.place.value, group: groupOfRecord(r), name: r.name.value, hash: r.agreeHash.value, doc: toDoc(r.agreeDraft.value, r.agreeSaved.value) });
-  const files = yfiles.value.filter((f: YFile) => fileDirty(f.file)).map((f: YFile) => ({ file: f.file, hash: f.hash, text: state.value.ytext[f.file] }));
+  for (const r of recs.value) if (!r.draftRow && r.agreeSaved.value && agreementChanged(r)) agrees.push({ place: r.place.value, group: groupOfRecord(r), name: r.name.value, hash: r.agreeHash.value, doc: toDoc(r.agreeDraft.value, r.agreeSaved.value) });
+  const files = yfiles.value.filter((f: YFile) => yamlChanged(f.file)).map((f: YFile) => ({ file: f.file, hash: f.hash, text: state.value.ytext[f.file] }));
   return { teams, agrees, files };
 }
 

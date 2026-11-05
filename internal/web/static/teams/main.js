@@ -51,7 +51,6 @@ import {
   clone2,
   fromJSON2,
   toDoc2,
-  diffCount2,
   Sev2,
   Counts2,
   Vm2,
@@ -157,6 +156,12 @@ var TEAM = { fields: [
   { key: "turns", label: "ターン", get: (v) => v.turns },
   { key: "members", label: "メンバー", get: (v) => v.members.map((m) => ({ name: m.name, role: m.role, profile: m.profile })) },
   { key: "workers", label: "ワーカー", get: (v) => v.workers.map((w) => ({ from: w.from, purpose: w.purpose, profile: w.profile })) }
+] };
+var TEAM_AGREEMENT = { fields: [
+  { key: "text", label: "チームの規則", get: (v) => v.text }
+] };
+var YAML_TEXT = { fields: [
+  { key: "text", label: "本文", get: (v) => v.text }
 ] };
 function teamNow(w, ops) {
   let { from, purpose, profile } = w;
@@ -1054,7 +1059,7 @@ function recOf(init) {
     limit: y(init.limit),
     drawMark: y(init.drawMark),
     seeded: y(init.seeded),
-    born: y(init.born || ""),
+    born: y(init.born || null),
     writes: y(init.writes),
     nameIssues: y(init.nameIssues),
     hasRoles: y(init.hasRoles),
@@ -1301,11 +1306,12 @@ function groupStart(group) {
   const j = recs.value.findIndex((r) => order.indexOf(groupOfRecord(r)) > rank);
   return j >= 0 ? j : recs.value.length;
 }
-var bornOf = (r) => JSON.stringify([r.name.value, snapshot(writtenTeam(r)), r.agreeDraft.value.text]);
+var bornNow = (r) => snapshot({ name: r.name.value, team: writtenTeam(r), agreement: r.agreeDraft.value.text });
+var bornTouched = (r) => r.born.value === null || !same(r.born.value, bornNow(r));
 async function addDraft(how, place, name, base, project) {
   const r = draftRecord(how, place, name, base, project);
   await checkTeam(r);
-  r.born.value = bornOf(r);
+  r.born.value = bornNow(r);
   let at = groupStart(project || (place === "global" ? "global" : ""));
   if (base && how !== "copy") {
     const i = firstIndexOf((x) => x.name.value === base.name);
@@ -1367,11 +1373,10 @@ function figFindings(r, problems) {
   });
 }
 var agreeIssues = (r) => r.check.value ? r.check.value.issues : [];
-var agreeDiff = (r) => !r.agreeSaved.value && !r.agreeDraft.value.text ? 0 : diffCount2({ saved: r.agreeSaved.value, draft: r.agreeDraft.value });
 var teamIssues = (r) => r.findings.value;
 var pcountList = (c) => [...Array(c && c.err || 0)].map(() => ({ sev: "err" })).concat([...Array(c && c.warn || 0)].map(() => ({ sev: "warn" })));
 var rowIssues = (r) => r.draftRow ? teamIssues(r) : pcountList(r.problems.value);
-var dirtyDef = (r) => r.draftRow || dirty(TEAM, savedTeam(r.saved.value), writtenTeam(r), !(r.broken.value || r.problem.value)) || (r.agreeSaved.value ? agreeDiff(r) > 0 : false);
+var dirtyDef = (r) => r.draftRow || dirty(TEAM, savedTeam(r.saved.value), writtenTeam(r), !(r.broken.value || r.problem.value)) || agreementChanged(r);
 var writtenTeam = (r) => ({
   description: r.draft.value.description,
   turns: r.draft.value.turns,
@@ -1379,9 +1384,8 @@ var writtenTeam = (r) => ({
   workers: (r.draft.value.workers || []).map((w) => teamNow(w, r.ops.value || []) || w)
 });
 var savedTeam = (s) => ({ description: s.description, turns: s.turns, members: s.members, workers: s.workers || [] });
-function changeCount(r) {
-  return diff(TEAM, savedTeam(r.saved.value), writtenTeam(r)).length;
-}
+var teamChanges = (r) => diff(TEAM, savedTeam(r.saved.value), writtenTeam(r), !(r.broken.value || r.problem.value)).length;
+var agreementChanged = (r) => r.agreeSaved.value ? dirty(TEAM_AGREEMENT, { text: r.agreeSaved.value.text }, { text: r.agreeDraft.value.text }) : !!r.agreeDraft.value.text;
 var vlistParts = (r) => {
   const issues = teamIssues(r);
   const out = issues.filter((m) => !!m.role);
@@ -1506,7 +1510,7 @@ async function checkAgree(r) {
   if (!json)
     return;
   r.check.value = buildCheck(r.agreeDraft.value, json);
-  if (!agreeDiff(r))
+  if (!agreementChanged(r))
     r.agreeSavedIssues.value = r.check.value.issues;
 }
 var scheduleAgree = (r) => {
@@ -1722,7 +1726,7 @@ async function renamed(r, name, json) {
   syncURL();
   saved2();
 }
-var renameDirty = (r) => dirtyDef(r) || yfiles.value.some((f) => f.name === r.name.value && f.place === r.place.value && fileDirty(f.file));
+var renameDirty = (r) => dirtyDef(r) || yfiles.value.some((f) => f.name === r.name.value && f.place === r.place.value && yamlChanged(f.file));
 async function answered(r, which, one, fallback) {
   try {
     const res = await one;
@@ -1917,7 +1921,7 @@ var yfiles = y((LIST.files || []).map((f) => ({
 var fileOf = (file) => yfiles.value.find((f) => f.file === file) || null;
 var fileKeys = () => PLACES.flatMap((p) => yfiles.value.filter((f) => f.place === p).map((f) => f.file));
 var fileText = (file) => state.value.ytext[file] !== undefined ? state.value.ytext[file] : (fileOf(file) || {}).text || "";
-var fileDirty = (file) => state.value.ytext[file] !== undefined && state.value.ytext[file] !== ((fileOf(file) || {}).text || "");
+var yamlChanged = (file) => dirty(YAML_TEXT, { text: (fileOf(file) || {}).text || "" }, { text: state.value.ytext[file] ?? ((fileOf(file) || {}).text || "") });
 var yIssues = (file) => state.value.yc[file] || (fileOf(file) || {}).problems || [];
 function pickFile() {
   const keys = fileKeys();
@@ -2052,7 +2056,7 @@ function dirty2() {
     if (dirtyDef(r))
       return true;
   for (const f of yfiles.value)
-    if (fileDirty(f.file))
+    if (yamlChanged(f.file))
       return true;
   return false;
 }
@@ -2086,13 +2090,13 @@ function restore(carried) {
 function take() {
   const teams = [];
   for (const r of recs.value)
-    if (!r.draftRow && changeCount(r) > 0)
+    if (!r.draftRow && teamChanges(r) > 0)
       teams.push({ place: r.place.value, group: groupOfRecord(r), name: r.name.value, hash: r.hash.value, ops: r.ops.value });
   const agrees = [];
   for (const r of recs.value)
-    if (!r.draftRow && r.agreeSaved.value && agreeDiff(r))
+    if (!r.draftRow && r.agreeSaved.value && agreementChanged(r))
       agrees.push({ place: r.place.value, group: groupOfRecord(r), name: r.name.value, hash: r.agreeHash.value, doc: toDoc2(r.agreeDraft.value, r.agreeSaved.value) });
-  const files = yfiles.value.filter((f) => fileDirty(f.file)).map((f) => ({ file: f.file, hash: f.hash, text: state.value.ytext[f.file] }));
+  const files = yfiles.value.filter((f) => yamlChanged(f.file)).map((f) => ({ file: f.file, hash: f.hash, text: state.value.ytext[f.file] }));
   return { teams, agrees, files };
 }
 function pressTab(t) {
@@ -5820,8 +5824,8 @@ function Detail({ r }) {
 function DtabsNav({ r }) {
   const cur = dtabOf(r);
   const tabs = [
-    ["shape", "トポロジー", "", changeCount(r) > 0],
-    ["agree", "規則", num(chars(r.agreeDraft.value.text)), r.agreeSaved.value ? agreeDiff(r) > 0 : false]
+    ["shape", "トポロジー", "", teamChanges(r) > 0],
+    ["agree", "規則", num(chars(r.agreeDraft.value.text)), r.agreeSaved.value ? agreementChanged(r) : false]
   ];
   return /* @__PURE__ */ u(S, {
     children: [
@@ -5881,7 +5885,7 @@ function Dacts({ r }) {
     label: "削除する（team.yaml と agreement.md）",
     run: () => pressDelYes(r)
   });
-  const touched = () => r.born.value === "" || r.born.value !== bornOf(r);
+  const touched = () => bornTouched(r);
   const discard = () => {
     if (!touched()) {
       pressDiscard(r);
@@ -6195,7 +6199,7 @@ function VList({ r }) {
   });
 }
 function Foot({ r, agree }) {
-  const n = changeCount(r), k = dkey(r);
+  const n = teamChanges(r), k = dkey(r);
   const hold = conflictAt(r, agree ? "a" : "t");
   const mine = fileText(`${r.name.value}.${r.place.value}.${agree ? "agreement" : "team"}`);
   const notice = hold ? /* @__PURE__ */ u(ConflictNotice, {
@@ -6266,11 +6270,11 @@ function Foot({ r, agree }) {
     });
   }
   if (agree) {
-    const s = r.agreeSaved.value, d = agreeDiff(r);
+    const s = r.agreeSaved.value, d = agreementChanged(r);
     const errs = agreeIssues(r);
     const was = new Set((s && r.agreeSavedIssues.value ? r.agreeSavedIssues.value : errs).filter((m) => m.sev === "err").map((m) => m.text));
     const empty = !s && !r.agreeDraft.value.text.length;
-    const blocked = empty || (!s ? errs.some((m) => m.sev === "err") : errs.some((m) => m.sev === "err" && !was.has(m.text)) || d === 0);
+    const blocked = empty || (!s ? errs.some((m) => m.sev === "err") : errs.some((m) => m.sev === "err" && !was.has(m.text)) || !d);
     return /* @__PURE__ */ u(S, {
       children: [
         notice,
@@ -6299,7 +6303,7 @@ function Foot({ r, agree }) {
               children: /* @__PURE__ */ u("button", {
                 class: "btn",
                 "data-act": "revert",
-                hidden: empty || !(d > 0),
+                hidden: empty || !d,
                 onClick: () => pressRevert(r),
                 children: "元に戻す"
               })
@@ -6397,7 +6401,7 @@ function AgreePanel({ r }) {
     };
   }, [active.join("|")]);
   const docs = [
-    { key: "agreement", label: `チームの規則 ${r.name.value}`, members: r.draft.value.members.map((m) => m.name).join("、"), status: `${agreeDiff(r) ? "未保存" : "保存済み"}${agreeIssues(r).length ? ` · 問題・警告 ${agreeIssues(r).length}` : ""}` },
+    { key: "agreement", label: `チームの規則 ${r.name.value}`, members: r.draft.value.members.map((m) => m.name).join("、"), status: `${agreementChanged(r) ? "未保存" : "保存済み"}${agreeIssues(r).length ? ` · 問題・警告 ${agreeIssues(r).length}` : ""}` },
     ...names.map((name) => ({ key: "role:" + name, label: `ロール ${name}`, members: r.draft.value.members.filter((m) => m.role === name).map((m) => m.name).join("、"), status: roleSummary(r, name) }))
   ];
   return /* @__PURE__ */ u("div", {
@@ -6515,7 +6519,7 @@ function AgreePanel({ r }) {
                     path: `${placeName(r.place.value)} · teams/${r.name.value}/agreement.md`,
                     members: r.draft.value.members.map((m) => m.name).join("、"),
                     template: r.check.value?.templateSize || 0,
-                    state: (agreeDiff(r) ? "未保存" : "保存済み") + (shadowed ? "（隠れている）" : "")
+                    state: (agreementChanged(r) ? "未保存" : "保存済み") + (shadowed ? "（隠れている）" : "")
                   },
                   onChange: () => onChangeDraft(r),
                   onMode: (v) => pressPmode(r, v),
@@ -6611,7 +6615,7 @@ function YamlPage() {
                     /* @__PURE__ */ u("span", {
                       class: "fs",
                       children: [
-                        fileDirty(f.file) ? /* @__PURE__ */ u("span", {
+                        yamlChanged(f.file) ? /* @__PURE__ */ u("span", {
                           class: "dirty",
                           children: "●"
                         }) : null,

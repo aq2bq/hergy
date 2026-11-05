@@ -28,12 +28,12 @@ import { askConfirm, ConfirmDialog } from '../lib/confirm.js';
 import {
   PLACES, PLACE, DIR, HQ, GROUPED, GROUPS, CURRENT, state, allRecs, groupRecs, rowsInGroup, placeGroups,
   dkey, currentProjectName, teamLabel, dtabOf, isOpen, missingOpen,
-  rowIssues, dirtyDef, teamIssues, agreeIssues, agreeDiff, changeCount, vlistParts,
-  rowOfPanel, okOf, refusalOf, pmodeOf, yfiles, fileOf, fileDirty, yIssues,
+  rowIssues, dirtyDef, teamIssues, agreeIssues, agreementChanged, teamChanges, vlistParts,
+  rowOfPanel, okOf, refusalOf, pmodeOf, yfiles, fileOf, yamlChanged, yIssues,
   chosenFile, scheduleAgree, syncURL, focusAsk, groupOfRecord,
   pressTab, pressToggle, pressNew, pressDup, pressCopy, pressDiscard,
   pressStarterRoles, pressStarterProfile, pressCarry,
-  pressDelYes, pressName, pressDtab, pressPmode, bornOf,
+  pressDelYes, pressName, pressDtab, pressPmode, bornTouched,
   pressTSave, pressTRevert, pressSave, pressRevert, pressVpick,
   pressToastUndo, pressYfile, yamlState, yamlProblems, yamlRevert, yamlSaved, fileText,
   conflictAt, pressOverwrite, pressRevertConflict, pressUndoConflict,
@@ -263,8 +263,8 @@ function Detail({ r }: { r: Rec }) {
 function DtabsNav({ r }: { r: Rec }) {
   const cur = dtabOf(r);
   const tabs: [string, string, string, boolean][] = [
-    ['shape', 'トポロジー', '', changeCount(r) > 0],
-    ['agree', '規則', num(chars(r.agreeDraft.value.text)), r.agreeSaved.value ? agreeDiff(r) > 0 : false],
+    ['shape', 'トポロジー', '', teamChanges(r) > 0],
+    ['agree', '規則', num(chars(r.agreeDraft.value.text)), r.agreeSaved.value ? agreementChanged(r) : false],
   ];
   return (
     <>
@@ -291,7 +291,7 @@ function Dacts({ r }: { r: Rec }) {
   // away at once, and anything the person put in is asked for (r-d480).
   // A row whose making is unknown is asked about, the way the other screens do:
   // the side that loses nothing is the side that asks (r-d480).
-  const touched = () => r.born.value === '' || r.born.value !== bornOf(r);
+  const touched = () => bornTouched(r);
   const discard = () => {
     if (!touched()) { pressDiscard(r); return; }
     askConfirm({
@@ -442,7 +442,7 @@ function VList({ r }: { r: Rec }) {
 // the press the save carries and the key its 保存しました stands under are the
 // caller's (spec-teams B6, 監査 R9).
 function Foot({ r, agree }: { r: Rec; agree?: boolean }) {
-  const n = changeCount(r), k = dkey(r);
+  const n = teamChanges(r), k = dkey(r);
   // A save refused because the file moved stands above this foot, and the words
   // the person wrote stay where they are (r-3c77, d-a34a).
   const hold = conflictAt(r, agree ? 'a' : 't');
@@ -490,15 +490,15 @@ function Foot({ r, agree }: { r: Rec; agree?: boolean }) {
     );
   }
   if (agree) {
-    const s = r.agreeSaved.value, d = agreeDiff(r);
+    const s = r.agreeSaved.value, d = agreementChanged(r);
     const errs = agreeIssues(r);
     const was = new Set((s && r.agreeSavedIssues.value ? r.agreeSavedIssues.value : errs).filter((m) => m.sev === 'err').map((m) => m.text));
     const empty = !s && !r.agreeDraft.value.text.length;
-    const blocked = empty || (!s ? errs.some((m) => m.sev === 'err') : (errs.some((m) => m.sev === 'err' && !was.has(m.text)) || d === 0));
+    const blocked = empty || (!s ? errs.some((m) => m.sev === 'err') : (errs.some((m) => m.sev === 'err' && !was.has(m.text)) || !d));
     return (
       <>{notice}<footer class="pf">
         <button class="btn primary" data-act="save" disabled={blocked} onClick={() => pressSave(r)}>保存</button><span class="errline doc" hidden={!refusal}>{refusal}</span><span class="dirty">{s && d ? `${d} か所` : ''}</span>{ok}
-        <span class="acts"><button class="btn" data-act="revert" hidden={empty || !(d > 0)} onClick={() => pressRevert(r)}>元に戻す</button></span>
+        <span class="acts"><button class="btn" data-act="revert" hidden={empty || !d} onClick={() => pressRevert(r)}>元に戻す</button></span>
       </footer></>
     );
   }
@@ -553,7 +553,7 @@ function AgreePanel({ r }: { r: Rec }) {
    window.addEventListener('resize', fit);
    return () => { cancelAnimationFrame(frame); observer.disconnect(); window.removeEventListener('resize', fit); };
   }, [active.join('|')]);
-  const docs = [{key: 'agreement', label: `チームの規則 ${r.name.value}`, members: r.draft.value.members.map(m => m.name).join('、'), status: `${agreeDiff(r) ? '未保存' : '保存済み'}${agreeIssues(r).length ? ` · 問題・警告 ${agreeIssues(r).length}` : ''}`},
+  const docs = [{key: 'agreement', label: `チームの規則 ${r.name.value}`, members: r.draft.value.members.map(m => m.name).join('、'), status: `${agreementChanged(r) ? '未保存' : '保存済み'}${agreeIssues(r).length ? ` · 問題・警告 ${agreeIssues(r).length}` : ''}`},
    ...names.map(name => ({key: 'role:' + name, label: `ロール ${name}`, members: r.draft.value.members.filter(m => m.role === name).map(m => m.name).join('、'), status: roleSummary(r, name)}))];
   return (
     <div class="prose-workspace" ref={workspace} data-mode={active.length === 1 ? 'single' : active.length === 2 ? 'compare' : 'all'}>
@@ -569,7 +569,7 @@ function AgreePanel({ r }: { r: Rec }) {
       <div class="pmain">
         <RuleDoc transfer={r.draftRow ? undefined : teamTransfer(r)} row={rowOfPanel(r)} issues={agreeIssues(r)} hasName={false} heading={{ id: `team-prose-${r.uid}`, kind: 'チーム定義', name: r.name.value, title: r.agreeDraft.value.title,
             path: `${placeName(r.place.value)} · teams/${r.name.value}/agreement.md`, members: r.draft.value.members.map((m) => m.name).join('、'),
-            template: r.check.value?.templateSize || 0, state: (agreeDiff(r) ? '未保存' : '保存済み') + (shadowed ? '（隠れている）' : '') }}
+            template: r.check.value?.templateSize || 0, state: (agreementChanged(r) ? '未保存' : '保存済み') + (shadowed ? '（隠れている）' : '') }}
           onChange={() => onChangeDraft(r)}
           onMode={(v: string) => pressPmode(r, v)}
           onURL={() => syncURL()} />
@@ -611,7 +611,7 @@ export function YamlPage() {
                   const n = '';
           const on = chosen === f.file;
           return (
-            <button class={['file', on ? 'on' : ''].filter(Boolean).join(' ')} data-act="yfile" data-file={f.file} aria-pressed={on} onClick={() => pressYfile(f.file)}><code>{f.name}/{f.kind === 'agreement' ? 'agreement.md' : 'team.yaml'}</code><span class="fs">{fileDirty(f.file) ? <span class="dirty">●</span> : null}{(yIssues(f.file) || []).length ? <Counts list={messagesOf(yIssues(f.file))} /> : (n || '')}</span><span class="ft">{f.path}</span></button>
+            <button class={['file', on ? 'on' : ''].filter(Boolean).join(' ')} data-act="yfile" data-file={f.file} aria-pressed={on} onClick={() => pressYfile(f.file)}><code>{f.name}/{f.kind === 'agreement' ? 'agreement.md' : 'team.yaml'}</code><span class="fs">{yamlChanged(f.file) ? <span class="dirty">●</span> : null}{(yIssues(f.file) || []).length ? <Counts list={messagesOf(yIssues(f.file))} /> : (n || '')}</span><span class="ft">{f.path}</span></button>
           );
         })}</div>
       );
