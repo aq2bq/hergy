@@ -36,16 +36,19 @@ import {
 } from "../chunk/nav-v78t4xz0.js";
 import"../chunk/nav-evzrqbpq.js";
 import {
+  snapshot,
+  dirty,
+  ROLE_DOC,
+  roleDirty,
   Measure,
   renameCarries2,
   fromJSON2,
   toDoc2,
-  diffCount2,
   Counts2,
   Badge2,
   Vm2,
   RuleDoc2
-} from "../chunk/nav-d2pxfj06.js";
+} from "../chunk/nav-k3vfbdtb.js";
 import {
   conflictOf,
   ConflictNotice,
@@ -559,7 +562,7 @@ function pressNew(group) {
   const place = key === "global" ? "global" : "project";
   const nr = { uid: nextUid(), isNew: true, group: key, project: null, global: null };
   nr[place] = { saved: null, draft: d, hash: "", text: "" };
-  nr.born = { name: d.name, title: d.title || "", text: d.text };
+  nr.born = snapshot({ name: d.name, title: d.title || "", text: d.text });
   const order = roleGroups().map((g) => g.key);
   const rank = order.indexOf(key);
   let at = roles.value.findIndex((r) => groupOfRow(r) === key);
@@ -616,7 +619,7 @@ function pressCopy(id, l) {
   const group = copyGroupOf(to, groupOfRow(r), CURRENT);
   const nr = { uid: nextUid(), isNew: true, group, project: null, global: null };
   nr[to] = e;
-  nr.born = { name: e.draft.name, title: e.draft.title || "", text: e.draft.text };
+  nr.born = snapshot({ name: e.draft.name, title: e.draft.title || "", text: e.draft.text });
   const order = roleGroups().map((g) => g.key);
   const rank = order.indexOf(group);
   let at = roles.value.findIndex((x) => groupOfRow(x) === group);
@@ -865,17 +868,17 @@ async function doAssignSave(id) {
 function rowDirty(r) {
   return PLACES.some((l) => {
     const entry = r[l];
-    return !!entry && (!entry.saved || JSON.stringify(entry.draft) !== JSON.stringify(entry.saved));
+    return !!entry && roleDirty(entry);
   });
 }
-function dirty() {
+function dirty2() {
   const rows = roles.value.some(rowDirty);
   const members = teams.value.some((t) => t.members.some((m) => m.draft !== m.saved));
   const ytexts = allEntries().some(({ e }) => e.ytext !== undefined && e.ytext !== (e.text || ""));
   return rows || members || ytexts;
 }
 function tellDirty() {
-  setDirty2(dirty());
+  setDirty2(dirty2());
 }
 function take() {
   const rows = [], ytexts = [], members = [];
@@ -1589,7 +1592,7 @@ function Role({ r }) {
     ]
   });
 }
-var unsaved = (r) => PLACES.some((l) => r[l] && (!r[l].saved || diffCount2(r[l]) > 0));
+var unsaved = (r) => PLACES.some((l) => r[l] && roleDirty(r[l]));
 var readersCell = (r) => {
   if (!GROUPED) {
     const ids = [...new Set(whoReads(curName(r), r.group).map((x) => x.t.id))];
@@ -1926,7 +1929,7 @@ function Panel({ r, l }) {
   const hold = conflictAt(key);
   const nameIssue = issues.find((m) => m.f === "name" && m.sev === "err");
   const nameError = nameIssue ? nameIssue.text : refusal && refusal.at === "name" ? refusal.text : "";
-  const n = diffCount2(e);
+  const n = roleDirty(e) ? 1 : 0;
   const before = new Set((e.saved && e.__savedIssues ? e.__savedIssues : issues).filter((m) => m.sev === "err").map((m) => m.text));
   const grew = issues.filter((m) => m.sev === "err" && !before.has(m.text));
   const blocked = !!nameIssue || (!e.saved ? issues.some((m) => m.sev === "err") : grew.length > 0 || n === 0);
@@ -1976,9 +1979,8 @@ function Panel({ r, l }) {
                 class: "btn danger",
                 "data-act": "discard",
                 onClick: () => {
-                  const was = r.born;
-                  const untouched = was ? was.name === e.draft.name && was.title === (e.draft.title || "") && was.text === e.draft.text : e.draft.name === "" && e.draft.title === "" && e.draft.text === `## 責務
-`;
+                  const untouched = !dirty(ROLE_DOC, r.born || { name: "", title: "", text: `## 責務
+` }, { name: e.draft.name, title: e.draft.title || "", text: e.draft.text });
                   if (untouched) {
                     pressDiscard(r.uid, l);
                     return;
@@ -2091,7 +2093,7 @@ function Panel({ r, l }) {
 
 // roles/main.tsx
 if (view) {
-  const page = { screen: "roles", dirty, take, settled: false };
+  const page = { screen: "roles", dirty: dirty2, take, settled: false };
   window.hergyPage = page;
   R(/* @__PURE__ */ u(Tabs, {}), tabsEl);
   R(/* @__PURE__ */ u(App, {}), view);

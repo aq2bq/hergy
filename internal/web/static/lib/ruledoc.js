@@ -12,13 +12,12 @@ import {
   clone2,
   fromJSON2,
   toDoc2,
-  diffCount2,
   Sev2,
   Counts2,
   Badge2,
   Vm2,
   RuleDoc2
-} from "../chunk/nav-d2pxfj06.js";
+} from "../chunk/nav-k3vfbdtb.js";
 import"../chunk/nav-hrc2s6sc.js";
 import"../chunk/nav-wtffyt4p.js";
 import"../chunk/nav-7t7hyw1j.js";
@@ -29,7 +28,6 @@ export {
   Sev2 as Sev,
   Vm2 as Vm,
   clone2 as clone,
-  diffCount2 as diffCount,
   fromJSON2 as fromJSON,
   renameCarries2 as renameCarries,
   toDoc2 as toDoc

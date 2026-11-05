@@ -136,3 +136,13 @@ export function teamNow(w: TeamWorker, ops: TeamOp[]): TeamWorker | null {
   }
   return { from, purpose, profile };
 }
+
+// RoleEntryLike is one place's role document as the screens hold it: what the
+// file saved, the draft the fields edit, and why the file cannot be read.
+export type RoleEntryLike = { saved: RoleDoc | null; draft: RoleDoc; problem?: string };
+const docOf = (d: RoleDoc): RoleDoc => ({ name: d.name || '', title: d.title || '', text: d.text || '' });
+// roleDirty is whether the role's written document differs from the file's. A
+// document that cannot be read is never a change (r-1e9a).
+export function roleDirty(e: RoleEntryLike): boolean {
+  return dirty(ROLE_DOC, e.saved ? docOf(e.saved) : null, docOf(e.draft), !e.problem);
+}

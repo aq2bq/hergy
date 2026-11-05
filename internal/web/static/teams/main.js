@@ -40,6 +40,14 @@ import {
   problemText2
 } from "../chunk/nav-7t7hyw1j.js";
 import {
+  snapshot,
+  dirty,
+  diff,
+  TEAM,
+  TEAM_AGREEMENT,
+  YAML_TEXT,
+  teamNow,
+  roleDirty,
   num,
   documents,
   documentID,
@@ -55,7 +63,7 @@ import {
   Counts2,
   Vm2,
   RuleDoc2
-} from "../chunk/nav-d2pxfj06.js";
+} from "../chunk/nav-k3vfbdtb.js";
 import {
   st,
   token2,
@@ -90,99 +98,6 @@ import {
   installWheel,
   resource
 } from "../chunk/nav-xgdfw3q1.js";
-
-// lib/changed.ts
-function same(a, b) {
-  if (Object.is(a, b))
-    return true;
-  if (Array.isArray(a) || Array.isArray(b)) {
-    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length)
-      return false;
-    return a.every((one, i) => same(one, b[i]));
-  }
-  if (typeof a !== "object" || typeof b !== "object" || a === null || b === null)
-    return false;
-  const ka = Object.keys(a).filter((key) => a[key] !== undefined);
-  const kb = Object.keys(b).filter((key) => b[key] !== undefined);
-  if (ka.length !== kb.length)
-    return false;
-  return ka.every((key) => (key in b) && same(a[key], b[key]));
-}
-function snapshot(v) {
-  if (Array.isArray(v))
-    return v.map((one) => snapshot(one));
-  if (v && typeof v === "object") {
-    const out = {};
-    for (const [key, one] of Object.entries(v))
-      out[key] = snapshot(one);
-    return out;
-  }
-  return v;
-}
-function dirty(_shape, from, to, readable = true) {
-  if (!readable)
-    return false;
-  if (from === null || from === undefined)
-    return to !== null && to !== undefined;
-  return !same(from, to);
-}
-function diff(shape, from, to, readable = true) {
-  if (!dirty(shape, from, to, readable))
-    return [];
-  if (from === null || from === undefined) {
-    const out = shape.fields.filter((f) => !empty(f.get(to)));
-    return out.length ? out : [{ key: "*", label: "そのほかの変更", get: () => {
-      return;
-    } }];
-  }
-  const out = shape.fields.filter((f) => !same(f.get(from), f.get(to)));
-  if (out.length === 0)
-    return [{ key: "*", label: "そのほかの変更", get: () => {
-      return;
-    } }];
-  return out;
-}
-function empty(v) {
-  if (v === null || v === undefined || v === "")
-    return true;
-  if (Array.isArray(v))
-    return v.length === 0;
-  if (typeof v === "object")
-    return Object.keys(v).length === 0;
-  return false;
-}
-var ROLE_DOC = { fields: [
-  { key: "name", label: "名前（保存先のファイルも変わる）", get: (v) => v.name },
-  { key: "title", label: "題名", get: (v) => v.title },
-  { key: "text", label: "本文", get: (v) => v.text }
-] };
-var TEAM = { fields: [
-  { key: "description", label: "説明", get: (v) => v.description },
-  { key: "turns", label: "ターン", get: (v) => v.turns },
-  { key: "members", label: "メンバー", get: (v) => v.members.map((m) => ({ name: m.name, role: m.role, profile: m.profile })) },
-  { key: "workers", label: "ワーカー", get: (v) => v.workers.map((w) => ({ from: w.from, purpose: w.purpose, profile: w.profile })) }
-] };
-var TEAM_AGREEMENT = { fields: [
-  { key: "text", label: "チームの規則", get: (v) => v.text }
-] };
-var YAML_TEXT = { fields: [
-  { key: "text", label: "本文", get: (v) => v.text }
-] };
-function teamNow(w, ops) {
-  let { from, purpose, profile } = w;
-  for (let i = ops.length - 1;i >= 0; i--) {
-    const op = ops[i];
-    if (op.kind === "workerPurpose" && op.from === from && op.new === purpose)
-      purpose = op.old;
-    else if (op.kind === "workerProfile" && op.from === from && op.purpose === purpose)
-      profile = op.profile;
-    else if (op.kind === "moveWorker" && op.to === from && op.purpose === purpose)
-      from = op.from;
-    else if (op.kind === "addWorker" && op.from === from && op.purpose === purpose)
-      return null;
-  }
-  return { from, purpose, profile };
-}
 
 // teams/rule-selection.ts
 var ruleSelection = y({});
@@ -312,7 +227,7 @@ function newModel(session) {
 }
 var models = new Map;
 function roleEntryDirty(e) {
-  return dirty(ROLE_DOC, { name: e.saved.name, title: e.saved.title, text: e.saved.text }, { name: e.draft.name, title: e.draft.title, text: e.draft.text });
+  return roleDirty(e);
 }
 function roleDraftsDirty() {
   return [...models.values()].some((model) => {
@@ -346,7 +261,7 @@ function Editor({ session, onScanned, visible }) {
     return held;
   }, [session]);
   const { editor, entry } = model;
-  const dirty = () => !!entry.value && JSON.stringify(entry.value.draft) !== JSON.stringify(entry.value.saved);
+  const dirty = () => !!entry.value && roleDirty(entry.value);
   const canDiscard = (message) => !editor.saving.value && (!dirty() || window.confirm(message));
   async function check(resetBaseline = false) {
     const e = entry.value, ctx = model.context.value.value;

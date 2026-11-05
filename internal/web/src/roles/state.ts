@@ -6,6 +6,7 @@
 // 呼ぶ関数は無い（依頼書 1）。行の下書きは共有部品（ruledoc）が書き換え、変える
 // たびに onChange で知らせるので、画面はそのたびに新しい行（新しい下書きの写し）を
 // signal に入れる。
+import { roleDirty, snapshot as changedSnapshot } from '../lib/changed.js';
 import { signal } from '../lib/preact.js';
 import { roleEditor, roleProblems } from '../lib/role-editor.js';
 import { takeDraft, setDirty } from '../lib/nav.js';
@@ -646,7 +647,7 @@ export function pressNew(group?: string): void {
   const place: Place = key === 'global' ? 'global' : 'project';
   const nr: RoleRow = { uid: nextUid(), isNew: true, group: key, project: null, global: null };
   nr[place] = { saved: null, draft: d, hash: '', text: '' };
-  nr.born = { name: d.name, title: d.title || '', text: d.text };
+  nr.born = changedSnapshot({ name: d.name, title: d.title || '', text: d.text }) as { name: string; title: string; text: string };
   // The row stands at the top of the head it was added under.
   const order = roleGroups().map((g) => g.key);
   const rank = order.indexOf(key);
@@ -718,7 +719,7 @@ export function pressCopy(id: number | string, l: Place): void {
   const group = copyGroupOf(to, groupOfRow(r), CURRENT);
   const nr: RoleRow = { uid: nextUid(), isNew: true, group, project: null, global: null };
   nr[to] = e;
-  nr.born = { name: e.draft.name, title: e.draft.title || '', text: e.draft.text };
+  nr.born = changedSnapshot({ name: e.draft.name, title: e.draft.title || '', text: e.draft.text }) as { name: string; title: string; text: string };
   const order = roleGroups().map((g) => g.key);
   const rank = order.indexOf(group);
   let at = roles.value.findIndex((x) => groupOfRow(x) === group);
@@ -1019,7 +1020,7 @@ export async function doAssignSave(id: string): Promise<void> {
 // dirty is whether the screen holds something no save wrote yet: a row's draft,
 // a row a person added, a pick in the assign tab, or a YAML text.
 function rowDirty(r: RoleRow): boolean {
-  return PLACES.some((l) => { const entry = r[l]; return !!entry && (!entry.saved || JSON.stringify(entry.draft) !== JSON.stringify(entry.saved)); });
+  return PLACES.some((l) => { const entry = r[l]; return !!entry && roleDirty(entry); });
 }
 
 export function dirty(): boolean {

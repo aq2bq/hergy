@@ -1,4 +1,4 @@
-import { ROLE_DOC, dirty } from '../lib/changed.js';
+import { roleDirty } from '../lib/changed.js';
 import { showOnly } from './rule-selection.js';
 import { transferTargets } from './prose-transfer.js';
 import { documentID, documents } from '../lib/prose-transfer.js';
@@ -53,7 +53,7 @@ const models = new Map<string, ReturnType<typeof newModel>>();
 // roleEntryDirty is whether the role's written document differs from the file's:
 // the change test is the one owner's (r-1e9a).
 function roleEntryDirty(e: { draft: { name: string; title: string; text: string }; saved: { name: string; title: string; text: string } }): boolean {
-  return dirty(ROLE_DOC, { name: e.saved.name, title: e.saved.title, text: e.saved.text }, { name: e.draft.name, title: e.draft.title, text: e.draft.text });
+  return roleDirty(e);
 }
 export function roleDraftsDirty(): boolean {
   return [...models.values()].some((model) => {
@@ -83,7 +83,7 @@ function Editor({ session, onScanned, visible }: { session: Session; onScanned: 
     return held;
   }, [session]);
   const { editor, entry } = model;
-  const dirty = () => !!entry.value && JSON.stringify(entry.value.draft) !== JSON.stringify(entry.value.saved);
+  const dirty = () => !!entry.value && roleDirty(entry.value);
   const canDiscard = (message: string) => !editor.saving.value && (!dirty() || window.confirm(message));
   async function check(resetBaseline = false) {
     const e = entry.value, ctx = model.context.value.value;

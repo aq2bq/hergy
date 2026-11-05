@@ -1,5 +1,7 @@
 // Shared document state and prose editing for role and team screens.
 import type { components, operations } from '../../../apicontract/api-types';
+import { roleDirty } from './changed.js';
+import type { RoleEntryLike } from './changed.js';
 import { signal } from './preact.js';
 import type { TransferSource } from './prose-transfer.js';
 import { Field } from './field.js';
@@ -30,9 +32,7 @@ export function fromJSON(value: unknown): EditableDocument {
 export function toDoc(draft: EditableDocument, _saved: EditableDocument | null): components['schemas']['RoleDoc'] {
  return { name: draft.name, title: draft.title, text: draft.text };
 }
-export function diffCount(entry: { saved: EditableDocument | null; draft: EditableDocument }): number {
- return !entry.saved || entry.saved.name !== entry.draft.name || entry.saved.text !== entry.draft.text ? 1 : 0;
-}
+
 export function Sev({ sev }: { sev: string }) {return <span class={'sev ' + sev}>{sev === 'err' ? '問題' : '警告'}</span>;}
 export function Counts({ list }: { list: Pick<RuleIssue, 'sev'>[] }) {
  const errors = list.filter((p) => p.sev === 'err').length;
@@ -46,6 +46,6 @@ export function Vm({ list }: { list: Pick<RuleIssue, 'sev' | 'text'>[] }) {
 export function RuleDoc({ row, hasName = true, heading, nameError, issues, onChange, transfer }: RuleDocProps) {
  return <>{hasName ? <label class="prose-name">ロール名<Field class="in-name" data-f="name" value={row.draft.name} onInput={(event: Event) => { if (event.currentTarget instanceof HTMLInputElement) { row.draft.name = event.currentTarget.value; onChange?.(row); } }} />{nameError ? <span class="errline name" role="alert">{nameError}</span> : null}</label> : null}
  {hasName && row.saved && row.saved.name !== row.draft.name ? <label class="rename"><input type="checkbox" checked={renameCarries(row.uid + row.l)} onChange={(event) => { renameBox.value = { ...renameBox.value, [row.uid + row.l]: event.currentTarget.checked }; }} />使っているチームのロール名も変更する</label> : null}
- <ProseEditor transfer={transfer} heading={heading || { kind: 'ロール', name: row.draft.name || '新しいロール', title: row.draft.title, path: row.draft.__path, state: diffCount(row) ? '未保存' : '保存済み' }} text={row.draft.text} onChange={(text) => { row.draft.text = text; row.draft.title = title(text, row.draft.name); onChange?.(row); }} />
+ <ProseEditor transfer={transfer} heading={heading || { kind: 'ロール', name: row.draft.name || '新しいロール', title: row.draft.title, path: row.draft.__path, state: roleDirty(row as unknown as RoleEntryLike) ? '未保存' : '保存済み' }} text={row.draft.text} onChange={(text) => { row.draft.text = text; row.draft.title = title(text, row.draft.name); onChange?.(row); }} />
  <Vm list={issues.filter((p) => p.f !== 'name' && p.f !== 'size')} /></>;
 }

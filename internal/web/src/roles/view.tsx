@@ -18,7 +18,8 @@ import {
 import { ConflictNotice } from '../lib/conflict.js';
 import { askConfirm, ConfirmDialog } from '../lib/confirm.js';
 import { bringUnderBand } from '../lib/band.js';
-import { RuleDoc, Counts, Badge, diffCount } from '../lib/ruledoc.js';
+import { RuleDoc, Counts, Badge } from '../lib/ruledoc.js';
+import { dirty as changedDirty, roleDirty, ROLE_DOC } from '../lib/changed.js';
 import type { RuleIssue } from '../lib/ruledoc.js';
 import type { Place, RoleGroup, RoleRow } from './state.js';
 import { AssignPage } from './assign.js';
@@ -122,7 +123,7 @@ function Role({ r }: { r: RoleRow }) {
 }
 
 // unsaved is whether a row holds more than the files do.
-const unsaved = (r: RoleRow): boolean => PLACES.some((l) => r[l] && (!r[l]!.saved || diffCount(r[l]!) > 0));
+const unsaved = (r: RoleRow): boolean => PLACES.some((l) => r[l] && roleDirty(r[l]!));
 
 const readersCell = (r: RoleRow) => {
   if (!GROUPED) {
@@ -233,7 +234,7 @@ function Panel({ r, l }: { r: RoleRow; l: Place }) {
   // same answer until the next check speaks.
   const nameIssue = issues.find((m) => m.f === 'name' && m.sev === 'err');
   const nameError = nameIssue ? nameIssue.text : (refusal && refusal.at === 'name' ? refusal.text : '');
-  const n = diffCount(e);
+  const n = roleDirty(e) ? 1 : 0;
   const before = new Set((e.saved && e.__savedIssues ? e.__savedIssues : issues).filter((m) => m.sev === 'err').map((m) => m.text));
   const grew = issues.filter((m) => m.sev === 'err' && !before.has(m.text));
   const blocked = !!nameIssue || (!e.saved ? issues.some((m) => m.sev === 'err') : (grew.length > 0 || n === 0));
@@ -254,9 +255,9 @@ function Panel({ r, l }: { r: RoleRow; l: Place }) {
             // Compared with what the row was made with (a new one, a duplicate
             // or a copy), so a fresh copy that nobody touched goes at once
             // (r-d480).
-            const was = r.born;
-            const untouched = was ? was.name === e.draft.name && was.title === (e.draft.title || '') && was.text === e.draft.text
-              : e.draft.name === '' && e.draft.title === '' && e.draft.text === '## 責務\n';
+            // Compared with what the row was made with, through the one owner
+            // (r-d480, r-1e9a). A new row's born is its template.
+            const untouched = !changedDirty(ROLE_DOC, r.born || { name: '', title: '', text: '## 責務\n' }, { name: e.draft.name, title: e.draft.title || '', text: e.draft.text });
             if (untouched) { pressDiscard(r.uid, l); return; }
             askConfirm({ title: '入力した内容を捨てますか', body: <p>保存していない入力があります。<b>取り消せません。</b></p>, label: '破棄する', run: () => pressDiscard(r.uid, l) });
           }}>取り消し</button>
