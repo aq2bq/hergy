@@ -1207,7 +1207,7 @@ function groupStart(group) {
   const j = recs.value.findIndex((r) => order.indexOf(groupOfRecord(r)) > rank);
   return j >= 0 ? j : recs.value.length;
 }
-var bornOf = (r) => JSON.stringify([r.name.value, r.draft.value.description || "", r.agreeDraft.value.text]);
+var bornOf = (r) => JSON.stringify([r.name.value, r.draft.value, r.agreeDraft.value.text]);
 async function addDraft(how, place, name, base, project) {
   const r = draftRecord(how, place, name, base, project);
   await checkTeam(r);
@@ -5882,7 +5882,7 @@ function Dacts({ r }) {
     label: "削除する（team.yaml と agreement.md）",
     run: () => pressDelYes(r)
   });
-  const touched = () => r.born.value !== "" && r.born.value !== bornOf(r);
+  const touched = () => r.born.value === "" || r.born.value !== bornOf(r);
   const discard = () => {
     if (!touched()) {
       pressDiscard(r);

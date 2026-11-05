@@ -65,6 +65,17 @@ for (const screen of ['teams', 'roles', 'profiles'] as const) {
       }, change: async (row) => { await row.locator('.in-name').fill('touched-name'); } });
     }
 
+    // A new team definition changed only in the topology is a change too: the
+    // whole document a save would write is compared (r-d480).
+    if (screen === 'teams') {
+      await page.goto(`${app.base}/teams`); await ready(page);
+      let row = await ways[0].make();
+      await expect(row).toHaveCount(1);
+      await row.locator('[data-cv-act="m-add"]').click();
+      await discard(row);
+      await askedThenKeep(row);
+    }
+
     for (const way of ways) {
       await page.goto(`${app.base}/${screen}`); await ready(page);
       // Untouched: gone at once, no dialog.

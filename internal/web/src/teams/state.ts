@@ -680,9 +680,10 @@ function groupStart(group: string): number {
   return j >= 0 ? j : recs.value.length;
 }
 
-// bornOf is a row's content as one string: the name, the description and the
-// team document, which are what 取り消し would throw away (r-d480).
-export const bornOf = (r: Rec): string => JSON.stringify([r.name.value, r.draft.value.description || '', r.agreeDraft.value.text]);
+// bornOf is everything 取り消し would throw away, as one string: the name, the
+// whole document a save would write (members, turns, workers, the description),
+// and the team's rules (r-d480).
+export const bornOf = (r: Rec): string => JSON.stringify([r.name.value, r.draft.value, r.agreeDraft.value.text]);
 
 // addDraft makes a row for a definition that is not there yet, checks it once,
 // and draws it: its figure, its rules and its preview are the server's own

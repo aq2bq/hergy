@@ -291,7 +291,9 @@ function Dacts({ r }: { r: Rec }) {
   // The starter's words stand on the base the row was seeded with, so the same
   // rule as the other screens holds: nothing changed since it was made is thrown
   // away at once, and anything the person put in is asked for (r-d480).
-  const touched = () => r.born.value !== '' && r.born.value !== bornOf(r);
+  // A row whose making is unknown is asked about, the way the other screens do:
+  // the side that loses nothing is the side that asks (r-d480).
+  const touched = () => r.born.value === '' || r.born.value !== bornOf(r);
   const discard = () => {
     if (!touched()) { pressDiscard(r); return; }
     askConfirm({
