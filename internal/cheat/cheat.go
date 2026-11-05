@@ -296,7 +296,7 @@ Bootstrap prompt placeholders:
   %{team} %{role} %{name}  the team name, the role, and the member's name (the herdr name, <team>-<member>)
   %{role_doc}  the role document     %{docs}  the agreements     %{roster}  the roster
   %{actor}  the name hergy passes to gy as GY_ACTOR (the herdr name)
-  %{herdr}  how to reach others over herdr, and how to add a teammate
+  %{herdr}  how to check whether the agent is running inside herdr, reach others, and add a teammate
   %{turns}  who the member hands the turn to, from the definition's turns:
   %{workers}  what the member may hire, with the command (only when workers: names one for it). The old %{spawn} is gone: a template that still writes it is an error that says so.
 `

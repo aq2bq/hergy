@@ -160,3 +160,63 @@ func TestWorkerPromptSendsTheReportToTheHiringMember(t *testing.T) {
 		})
 	}
 }
+
+// TestEnvironmentCheckStaysInContact: the environment check and printenv advice
+// share one contact item, outside the actor sentence (d-6b04, r-ad63).
+func TestEnvironmentCheckStaysInContact(t *testing.T) {
+	const check = `test "${HERDR_ENV:-}" = 1`
+	for _, lang := range []string{"ja", "en"} {
+		t.Run(lang, func(t *testing.T) {
+			workersProject(t, newFixture(t))
+			heading, status := "## Contact\n", "exit status"
+			if lang == "ja" {
+				heading, status = "## 連絡\n", "終了コード"
+			}
+			cases := []struct {
+				name string
+				args []string
+			}{
+				{"member", []string{"up", "dev", "--dry", "--json", "--lang", lang}},
+				{"worker", []string{"hire", "researcher", "--purpose", "調査", "--task", "read", "--team", "dev", "--dry", "--json", "--lang", lang}},
+			}
+			for _, tc := range cases {
+				t.Run(tc.name, func(t *testing.T) {
+					members := promptPlan(t, mustRun(t, tc.args...))
+					if len(members) == 0 {
+						t.Fatal("the plan has no members")
+					}
+					for _, member := range members {
+						guide := segmentOf(t, member.Name, member.Segments, "herdr").Text
+						if strings.Count(guide, check) != 1 {
+							t.Fatalf("%s's contact guide must contain one environment check", member.Name)
+						}
+						var item string
+						for line := range strings.SplitSeq(guide, "\n") {
+							if strings.Contains(line, check) {
+								item = line
+							}
+						}
+						if !strings.HasPrefix(item, "- ") {
+							t.Fatalf("%s has no contact item containing %q", member.Name, check)
+						}
+						for _, want := range []string{status, "printenv", "macOS"} {
+							if !strings.Contains(item, want) {
+								t.Errorf("%s's environment item lacks %q", member.Name, want)
+							}
+						}
+						actor := segmentOf(t, member.Name, member.Segments, "actor").Text
+						for _, unwanted := range []string{"HERDR_ENV", "printenv"} {
+							if strings.Contains(actor, unwanted) {
+								t.Errorf("%s's actor sentence contains %q", member.Name, unwanted)
+							}
+						}
+						before, contact, found := strings.Cut(member.Prompt, heading)
+						if !found || strings.Contains(before, check) || !strings.Contains(contact, check) {
+							t.Errorf("%s's environment check is not under %q", member.Name, heading)
+						}
+					}
+				})
+			}
+		})
+	}
+}

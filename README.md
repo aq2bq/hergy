@@ -168,7 +168,7 @@ profiles:
 | `%{role_doc}` | The role document |
 | `%{docs}` | The `docs` documents |
 | `%{roster}` | The roster |
-| `%{herdr}` | How to reach others over herdr, and how to add a teammate (`hergy hire`, not `herdr agent start`) |
+| `%{herdr}` | How to check whether the agent is running inside herdr, reach others, and add a teammate (`hergy hire`, not `herdr agent start`) |
 | `%{turns}` | Who the member hands the turn to, from the definition's `turns:` |
 | `%{workers}` | What the member may hire, and the command (only for members `workers:` names one for) |
 

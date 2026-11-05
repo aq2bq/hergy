@@ -168,7 +168,7 @@ profiles:
 | `%{role_doc}` | ロールの文書 |
 | `%{docs}` | `docs` の文書 |
 | `%{roster}` | 名簿 |
-| `%{herdr}` | herdr での連絡の仕方と、仲間の増やし方（`herdr agent start` ではなく `hergy hire`） |
+| `%{herdr}` | herdr の中で動いているかの検証方法、連絡の仕方と、仲間の増やし方（`herdr agent start` ではなく `hergy hire`） |
 | `%{turns}` | ターンを渡す相手（team.yaml の `turns:` から） |
 | `%{workers}` | ワーカーを追加してよい目的と、そのコマンド（`workers:` がそのメンバーに1つでも書いているとき） |
 
