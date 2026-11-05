@@ -58,14 +58,48 @@ for (const theme of ['light','dark'] as const) {
   await expect.poll(() => panel.locator('.prompt-line-text').allTextContents().then(x=>x.join(''))).toBe(current.members.find((m:{name:string})=>m.name==='core-lead').prompt);
   await expect(panel.locator('.prompt-body details')).toHaveCount(0);
   await expect.poll(()=>panel.locator('.prompt-current-line').evaluateAll(rows=>rows.map(row=>[...row.querySelectorAll('.prompt-origin')].map(x=>x.getAttribute('data-kind'))))).toEqual(expectedKinds);
+  // Each topology section stands as one band from its heading to its last
+  // line. A heading from the template is inside its band and keeps no label;
+  // a heading the section carries keeps the label it always had (r-04fc).
+  const bands = () => panel.locator('.prompt-current-line').evaluateAll((rows) => rows.map((row, i) => ({
+   i, text: row.querySelector('.prompt-line-text')!.textContent || '', section: row.getAttribute('data-section'),
+   start: row.hasAttribute('data-section-start'), end: row.hasAttribute('data-section-end'),
+   marks: row.querySelectorAll('.prompt-origin').length,
+  })));
+  await expect.poll(async () => {
+   const rows = await bands(), bad: string[] = [];
+   for (const [kind, heading, marks] of [['roster', '## 名簿\n', 0], ['herdr', '## 連絡\n', 0], ['turns', '## ターンを渡す相手\n', 1], ['workers', '## ワーカーの追加\n', 1]] as const) {
+    const inside = rows.filter((row) => row.section === kind);
+    if (!inside.length) { bad.push(`${kind}: no rows`); continue; }
+    if (!inside[0].start) bad.push(`${kind}: no start`);
+    if (!inside[inside.length - 1].end) bad.push(`${kind}: no end`);
+    if (inside[inside.length - 1].i - inside[0].i !== inside.length - 1) bad.push(`${kind}: not one band`);
+    const head = rows.find((row) => row.text === heading);
+    if (!head) { bad.push(`${kind}: no heading`); continue; }
+    if (head.section !== kind) bad.push(`${kind}: heading outside the band`);
+    if (marks === 0 && head.marks !== 0) bad.push(`${kind}: the template heading carries a label`);
+    if (marks === 1 && head.marks < 1) bad.push(`${kind}: the heading lost its label`);
+   }
+   return bad;
+  }).toEqual([]);
 
+  // The copy shows a band, not the top of the text.
+  await panel.locator('.prompt-current-line[data-section="roster"]').first().scrollIntoViewIfNeeded();
   await page.screenshot({path:info.outputPath(`${theme}-current.png`)});
   await panel.getByRole('button',{name:'差',exact:true}).click();
   await expect(panel.locator('.prompt-diff-line.remove')).not.toHaveCount(0);
   await expect(panel.locator('.prompt-diff-line.remove')).toContainText('core-impl-a');
   await expect(panel.locator('.prompt-diff-line.remove .prompt-origin')).toHaveCount(0);
+  // The band follows the current text: removed rows stand outside it, and the
+  // heading that stays keeps the band's start.
+  await expect(panel.locator('.prompt-diff-line.remove[data-section]')).toHaveCount(0);
+  const firstRoster = panel.locator('.prompt-diff-line[data-section="roster"]').first();
+  await expect(firstRoster).toHaveAttribute('data-section-start');
+  await expect(firstRoster.locator('pre')).toHaveText('## 名簿');
+  await expect.poll(() => panel.locator('.prompt-diff-line[data-section]').count()).toBeGreaterThan(0);
   await expect.poll(()=>panel.locator('.prompt-diff-line[data-new-line]').evaluateAll(rows=>rows.map(row=>({line:Number(row.getAttribute('data-new-line')),kinds:[...row.querySelectorAll('.prompt-origin')].map(x=>x.getAttribute('data-kind'))}))))
    .toEqual(comparison.diff.filter((x:{new:number})=>x.new).map((x:{new:number})=>({line:x.new,kinds:expectedKinds[x.new-1]})));
+  await panel.locator('.prompt-diff-line[data-section="turns"]').first().scrollIntoViewIfNeeded();
   await page.screenshot({path:info.outputPath(`${theme}-diff.png`)});
   await panel.locator('.prompt-body').focus();
   await page.keyboard.press('Delete');

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from '../../lib/preact.js';
 import { call, problemText } from '../../lib/api.js';
 import type { Schemas } from '../../lib/api.js';
 import { resource } from '../../lib/resource.js';
-import { CurrentPrompt, OriginLegend, OriginMarks, originLines } from './prompt-origins.js';
+import { CurrentPrompt, OriginLegend, OriginMarks, originLines, sectionAt, sectionSpans } from './prompt-origins.js';
 import type { OriginLine } from './prompt-origins.js';
 import { promptComparisonInput } from '../state.js';
 import type { Rec } from '../state.js';
@@ -65,7 +65,17 @@ function FullText({text}: {text: string}) {
 }
 function Difference({answer, lines}: {answer: Answer; lines: OriginLine[] | null}) {
  if (!answer.recorded || answer.current===null) return <p>両方の本文がそろわないため、比較できません。</p>;
- return <>{!lines && <p role="alert">本文と由来が一致しないため、印を表示できません。再取得してください。</p>}{answer.recorded.text===answer.current && <p>差はありません。</p>}{answer.diff.map((line,i) => <div key={i} class={`prompt-diff-line ${line.kind}`} data-new-line={line.new || undefined}>
-  <span class="prompt-line-number" aria-label="記録の行">{line.old || ''}</span><span class="prompt-line-number" aria-label="今の行">{line.new || ''}</span><span aria-label={line.kind==='add' ? '追加' : line.kind==='remove' ? '削除' : '変更なし'}>{line.kind==='add' ? '+' : line.kind==='remove' ? '−' : ' '}</span><OriginMarks segments={line.new ? lines?.[line.new - 1]?.segments || [] : []}/><div><pre>{line.text}</pre>{!line.text.endsWith('\n') && <span class="prompt-eof">末尾に改行はありません</span>}</div>
- </div>)}</>;
+ // The band follows the current text's lines, so only rows the current text
+ // still has (unchanged and added) stand inside it (r-04fc).
+ const spans = lines ? sectionSpans(lines).map(span => {
+  const present = answer.diff.flatMap(line => (line.new && line.new - 1 >= span.start && line.new - 1 < span.end ? [line.new - 1] : []));
+  return { ...span, first: present.length ? Math.min(...present) : -1, last: present.length ? Math.max(...present) : -1 };
+ }) : [];
+ return <>{!lines && <p role="alert">本文と由来が一致しないため、印を表示できません。再取得してください。</p>}{answer.recorded.text===answer.current && <p>差はありません。</p>}{answer.diff.map((line,i) => {
+  const at = line.new ? line.new - 1 : -1;
+  const span = at >= 0 ? sectionAt(spans, at) : undefined;
+  return <div key={i} class={`prompt-diff-line ${line.kind}`} data-new-line={line.new || undefined} data-section={span?.kind} data-section-start={span && span.first === at ? '' : undefined} data-section-end={span && span.last === at ? '' : undefined}>
+   <span class="prompt-line-number" aria-label="記録の行">{line.old || ''}</span><span class="prompt-line-number" aria-label="今の行">{line.new || ''}</span><span aria-label={line.kind==='add' ? '追加' : line.kind==='remove' ? '削除' : '変更なし'}>{line.kind==='add' ? '+' : line.kind==='remove' ? '−' : ' '}</span><OriginMarks segments={line.new ? lines?.[line.new - 1]?.segments || [] : []}/><div><pre>{line.text}</pre>{!line.text.endsWith('\n') && <span class="prompt-eof">末尾に改行はありません</span>}</div>
+  </div>;
+ })}</>;
 }

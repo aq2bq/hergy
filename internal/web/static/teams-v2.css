@@ -698,6 +698,11 @@ textarea.held-why { color: var(--faint); text-decoration: line-through; text-dec
 .prompt-origins { display: flex; flex-direction: column; align-items: start; gap: 2px; padding-top: 2px; }
 .prompt-origin { font: 12px/1.5 var(--f-body); color: var(--muted); border-left: 2px solid var(--line); padding-left: 4px; }
 .prompt-origin-legend { font-size: 12px; color: var(--muted); flex-shrink: 0; }
+/* A topology section stands as one band from its heading to its last line
+   (r-04fc): a left rule only, so the diff's add and remove tints stay. */
+.prompt-current-line[data-section], .prompt-diff-line[data-section] { box-shadow: inset 3px 0 0 var(--accent); }
+.prompt-current-line[data-section-start], .prompt-diff-line[data-section-start] { border-start-start-radius: 4px; border-start-end-radius: 4px; }
+.prompt-current-line[data-section-end], .prompt-diff-line[data-section-end] { border-end-start-radius: 4px; border-end-end-radius: 4px; }
 
 /* One edit location, with the definition's actions beside its name. */
 .dacts .team-rename { padding: 0; border: 0; }

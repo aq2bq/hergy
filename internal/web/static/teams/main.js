@@ -3730,6 +3730,23 @@ function originLines(text, segments) {
   }
   return lines;
 }
+function sectionSpans(lines) {
+  const spans = [];
+  for (const [kind] of topologySections) {
+    const marked = lines.flatMap((line, i) => line.segments.some((segment) => segment.kind === kind) ? [i] : []);
+    if (!marked.length)
+      continue;
+    let start = marked[0];
+    let above = start - 1;
+    while (above >= 0 && !lines[above].text.trim())
+      above -= 1;
+    if (above >= 0 && !lines[above].segments.length && /^#{1,6} /.test(lines[above].text))
+      start = above;
+    spans.push({ kind, start, end: marked[marked.length - 1] + 1 });
+  }
+  return spans;
+}
+var sectionAt = (spans, index) => spans.find((span) => index >= span.start && index < span.end);
 function OriginMarks({ segments }) {
   return /* @__PURE__ */ u("span", {
     class: "prompt-origins",
@@ -3752,7 +3769,8 @@ function OriginLegend({ diff }) {
     class: "prompt-origin-legend",
     children: [
       "トポロジー由来: 名簿・連絡・ターン・ワーカー ／ 規則: ロールの規則・チームの規則。",
-      diff && "印は今の文の由来。削除行の由来は記録にありません。"
+      diff && "印は今の文の由来。削除行の由来は記録にありません。",
+      "トポロジーの 4 節は、見出しから節の終わりまでを帯で囲みます。見出しがひな形の文字でも、印は付けません。"
     ]
   });
 }
@@ -3770,22 +3788,29 @@ function CurrentPrompt({ text, lines }) {
         })
       ]
     });
+  const spans = sectionSpans(lines);
   return /* @__PURE__ */ u("div", {
     class: "prompt-full",
     children: [
-      lines.map((line, index) => /* @__PURE__ */ u("div", {
-        class: "prompt-current-line",
-        "data-line": index + 1,
-        children: [
-          /* @__PURE__ */ u(OriginMarks, {
-            segments: line.segments
-          }),
-          /* @__PURE__ */ u("pre", {
-            class: "prompt-line-text",
-            children: line.text
-          })
-        ]
-      }, index)),
+      lines.map((line, index) => {
+        const span = sectionAt(spans, index);
+        return /* @__PURE__ */ u("div", {
+          class: "prompt-current-line",
+          "data-line": index + 1,
+          "data-section": span?.kind,
+          "data-section-start": span && span.start === index ? "" : undefined,
+          "data-section-end": span && span.end - 1 === index ? "" : undefined,
+          children: [
+            /* @__PURE__ */ u(OriginMarks, {
+              segments: line.segments
+            }),
+            /* @__PURE__ */ u("pre", {
+              class: "prompt-line-text",
+              children: line.text
+            })
+          ]
+        }, index);
+      }),
       text && !text.endsWith(`
 `) && /* @__PURE__ */ u("p", {
         class: "prompt-eof",
@@ -4022,6 +4047,10 @@ function Difference({ answer, lines }) {
     return /* @__PURE__ */ u("p", {
       children: "両方の本文がそろわないため、比較できません。"
     });
+  const spans = lines ? sectionSpans(lines).map((span) => {
+    const present = answer.diff.flatMap((line) => line.new && line.new - 1 >= span.start && line.new - 1 < span.end ? [line.new - 1] : []);
+    return { ...span, first: present.length ? Math.min(...present) : -1, last: present.length ? Math.max(...present) : -1 };
+  }) : [];
   return /* @__PURE__ */ u(S, {
     children: [
       !lines && /* @__PURE__ */ u("p", {
@@ -4031,41 +4060,48 @@ function Difference({ answer, lines }) {
       answer.recorded.text === answer.current && /* @__PURE__ */ u("p", {
         children: "差はありません。"
       }),
-      answer.diff.map((line, i) => /* @__PURE__ */ u("div", {
-        class: `prompt-diff-line ${line.kind}`,
-        "data-new-line": line.new || undefined,
-        children: [
-          /* @__PURE__ */ u("span", {
-            class: "prompt-line-number",
-            "aria-label": "記録の行",
-            children: line.old || ""
-          }),
-          /* @__PURE__ */ u("span", {
-            class: "prompt-line-number",
-            "aria-label": "今の行",
-            children: line.new || ""
-          }),
-          /* @__PURE__ */ u("span", {
-            "aria-label": line.kind === "add" ? "追加" : line.kind === "remove" ? "削除" : "変更なし",
-            children: line.kind === "add" ? "+" : line.kind === "remove" ? "−" : " "
-          }),
-          /* @__PURE__ */ u(OriginMarks, {
-            segments: line.new ? lines?.[line.new - 1]?.segments || [] : []
-          }),
-          /* @__PURE__ */ u("div", {
-            children: [
-              /* @__PURE__ */ u("pre", {
-                children: line.text
-              }),
-              !line.text.endsWith(`
+      answer.diff.map((line, i) => {
+        const at = line.new ? line.new - 1 : -1;
+        const span = at >= 0 ? sectionAt(spans, at) : undefined;
+        return /* @__PURE__ */ u("div", {
+          class: `prompt-diff-line ${line.kind}`,
+          "data-new-line": line.new || undefined,
+          "data-section": span?.kind,
+          "data-section-start": span && span.first === at ? "" : undefined,
+          "data-section-end": span && span.last === at ? "" : undefined,
+          children: [
+            /* @__PURE__ */ u("span", {
+              class: "prompt-line-number",
+              "aria-label": "記録の行",
+              children: line.old || ""
+            }),
+            /* @__PURE__ */ u("span", {
+              class: "prompt-line-number",
+              "aria-label": "今の行",
+              children: line.new || ""
+            }),
+            /* @__PURE__ */ u("span", {
+              "aria-label": line.kind === "add" ? "追加" : line.kind === "remove" ? "削除" : "変更なし",
+              children: line.kind === "add" ? "+" : line.kind === "remove" ? "−" : " "
+            }),
+            /* @__PURE__ */ u(OriginMarks, {
+              segments: line.new ? lines?.[line.new - 1]?.segments || [] : []
+            }),
+            /* @__PURE__ */ u("div", {
+              children: [
+                /* @__PURE__ */ u("pre", {
+                  children: line.text
+                }),
+                !line.text.endsWith(`
 `) && /* @__PURE__ */ u("span", {
-                class: "prompt-eof",
-                children: "末尾に改行はありません"
-              })
-            ]
-          })
-        ]
-      }, i))
+                  class: "prompt-eof",
+                  children: "末尾に改行はありません"
+                })
+              ]
+            })
+          ]
+        }, i);
+      })
     ]
   });
 }
