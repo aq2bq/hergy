@@ -116,13 +116,11 @@ var currentGroupName = () => {
   const found = (p.projects || []).find((x) => x.path === CURRENT);
   return found ? found.name : p.current && p.current.name || "";
 };
-function rowsOf(model, group, place) {
+function rowsOf(model, group) {
   const out = [];
   for (const r of model.roles) {
-    const row = { uid: r.uid, group, project: null, global: null };
+    const row = { uid: r.uid, group: r.global && !r.project ? "global" : group, project: null, global: null };
     if (r.markdown) {
-      if (place !== "project")
-        continue;
       row.markdown = r.markdown;
       row.name = r.name || "";
       out.push(row);
@@ -130,10 +128,6 @@ function rowsOf(model, group, place) {
     }
     row.paths = {};
     for (const l of PLACES) {
-      if (l !== place) {
-        row[l] = null;
-        continue;
-      }
       if (r[l]) {
         const draft = fromJSON2(r[l]);
         const saved = r.noDoc || r[l].problem ? null : draft;
@@ -146,7 +140,7 @@ function rowsOf(model, group, place) {
         row[l] = null;
       }
     }
-    if (!row[place])
+    if (!row.project && !row.global)
       continue;
     if (r.noDoc)
       row.noDoc = true;
@@ -180,12 +174,10 @@ function initialRoles() {
   if (GROUPED && HQ && HQ.roles && HQ.roles.length) {
     for (const g of HQ.roles) {
       const key = GROUPED ? groupKeyOf(g) : g.global ? "global" : "";
-      out.push(...rowsOf(roleModel2(g.list), key, g.global ? "global" : "project"));
+      out.push(...rowsOf(roleModel2(g.list), key));
     }
   } else {
-    const model = roleModel2(ISLAND.role || null);
-    out.push(...rowsOf(model, "", "project"));
-    out.push(...rowsOf(model, "global", "global"));
+    out.push(...rowsOf(roleModel2(ISLAND.role || null), ""));
   }
   out.forEach((r) => {
     r.uid = ++uid;

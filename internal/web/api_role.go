@@ -44,57 +44,60 @@ func (s *Server) r2List() apiList {
 	return s.r2ListOf(s.r2ReadingOf())
 }
 
-// r2ListOf is the list answer of one reading.
+// r2ListOf is the list answer of one reading, one row per place (r-ea17): a
+// name both layers hold is two rows, and the rows are the owner's
+// (ListedRows/ShownRows) in the owner's order.
 func (s *Server) r2ListOf(reading r2Reading) apiList {
 	out := apiList{Hashes: map[string]string{}}
-	for _, row := range reading.Roles {
-		summary := r2SummaryOf(row, apiRoleSummary{Markdown: row.Markdown, NoDoc: row.NoDoc, IsNew: row.IsNew})
-		item := apiItem{
-			Name:      r2RowName(row),
-			Places:    map[string]apiPlace{},
-			Effective: r2Effective(row),
-			Summary:   summary,
+	rows := make([]r2Row, 0, len(reading.Roles))
+	rows = append(rows, reading.Roles...)
+	for _, layer := range []string{source.LayerLocal, source.LayerGlobal} {
+		place := catalog.PlaceProject
+		if layer == source.LayerGlobal {
+			place = catalog.PlaceGlobal
 		}
-		if s.r2RowLive(row, catalog.PlaceProject) && s.r2RowLive(row, catalog.PlaceGlobal) {
-			item.Hidden = []string{catalog.PlaceGlobal}
-		}
-		for _, place := range []struct {
-			name    string
-			doc     *r2Doc
-			problem string
-		}{
-			{catalog.PlaceProject, row.Project, row.ProjectProblem},
-			{catalog.PlaceGlobal, row.Global, row.GlobalProblem},
-		} {
-			if place.problem != "" {
-				badPath := s.cat.RolePath(place.name, item.Name)
-				why, state := s.unreadable(badPath, place.problem)
-				item.Places[place.name] = apiPlace{
+		for _, row := range rows {
+			doc := r2PlaceDoc(row, place)
+			problem := row.ProjectProblem
+			if place == catalog.PlaceGlobal {
+				problem = row.GlobalProblem
+			}
+			if doc == nil && problem == "" {
+				// A legacy .yaml is one row of the project's side, drawn from its
+				// text alone (spec-roles 1.2.10).
+				if row.Markdown == "" || layer != source.LayerLocal {
+					continue
+				}
+				summary := r2SummaryOf(row, apiRoleSummary{Markdown: row.Markdown, NoDoc: row.NoDoc, IsNew: row.IsNew})
+				out.Items = append(out.Items, apiItem{
+					Name: r2RowName(row), Places: map[string]apiPlace{}, Effective: place, Summary: summary,
+				})
+				continue
+			}
+			summary := r2SummaryOf(row, apiRoleSummary{Markdown: row.Markdown, NoDoc: row.NoDoc, IsNew: row.IsNew})
+			item := apiItem{
+				Name: r2RowName(row), Places: map[string]apiPlace{}, Effective: place, Summary: summary,
+			}
+			if problem != "" {
+				badPath := s.cat.RolePath(place, item.Name)
+				why, state := s.unreadable(badPath, problem)
+				item.Places[place] = apiPlace{
 					Doc: r2Doc{Name: item.Name}, Path: s.cat.Display(badPath),
 					Problems: apiCounts{Err: 1}, Problem: why, State: state,
 				}
 				item.Problems.Err++
-				continue
+			} else {
+				path := s.cat.RolePath(place, doc.Name)
+				text, _ := s.cat.Reader().Read(source.Doc{Path: path})
+				item.Places[place] = apiPlace{
+					Doc: *doc, Text: text, Hash: source.Hash(text),
+					Path: s.cat.Display(path), Problems: r2DocCounts(text),
+				}
+				out.Hashes[place+"."+doc.Name] = source.Hash(text)
+				item.Problems = item.Places[place].Problems
 			}
-			if place.doc == nil {
-				continue
-			}
-			path := s.cat.RolePath(place.name, place.doc.Name)
-			text, _ := s.cat.Reader().Read(source.Doc{Path: path})
-			item.Places[place.name] = apiPlace{
-				Doc: *place.doc, Text: text, Hash: source.Hash(text),
-				Path:     s.cat.Display(path),
-				Problems: r2DocCounts(text),
-			}
-			out.Hashes[place.name+"."+place.doc.Name] = source.Hash(text)
+			out.Items = append(out.Items, item)
 		}
-		// The row's count is the count of the document the row stands on, the
-		// way a profile's row carries its effective place's count (n-3f6c).
-		if place, ok := item.Places[item.Effective]; ok {
-			item.Problems = place.Problems
-		}
-		item.Summary = summary
-		out.Items = append(out.Items, item)
 	}
 	return out
 }

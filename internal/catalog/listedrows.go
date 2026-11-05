@@ -95,6 +95,18 @@ func (c *Catalog) FileState(path string) (there, readable bool, why string) {
 	return true, false, ""
 }
 
+// Unreadable answers the API's two words for a path: why it cannot be read, and
+// the state word (r-ea17, d-0d00). A path that reads answers ("", "").
+func (c *Catalog) Unreadable(path string) (problem, state string) {
+	if path == "" {
+		return "", ""
+	}
+	if _, ok, why := c.FileState(path); !ok {
+		return why, "unreadable"
+	}
+	return "", ""
+}
+
 // ReadableOf is whether the row's document can be read, with the sentence a
 // list shows beside a row that cannot (d-17ab: the row stands and is counted).
 func (c *Catalog) ReadableOf(row ListedRow) (bool, string) {

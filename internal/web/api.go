@@ -146,10 +146,7 @@ func (s *Server) unreadable(path, ownerProblem string) (problem, state string) {
 	if path == "" {
 		return "", ""
 	}
-	if _, ok, why := s.cat.FileState(path); !ok {
-		return why, "unreadable"
-	}
-	return "", ""
+	return s.cat.Unreadable(path)
 }
 
 // apiCounts is how many errors and warnings one row carries.

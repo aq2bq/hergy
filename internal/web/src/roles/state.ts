@@ -168,17 +168,14 @@ export const currentGroupName = (): string => {
 };
 
 // ---- the model -------------------------------------------------------
-// rowsOf is every row the list draws for one place: each group's answer read
-// with the same api.js model as the one project's, and every row given its
-// project's key and its own uid, so two projects' rows never share one. place
-// keeps only one side of a name (r-410c): a list always draws its places'
-// heads, so a name that stands in both is two rows.
-function rowsOf(model: RoleModel, group: string, place: Place): RoleRow[] {
+// rowsOf is every row the list draws: the answer already carries one place per
+// row (r-ea17), so this copies each item and gives it its group. A name both
+// layers hold is two items, one row each.
+function rowsOf(model: RoleModel, group: string): RoleRow[] {
   const out: RoleRow[] = [];
   for (const r of model.roles) {
-    const row: RoleRow = { uid: r.uid, group, project: null, global: null };
+    const row: RoleRow = { uid: r.uid, group: r.global && !r.project ? 'global' : group, project: null, global: null };
     if (r.markdown) {
-      if (place !== 'project') continue;
       row.markdown = r.markdown;
       row.name = r.name || '';
       out.push(row);
@@ -186,7 +183,6 @@ function rowsOf(model: RoleModel, group: string, place: Place): RoleRow[] {
     }
     row.paths = {};
     for (const l of PLACES) {
-      if (l !== place) { row[l] = null; continue; }
       if (r[l]) {
         const draft = fromJSON(r[l]);
         // A role no layer holds a document for opens as a new one (spec-roles
@@ -198,7 +194,7 @@ function rowsOf(model: RoleModel, group: string, place: Place): RoleRow[] {
         if (r[l].path) row.paths[l] = r[l].path;
       } else { row[l] = null; }
     }
-    if (!row[place]) continue;
+    if (!row.project && !row.global) continue;
     if (r.noDoc) row.noDoc = true;
     if (r.isNew) row.isNew = true;
     out.push(row);
@@ -245,12 +241,10 @@ function initialRoles(): RoleRow[] {
   if (GROUPED && HQ && HQ.roles && HQ.roles.length) {
     for (const g of HQ.roles) {
       const key = GROUPED ? groupKeyOf(g) : (g.global ? 'global' : '');
-      out.push(...rowsOf(roleModel(g.list), key, g.global ? 'global' : 'project'));
+      out.push(...rowsOf(roleModel(g.list), key));
     }
   } else {
-    const model = roleModel(ISLAND.role || null);
-    out.push(...rowsOf(model, '', 'project'));
-    out.push(...rowsOf(model, 'global', 'global'));
+    out.push(...rowsOf(roleModel(ISLAND.role || null), ''));
   }
   out.forEach((r) => { r.uid = ++uid; });
   return out;

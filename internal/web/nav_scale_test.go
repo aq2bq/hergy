@@ -76,10 +76,10 @@ func TestNAV_N11_TheBandNumberFollowsASave(t *testing.T) {
 		t.Fatalf("adding one role answered %d, want 200: %v", resp.StatusCode, decoded)
 	}
 	items, _ := decoded["items"].([]any)
-	if len(items) != 7 {
-		t.Fatalf("the save's list carries %d roles, want the fixture's 6 and one more", len(items))
+	if len(items) != 8 {
+		t.Fatalf("the save's list carries %d role rows, want the fixture's 7 and one more", len(items))
 	}
-	// The next page a person draws counts the same 7.
+	// The next page a person draws counts the same 8.
 	resp, body := f.get(t, server, "/roles")
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("GET /roles answers %d, want 200", resp.StatusCode)
