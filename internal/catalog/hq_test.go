@@ -94,11 +94,11 @@ func TestListedRolesLeavesOutUnreadableDocuments(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = os.Chmod(bad, 0o644) })
 	cat := New(global, local, local, source.Disk{}, func(p string) string { return p })
-	if got := len(cat.ShownRows(KindRole, source.LayerLocal)); got != 1 {
-		t.Errorf("ListedRoles(project) = %d, want 1", got)
+	if got := len(cat.ShownRows(KindRole, source.LayerLocal)); got != 2 {
+		t.Errorf("role rows (project) = %d, want 2 (good and bad)", got)
 	}
-	if _, counts, _ := cat.Counts(source.LayerLocal); counts != 1 {
-		t.Fatalf("Counts(project).roles = %d, want the row count 1", counts)
+	if _, counts, _ := cat.Counts(source.LayerLocal); counts != 2 {
+		t.Fatalf("Counts(project).roles = %d, want the row count 2", counts)
 	}
 }
 
@@ -133,10 +133,10 @@ func TestListedRowsAreTheRowsTheListsDraw(t *testing.T) {
 	if got := len(cat.ShownRows(KindTeam, source.LayerGlobal)); got != 1 {
 		t.Errorf("team rows (global) = %d, want 1 (shared)", got)
 	}
-	// lead, old (legacy), ghost (no document). bad.md cannot be read, so the
-	// list leaves it out until the master answers q-a8a3.
-	if got := len(cat.ShownRows(KindRole, source.LayerLocal)); got != 3 {
-		t.Errorf("role rows (project) = %d, want 3 (lead, old, ghost)", got)
+	// lead, old (legacy), ghost (no document), and bad.md, which cannot be read:
+	// every row stands and is counted (d-17ab, answer A to q-a8a3).
+	if got := len(cat.ShownRows(KindRole, source.LayerLocal)); got != 4 {
+		t.Errorf("role rows (project) = %d, want 4 (lead, old, ghost, bad)", got)
 	}
 	if got := len(cat.ShownRows(KindRole, source.LayerGlobal)); got != 1 {
 		t.Errorf("role rows (global) = %d, want 1 (shared)", got)
@@ -149,7 +149,7 @@ func TestListedRowsAreTheRowsTheListsDraw(t *testing.T) {
 	}
 	// The counts are those rows, and nothing else.
 	defs, roles, profiles := cat.Counts(source.LayerLocal)
-	if defs != 3 || roles != 3 || profiles != 1 {
-		t.Errorf("Counts(project) = %d, %d, %d, want the rows 3, 3, 1", defs, roles, profiles)
+	if defs != 3 || roles != 4 || profiles != 1 {
+		t.Errorf("Counts(project) = %d, %d, %d, want the rows 3, 4, 1", defs, roles, profiles)
 	}
 }

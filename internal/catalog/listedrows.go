@@ -16,8 +16,8 @@ import (
 // profiles.yaml. Both the list answers and the band's numbers are built from
 // ListedRows, and a number is the number of rows: nothing else counts rows.
 //
-// 読めない文書を持つ行を出すかは、いまは利用者への確認（q-a8a3）の答え待ち。
-// 答えが来たら rowShown の一行だけを変える（A: 出す・数える、B: 出さない・数えない）。
+// 読めない文書も 1 行として出し、件数に数える（d-17ab、q-a8a3 の答え A）。
+// 理由は ReadableOf が返し、一覧が行に付けて示す。
 
 // ListedRow is one row of a list: a name in one place.
 type ListedRow struct {
@@ -63,25 +63,26 @@ func (c *Catalog) ShownRows(kind, layer string) []ListedRow {
 	return out
 }
 
-// rowShown is the one place the unreadable-row decision lives. Until the
-// master's answer, it keeps what each list does today: a team definition's row
-// stands even when its team.yaml does not read, a role's row stands only when
-// its document reads, and a profile's row stands when its file reads (the file
-// is parsed to know the names at all).
-func (c *Catalog) rowShown(row ListedRow) bool {
-	if row.Kind == KindTeam {
-		return true
-	}
-	if row.Legacy || row.NoDoc {
-		return true
-	}
-	return row.Path != "" && c.roleReads(row.Path)
-}
+// rowShown is the one place the unreadable-row decision lives: every row a
+// layer has stands and is counted, whether or not its document reads (d-17ab).
+func (c *Catalog) rowShown(row ListedRow) bool { return true }
 
-// roleReads is whether one role document can be read.
-func (c *Catalog) roleReads(path string) bool {
-	_, ok, err := c.fileText(path)
-	return ok && err == nil
+// ReadableOf is whether the row's document can be read, with the sentence a list
+// shows beside a row that cannot. A row with no document of its own (a legacy
+// .yaml, or a name only a member names) is readable as a row: it stands for a
+// document to be written.
+func (c *Catalog) ReadableOf(row ListedRow) (bool, string) {
+	if row.Legacy || row.NoDoc || row.Path == "" {
+		return true, ""
+	}
+	_, ok, err := c.fileText(row.Path)
+	if err == nil && ok {
+		return true, ""
+	}
+	if err != nil {
+		return false, err.Error()
+	}
+	return false, ""
 }
 
 func (c *Catalog) teamRows(layer string) []ListedRow {
