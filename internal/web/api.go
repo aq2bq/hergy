@@ -126,7 +126,7 @@ type apiItem struct {
 // be read (r-ea17, d-0bf1): the owner decides whether a file reads, and a save
 // or a delete never replaces what it could not read. A file that is not there is
 // the empty file a save would make.
-func (s *Server) docUnreadableRefusal(_ string, _ string, path string) *apiErr {
+func (s *Server) docUnreadableRefusal(path string) *apiErr {
 	if path == "" {
 		return nil
 	}

@@ -920,7 +920,7 @@ func (k apiTeam) saveFigure(name string, in apiIn) (any, *apiErr) {
 	layer := catalog.Layer(in.Place)
 	path := s.cat.TeamYAML(name, layer)
 	display := s.cat.Display(path)
-	if bad := s.docUnreadableRefusal(catalog.KindTeam, in.Place, path); bad != nil {
+	if bad := s.docUnreadableRefusal(path); bad != nil {
 		return nil, bad
 	}
 	text, readErr := s.cat.Reader().Read(source.Doc{Path: path})
@@ -968,7 +968,7 @@ func (k apiTeam) saveAgreement(name string, in apiIn) (any, *apiErr) {
 	layer := catalog.Layer(in.Place)
 	path := s.t2AgreeFile(name, layer)
 	display := s.cat.Display(path)
-	if bad := s.docUnreadableRefusal(catalog.KindTeam, in.Place, path); bad != nil {
+	if bad := s.docUnreadableRefusal(path); bad != nil {
 		return nil, bad
 	}
 	text, readErr := s.cat.Reader().Read(source.Doc{Path: path})
@@ -1011,7 +1011,7 @@ func (k apiTeam) saveYAML(name string, in apiIn) (any, *apiErr) {
 		path = s.t2AgreeFile(name, layer)
 	}
 	display := s.cat.Display(path)
-	if bad := s.docUnreadableRefusal(catalog.KindTeam, place, path); bad != nil {
+	if bad := s.docUnreadableRefusal(path); bad != nil {
 		return nil, bad
 	}
 	text, err := s.cat.Reader().Read(source.Doc{Path: path})
@@ -1109,7 +1109,7 @@ func (k apiTeam) Delete(name string, in apiIn) (any, *apiErr) {
 	teamPath := s.cat.TeamYAML(name, layer)
 	agreePath := s.t2AgreeFile(name, layer)
 	for _, path := range []string{teamPath, agreePath} {
-		if bad := s.docUnreadableRefusal(catalog.KindTeam, in.Place, path); bad != nil {
+		if bad := s.docUnreadableRefusal(path); bad != nil {
 			return nil, bad
 		}
 	}

@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/profile"
 	"github.com/aq2bq/hergy/internal/source"
@@ -235,7 +234,7 @@ func (k apiProfile) savePanel(in apiIn) (any, *apiErr) {
 	if err := s.p2Write(path); err != nil {
 		return nil, refuse(http.StatusUnprocessableEntity, err.Error())
 	}
-	if bad := s.docUnreadableRefusal(catalog.KindProfile, placeOfFile(in.Place), path); bad != nil {
+	if bad := s.docUnreadableRefusal(path); bad != nil {
 		return nil, bad
 	}
 	var draft p2Draft
@@ -278,7 +277,7 @@ func (k apiProfile) saveYAML(in apiIn) (any, *apiErr) {
 	if err := s.p2Write(path); err != nil {
 		return nil, refuse(http.StatusUnprocessableEntity, err.Error())
 	}
-	if bad := s.docUnreadableRefusal(catalog.KindProfile, placeOfFile(in.Place), path); bad != nil {
+	if bad := s.docUnreadableRefusal(path); bad != nil {
 		return nil, bad
 	}
 	if problem, bad := p2FirstError(in.Text, display); bad {
@@ -307,7 +306,7 @@ func (k apiProfile) Delete(name string, in apiIn) (any, *apiErr) {
 	if err := s.p2Write(path); err != nil {
 		return nil, refuse(http.StatusUnprocessableEntity, err.Error())
 	}
-	if bad := s.docUnreadableRefusal(catalog.KindProfile, placeOfFile(in.Place), path); bad != nil {
+	if bad := s.docUnreadableRefusal(path); bad != nil {
 		return nil, bad
 	}
 	text, pathHash := s.p2Text(path)

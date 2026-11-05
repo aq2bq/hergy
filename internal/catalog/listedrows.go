@@ -104,14 +104,8 @@ func (c *Catalog) ReadableOf(row ListedRow) (bool, string) {
 	if row.Legacy || row.NoDoc || row.Path == "" {
 		return true, ""
 	}
-	_, ok, err := c.fileText(row.Path)
-	if err == nil && ok {
-		return true, ""
-	}
-	if err != nil {
-		return false, err.Error()
-	}
-	return false, ""
+	_, ok, why := c.FileState(row.Path)
+	return ok, why
 }
 
 func (c *Catalog) teamRows(layer string) []ListedRow {

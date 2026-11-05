@@ -290,7 +290,7 @@ func (k apiRole) saveDoc(in apiIn) (any, *apiErr) {
 	}
 	old := s.cat.RolePath(in.Place, savedName)
 	for _, one := range []string{old, target} {
-		if bad := s.docUnreadableRefusal(catalog.KindRole, in.Place, one); bad != nil {
+		if bad := s.docUnreadableRefusal(one); bad != nil {
 			return nil, bad
 		}
 	}
@@ -350,7 +350,7 @@ func (k apiRole) saveYAML(in apiIn) (any, *apiErr) {
 	}
 	path := s.cat.RolePath(in.Place, in.Name)
 	display := s.cat.Display(path)
-	if bad := s.docUnreadableRefusal(catalog.KindRole, in.Place, path); bad != nil {
+	if bad := s.docUnreadableRefusal(path); bad != nil {
 		return nil, bad
 	}
 	text, err := s.cat.Reader().Read(source.Doc{Path: path})
@@ -382,7 +382,7 @@ func (k apiRole) Delete(name string, in apiIn) (any, *apiErr) {
 	s := k.s
 	place, hash := in.Place, in.Hash
 	path := s.cat.RolePath(place, name)
-	if bad := s.docUnreadableRefusal(catalog.KindRole, place, path); bad != nil {
+	if bad := s.docUnreadableRefusal(path); bad != nil {
 		return nil, bad
 	}
 	text, err := s.cat.Reader().Read(source.Doc{Path: path})
