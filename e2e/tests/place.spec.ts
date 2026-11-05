@@ -66,15 +66,23 @@ test.describe('the one project', () => {
     await readTo<number>(page, headCount(), 'the list draws the project and the global layer heads').toBe(2);
     const said = await read<string>(page, `${headOf('project')}.querySelector('.hq-gn').textContent`, 'the project head name');
     await readTo<string>(page, `${headOf('project')}.querySelector('[data-act=new]').textContent`, 'the project button says the place').toContain(said);
+    const head = page.locator('#rows .hq-gh[data-place="project"]');
     expect(existsSync(file), 'the project holds no place-p1 before the add').toBe(false);
 
-    const row = await addUnder(page, ROLES, 'project');
-    await noPlaceSwitch(page, row);
-    await readTo<string>(page, `${row}.querySelector('.c-place .pill').textContent`, 'the new row says the project').toBe(said);
-    await set(page, `${row}.querySelector('[data-f=name]')`, 'place-p1');
-    await page.locator('.role.open .panel').last().getByRole('textbox', { name: '規則の全文' }).fill('置き場所の見出しから足したロール。');
-    await press(page, `${row}.querySelector('.panel [data-act=save]')`);
-    await wait(page, `!!(${byName(ROLES, 'project', 'place-p1')}).querySelector('.ok')`);
+    // The row a head adds carries 新規 until its save, so the walk finds the row
+    // it made by that mark (r-410c). A wait for the first row under the head
+    // answers before the press is drawn instead, because rows of that place
+    // already stand there, and the walk then read a row it did not make.
+    await head.getByRole('button', { name: 'にロールを追加' }).click();
+    const added = page.locator('#rows .role').filter({ has: page.locator('.tag') });
+    await expect(added, 'the head added one row').toHaveCount(1);
+    await expect(added.locator('[data-act=pick-place], [data-act=pick-layer]'), 'the new row carries no place switch').toHaveCount(0);
+    await expect(added.locator('.c-place .pill'), 'the new row says the project').toHaveText(said);
+    await added.locator('[data-f=name]').fill('place-p1');
+    const row = page.locator('#rows .role').filter({ has: page.locator('.c-name .nm', { hasText: 'place-p1' }) });
+    await row.getByRole('textbox', { name: '規則の全文' }).fill('置き場所の見出しから足したロール。');
+    await row.locator('.panel [data-act=save]').click();
+    await expect(row.locator('.ok'), 'the save answered').toBeVisible();
 
     await readTo<number>(page, countIn(ROLES, 'project'), 'the project head holds the added role').toBe(beforeProject + 1);
     await readTo<number>(page, countIn(ROLES, 'global'), 'the global head keeps its roles').toBe(beforeGlobal);

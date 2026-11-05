@@ -141,6 +141,18 @@ test('opening prose allocates a stable viewport below the real band and keeps sa
     const summary = n.closest('.tdef')!.querySelector(':scope > .sum')!.getBoundingClientRect();
     return n.getBoundingClientRect().top >= Math.max(band.bottom, summary.bottom);
   })).toBe(true);
+  // Opening the prose brings its columns under the band in a frame of its own:
+  // the height and the scroll open with requestAnimationFrame (teams/view.tsx,
+  // AgreePanel), and the two readings above answer on the columns' opening
+  // height as well. A frame that came late therefore left those columns where
+  // they opened, below the fold, and the measure below read them there: the
+  // board's bottom stood at 1035.9375 in the 900px window. The board stands
+  // inside the window only once that frame has run, so the walk waits for it
+  // here, before it measures.
+  await expect.poll(async () => {
+    const box = (await board.boundingBox())!;
+    return box.y + box.height;
+  }, { message: 'the opened prose stands inside the window' }).toBeLessThanOrEqual(900);
   await expect(page.locator('.prose-drag-hint')).toBeHidden();
   const before = (await board.boundingBox())!;
   const height = (await input.boundingBox())!.height;
