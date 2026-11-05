@@ -156,3 +156,21 @@ export function assignDirty(m: { name: string; saved: string; draft: string }): 
 export function yamlDirty(text: string, typed: string | undefined): boolean {
   return dirty(YAML_TEXT, { text }, { text: typed === undefined ? text : typed });
 }
+
+// profileFlags is which fields of a profile differ, index by index for args and
+// env, from the same value comparison the change test makes (r-1e9a). The count
+// is the owner's diff.
+export type ProfileFlags = { name: boolean; kind: boolean; args: boolean[]; env: { key: boolean; value: boolean }[]; count: number };
+export function profileFlags(saved: ProfileWritten | null, draft: ProfileWritten, readable = true): ProfileFlags {
+  const count = diff(PROFILE, saved, draft, readable).length;
+  const out: ProfileFlags = { name: false, kind: false, args: [], env: [], count };
+  if (!readable) return out;
+  out.name = !saved || !same(saved.name, draft.name);
+  out.kind = !saved || !same(saved.kind, draft.kind);
+  draft.args.forEach((arg, i) => { out.args[i] = !saved || i >= saved.args.length || !same(saved.args[i], arg); });
+  out.env = draft.env.map((pair, i) => ({
+    key: !saved || i >= saved.env.length || !same(saved.env[i].key, pair.key),
+    value: !saved || i >= saved.env.length || !same(saved.env[i].value, pair.value),
+  }));
+  return out;
+}

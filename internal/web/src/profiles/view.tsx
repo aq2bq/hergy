@@ -11,7 +11,7 @@ import { ConflictNotice } from '../lib/conflict.js';
 import { bringUnderBand } from '../lib/band.js';
 import {
   rows, chips, shownRows, filterKind, query, groupName, GROUPS, placeGroups,
-  changedOf, saveBlocked, rowUnsaved, classOf, otherKinds, BASE_KINDS,
+  panelFlags, writtenProfile, saveBlocked, rowUnsaved, classOf, otherKinds, BASE_KINDS,
   focusAsk, scrollAsk, panelByKey, HQ, canCopy, files,
   pressOverwrite, pressRevertConflict, pressUndoConflict,
 } from './state.js';
@@ -23,7 +23,7 @@ import {
 } from './actions.js';
 import type { ChangeSet, Panel as PanelState, Problem, ProfileChip, Row } from './types.js';
 import type { PlaceGroup } from './state.js';
-import { sameBorn } from './state.js';
+import { dirty, PROFILE } from '../lib/changed.js';
 import { askConfirm } from '../lib/confirm.js';
 
 // inputValue is what a field holds after a person typed in it. A field is an
@@ -162,7 +162,7 @@ function badOf(panel: PanelState): { name: boolean; kind: boolean; args: Set<num
 // Panel is one layer's face of a profile: what the file holds, the draft, the
 // problems the check answered, and the save.
 function Panel({ panel }: { panel: PanelState }) {
-  const changed = changedOf(panel);
+  const changed = panelFlags(panel);
   const bad = badOf(panel);
   // held is why 保存 is shut, in the server's own sentences (ac-456e): the save's
   // refusal and the errors the check named. Each problem stands beside its field,
@@ -215,7 +215,7 @@ function Panel({ panel }: { panel: PanelState }) {
         run: () => pressDelYes(panel.key),
       })}>削除</button> : <button class="btn danger" data-act="discard" onClick={() => {
         // A panel nobody touched since it was made goes at once (r-d480).
-        if (!panel.saved && sameBorn(panel)) { pressDiscard(panel.key); return; }
+        if (!panel.saved && (!panel.born || !dirty(PROFILE, panel.born, writtenProfile(panel)))) { pressDiscard(panel.key); return; }
         askConfirm({ title: '入力した内容を捨てますか', body: <p>保存していない入力があります。<b>取り消せません。</b></p>, label: '破棄する', run: () => pressDiscard(panel.key) });
       }}>取り消し</button>}
     </>

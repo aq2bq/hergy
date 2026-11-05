@@ -20,9 +20,11 @@ import {
   problemText2
 } from "./nav-sk3m5qf3.js";
 import {
-  roleDirty,
   Field
-} from "./nav-jwnybnrd.js";
+} from "./nav-hrc2s6sc.js";
+import {
+  roleDirty
+} from "./nav-ray0sjn8.js";
 
 // lib/measure.tsx
 var num = (n) => Number(n || 0).toLocaleString("ja-JP");

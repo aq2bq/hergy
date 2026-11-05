@@ -10,10 +10,10 @@ import { profileModel, check as apiCheck, save as apiSave, del as apiDel, list a
 import { conflictOf } from '../lib/conflict.js';
 import { parseOpen, token as hqToken } from '../lib/hq.js';
 import { copyGroupOf, projectOfGroup } from '../lib/copy';
-import { PROFILE, diff as changedDiff, dirty as changedDirty, snapshot as changedSnapshot } from '../lib/changed.js';
+import { PROFILE, assignDirty, diff as changedDiff, dirty as changedDirty, profileFlags, snapshot as changedSnapshot } from '../lib/changed.js';
 import { setDirty } from '../lib/nav.js';
 import type {
-  Assign, AssignRow, Carried, ChangeSet, Draft, EnvPair, FocusAsk, Island,
+  Assign, AssignRow, Carried, Draft, EnvPair, FocusAsk, Island,
   IslandHQ, HQProfileGroup, IslandRow, OpenTarget, Panel, ProfileCheck,
   ProfileList, Problem, Row, ScrollAsk, Team, YamlFile, YamlOne,
 } from './types.js';
@@ -306,36 +306,16 @@ function readInitial(): { rows: Row[]; files: YamlFile[] } {
 }
 
 // ---- what a panel holds, and how far it is from the file ----------------
-export function changedOf(panel: Panel): ChangeSet {
-  const saved = panel.saved;
-  const draft = panel.draft;
-  const beforeArgs = (saved && saved.args) || [];
-  const beforeEnv = (saved && saved.env) || [];
-  const out: ChangeSet = { name: false, kind: false, args: [], env: [], count: profileChanges(panel).length };
-  out.name = !saved || draft.name !== saved.name;
-  out.kind = !saved || draft.kind !== saved.kind;
-  draft.args.forEach((arg, i) => { out.args[i] = !saved || beforeArgs[i] !== arg; });
-  out.env = draft.env.map((pair, i) => {
-    const before = beforeEnv[i];
-    return { key: !before || before.key !== pair.key, value: !before || before.value !== pair.value };
-  });
-  let n = 0;
-  if (out.name) n++;
-  if (out.kind) n++;
-  out.args.forEach((one) => { if (one) n++; });
-  if (beforeArgs.length > draft.args.length) n += beforeArgs.length - draft.args.length;
-  out.env.forEach((one) => { if (one.key) n++; if (one.value) n++; });
-  if (beforeEnv.length > draft.env.length) n += beforeEnv.length - draft.env.length;
-  return out;
-}
+// panelFlags is which fields changed, for the screens to draw: the owner's
+// answer, not a second comparison (r-1e9a).
+export const panelFlags = (panel: Panel) => profileFlags(savedProfile(panel), writtenProfile(panel), !panel.problem);
 
 const profileDoc = (d: { name: string; kind: string; args: string[]; env: { key: string; value: string }[] }) => ({ name: d.name || '', kind: d.kind || '', args: d.args || [], env: d.env || [] });
 export const writtenProfile = (panel: Panel) => profileDoc(panel.draft);
 const savedProfile = (panel: Panel) => (panel.saved ? profileDoc(panel.saved) : null);
 export const profileChanges = (panel: Panel) => changedDiff(PROFILE, savedProfile(panel), writtenProfile(panel), !panel.problem);
 export const profileDirty = (panel: Panel): boolean => changedDirty(PROFILE, savedProfile(panel), writtenProfile(panel), !panel.problem);
-export const isDirtyPanel = (panel: Panel): boolean => profileDirty(panel);
-export const rowUnsaved = (row: Row): boolean => row.panels.some(isDirtyPanel);
+export const rowUnsaved = (row: Row): boolean => row.panels.some(profileDirty);
 export const saveBlocked = (panel: Panel): boolean =>
   panel.errors > 0 || (panel.saved ? !profileDirty(panel) : false) || panel.draft.name === '';
 
@@ -398,9 +378,6 @@ export function closeAllConfirm(): void {
 
 // newRow is a row a person is adding under one place's head: it opens at once,
 // and its panel starts from the kind the head would give it (r-410c).
-// bornOf is a panel's draft as the row was made with it (r-d480).
-export const bornOf = (panel: Panel) => changedSnapshot({ name: panel.draft.name, kind: panel.draft.kind, args: panel.draft.args.slice(), env: panel.draft.env.map((pair) => ({ ...pair })) });
-export const sameBorn = (panel: Panel): boolean => !panel.born || !changedDirty(PROFILE, profileDoc(panel.born), writtenProfile(panel));
 
 export function addRow(file: Place, group: string | undefined): Row {
   const key = newKey();
@@ -411,7 +388,7 @@ export function addRow(file: Place, group: string | undefined): Row {
     savedName: '', savedKind: '', savedArgs: '[]', savedEnv: '[]', hash: '', users: 0, rename_targets: 0, err: 0, warn: 0,
     other: otherOf(file), savedLine: false, problem: '',
   }, g, key);
-  panel.born = bornOf(panel);
+  panel.born = changedSnapshot(writtenProfile(panel));
   const row: Row = {
     key, name: '', group: g, kind: 'claude', kindClass: classOf('claude'), args: '', env: [], more: 0,
     mark: '',
@@ -456,7 +433,7 @@ export function duplicateRow(panel: Panel): Row | null {
   };
   row.panels[0].key = row.key + ':' + panel.file;
   row.panels[0].rowKey = row.key;
-  row.panels[0].born = bornOf(row.panels[0]);
+  row.panels[0].born = changedSnapshot(writtenProfile(row.panels[0]));
   const next = new Set(openKeys.value);
   next.add(row.key);
   openKeys.value = next;
@@ -488,7 +465,7 @@ export function copyPanel(panel: Panel): Panel | null {
   };
   fresh.rowKey = row.key;
   fresh.key = row.key + ':' + file;
-  fresh.born = bornOf(fresh);
+  fresh.born = changedSnapshot(writtenProfile(fresh));
   const next = new Set(openKeys.value);
   next.add(row.key);
   openKeys.value = next;
@@ -757,7 +734,7 @@ export const chips = computed(() => {
 // ---- the band's report and the draft it carries -------------------------
 // dirty is whether the screen holds something no save wrote yet (spec-nav 1.5).
 export function dirty(): boolean {
-  const panels = allPanels().some(({ panel }) => isDirtyPanel(panel));
+  const panels = allPanels().some(({ panel }) => profileDirty(panel));
   const ytexts = yamlTexts().some((one) => one.text !== one.base);
   const picks = assignTeams().some((team) => (team.rows || []).some((row) => pickChanged(row)));
   return panels || ytexts || picks;
@@ -772,7 +749,7 @@ export function tellDirty(): void {
 export function take(): Carried {
   const out: Required<Carried> = { rows: [], ytexts: [], picks: [] };
   allPanels().forEach(({ panel }) => {
-    if (panel.saved && changedOf(panel).count === 0) return;
+    if (panel.saved && !profileDirty(panel)) return;
     out.rows.push({
       file: panel.file,
       group: panel.group,
@@ -801,7 +778,7 @@ export function take(): Carried {
 // picks a person makes are this screen's.
 export const assign = signal<Assign>({ empty: false, teams: [] });
 export function assignTeams(): Team[] { return assign.value.teams || []; }
-export const pickChanged = (row: AssignRow): boolean => row.profile !== (row.saved || '');
+export const pickChanged = (row: AssignRow): boolean => assignDirty({ name: row.key, saved: row.saved || '', draft: row.profile });
 export const assignKind = signal<string | null>(params().get('kind'));
 
 export function initAssign(): void {

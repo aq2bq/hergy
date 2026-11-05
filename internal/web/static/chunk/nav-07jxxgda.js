@@ -20,6 +20,9 @@ import {
   saved2,
   problemText2
 } from "./nav-sk3m5qf3.js";
+import {
+  yamlDirty
+} from "./nav-ray0sjn8.js";
 
 // lib/conflict.tsx
 var str = (v) => typeof v === "string" ? v : "";
@@ -264,7 +267,7 @@ function YamlTab2(props) {
   const [conflict, setConflict] = d(null);
   const [undone, setUndone] = d(false);
   const keep = A(null);
-  const dirty = now.text !== base.current;
+  const dirty = yamlDirty(base.current, now.text);
   const errs = now.problems.filter((p) => p.sev === "err").length;
   const warns = now.problems.length - errs;
   const grew = now.problems.some((p) => p.sev === "err" && errTexts(now.baseProblems).indexOf(p.text) < 0);

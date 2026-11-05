@@ -55,7 +55,7 @@ import {
   Counts2,
   Vm2,
   RuleDoc2
-} from "../chunk/nav-44qmw1p4.js";
+} from "../chunk/nav-6qg5snn7.js";
 import {
   st,
   token2,
@@ -71,7 +71,7 @@ import {
   conflictOf,
   ConflictNotice,
   YamlTab2
-} from "../chunk/nav-nj0tphxe.js";
+} from "../chunk/nav-07jxxgda.js";
 import {
   roleEditor,
   roleProblems
@@ -84,6 +84,13 @@ import {
   ProjectView
 } from "../chunk/nav-2krt94z2.js";
 import {
+  Field
+} from "../chunk/nav-hrc2s6sc.js";
+import {
+  installWheel,
+  resource
+} from "../chunk/nav-xgdfw3q1.js";
+import {
   snapshot,
   dirty,
   diff,
@@ -91,13 +98,8 @@ import {
   TEAM_AGREEMENT,
   YAML_TEXT,
   teamNow,
-  roleDirty,
-  Field
-} from "../chunk/nav-jwnybnrd.js";
-import {
-  installWheel,
-  resource
-} from "../chunk/nav-xgdfw3q1.js";
+  roleDirty
+} from "../chunk/nav-ray0sjn8.js";
 
 // teams/rule-selection.ts
 var ruleSelection = y({});

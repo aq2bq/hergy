@@ -44,12 +44,12 @@ import {
   Badge2,
   Vm2,
   RuleDoc2
-} from "../chunk/nav-44qmw1p4.js";
+} from "../chunk/nav-6qg5snn7.js";
 import {
   conflictOf,
   ConflictNotice,
   YamlTab2
-} from "../chunk/nav-nj0tphxe.js";
+} from "../chunk/nav-07jxxgda.js";
 import {
   roleEditor,
   roleProblems
@@ -61,17 +61,19 @@ import {
   ProjectView
 } from "../chunk/nav-2krt94z2.js";
 import {
+  Field
+} from "../chunk/nav-hrc2s6sc.js";
+import {
+  installWheel
+} from "../chunk/nav-xgdfw3q1.js";
+import {
   snapshot,
   dirty,
   ROLE_DOC,
   roleDirty,
   assignDirty,
-  yamlDirty,
-  Field
-} from "../chunk/nav-jwnybnrd.js";
-import {
-  installWheel
-} from "../chunk/nav-xgdfw3q1.js";
+  yamlDirty
+} from "../chunk/nav-ray0sjn8.js";
 
 // roles/state.ts
 var view = document.getElementById("view");
@@ -989,7 +991,7 @@ function ARow({ t, m, i }) {
   const dim = hi && m.draft !== hi;
   const places = [DIR.project + m.draft + ".md", DIR.global + m.draft + ".md"].join(TEXT.separator || "、");
   return /* @__PURE__ */ u("div", {
-    class: ["arow", m.draft !== m.saved ? "changed" : "", r ? "" : "missing", dim ? "dim" : ""].filter(Boolean).join(" "),
+    class: ["arow", assignDirty(m) ? "changed" : "", r ? "" : "missing", dim ? "dim" : ""].filter(Boolean).join(" "),
     "data-m": m.name,
     children: [
       /* @__PURE__ */ u("div", {
@@ -1001,7 +1003,7 @@ function ARow({ t, m, i }) {
       /* @__PURE__ */ u("div", {
         class: "pick",
         children: [
-          m.draft !== m.saved ? /* @__PURE__ */ u("s", {
+          assignDirty(m) ? /* @__PURE__ */ u("s", {
             class: "was",
             children: m.saved
           }) : "",
@@ -1046,7 +1048,7 @@ function Team({ t }) {
     if (select)
       select.focus({ preventScroll: true });
   }, [gotoAsk.value]);
-  const dirty = t.members.filter((m) => m.draft !== m.saved).length;
+  const dirty = t.members.filter((m) => assignDirty(m)).length;
   const errs = t.members.filter((m) => !roleByName(m.draft)).length;
   const refusal = teamErrorOf(t.id);
   return /* @__PURE__ */ u("section", {

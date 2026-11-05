@@ -7,12 +7,6 @@
 // templates load (webui-preact-design 3 章). The versions are pinned in
 // tools/webvendor/package.json and bun.lock.
 
-import {
-  _,
-  A,
-  u
-} from "./nav-wtffyt4p.js";
-
 // lib/changed.ts
 function same(a, b) {
   if (Object.is(a, b))
@@ -124,48 +118,21 @@ function assignDirty(m) {
 function yamlDirty(text, typed) {
   return dirty(YAML_TEXT, { text }, { text: typed === undefined ? text : typed });
 }
-
-// lib/field.tsx
-function Field({ as: Tag = "input", value, fieldRef, ...rest }) {
-  const input = A(null);
-  const textarea = A(null);
-  const composing = A(false);
-  const field = () => Tag === "textarea" ? textarea.current : input.current;
-  _(() => {
-    const one = field();
-    if (!one || composing.current)
-      return;
-    const want = value === null || value === undefined ? "" : String(value);
-    if (one.value !== want)
-      one.value = want;
+function profileFlags(saved, draft, readable = true) {
+  const count = diff(PROFILE, saved, draft, readable).length;
+  const out = { name: false, kind: false, args: [], env: [], count };
+  if (!readable)
+    return out;
+  out.name = !saved || !same(saved.name, draft.name);
+  out.kind = !saved || !same(saved.kind, draft.kind);
+  draft.args.forEach((arg, i) => {
+    out.args[i] = !saved || i >= saved.args.length || !same(saved.args[i], arg);
   });
-  const keep = (el) => {
-    if (Tag === "textarea")
-      textarea.current = el;
-    else
-      input.current = el;
-    if (fieldRef)
-      fieldRef.current = el;
-  };
-  return Tag === "textarea" ? /* @__PURE__ */ u("textarea", {
-    ...rest,
-    ref: keep,
-    onCompositionStart: () => {
-      composing.current = true;
-    },
-    onCompositionEnd: () => {
-      composing.current = false;
-    }
-  }) : /* @__PURE__ */ u("input", {
-    ...rest,
-    ref: keep,
-    onCompositionStart: () => {
-      composing.current = true;
-    },
-    onCompositionEnd: () => {
-      composing.current = false;
-    }
-  });
+  out.env = draft.env.map((pair, i) => ({
+    key: !saved || i >= saved.env.length || !same(saved.env[i].key, pair.key),
+    value: !saved || i >= saved.env.length || !same(saved.env[i].value, pair.value)
+  }));
+  return out;
 }
 
-export { snapshot, dirty, diff, ROLE_DOC, TEAM, TEAM_AGREEMENT, PROFILE, YAML_TEXT, teamNow, roleDirty, assignDirty, yamlDirty, Field };
+export { snapshot, dirty, diff, ROLE_DOC, TEAM, TEAM_AGREEMENT, PROFILE, YAML_TEXT, teamNow, roleDirty, assignDirty, yamlDirty, profileFlags };

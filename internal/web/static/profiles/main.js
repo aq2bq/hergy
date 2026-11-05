@@ -39,7 +39,7 @@ import {
   conflictOf,
   ConflictNotice,
   YamlTab2
-} from "../chunk/nav-nj0tphxe.js";
+} from "../chunk/nav-07jxxgda.js";
 import {
   copyGroupOf,
   projectOfGroup,
@@ -47,16 +47,19 @@ import {
   ProjectView
 } from "../chunk/nav-2krt94z2.js";
 import {
-  snapshot,
-  dirty,
-  diff,
-  PROFILE,
   Field
-} from "../chunk/nav-jwnybnrd.js";
+} from "../chunk/nav-hrc2s6sc.js";
 import {
   installWheel,
   resource
 } from "../chunk/nav-xgdfw3q1.js";
+import {
+  snapshot,
+  dirty,
+  PROFILE,
+  assignDirty,
+  profileFlags
+} from "../chunk/nav-ray0sjn8.js";
 
 // profiles/state.ts
 function mustElement(id) {
@@ -277,49 +280,12 @@ function readInitial() {
   rows.value = first.rows;
   files.value = first.files;
 }
-function changedOf(panel) {
-  const saved = panel.saved;
-  const draft = panel.draft;
-  const beforeArgs = saved && saved.args || [];
-  const beforeEnv = saved && saved.env || [];
-  const out = { name: false, kind: false, args: [], env: [], count: profileChanges(panel).length };
-  out.name = !saved || draft.name !== saved.name;
-  out.kind = !saved || draft.kind !== saved.kind;
-  draft.args.forEach((arg, i) => {
-    out.args[i] = !saved || beforeArgs[i] !== arg;
-  });
-  out.env = draft.env.map((pair, i) => {
-    const before = beforeEnv[i];
-    return { key: !before || before.key !== pair.key, value: !before || before.value !== pair.value };
-  });
-  let n = 0;
-  if (out.name)
-    n++;
-  if (out.kind)
-    n++;
-  out.args.forEach((one) => {
-    if (one)
-      n++;
-  });
-  if (beforeArgs.length > draft.args.length)
-    n += beforeArgs.length - draft.args.length;
-  out.env.forEach((one) => {
-    if (one.key)
-      n++;
-    if (one.value)
-      n++;
-  });
-  if (beforeEnv.length > draft.env.length)
-    n += beforeEnv.length - draft.env.length;
-  return out;
-}
+var panelFlags = (panel) => profileFlags(savedProfile(panel), writtenProfile(panel), !panel.problem);
 var profileDoc = (d) => ({ name: d.name || "", kind: d.kind || "", args: d.args || [], env: d.env || [] });
 var writtenProfile = (panel) => profileDoc(panel.draft);
 var savedProfile = (panel) => panel.saved ? profileDoc(panel.saved) : null;
-var profileChanges = (panel) => diff(PROFILE, savedProfile(panel), writtenProfile(panel), !panel.problem);
 var profileDirty = (panel) => dirty(PROFILE, savedProfile(panel), writtenProfile(panel), !panel.problem);
-var isDirtyPanel = (panel) => profileDirty(panel);
-var rowUnsaved = (row) => row.panels.some(isDirtyPanel);
+var rowUnsaved = (row) => row.panels.some(profileDirty);
 var saveBlocked = (panel) => panel.errors > 0 || (panel.saved ? !profileDirty(panel) : false) || panel.draft.name === "";
 var focusAsk = y(null);
 function askFocus(key, field, index, select, scroll) {
@@ -359,8 +325,6 @@ function closeRow(key) {
   openKeys.value = next;
   updateRow((r) => r.key === key ? { ...r, open: false } : r);
 }
-var bornOf = (panel) => snapshot({ name: panel.draft.name, kind: panel.draft.kind, args: panel.draft.args.slice(), env: panel.draft.env.map((pair) => ({ ...pair })) });
-var sameBorn = (panel) => !panel.born || !dirty(PROFILE, profileDoc(panel.born), writtenProfile(panel));
 function addRow(file, group) {
   const key = newKey();
   const g = group || (file === "global" ? "global" : "");
@@ -389,7 +353,7 @@ function addRow(file, group) {
     savedLine: false,
     problem: ""
   }, g, key);
-  panel.born = bornOf(panel);
+  panel.born = snapshot(writtenProfile(panel));
   const row = {
     key,
     name: "",
@@ -479,7 +443,7 @@ function duplicateRow(panel) {
   };
   row.panels[0].key = row.key + ":" + panel.file;
   row.panels[0].rowKey = row.key;
-  row.panels[0].born = bornOf(row.panels[0]);
+  row.panels[0].born = snapshot(writtenProfile(row.panels[0]));
   const next = new Set(openKeys.value);
   next.add(row.key);
   openKeys.value = next;
@@ -540,7 +504,7 @@ function copyPanel(panel) {
   };
   fresh.rowKey = row.key;
   fresh.key = row.key + ":" + file;
-  fresh.born = bornOf(fresh);
+  fresh.born = snapshot(writtenProfile(fresh));
   const next = new Set(openKeys.value);
   next.add(row.key);
   openKeys.value = next;
@@ -763,7 +727,7 @@ var chips = O(() => {
   return out;
 });
 function dirty2() {
-  const panels = allPanels().some(({ panel }) => isDirtyPanel(panel));
+  const panels = allPanels().some(({ panel }) => profileDirty(panel));
   const ytexts = yamlTexts().some((one) => one.text !== one.base);
   const picks = assignTeams().some((team) => (team.rows || []).some((row) => pickChanged(row)));
   return panels || ytexts || picks;
@@ -774,7 +738,7 @@ function tellDirty() {
 function take() {
   const out = { rows: [], ytexts: [], picks: [] };
   allPanels().forEach(({ panel }) => {
-    if (panel.saved && changedOf(panel).count === 0)
+    if (panel.saved && !profileDirty(panel))
       return;
     out.rows.push({
       file: panel.file,
@@ -802,7 +766,7 @@ var assign = y({ empty: false, teams: [] });
 function assignTeams() {
   return assign.value.teams || [];
 }
-var pickChanged = (row) => row.profile !== (row.saved || "");
+var pickChanged = (row) => assignDirty({ name: row.key, saved: row.saved || "", draft: row.profile });
 var assignKind = y(params().get("kind"));
 function initAssign() {
   const card = ISLAND.assign;
@@ -1400,7 +1364,7 @@ function badOf(panel) {
   return out;
 }
 function Panel({ panel }) {
-  const changed = changedOf(panel);
+  const changed = panelFlags(panel);
   const bad = badOf(panel);
   const held = [];
   const say = (text) => {
@@ -1513,7 +1477,7 @@ function Panel({ panel }) {
         class: "btn danger",
         "data-act": "discard",
         onClick: () => {
-          if (!panel.saved && sameBorn(panel)) {
+          if (!panel.saved && (!panel.born || !dirty(PROFILE, panel.born, writtenProfile(panel)))) {
             pressDiscard(panel.key);
             return;
           }

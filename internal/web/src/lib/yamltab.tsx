@@ -14,6 +14,7 @@
 // press is handled once: the screen draws the section's element, the part draws
 // what stands inside it, and the screen passes the file and the ways to tell it
 // things as props (依頼書 4).
+import { yamlDirty } from './changed.js';
 import { useEffect, useRef, useState } from './preact.js';
 import { check as apiCheck, save as apiSave, problemText, saved as apiSaved } from './api.js';
 import type { RawAnswer } from './api.js';
@@ -183,7 +184,7 @@ export function YamlTab(props: YamlTabProps) {
   const [undone, setUndone] = useState(false);
   const keep = useRef<{ text: string; base: string; hash: string } | null>(null);
 
-  const dirty = now.text !== base.current;
+  const dirty = yamlDirty(base.current, now.text);
   const errs = now.problems.filter((p: Problem) => p.sev === 'err').length;
   const warns = now.problems.length - errs;
   const grew = now.problems.some((p: Problem) => p.sev === 'err' && errTexts(now.baseProblems).indexOf(p.text) < 0);
