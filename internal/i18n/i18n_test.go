@@ -105,8 +105,49 @@ func TestUseAndT(t *testing.T) {
 	}
 }
 
+func TestInitReturnsToTheFallback(t *testing.T) {
+	if err := Use("ja"); err != nil {
+		t.Fatal(err)
+	}
+	if err := Init(); err != nil {
+		t.Fatalf("Init after Use: %v", err)
+	}
+	if got := Language(); got != Fallback {
+		t.Errorf("Language after Init = %q, want %q", got, Fallback)
+	}
+}
+
+func TestTUnknownKey(t *testing.T) {
+	const key = "no.such.key"
+	if got, want := T(key), "[["+key+"]]"; got != want {
+		t.Errorf("T(%q) = %q, want %q", key, got, want)
+	}
+}
+
+func TestTextUsesTheLanguageItIsGiven(t *testing.T) {
+	if err := Use(Fallback); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = Use(Fallback) })
+	const key = "error.unknown_language"
+	ja := catalog(t, "ja")[key]
+	en := catalog(t, Fallback)[key]
+	if ja == en {
+		t.Fatalf("%s reads the same in %s and ja; the test cannot tell them apart", key, Fallback)
+	}
+	if got := Text("ja", key); got != ja {
+		t.Errorf("Text(ja, %s) = %q, want %q", key, got, ja)
+	}
+	if got := Text("", key); got != en {
+		t.Errorf("Text with no language = %q, want the language in use %q", got, en)
+	}
+	if got := Text("fr", key); got != en {
+		t.Errorf("Text(fr, %s) = %q, want the language in use %q", key, got, en)
+	}
+}
+
 func TestNumber(t *testing.T) {
-	for n, want := range map[int]string{0: "0", 999: "999", 1200: "1,200", 1234567: "1,234,567", -1200: "-1,200"} {
+	for n, want := range map[int]string{0: "0", 999: "999", -999: "-999", 1200: "1,200", 1234567: "1,234,567", -1200: "-1,200"} {
 		if got := Number(n); got != want {
 			t.Errorf("Number(%d) = %q, want %q", n, got, want)
 		}
