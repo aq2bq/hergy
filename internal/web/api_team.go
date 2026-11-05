@@ -149,57 +149,79 @@ func (k apiTeam) List() (any, *apiErr) {
 	return k.s.t2List(), nil
 }
 
-// t2List is the team list answer: the rows the screen reads, as items, plus the
-// YAML tab's files.
+// t2List is the team list answer: one row per place, taken from the owner
+// (ShownRows) so the rows are the set and order the band counts (r-ea17), plus
+// the YAML tab's files.
 func (s *Server) t2List() apiList {
 	out := apiList{Hashes: map[string]string{}}
-	// One version for the whole list: every row is checked against the same
-	// files, so a list asked for again builds nothing until one of them moves
-	// (d-e00b).
 	ver := s.cat.Version()
-	for _, listing := range s.cat.Definitions() {
-		out.Items = append(out.Items, s.t2ItemOf(listing, ver))
-		out.Files = append(out.Files, s.t2FilesOf(listing)...)
+	seenFile := map[string]bool{}
+	for _, one := range []struct{ layer, place string }{
+		{source.LayerLocal, catalog.PlaceProject},
+		{source.LayerGlobal, catalog.PlaceGlobal},
+	} {
+		for _, listed := range s.cat.ShownRows(catalog.KindTeam, one.layer) {
+			out.Items = append(out.Items, s.t2ItemAt(listed.Name, one.place, ver))
+			for _, file := range s.t2FilesAt(listed.Name, one.place) {
+				if seenFile[file.Path] {
+					continue
+				}
+				seenFile[file.Path] = true
+				out.Files = append(out.Files, file)
+			}
+		}
 	}
 	return out
 }
 
-// t2ItemOf is one team definition as the list carries it: each place's reading
-// becomes the item's reading of that place, and the effective place's columns
-// its summary.
-func (s *Server) t2ItemOf(listing catalog.Listing, ver string) apiItem {
-	item := apiItem{Name: listing.Name, Places: map[string]apiPlace{}}
-	for _, place := range t2PlacesOf(listing) {
-		layer := catalog.Layer(place)
-		path := s.cat.TeamYAML(listing.Name, layer)
-		if why, state := s.unreadable(path, ""); why != "" {
-			// The file cannot be read: the place stands with the reason, so the
-			// row is still drawn and counted (r-ea17, d-17ab), and the reason is
-			// the owner's answer.
-			item.Places[place] = apiPlace{
-				Doc: s.t2DocOf(listing.Name, layer, nil), Path: s.cat.Display(path),
-				Problems: apiCounts{Err: 1}, Problem: why, State: state,
-			}
+// t2ItemAt is one definition at one place: the place's reading, the problem
+// when its team.yaml cannot be read, and the place's own summary.
+func (s *Server) t2ItemAt(name, place, ver string) apiItem {
+	layer := catalog.Layer(place)
+	path := s.cat.TeamYAML(name, layer)
+	item := apiItem{Name: name, Places: map[string]apiPlace{}, Effective: place}
+	if why, state := s.unreadable(path, ""); why != "" {
+		item.Places[place] = apiPlace{
+			Doc: s.t2DocOf(name, layer, nil), Path: s.cat.Display(path),
+			Problems: apiCounts{Err: 1}, Problem: why, State: state,
+		}
+		item.Problems = item.Places[place].Problems
+		item.Summary = s.t2SummaryOf(name, layer, nil, ver)
+		return item
+	}
+	text, _ := s.cat.Reader().Read(source.Doc{Path: path})
+	def, _ := s.cat.Definition(name, layer)
+	item.Places[place] = apiPlace{
+		Doc: s.t2DocOf(name, layer, def), Text: text, Hash: source.Hash(text),
+		Path: s.cat.Display(path), Problems: s.t2CountsOf(name, layer, ver),
+	}
+	item.Problems = item.Places[place].Problems
+	item.Summary = s.t2SummaryOf(name, layer, def, ver)
+	return item
+}
+
+// t2FilesAt is the YAML tab's files of one place: team.yaml and agreement.md.
+func (s *Server) t2FilesAt(name, place string) []apiFile {
+	layer := catalog.Layer(place)
+	var out []apiFile
+	for _, one := range []struct{ kind, path string }{
+		{"team", s.cat.TeamYAML(name, layer)},
+		{"agreement", s.t2AgreeFile(name, layer)},
+	} {
+		if _, there, _ := s.cat.FileState(one.path); !there {
 			continue
 		}
-		text, _ := s.cat.Reader().Read(source.Doc{Path: path})
-		def, _ := s.cat.Definition(listing.Name, layer)
-		item.Places[place] = apiPlace{
-			Doc:      s.t2DocOf(listing.Name, layer, def),
-			Text:     text,
-			Hash:     source.Hash(text),
-			Path:     s.cat.Display(path),
-			Problems: s.t2CountsOf(listing.Name, layer, ver),
+		if why, _ := s.unreadable(one.path, ""); why != "" {
+			out = append(out, apiFile{
+				Place: place, Name: name, Kind: one.kind, Label: t2PlaceWord(place),
+				Path: s.cat.Display(one.path), Problem: why,
+				Problems: []apiProblem{{Sev: "err", At: "line", Line: 1, Text: why}},
+			})
+			continue
 		}
+		out = append(out, s.t2FileOf(place, one.kind, name, one.path, false))
 	}
-	effective, hidden := t2Effective(listing)
-	item.Effective, item.Hidden = effective, hidden
-	if place, ok := item.Places[effective]; ok {
-		item.Problems = place.Problems
-	}
-	def, _ := s.cat.Definition(listing.Name, catalog.Layer(effective))
-	item.Summary = s.t2SummaryOf(listing.Name, catalog.Layer(effective), def, ver)
-	return item
+	return out
 }
 
 // t2Effective is which place of a definition is in effect and which is hidden,

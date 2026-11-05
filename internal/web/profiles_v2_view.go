@@ -378,23 +378,6 @@ func p2Chips(defs []p2Def) map[string][]p2UserChip {
 }
 
 // p2Names is every profile name the two files hold, the project's order first.
-// p2Names is the names the profile list draws, from the owner (r-ea17): both
-// layers' rows, one row per name (a name both layers hold is one row with two
-// panels). A profiles.yaml that cannot be read stands as the one row named after
-// the file (d-17ab).
-func (s *Server) p2Names() []string {
-	seen := map[string]bool{}
-	out := make([]string, 0, 8)
-	for _, layer := range []string{source.LayerLocal, source.LayerGlobal} {
-		for _, row := range s.cat.ShownRows(catalog.KindProfile, layer) {
-			if !seen[row.Name] {
-				seen[row.Name] = true
-				out = append(out, row.Name)
-			}
-		}
-	}
-	return out
-}
 
 // p2Unreadable is the reason a name's place cannot be read, by place: the rows
 // the owner stands for a file that cannot be read (r-ea17, d-17ab).

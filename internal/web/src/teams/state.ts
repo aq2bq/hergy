@@ -513,12 +513,12 @@ export type DefItem = NonNullable<Answer<'team', 'list'>['items']>[number];
 // no hash, no document, and no rule (n-e3de).
 const NO_AGREEMENT: Schemas['TeamAgreement'] = { path: '', hash: '', has: false };
 
-function defOf(item: DefItem, project?: string, only?: Place): Rec {
+function defOf(item: DefItem, project?: string): Rec {
   const group = project || '';
   const places = item.places || {};
-  // only keeps one side of a name: a list draws a head for each place, so a
-  // definition that stands in both is two rows (r-410c).
-  const eff: Place = only || item.effective || (places.project ? 'project' : 'global');
+  // The answer already holds one place per row (r-ea17): a definition that
+  // stands in both places is two items, one row each.
+  const eff: Place = item.effective || (places.project ? 'project' : 'global');
   const place = places[eff];
   const doc = place?.doc;
   const agree = doc?.agreement || NO_AGREEMENT;
@@ -531,11 +531,11 @@ function defOf(item: DefItem, project?: string, only?: Place): Rec {
     saved = fromJSON(agree.doc);
     saved.__path = agree.path;
   }
-  const hidden = (only ? [] : (item.hidden || [])).filter((p) => places[p]).map((p) => ({
+  const hidden = (item.hidden || []).filter((p) => places[p]).map((p) => ({
     place: p, path: places[p]?.path, hash: places[p]?.hash,
   }));
   const r = recOf({
-    name: item.name || '', dom, project: group, place: eff, places: only ? [only] : PLACES.filter((p) => places[p]),
+    name: item.name || '', dom, project: group, place: eff, places: PLACES.filter((p) => places[p]),
     teamPath: place?.path || '', agreePath: agree.path || '',
     hash: place?.hash || '', agreeHash: agree.hash || '', broken: !!doc?.broken, problem: place?.problem || '',
     hidden, ops: [],
@@ -1182,7 +1182,7 @@ export async function renamed(r: Rec, name: string, json: Schemas['TeamSaved']):
   recs.value = recs.value.filter((x) => x !== r);
   const item = (json.items || []).find((x) => x.name === name);
   if (!item) throw new Error('保存したチーム定義を読めませんでした。画面を読み直してください');
-  const next = defOf(itemInGroup(item, group), group, r.place.value);
+  const next = defOf(itemInGroup(item, group), group);
   next.renameNotes.value = json.rename?.notes || [];
   if (GROUPS) {
     try {
@@ -1837,12 +1837,10 @@ export function boot() {
   if (HQ && HQ.teams && HQ.teams.length) {
     HQ.teams.forEach((g) => {
       const key = GROUPED ? groupKeyOf(g) : (g.global ? 'global' : '');
-      rowsIn(g).forEach((item) => defOf(item, key, g.global ? 'global' : 'project'));
+      rowsIn(g).forEach((item) => defOf(item, key));
     });
   } else {
-    (LIST.items || []).forEach((item) => {
-      for (const place of PLACES) if (item.places && item.places[place]) defOf(item, place === 'global' ? 'global' : '', place);
-    });
+    (LIST.items || []).forEach((item) => defOf(item, item.effective === 'global' ? 'global' : ''));
   }
   readURL();
   pickFile();

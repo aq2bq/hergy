@@ -14,8 +14,6 @@ import (
 // p2ProfilesData builds the profile tab: the filter, the search, the open rows
 // and the list.
 func (s *Server) p2ProfilesData(data p2Data, project, shared p2File, defs []p2Def, q url.Values) p2Data {
-	chips := p2Chips(defs)
-	names := s.p2Names()
 	data.ProfileCount = s.p2RowCount()
 	data.Kinds = p2KindChips(project, shared)
 	data.KindFilter = q.Get("kind")
@@ -23,11 +21,7 @@ func (s *Server) p2ProfilesData(data p2Data, project, shared p2File, defs []p2De
 	for i := range data.Kinds {
 		data.Kinds[i].On = data.Kinds[i].Name == data.KindFilter
 	}
-	data.Empty = len(names) == 0
-	open := p2OpenSet(q.Get("open"))
-	for _, name := range names {
-		data.Rows = append(data.Rows, p2RowOf(name, project, shared, chips, open[name]))
-	}
+	data.Empty = data.ProfileCount == 0
 	return data
 }
 

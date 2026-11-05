@@ -10,8 +10,13 @@ let asked;
 beforeAll(async () => {
   const data = island();
   const item = data.team.items[0];
-  item.places.global = structuredClone(item.places.project);
-  item.places.global.hash = 'global-hash';
+  // The answer carries one place per row (r-ea17): the global place is its own
+  // item, not a second side of the same one.
+  data.team.items.push({
+    ...item,
+    effective: 'global',
+    places: { global: { ...structuredClone(item.places.project), hash: 'global-hash' } },
+  });
   data.hq = { projects: { mode: 'none', current: { path: project, name: 'alpha' }, projects: [] } };
   layout('teams-data', data);
   asked = serve((method, url) => {
