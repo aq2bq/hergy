@@ -29,6 +29,8 @@ for (const theme of ['light','dark'] as const) {
   const current=JSON.parse(execFileSync(hergyBin,['up','core','--dry','--json','--lang','ja'],{cwd:app.proj,env:{...process.env,...app.env},encoding:'utf8'}));
   await page.goto(`${app.base}/teams?open=core`);await ready(page);
   await page.locator('.cv-n.member[data-cv-n="lead"]').click();
+  // The prompt is read in its own tab (r-f0be).
+  await page.locator('.cv-side [data-cv-side="prompt"]').click();
   const entry=page.getByRole('button',{name:'全文と差分を読む',exact:true});
   const sections=page.locator('.cv-topology-section');
   await expect(sections).toHaveCount(4);

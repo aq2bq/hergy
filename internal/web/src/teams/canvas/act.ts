@@ -233,7 +233,9 @@ function onPointerUp(e: PointerEvent): void {
   const r = d.r;
   if (d.what === 'move') {
     if (d.moved) { selectPick(r, null); return; }
-    selectPick(r, d.wi != null ? { type: 'worker', i: d.wi } : { type: 'node', id: d.id }, 'attr');
+    // A press that did not move the point picks it and leaves the column where
+    // the person put it (r-f0be).
+    selectPick(r, d.wi != null ? { type: 'worker', i: d.wi } : { type: 'node', id: d.id });
     return;
   }
   const over = document.elementFromPoint(e.clientX, e.clientY), g = over && over.closest<HTMLElement>('[data-cv-n]');
@@ -266,7 +268,9 @@ export function onClick(r: Rec, e: MouseEvent): void {
       : hit.dataset.cvW != null ? { type: 'worker', i: Number(hit.dataset.cvW) }
         : { type: 'edge', k: hit.dataset.cvE || '' };
     if (JSON.stringify(selOf(r)) === JSON.stringify(sel)) return;
-    selectPick(r, sel, 'attr');
+    // The tab stays where the person put it: picking another point changes what
+    // stands there, not which of 属性・YAML・プロンプト is open (r-f0be).
+    selectPick(r, sel);
     return;
   }
   const b = target.closest<HTMLElement>('[data-cv-act], [data-cv-side]');

@@ -17,6 +17,7 @@ test('member comparison retains full recorded text and rejects a stale response'
  });
  await import('../src/teams/main');await settle();
  click(document.querySelector('.tdef[data-name="core"] .cv-n.member[data-cv-n="lead"]'));await settle();
+ click(document.querySelector('.tdef[data-name="core"] [data-cv-side="prompt"]'));await settle();
  const sections=[...document.querySelectorAll('.cv-topology-section')];
  expect(sections.map(x=>x.dataset.kind)).toEqual(['roster','herdr','turns']);
  for(const section of sections) expect([...section.querySelectorAll('pre')].map(x=>x.textContent).join('')).toBe(memberSegments.filter(x=>x.kind===section.dataset.kind).map(x=>x.text).join(''));

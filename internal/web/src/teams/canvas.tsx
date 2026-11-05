@@ -18,6 +18,7 @@ import { afterTPrev, fitYbox, TPrev } from './canvas/yaml.js';
 import { Figure, frameOf } from './canvas/figure.js';
 import { Menu } from './canvas/menu.js';
 import { SideAttr } from './canvas/attr.js';
+import { PromptView } from './canvas/prompt.js';
 import { onClick, onInput, onPointerDown } from './canvas/act.js';
 import { selOf, sideOf } from './canvas/shared.js';
 
@@ -103,8 +104,9 @@ export function Canvas({ r, vlist }: { r: Rec; vlist: JSX.Element }): JSX.Elemen
         <div class="cv-sh">
           <button type="button" class={side === 'attr' ? 'on' : ''} data-cv-side="attr">属性</button>
           <button type="button" class={side === 'yaml' ? 'on' : ''} data-cv-side="yaml">YAML</button>
+          <button type="button" class={side === 'prompt' ? 'on' : ''} data-cv-side="prompt">プロンプト</button>
         </div>
-        <div class="cv-sb">{side === 'attr' ? <SideAttr r={r} /> : <TPrev r={r} />}</div>
+        <div class="cv-sb">{side === 'attr' ? <SideAttr r={r} /> : side === 'yaml' ? <TPrev r={r} /> : <PromptView r={r} />}</div>
       </aside>
     </div>
   );

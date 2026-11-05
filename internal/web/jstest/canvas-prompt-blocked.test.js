@@ -44,12 +44,18 @@ test('a definition with a problem says why, keeps the history entry available af
   expect(name).not.toBe('');
   click(document.querySelector('.tdef[data-name="core"] .cv-n.member[data-cv-n="lead"]'));
   await settle();
+  // The attribute tab no longer carries the prompt (r-f0be).
+  expect(document.querySelector('.tdef[data-name="core"] .cv-prompt')).toBe(null);
+  click(document.querySelector('.tdef[data-name="core"] [data-cv-side="prompt"]'));
+  await settle();
   let box = document.querySelector('.tdef[data-name="core"] .cv-prompt');
   expect(box.textContent).toContain(blocked);
   expect(box.querySelectorAll('.yl').length).toBe(0);
 
   // (b) both directions are drawn (not saved): the lines name the new member,
-  // and the blocked words go.
+  // and the blocked words go. The attribute fields are read in 属性.
+  click(document.querySelector('.tdef[data-name="core"] [data-cv-side="attr"]'));
+  await settle();
   choose(document.querySelector('.tdef[data-name="core"] .cv-side select[data-cv-f=turn-add]'), name);
   await settle();
   click(document.querySelector(`.tdef[data-name="core"] .cv-n.member[data-cv-n="${name}"]`));
@@ -57,6 +63,8 @@ test('a definition with a problem says why, keeps the history entry available af
   choose(document.querySelector('.tdef[data-name="core"] .cv-side select[data-cv-f=turn-add]'), 'lead');
   await settle();
   click(document.querySelector('.tdef[data-name="core"] .cv-n.member[data-cv-n="lead"]'));
+  await settle();
+  click(document.querySelector('.tdef[data-name="core"] [data-cv-side="prompt"]'));
   await settle();
   box = document.querySelector('.tdef[data-name="core"] .cv-prompt');
   expect(box.querySelector('button').textContent).toBe('全文と差分を読む');

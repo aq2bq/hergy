@@ -8,8 +8,9 @@ import type { ComponentChildren, JSX } from 'preact';
 import { useState } from '../../lib/preact.js';
 import { PromptComparison } from './prompt-comparison.js';
 import { topologySections } from './prompt-origins.js';
-import { promptBlockedOf, promptsOf, workerPrompt } from '../state.js';
+import { memberOf, promptBlockedOf, promptsOf, workerPrompt } from '../state.js';
 import type { Member, PromptSegment, Rec, Worker, WorkerPrompt as WorkerPromptText } from '../state.js';
+import { selOf } from './shared.js';
 
 // lineAtMaker reads which line an offset of the whole prompt stands on.
 function lineAtMaker(full: string): (off: number) => number {
@@ -101,8 +102,8 @@ export function MemberPrompt({ r, m }: { r: Rec; m: Member }): JSX.Element {
 }
 
 export function WorkerPromptSection({ r, w, i }: { r: Rec; w: Worker; i: number }): JSX.Element {
-  if (promptBlockedOf(r)) return <details class="cv-sec cv-prompt"><summary class="cv-sl">プロンプト（hire のときに渡る文）</summary><span class="cv-note">{PROMPT_BLOCKED}</span></details>;
-  if (!w.purpose) return <details class="cv-sec cv-prompt"><summary class="cv-sl">プロンプト（hire のときに渡る文）</summary><span class="cv-note">目的を書くと、hire のときに渡る文が出ます。</span></details>;
+  if (promptBlockedOf(r)) return <details class="cv-sec cv-prompt" open><summary class="cv-sl">プロンプト（hire のときに渡る文）</summary><span class="cv-note">{PROMPT_BLOCKED}</span></details>;
+  if (!w.purpose) return <details class="cv-sec cv-prompt" open><summary class="cv-sl">プロンプト（hire のときに渡る文）</summary><span class="cv-note">目的を書くと、hire のときに渡る文が出ます。</span></details>;
   const pv: WorkerPromptText | null = workerPrompt(r, i);
   let body: ComponentChildren;
   if (!pv) body = <span class="cv-note">プロンプトを読んでいます。</span>;
@@ -144,5 +145,20 @@ export function WorkerPromptSection({ r, w, i }: { r: Rec; w: Worker; i: number 
       return <>{label}<PLines lines={lines} a={a} b={b} slot={slotText} /></>;
     });
   }
-  return <details class="cv-sec cv-prompt"><summary class="cv-sl">プロンプト（hire のときに渡る文）</summary><div class="cv-pr">{body}</div></details>;
+  return <details class="cv-sec cv-prompt" open><summary class="cv-sl">プロンプト（hire のときに渡る文）</summary><div class="cv-pr">{body}</div></details>;
+}
+
+
+// PromptView is the プロンプト tab (r-f0be, d-87f5): what hergy hands the thing
+// the person picked, and nothing when the pick is not something a prompt is
+// built for. The attribute tab no longer carries these.
+export function PromptView({ r }: { r: Rec }): JSX.Element {
+  const sel = selOf(r);
+  const m = sel && sel.type === 'node' && sel.id !== 'human' ? memberOf(r.draft.value, sel.id) : undefined;
+  if (m) return <MemberPrompt r={r} m={m} />;
+  if (sel && sel.type === 'worker') {
+    const w = r.draft.value.workers[sel.i];
+    if (w) return <WorkerPromptSection r={r} w={w} i={sel.i} />;
+  }
+  return <p class="cv-note cv-prompt-none">メンバーかワーカーを選ぶと、そのプロンプトがここに出ます。</p>;
 }

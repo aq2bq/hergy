@@ -26,6 +26,8 @@ test('a worker\'s prompt shows the slots its name and task stand in', async () =
 
   click(document.querySelector('.tdef[data-name="core"] .cv-n.worker'));
   await settle();
+  click(document.querySelector('.tdef[data-name="core"] [data-cv-side="prompt"]'));
+  await settle();
 
   const box = document.querySelector('.tdef[data-name="core"] .cv-prompt');
   expect(box).not.toBe(null);

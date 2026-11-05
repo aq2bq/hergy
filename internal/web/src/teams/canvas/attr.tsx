@@ -6,7 +6,6 @@ import type { ComponentChildren, JSX } from 'preact';
 import { hasTurn, memberOf, nodeName, profilesFor, rolesFor, teamIssues } from '../state.js';
 import type { Finding, Member, Rec, RoleName, Team, Worker } from '../state.js';
 import { NAME, selOf, typedOf } from './shared.js';
-import { MemberPrompt, WorkerPromptSection } from './prompt.js';
 import { Field } from '../../lib/field.js';
 import { RoleButton } from '../role-modal.js';
 
@@ -136,7 +135,6 @@ export function SideAttr({ r }: { r: Rec }): JSX.Element | null {
           <span class="sel"><select id={`cv-wpf-${r.uid}`} data-cv-f="w-profile">{profs.map((p) => <Opt v={p} on={p === w.profile}>{p}</Opt>)}</select></span>
           <span class="cv-sub">ワーカーは規則を受けない。安いプロファイルで</span>
         </div>
-        <WorkerPromptSection r={r} w={w} i={sel.i} />
         <button class="btn danger sm cv-danger" type="button" data-cv-act="del">ワーカーを外す</button>
       </>
     );
@@ -197,7 +195,6 @@ export function SideAttr({ r }: { r: Rec }): JSX.Element | null {
         )) : <span class="cv-empty">なし</span>}
         <button class="btn sm cv-danger" type="button" data-cv-act="w-add">＋ ワーカー</button>
       </div>
-      <MemberPrompt r={r} m={m} />
       <div class="cv-sec"><button class="btn sm" type="button" data-cv-act="m-copy">複製</button><span class="cv-note">同じロール・プロファイル・ターンの相手・ワーカーの目的で、もう 1 人足す</span></div>
       <div class="cv-sec"><button class="btn danger sm cv-danger" type="button" data-cv-act="del">メンバーを外す</button><span class="cv-note">ターン {nt} 本とワーカー {ws.length} 件も一緒に外れる。<span class="cv-kbd">⌘Z</span> で取り消せる。</span></div>
     </>

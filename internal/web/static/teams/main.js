@@ -3022,6 +3022,680 @@ function Menu({ r }) {
   });
 }
 
+// teams/canvas/attr.tsx
+function Opt({ v, on, children }) {
+  return /* @__PURE__ */ u("option", {
+    value: v,
+    selected: on,
+    ref: (el) => {
+      if (el)
+        el.toggleAttribute("selected", !!on);
+    },
+    children
+  });
+}
+function diffList(r) {
+  const s = r.saved.value, t = r.draft.value, out = [];
+  const sm = new Map(s.members.map((m) => [m.name, m])), cm = new Map(t.members.map((m) => [m.name, m]));
+  if (s.description !== t.description)
+    out.push(["c", `説明: ${t.description}`]);
+  cm.forEach((m, n) => {
+    if (!sm.has(n))
+      out.push(["a", `メンバー ${n}（${m.role} · ${m.profile}）`]);
+    else {
+      const o = sm.get(n);
+      if (o && o.role !== m.role)
+        out.push(["c", `${n} のロール ${o.role} → ${m.role}`]);
+      if (o && o.profile !== m.profile)
+        out.push(["c", `${n} のプロファイル ${o.profile} → ${m.profile}`]);
+    }
+  });
+  sm.forEach((_m, n) => {
+    if (!cm.has(n))
+      out.push(["d", `メンバー ${n}`]);
+  });
+  const sw = new Map(s.workers.map((w) => [w.from + "\x00" + w.purpose, w])), cw = new Map(t.workers.map((w) => [w.from + "\x00" + w.purpose, w]));
+  cw.forEach((w, k) => {
+    if (!sw.has(k))
+      out.push(["a", `ワーカー ${w.purpose || "（目的）"}（${w.from} · ${w.profile}）`]);
+    else {
+      const o = sw.get(k);
+      if (o && (o.purpose !== w.purpose || o.profile !== w.profile || o.from !== w.from))
+        out.push(["c", `ワーカー ${w.purpose || "（目的）"}（${w.from} · ${w.profile}）`]);
+    }
+  });
+  sw.forEach((w, k) => {
+    if (!cw.has(k))
+      out.push(["d", `ワーカー ${w.purpose || "（目的）"}`]);
+  });
+  t.turns.forEach(([a, b]) => {
+    if (!hasTurn(s, a, b))
+      out.push(["a", `ターン ${nodeName(a)} → ${nodeName(b)}`]);
+  });
+  s.turns.forEach(([a, b]) => {
+    if (!hasTurn(t, a, b))
+      out.push(["d", `ターン ${nodeName(a)} → ${nodeName(b)}`]);
+  });
+  return out;
+}
+function turnRows(t, s, id, dir) {
+  const list = dir === "out" ? t.turns.filter(([a]) => a === id).map(([, b]) => [id, b]) : t.turns.filter(([, b]) => b === id).map(([a]) => [a, id]);
+  if (!list.length)
+    return /* @__PURE__ */ u("span", {
+      class: "cv-empty",
+      children: "なし"
+    });
+  return list.map(([a, b]) => /* @__PURE__ */ u("div", {
+    class: "cv-li" + (hasTurn(s, a, b) ? "" : " new"),
+    children: [
+      /* @__PURE__ */ u("span", {
+        children: [
+          dir === "out" ? "→" : "←",
+          " ",
+          nodeName(dir === "out" ? b : a)
+        ]
+      }),
+      /* @__PURE__ */ u("button", {
+        class: "cv-x",
+        type: "button",
+        "data-cv-act": "turn-del",
+        "data-a": a,
+        "data-b": b,
+        "aria-label": `${nodeName(a)} から ${nodeName(b)} へのターンを外す`,
+        title: "外す",
+        children: "×"
+      })
+    ]
+  }));
+}
+function addTurnSel(t, id) {
+  const cand = ["human", ...t.members.map((m) => m.name)].filter((x) => x !== id && !hasTurn(t, id, x));
+  if (!cand.length)
+    return "";
+  return /* @__PURE__ */ u("span", {
+    class: "sel",
+    children: /* @__PURE__ */ u("select", {
+      "data-cv-f": "turn-add",
+      children: [
+        /* @__PURE__ */ u("option", {
+          value: "",
+          children: "＋ 渡す相手を足す"
+        }),
+        cand.map((c) => /* @__PURE__ */ u("option", {
+          value: c,
+          children: nodeName(c)
+        }))
+      ]
+    })
+  });
+}
+function fieldFindings(r, id) {
+  return (teamIssues(r) || []).filter((m) => m.node === id && (m.field === "members" || m.field === "name" || m.field === "node"));
+}
+function memberMsgs(r, t, m) {
+  const msgs = [];
+  if (!NAME.test(m.name))
+    msgs.push("英小文字で始め、英小文字・数字・ハイフン・下線で 32 文字以内にしてください");
+  if (t.members.filter((x) => x.name === m.name).length > 1)
+    msgs.push("このチームにもういます");
+  if (`${r.name.value}-${m.name}`.length > 32)
+    msgs.push(`herdr 名 ${r.name.value}-${m.name} が 32 文字を超えます`);
+  return msgs;
+}
+function SideAttr({ r }) {
+  const t = r.draft.value, s = r.saved.value, sel = selOf(r), team = r.name.value;
+  if (!sel) {
+    const d = diffList(r), humanIn = t.turns.some(([, b]) => b === "human");
+    return /* @__PURE__ */ u(S, {
+      children: [
+        /* @__PURE__ */ u("div", {
+          class: "cv-t",
+          children: [
+            /* @__PURE__ */ u("code", {
+              children: team
+            }),
+            /* @__PURE__ */ u("span", {
+              class: "cv-k",
+              children: "チーム定義"
+            })
+          ]
+        }),
+        /* @__PURE__ */ u("div", {
+          class: "cv-f",
+          children: [
+            /* @__PURE__ */ u("label", {
+              for: `cv-mi-${r.uid}`,
+              children: "説明"
+            }),
+            /* @__PURE__ */ u(Field, {
+              id: `cv-mi-${r.uid}`,
+              class: "cv-body in-description",
+              "data-cv-f": "description",
+              value: t.description,
+              autocomplete: "off",
+              spellcheck: false
+            })
+          ]
+        }),
+        /* @__PURE__ */ u("div", {
+          class: "cv-note",
+          children: [
+            "メンバー ",
+            t.members.length,
+            " · ワーカー ",
+            t.workers.length,
+            " · ターン ",
+            t.turns.length
+          ]
+        }),
+        humanIn ? "" : /* @__PURE__ */ u("div", {
+          class: "cv-warn",
+          children: "人間に届くターンがありません。人間の点の縁の丸から、または人間へ渡すメンバーの縁の丸から、線を引いてください"
+        }),
+        d.length ? /* @__PURE__ */ u("div", {
+          class: "cv-sec",
+          children: [
+            /* @__PURE__ */ u("span", {
+              class: "cv-sl",
+              children: [
+                "保存していない変更 ",
+                d.length
+              ]
+            }),
+            /* @__PURE__ */ u("div", {
+              class: "cv-diff",
+              children: d.map(([k, x]) => /* @__PURE__ */ u("span", {
+                class: "cv-" + k,
+                children: [
+                  k === "a" ? "+ " : k === "d" ? "− " : "~ ",
+                  x
+                ]
+              }))
+            })
+          ]
+        }) : null,
+        /* @__PURE__ */ u("div", {
+          class: "cv-sec",
+          children: [
+            /* @__PURE__ */ u("span", {
+              class: "cv-sl",
+              children: "操作"
+            }),
+            /* @__PURE__ */ u("span", {
+              class: "cv-note",
+              children: [
+                "点や線を押すと、ここにその属性が出る。選んだ点の縁の丸から、ほかの点へ引くとターンができる。",
+                /* @__PURE__ */ u("span", {
+                  class: "cv-kbd",
+                  children: "Delete"
+                }),
+                " で外す、",
+                /* @__PURE__ */ u("span", {
+                  class: "cv-kbd",
+                  children: "Esc"
+                }),
+                " で選ぶのをやめる、",
+                /* @__PURE__ */ u("span", {
+                  class: "cv-kbd",
+                  children: "⌘Z"
+                }),
+                " で 1 つ取り消す。"
+              ]
+            })
+          ]
+        })
+      ]
+    });
+  }
+  if (sel.type === "edge") {
+    const [a, b] = sel.k.split("|");
+    const row = (p, q) => hasTurn(t, p, q) ? /* @__PURE__ */ u("div", {
+      class: "cv-li" + (hasTurn(s, p, q) ? "" : " new"),
+      children: [
+        /* @__PURE__ */ u("span", {
+          children: [
+            nodeName(p),
+            " → ",
+            nodeName(q)
+          ]
+        }),
+        /* @__PURE__ */ u("button", {
+          class: "cv-x",
+          type: "button",
+          "data-cv-act": "turn-del",
+          "data-a": p,
+          "data-b": q,
+          title: "外す",
+          "aria-label": "外す",
+          children: "×"
+        })
+      ]
+    }) : /* @__PURE__ */ u("div", {
+      class: "cv-li",
+      children: [
+        /* @__PURE__ */ u("span", {
+          class: "cv-empty",
+          children: [
+            nodeName(p),
+            " → ",
+            nodeName(q)
+          ]
+        }),
+        /* @__PURE__ */ u("button", {
+          class: "btn sm",
+          type: "button",
+          "data-cv-act": "turn-add",
+          "data-a": p,
+          "data-b": q,
+          children: "この向きも足す"
+        })
+      ]
+    });
+    return /* @__PURE__ */ u(S, {
+      children: [
+        /* @__PURE__ */ u("div", {
+          class: "cv-t",
+          children: [
+            /* @__PURE__ */ u("code", {
+              children: `${nodeName(a)} ⇄ ${nodeName(b)}`
+            }),
+            /* @__PURE__ */ u("span", {
+              class: "cv-k",
+              children: "ターン"
+            })
+          ]
+        }),
+        /* @__PURE__ */ u("div", {
+          class: "cv-sec",
+          children: [
+            /* @__PURE__ */ u("span", {
+              class: "cv-sl",
+              children: "向き"
+            }),
+            row(a, b),
+            row(b, a)
+          ]
+        }),
+        /* @__PURE__ */ u("div", {
+          class: "cv-note",
+          children: [
+            /* @__PURE__ */ u("span", {
+              class: "cv-kbd",
+              children: "Delete"
+            }),
+            " で両方の向きを外す。"
+          ]
+        })
+      ]
+    });
+  }
+  if (sel.type === "worker") {
+    const w = t.workers[sel.i];
+    if (!w)
+      return null;
+    const profs = (profilesFor(r).includes(w.profile) ? [] : [w.profile]).concat(profilesFor(r));
+    return /* @__PURE__ */ u(S, {
+      children: [
+        /* @__PURE__ */ u("div", {
+          class: "cv-t",
+          children: [
+            /* @__PURE__ */ u("code", {
+              children: w.purpose || "（目的）"
+            }),
+            /* @__PURE__ */ u("span", {
+              class: "cv-k",
+              children: "ワーカー"
+            })
+          ]
+        }),
+        /* @__PURE__ */ u("div", {
+          class: "cv-f",
+          children: [
+            /* @__PURE__ */ u("label", {
+              for: `cv-wp-${r.uid}`,
+              children: "目的"
+            }),
+            /* @__PURE__ */ u(Field, {
+              id: `cv-wp-${r.uid}`,
+              "data-cv-f": "w-purpose",
+              value: w.purpose,
+              placeholder: "例: 調べ物",
+              autocomplete: "off",
+              spellcheck: false
+            })
+          ]
+        }),
+        /* @__PURE__ */ u("div", {
+          class: "cv-f",
+          children: [
+            /* @__PURE__ */ u("label", {
+              for: `cv-wf-${r.uid}`,
+              children: "追加するメンバー"
+            }),
+            /* @__PURE__ */ u("span", {
+              class: "sel",
+              children: /* @__PURE__ */ u("select", {
+                id: `cv-wf-${r.uid}`,
+                "data-cv-f": "w-from",
+                children: t.members.map((m) => /* @__PURE__ */ u(Opt, {
+                  v: m.name,
+                  on: m.name === w.from,
+                  children: m.name
+                }))
+              })
+            })
+          ]
+        }),
+        /* @__PURE__ */ u("div", {
+          class: "cv-f",
+          children: [
+            /* @__PURE__ */ u("label", {
+              for: `cv-wpf-${r.uid}`,
+              children: "プロファイル"
+            }),
+            /* @__PURE__ */ u("span", {
+              class: "sel",
+              children: /* @__PURE__ */ u("select", {
+                id: `cv-wpf-${r.uid}`,
+                "data-cv-f": "w-profile",
+                children: profs.map((p) => /* @__PURE__ */ u(Opt, {
+                  v: p,
+                  on: p === w.profile,
+                  children: p
+                }))
+              })
+            }),
+            /* @__PURE__ */ u("span", {
+              class: "cv-sub",
+              children: "ワーカーは規則を受けない。安いプロファイルで"
+            })
+          ]
+        }),
+        /* @__PURE__ */ u("button", {
+          class: "btn danger sm cv-danger",
+          type: "button",
+          "data-cv-act": "del",
+          children: "ワーカーを外す"
+        })
+      ]
+    });
+  }
+  const id = sel.id;
+  if (id === "human") {
+    return /* @__PURE__ */ u(S, {
+      children: [
+        /* @__PURE__ */ u("div", {
+          class: "cv-t",
+          children: [
+            /* @__PURE__ */ u("code", {
+              children: "人間"
+            }),
+            /* @__PURE__ */ u("span", {
+              class: "cv-k",
+              children: "あなた。チームに 1 人だけで、外せない"
+            })
+          ]
+        }),
+        /* @__PURE__ */ u("div", {
+          class: "cv-sec",
+          children: [
+            /* @__PURE__ */ u("span", {
+              class: "cv-sl",
+              children: "ターンを渡す相手"
+            }),
+            turnRows(t, s, id, "out"),
+            addTurnSel(t, id)
+          ]
+        }),
+        /* @__PURE__ */ u("div", {
+          class: "cv-sec",
+          children: [
+            /* @__PURE__ */ u("span", {
+              class: "cv-sl",
+              children: "ターンを受け取る相手"
+            }),
+            turnRows(t, s, id, "in")
+          ]
+        })
+      ]
+    });
+  }
+  const m = memberOf(t, id);
+  if (!m)
+    return null;
+  const typed = typedOf(r);
+  const mine = typed && typed.id === id ? typed : null;
+  const msgs = (mine ? mine.msgs : memberMsgs(r, t, m)).concat(fieldFindings(r, id).map((x) => x.text));
+  const outs = t.turns.filter(([a]) => a === id).map(([, b]) => b);
+  const ws = t.workers.map((w, i) => ({ w, i })).filter((z) => z.w.from === id);
+  const nt = t.turns.filter(([a, b]) => a === id || b === id).length;
+  const role = (rolesFor(r) || []).find((x) => x.name === m.role);
+  return /* @__PURE__ */ u(S, {
+    children: [
+      /* @__PURE__ */ u("div", {
+        class: "cv-t",
+        children: [
+          /* @__PURE__ */ u("code", {
+            children: m.name
+          }),
+          /* @__PURE__ */ u("span", {
+            class: "cv-k",
+            children: [
+              "メンバー",
+              role && role.title ? ` · ${role.title}` : ""
+            ]
+          })
+        ]
+      }),
+      /* @__PURE__ */ u("div", {
+        class: "cv-f",
+        children: [
+          /* @__PURE__ */ u("label", {
+            for: `cv-mn-${r.uid}`,
+            children: "メンバー名"
+          }),
+          /* @__PURE__ */ u(Field, {
+            id: `cv-mn-${r.uid}`,
+            "data-cv-f": "m-name",
+            value: mine ? mine.value : m.name,
+            spellcheck: false,
+            autocomplete: "off"
+          }),
+          msgs.map((x) => /* @__PURE__ */ u("span", {
+            class: "cv-msg",
+            children: x
+          })),
+          /* @__PURE__ */ u("span", {
+            class: "cv-sub",
+            children: [
+              "herdr 名 ",
+              `${team}-${m.name}`
+            ]
+          })
+        ]
+      }),
+      /* @__PURE__ */ u("div", {
+        class: "cv-f",
+        children: [
+          /* @__PURE__ */ u("label", {
+            for: `cv-mr-${r.uid}`,
+            children: "ロール"
+          }),
+          /* @__PURE__ */ u("span", {
+            class: "sel",
+            children: /* @__PURE__ */ u("select", {
+              id: `cv-mr-${r.uid}`,
+              "data-cv-f": "m-role",
+              children: [
+                role ? null : /* @__PURE__ */ u("option", {
+                  value: "",
+                  disabled: true,
+                  selected: true,
+                  children: "ロールを選ぶ"
+                }),
+                (rolesFor(r) || []).map((x) => /* @__PURE__ */ u(Opt, {
+                  v: x.name,
+                  on: x.name === m.role,
+                  children: [
+                    x.name,
+                    x.title ? ` · ${x.title}` : ""
+                  ]
+                }))
+              ]
+            })
+          }),
+          /* @__PURE__ */ u(RoleButton, {
+            r,
+            name: m.role
+          })
+        ]
+      }),
+      /* @__PURE__ */ u("div", {
+        class: "cv-f",
+        children: [
+          /* @__PURE__ */ u("label", {
+            for: `cv-mp-${r.uid}`,
+            children: "プロファイル"
+          }),
+          /* @__PURE__ */ u("span", {
+            class: "sel",
+            children: /* @__PURE__ */ u("select", {
+              id: `cv-mp-${r.uid}`,
+              "data-cv-f": "m-profile",
+              children: [
+                profilesFor(r).includes(m.profile) ? null : /* @__PURE__ */ u("option", {
+                  value: "",
+                  disabled: true,
+                  selected: true,
+                  children: "プロファイルを選ぶ"
+                }),
+                profilesFor(r).map((p) => /* @__PURE__ */ u(Opt, {
+                  v: p,
+                  on: p === m.profile,
+                  children: p
+                }))
+              ]
+            })
+          })
+        ]
+      }),
+      /* @__PURE__ */ u("div", {
+        class: "cv-sec",
+        children: [
+          /* @__PURE__ */ u("span", {
+            class: "cv-sl",
+            children: "ターンを渡す相手"
+          }),
+          turnRows(t, s, id, "out"),
+          outs.length ? "" : /* @__PURE__ */ u("span", {
+            class: "cv-note",
+            children: "まだ誰にもターンを渡していません。縁の丸から、渡す相手の点へ引いてください"
+          }),
+          addTurnSel(t, id)
+        ]
+      }),
+      /* @__PURE__ */ u("div", {
+        class: "cv-sec",
+        children: [
+          /* @__PURE__ */ u("span", {
+            class: "cv-sl",
+            children: "ターンを受け取る相手"
+          }),
+          turnRows(t, s, id, "in")
+        ]
+      }),
+      /* @__PURE__ */ u("div", {
+        class: "cv-sec",
+        children: [
+          /* @__PURE__ */ u("span", {
+            class: "cv-sl",
+            children: "ワーカー"
+          }),
+          ws.length ? ws.map(({ w, i }) => /* @__PURE__ */ u("div", {
+            class: "cv-li" + (s.workers.some((x) => x.from === w.from && x.purpose === w.purpose) ? "" : " new"),
+            children: [
+              /* @__PURE__ */ u("span", {
+                children: `${w.purpose || "（目的）"} · ${w.profile}`
+              }),
+              /* @__PURE__ */ u("span", {
+                class: "cv-liend",
+                children: [
+                  /* @__PURE__ */ u("button", {
+                    class: "cv-link",
+                    type: "button",
+                    "data-cv-act": "pick-w",
+                    "data-i": i,
+                    children: "選ぶ"
+                  }),
+                  /* @__PURE__ */ u("button", {
+                    class: "cv-x",
+                    type: "button",
+                    "data-cv-act": "w-del",
+                    "data-i": i,
+                    title: "外す",
+                    "aria-label": "外す",
+                    children: "×"
+                  })
+                ]
+              })
+            ]
+          })) : /* @__PURE__ */ u("span", {
+            class: "cv-empty",
+            children: "なし"
+          }),
+          /* @__PURE__ */ u("button", {
+            class: "btn sm cv-danger",
+            type: "button",
+            "data-cv-act": "w-add",
+            children: "＋ ワーカー"
+          })
+        ]
+      }),
+      /* @__PURE__ */ u("div", {
+        class: "cv-sec",
+        children: [
+          /* @__PURE__ */ u("button", {
+            class: "btn sm",
+            type: "button",
+            "data-cv-act": "m-copy",
+            children: "複製"
+          }),
+          /* @__PURE__ */ u("span", {
+            class: "cv-note",
+            children: "同じロール・プロファイル・ターンの相手・ワーカーの目的で、もう 1 人足す"
+          })
+        ]
+      }),
+      /* @__PURE__ */ u("div", {
+        class: "cv-sec",
+        children: [
+          /* @__PURE__ */ u("button", {
+            class: "btn danger sm cv-danger",
+            type: "button",
+            "data-cv-act": "del",
+            children: "メンバーを外す"
+          }),
+          /* @__PURE__ */ u("span", {
+            class: "cv-note",
+            children: [
+              "ターン ",
+              nt,
+              " 本とワーカー ",
+              ws.length,
+              " 件も一緒に外れる。",
+              /* @__PURE__ */ u("span", {
+                class: "cv-kbd",
+                children: "⌘Z"
+              }),
+              " で取り消せる。"
+            ]
+          })
+        ]
+      })
+    ]
+  });
+}
+
 // teams/canvas/prompt-origins.tsx
 var topologySections = [
   ["roster", "名簿"],
@@ -3543,6 +4217,7 @@ function WorkerPromptSection({ r, w, i }) {
   if (promptBlockedOf(r))
     return /* @__PURE__ */ u("details", {
       class: "cv-sec cv-prompt",
+      open: true,
       children: [
         /* @__PURE__ */ u("summary", {
           class: "cv-sl",
@@ -3557,6 +4232,7 @@ function WorkerPromptSection({ r, w, i }) {
   if (!w.purpose)
     return /* @__PURE__ */ u("details", {
       class: "cv-sec cv-prompt",
+      open: true,
       children: [
         /* @__PURE__ */ u("summary", {
           class: "cv-sl",
@@ -3700,6 +4376,7 @@ function WorkerPromptSection({ r, w, i }) {
   }
   return /* @__PURE__ */ u("details", {
     class: "cv-sec cv-prompt",
+    open: true,
     children: [
       /* @__PURE__ */ u("summary", {
         class: "cv-sl",
@@ -3712,687 +4389,26 @@ function WorkerPromptSection({ r, w, i }) {
     ]
   });
 }
-
-// teams/canvas/attr.tsx
-function Opt({ v, on, children }) {
-  return /* @__PURE__ */ u("option", {
-    value: v,
-    selected: on,
-    ref: (el) => {
-      if (el)
-        el.toggleAttribute("selected", !!on);
-    },
-    children
-  });
-}
-function diffList(r) {
-  const s = r.saved.value, t = r.draft.value, out = [];
-  const sm = new Map(s.members.map((m) => [m.name, m])), cm = new Map(t.members.map((m) => [m.name, m]));
-  if (s.description !== t.description)
-    out.push(["c", `説明: ${t.description}`]);
-  cm.forEach((m, n) => {
-    if (!sm.has(n))
-      out.push(["a", `メンバー ${n}（${m.role} · ${m.profile}）`]);
-    else {
-      const o = sm.get(n);
-      if (o && o.role !== m.role)
-        out.push(["c", `${n} のロール ${o.role} → ${m.role}`]);
-      if (o && o.profile !== m.profile)
-        out.push(["c", `${n} のプロファイル ${o.profile} → ${m.profile}`]);
-    }
-  });
-  sm.forEach((_m, n) => {
-    if (!cm.has(n))
-      out.push(["d", `メンバー ${n}`]);
-  });
-  const sw = new Map(s.workers.map((w) => [w.from + "\x00" + w.purpose, w])), cw = new Map(t.workers.map((w) => [w.from + "\x00" + w.purpose, w]));
-  cw.forEach((w, k) => {
-    if (!sw.has(k))
-      out.push(["a", `ワーカー ${w.purpose || "（目的）"}（${w.from} · ${w.profile}）`]);
-    else {
-      const o = sw.get(k);
-      if (o && (o.purpose !== w.purpose || o.profile !== w.profile || o.from !== w.from))
-        out.push(["c", `ワーカー ${w.purpose || "（目的）"}（${w.from} · ${w.profile}）`]);
-    }
-  });
-  sw.forEach((w, k) => {
-    if (!cw.has(k))
-      out.push(["d", `ワーカー ${w.purpose || "（目的）"}`]);
-  });
-  t.turns.forEach(([a, b]) => {
-    if (!hasTurn(s, a, b))
-      out.push(["a", `ターン ${nodeName(a)} → ${nodeName(b)}`]);
-  });
-  s.turns.forEach(([a, b]) => {
-    if (!hasTurn(t, a, b))
-      out.push(["d", `ターン ${nodeName(a)} → ${nodeName(b)}`]);
-  });
-  return out;
-}
-function turnRows(t, s, id, dir) {
-  const list = dir === "out" ? t.turns.filter(([a]) => a === id).map(([, b]) => [id, b]) : t.turns.filter(([, b]) => b === id).map(([a]) => [a, id]);
-  if (!list.length)
-    return /* @__PURE__ */ u("span", {
-      class: "cv-empty",
-      children: "なし"
+function PromptView({ r }) {
+  const sel = selOf(r);
+  const m = sel && sel.type === "node" && sel.id !== "human" ? memberOf(r.draft.value, sel.id) : undefined;
+  if (m)
+    return /* @__PURE__ */ u(MemberPrompt, {
+      r,
+      m
     });
-  return list.map(([a, b]) => /* @__PURE__ */ u("div", {
-    class: "cv-li" + (hasTurn(s, a, b) ? "" : " new"),
-    children: [
-      /* @__PURE__ */ u("span", {
-        children: [
-          dir === "out" ? "→" : "←",
-          " ",
-          nodeName(dir === "out" ? b : a)
-        ]
-      }),
-      /* @__PURE__ */ u("button", {
-        class: "cv-x",
-        type: "button",
-        "data-cv-act": "turn-del",
-        "data-a": a,
-        "data-b": b,
-        "aria-label": `${nodeName(a)} から ${nodeName(b)} へのターンを外す`,
-        title: "外す",
-        children: "×"
-      })
-    ]
-  }));
-}
-function addTurnSel(t, id) {
-  const cand = ["human", ...t.members.map((m) => m.name)].filter((x) => x !== id && !hasTurn(t, id, x));
-  if (!cand.length)
-    return "";
-  return /* @__PURE__ */ u("span", {
-    class: "sel",
-    children: /* @__PURE__ */ u("select", {
-      "data-cv-f": "turn-add",
-      children: [
-        /* @__PURE__ */ u("option", {
-          value: "",
-          children: "＋ 渡す相手を足す"
-        }),
-        cand.map((c) => /* @__PURE__ */ u("option", {
-          value: c,
-          children: nodeName(c)
-        }))
-      ]
-    })
-  });
-}
-function fieldFindings(r, id) {
-  return (teamIssues(r) || []).filter((m) => m.node === id && (m.field === "members" || m.field === "name" || m.field === "node"));
-}
-function memberMsgs(r, t, m) {
-  const msgs = [];
-  if (!NAME.test(m.name))
-    msgs.push("英小文字で始め、英小文字・数字・ハイフン・下線で 32 文字以内にしてください");
-  if (t.members.filter((x) => x.name === m.name).length > 1)
-    msgs.push("このチームにもういます");
-  if (`${r.name.value}-${m.name}`.length > 32)
-    msgs.push(`herdr 名 ${r.name.value}-${m.name} が 32 文字を超えます`);
-  return msgs;
-}
-function SideAttr({ r }) {
-  const t = r.draft.value, s = r.saved.value, sel = selOf(r), team = r.name.value;
-  if (!sel) {
-    const d = diffList(r), humanIn = t.turns.some(([, b]) => b === "human");
-    return /* @__PURE__ */ u(S, {
-      children: [
-        /* @__PURE__ */ u("div", {
-          class: "cv-t",
-          children: [
-            /* @__PURE__ */ u("code", {
-              children: team
-            }),
-            /* @__PURE__ */ u("span", {
-              class: "cv-k",
-              children: "チーム定義"
-            })
-          ]
-        }),
-        /* @__PURE__ */ u("div", {
-          class: "cv-f",
-          children: [
-            /* @__PURE__ */ u("label", {
-              for: `cv-mi-${r.uid}`,
-              children: "説明"
-            }),
-            /* @__PURE__ */ u(Field, {
-              id: `cv-mi-${r.uid}`,
-              class: "cv-body in-description",
-              "data-cv-f": "description",
-              value: t.description,
-              autocomplete: "off",
-              spellcheck: false
-            })
-          ]
-        }),
-        /* @__PURE__ */ u("div", {
-          class: "cv-note",
-          children: [
-            "メンバー ",
-            t.members.length,
-            " · ワーカー ",
-            t.workers.length,
-            " · ターン ",
-            t.turns.length
-          ]
-        }),
-        humanIn ? "" : /* @__PURE__ */ u("div", {
-          class: "cv-warn",
-          children: "人間に届くターンがありません。人間の点の縁の丸から、または人間へ渡すメンバーの縁の丸から、線を引いてください"
-        }),
-        d.length ? /* @__PURE__ */ u("div", {
-          class: "cv-sec",
-          children: [
-            /* @__PURE__ */ u("span", {
-              class: "cv-sl",
-              children: [
-                "保存していない変更 ",
-                d.length
-              ]
-            }),
-            /* @__PURE__ */ u("div", {
-              class: "cv-diff",
-              children: d.map(([k, x]) => /* @__PURE__ */ u("span", {
-                class: "cv-" + k,
-                children: [
-                  k === "a" ? "+ " : k === "d" ? "− " : "~ ",
-                  x
-                ]
-              }))
-            })
-          ]
-        }) : null,
-        /* @__PURE__ */ u("div", {
-          class: "cv-sec",
-          children: [
-            /* @__PURE__ */ u("span", {
-              class: "cv-sl",
-              children: "操作"
-            }),
-            /* @__PURE__ */ u("span", {
-              class: "cv-note",
-              children: [
-                "点や線を押すと、ここにその属性が出る。選んだ点の縁の丸から、ほかの点へ引くとターンができる。",
-                /* @__PURE__ */ u("span", {
-                  class: "cv-kbd",
-                  children: "Delete"
-                }),
-                " で外す、",
-                /* @__PURE__ */ u("span", {
-                  class: "cv-kbd",
-                  children: "Esc"
-                }),
-                " で選ぶのをやめる、",
-                /* @__PURE__ */ u("span", {
-                  class: "cv-kbd",
-                  children: "⌘Z"
-                }),
-                " で 1 つ取り消す。"
-              ]
-            })
-          ]
-        })
-      ]
-    });
-  }
-  if (sel.type === "edge") {
-    const [a, b] = sel.k.split("|");
-    const row = (p, q) => hasTurn(t, p, q) ? /* @__PURE__ */ u("div", {
-      class: "cv-li" + (hasTurn(s, p, q) ? "" : " new"),
-      children: [
-        /* @__PURE__ */ u("span", {
-          children: [
-            nodeName(p),
-            " → ",
-            nodeName(q)
-          ]
-        }),
-        /* @__PURE__ */ u("button", {
-          class: "cv-x",
-          type: "button",
-          "data-cv-act": "turn-del",
-          "data-a": p,
-          "data-b": q,
-          title: "外す",
-          "aria-label": "外す",
-          children: "×"
-        })
-      ]
-    }) : /* @__PURE__ */ u("div", {
-      class: "cv-li",
-      children: [
-        /* @__PURE__ */ u("span", {
-          class: "cv-empty",
-          children: [
-            nodeName(p),
-            " → ",
-            nodeName(q)
-          ]
-        }),
-        /* @__PURE__ */ u("button", {
-          class: "btn sm",
-          type: "button",
-          "data-cv-act": "turn-add",
-          "data-a": p,
-          "data-b": q,
-          children: "この向きも足す"
-        })
-      ]
-    });
-    return /* @__PURE__ */ u(S, {
-      children: [
-        /* @__PURE__ */ u("div", {
-          class: "cv-t",
-          children: [
-            /* @__PURE__ */ u("code", {
-              children: `${nodeName(a)} ⇄ ${nodeName(b)}`
-            }),
-            /* @__PURE__ */ u("span", {
-              class: "cv-k",
-              children: "ターン"
-            })
-          ]
-        }),
-        /* @__PURE__ */ u("div", {
-          class: "cv-sec",
-          children: [
-            /* @__PURE__ */ u("span", {
-              class: "cv-sl",
-              children: "向き"
-            }),
-            row(a, b),
-            row(b, a)
-          ]
-        }),
-        /* @__PURE__ */ u("div", {
-          class: "cv-note",
-          children: [
-            /* @__PURE__ */ u("span", {
-              class: "cv-kbd",
-              children: "Delete"
-            }),
-            " で両方の向きを外す。"
-          ]
-        })
-      ]
-    });
-  }
-  if (sel.type === "worker") {
-    const w = t.workers[sel.i];
-    if (!w)
-      return null;
-    const profs = (profilesFor(r).includes(w.profile) ? [] : [w.profile]).concat(profilesFor(r));
-    return /* @__PURE__ */ u(S, {
-      children: [
-        /* @__PURE__ */ u("div", {
-          class: "cv-t",
-          children: [
-            /* @__PURE__ */ u("code", {
-              children: w.purpose || "（目的）"
-            }),
-            /* @__PURE__ */ u("span", {
-              class: "cv-k",
-              children: "ワーカー"
-            })
-          ]
-        }),
-        /* @__PURE__ */ u("div", {
-          class: "cv-f",
-          children: [
-            /* @__PURE__ */ u("label", {
-              for: `cv-wp-${r.uid}`,
-              children: "目的"
-            }),
-            /* @__PURE__ */ u(Field, {
-              id: `cv-wp-${r.uid}`,
-              "data-cv-f": "w-purpose",
-              value: w.purpose,
-              placeholder: "例: 調べ物",
-              autocomplete: "off",
-              spellcheck: false
-            })
-          ]
-        }),
-        /* @__PURE__ */ u("div", {
-          class: "cv-f",
-          children: [
-            /* @__PURE__ */ u("label", {
-              for: `cv-wf-${r.uid}`,
-              children: "追加するメンバー"
-            }),
-            /* @__PURE__ */ u("span", {
-              class: "sel",
-              children: /* @__PURE__ */ u("select", {
-                id: `cv-wf-${r.uid}`,
-                "data-cv-f": "w-from",
-                children: t.members.map((m) => /* @__PURE__ */ u(Opt, {
-                  v: m.name,
-                  on: m.name === w.from,
-                  children: m.name
-                }))
-              })
-            })
-          ]
-        }),
-        /* @__PURE__ */ u("div", {
-          class: "cv-f",
-          children: [
-            /* @__PURE__ */ u("label", {
-              for: `cv-wpf-${r.uid}`,
-              children: "プロファイル"
-            }),
-            /* @__PURE__ */ u("span", {
-              class: "sel",
-              children: /* @__PURE__ */ u("select", {
-                id: `cv-wpf-${r.uid}`,
-                "data-cv-f": "w-profile",
-                children: profs.map((p) => /* @__PURE__ */ u(Opt, {
-                  v: p,
-                  on: p === w.profile,
-                  children: p
-                }))
-              })
-            }),
-            /* @__PURE__ */ u("span", {
-              class: "cv-sub",
-              children: "ワーカーは規則を受けない。安いプロファイルで"
-            })
-          ]
-        }),
-        /* @__PURE__ */ u(WorkerPromptSection, {
-          r,
-          w,
-          i: sel.i
-        }),
-        /* @__PURE__ */ u("button", {
-          class: "btn danger sm cv-danger",
-          type: "button",
-          "data-cv-act": "del",
-          children: "ワーカーを外す"
-        })
-      ]
-    });
-  }
-  const id = sel.id;
-  if (id === "human") {
-    return /* @__PURE__ */ u(S, {
-      children: [
-        /* @__PURE__ */ u("div", {
-          class: "cv-t",
-          children: [
-            /* @__PURE__ */ u("code", {
-              children: "人間"
-            }),
-            /* @__PURE__ */ u("span", {
-              class: "cv-k",
-              children: "あなた。チームに 1 人だけで、外せない"
-            })
-          ]
-        }),
-        /* @__PURE__ */ u("div", {
-          class: "cv-sec",
-          children: [
-            /* @__PURE__ */ u("span", {
-              class: "cv-sl",
-              children: "ターンを渡す相手"
-            }),
-            turnRows(t, s, id, "out"),
-            addTurnSel(t, id)
-          ]
-        }),
-        /* @__PURE__ */ u("div", {
-          class: "cv-sec",
-          children: [
-            /* @__PURE__ */ u("span", {
-              class: "cv-sl",
-              children: "ターンを受け取る相手"
-            }),
-            turnRows(t, s, id, "in")
-          ]
-        })
-      ]
-    });
-  }
-  const m = memberOf(t, id);
-  if (!m)
-    return null;
-  const typed = typedOf(r);
-  const mine = typed && typed.id === id ? typed : null;
-  const msgs = (mine ? mine.msgs : memberMsgs(r, t, m)).concat(fieldFindings(r, id).map((x) => x.text));
-  const outs = t.turns.filter(([a]) => a === id).map(([, b]) => b);
-  const ws = t.workers.map((w, i) => ({ w, i })).filter((z) => z.w.from === id);
-  const nt = t.turns.filter(([a, b]) => a === id || b === id).length;
-  const role = (rolesFor(r) || []).find((x) => x.name === m.role);
-  return /* @__PURE__ */ u(S, {
-    children: [
-      /* @__PURE__ */ u("div", {
-        class: "cv-t",
-        children: [
-          /* @__PURE__ */ u("code", {
-            children: m.name
-          }),
-          /* @__PURE__ */ u("span", {
-            class: "cv-k",
-            children: [
-              "メンバー",
-              role && role.title ? ` · ${role.title}` : ""
-            ]
-          })
-        ]
-      }),
-      /* @__PURE__ */ u("div", {
-        class: "cv-f",
-        children: [
-          /* @__PURE__ */ u("label", {
-            for: `cv-mn-${r.uid}`,
-            children: "メンバー名"
-          }),
-          /* @__PURE__ */ u(Field, {
-            id: `cv-mn-${r.uid}`,
-            "data-cv-f": "m-name",
-            value: mine ? mine.value : m.name,
-            spellcheck: false,
-            autocomplete: "off"
-          }),
-          msgs.map((x) => /* @__PURE__ */ u("span", {
-            class: "cv-msg",
-            children: x
-          })),
-          /* @__PURE__ */ u("span", {
-            class: "cv-sub",
-            children: [
-              "herdr 名 ",
-              `${team}-${m.name}`
-            ]
-          })
-        ]
-      }),
-      /* @__PURE__ */ u("div", {
-        class: "cv-f",
-        children: [
-          /* @__PURE__ */ u("label", {
-            for: `cv-mr-${r.uid}`,
-            children: "ロール"
-          }),
-          /* @__PURE__ */ u("span", {
-            class: "sel",
-            children: /* @__PURE__ */ u("select", {
-              id: `cv-mr-${r.uid}`,
-              "data-cv-f": "m-role",
-              children: [
-                role ? null : /* @__PURE__ */ u("option", {
-                  value: "",
-                  disabled: true,
-                  selected: true,
-                  children: "ロールを選ぶ"
-                }),
-                (rolesFor(r) || []).map((x) => /* @__PURE__ */ u(Opt, {
-                  v: x.name,
-                  on: x.name === m.role,
-                  children: [
-                    x.name,
-                    x.title ? ` · ${x.title}` : ""
-                  ]
-                }))
-              ]
-            })
-          }),
-          /* @__PURE__ */ u(RoleButton, {
-            r,
-            name: m.role
-          })
-        ]
-      }),
-      /* @__PURE__ */ u("div", {
-        class: "cv-f",
-        children: [
-          /* @__PURE__ */ u("label", {
-            for: `cv-mp-${r.uid}`,
-            children: "プロファイル"
-          }),
-          /* @__PURE__ */ u("span", {
-            class: "sel",
-            children: /* @__PURE__ */ u("select", {
-              id: `cv-mp-${r.uid}`,
-              "data-cv-f": "m-profile",
-              children: [
-                profilesFor(r).includes(m.profile) ? null : /* @__PURE__ */ u("option", {
-                  value: "",
-                  disabled: true,
-                  selected: true,
-                  children: "プロファイルを選ぶ"
-                }),
-                profilesFor(r).map((p) => /* @__PURE__ */ u(Opt, {
-                  v: p,
-                  on: p === m.profile,
-                  children: p
-                }))
-              ]
-            })
-          })
-        ]
-      }),
-      /* @__PURE__ */ u("div", {
-        class: "cv-sec",
-        children: [
-          /* @__PURE__ */ u("span", {
-            class: "cv-sl",
-            children: "ターンを渡す相手"
-          }),
-          turnRows(t, s, id, "out"),
-          outs.length ? "" : /* @__PURE__ */ u("span", {
-            class: "cv-note",
-            children: "まだ誰にもターンを渡していません。縁の丸から、渡す相手の点へ引いてください"
-          }),
-          addTurnSel(t, id)
-        ]
-      }),
-      /* @__PURE__ */ u("div", {
-        class: "cv-sec",
-        children: [
-          /* @__PURE__ */ u("span", {
-            class: "cv-sl",
-            children: "ターンを受け取る相手"
-          }),
-          turnRows(t, s, id, "in")
-        ]
-      }),
-      /* @__PURE__ */ u("div", {
-        class: "cv-sec",
-        children: [
-          /* @__PURE__ */ u("span", {
-            class: "cv-sl",
-            children: "ワーカー"
-          }),
-          ws.length ? ws.map(({ w, i }) => /* @__PURE__ */ u("div", {
-            class: "cv-li" + (s.workers.some((x) => x.from === w.from && x.purpose === w.purpose) ? "" : " new"),
-            children: [
-              /* @__PURE__ */ u("span", {
-                children: `${w.purpose || "（目的）"} · ${w.profile}`
-              }),
-              /* @__PURE__ */ u("span", {
-                class: "cv-liend",
-                children: [
-                  /* @__PURE__ */ u("button", {
-                    class: "cv-link",
-                    type: "button",
-                    "data-cv-act": "pick-w",
-                    "data-i": i,
-                    children: "選ぶ"
-                  }),
-                  /* @__PURE__ */ u("button", {
-                    class: "cv-x",
-                    type: "button",
-                    "data-cv-act": "w-del",
-                    "data-i": i,
-                    title: "外す",
-                    "aria-label": "外す",
-                    children: "×"
-                  })
-                ]
-              })
-            ]
-          })) : /* @__PURE__ */ u("span", {
-            class: "cv-empty",
-            children: "なし"
-          }),
-          /* @__PURE__ */ u("button", {
-            class: "btn sm cv-danger",
-            type: "button",
-            "data-cv-act": "w-add",
-            children: "＋ ワーカー"
-          })
-        ]
-      }),
-      /* @__PURE__ */ u(MemberPrompt, {
+  if (sel && sel.type === "worker") {
+    const w = r.draft.value.workers[sel.i];
+    if (w)
+      return /* @__PURE__ */ u(WorkerPromptSection, {
         r,
-        m
-      }),
-      /* @__PURE__ */ u("div", {
-        class: "cv-sec",
-        children: [
-          /* @__PURE__ */ u("button", {
-            class: "btn sm",
-            type: "button",
-            "data-cv-act": "m-copy",
-            children: "複製"
-          }),
-          /* @__PURE__ */ u("span", {
-            class: "cv-note",
-            children: "同じロール・プロファイル・ターンの相手・ワーカーの目的で、もう 1 人足す"
-          })
-        ]
-      }),
-      /* @__PURE__ */ u("div", {
-        class: "cv-sec",
-        children: [
-          /* @__PURE__ */ u("button", {
-            class: "btn danger sm cv-danger",
-            type: "button",
-            "data-cv-act": "del",
-            children: "メンバーを外す"
-          }),
-          /* @__PURE__ */ u("span", {
-            class: "cv-note",
-            children: [
-              "ターン ",
-              nt,
-              " 本とワーカー ",
-              ws.length,
-              " 件も一緒に外れる。",
-              /* @__PURE__ */ u("span", {
-                class: "cv-kbd",
-                children: "⌘Z"
-              }),
-              " で取り消せる。"
-            ]
-          })
-        ]
-      })
-    ]
+        w,
+        i: sel.i
+      });
+  }
+  return /* @__PURE__ */ u("p", {
+    class: "cv-note cv-prompt-none",
+    children: "メンバーかワーカーを選ぶと、そのプロンプトがここに出ます。"
   });
 }
 
@@ -4628,7 +4644,7 @@ function onPointerUp(e) {
       selectPick(r, null);
       return;
     }
-    selectPick(r, d.wi != null ? { type: "worker", i: d.wi } : { type: "node", id: d.id }, "attr");
+    selectPick(r, d.wi != null ? { type: "worker", i: d.wi } : { type: "node", id: d.id });
     return;
   }
   const over = document.elementFromPoint(e.clientX, e.clientY), g = over && over.closest("[data-cv-n]");
@@ -4662,7 +4678,7 @@ function onClick(r, e) {
     const sel = hit.dataset.cvN ? { type: "node", id: hit.dataset.cvN } : hit.dataset.cvW != null ? { type: "worker", i: Number(hit.dataset.cvW) } : { type: "edge", k: hit.dataset.cvE || "" };
     if (JSON.stringify(selOf(r)) === JSON.stringify(sel))
       return;
-    selectPick(r, sel, "attr");
+    selectPick(r, sel);
     return;
   }
   const b = target.closest("[data-cv-act], [data-cv-side]");
@@ -5043,6 +5059,12 @@ function Canvas({ r, vlist }) {
                 class: side === "yaml" ? "on" : "",
                 "data-cv-side": "yaml",
                 children: "YAML"
+              }),
+              /* @__PURE__ */ u("button", {
+                type: "button",
+                class: side === "prompt" ? "on" : "",
+                "data-cv-side": "prompt",
+                children: "プロンプト"
               })
             ]
           }),
@@ -5050,7 +5072,9 @@ function Canvas({ r, vlist }) {
             class: "cv-sb",
             children: side === "attr" ? /* @__PURE__ */ u(SideAttr, {
               r
-            }) : /* @__PURE__ */ u(TPrev, {
+            }) : side === "yaml" ? /* @__PURE__ */ u(TPrev, {
+              r
+            }) : /* @__PURE__ */ u(PromptView, {
               r
             })
           })
