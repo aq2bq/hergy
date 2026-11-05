@@ -1,7 +1,7 @@
 // The one owner of 「変えたか」 (r-1e9a): it compares the value the save writes,
 // and the field table only names what is lost.
 import { describe, expect, test } from 'bun:test';
-import { ROLE_DOC, PROFILE, TEAM, dirty, diff, lost, same, snapshot } from '../src/lib/changed';
+import { ROLE_DOC, PROFILE, TEAM, dirty, lost, same, snapshot } from '../src/lib/changed';
 
 const role = (over) => ({ name: 'builder', title: '設計', text: '# 設計\n', ...(over || {}) });
 

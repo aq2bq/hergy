@@ -604,7 +604,7 @@ export interface components {
             summary: components["schemas"]["RoleSummary"];
             problems: components["schemas"]["Counts"];
             /**
-             * @description 両方の層にある名前の印。プロジェクトの行は in_effect、グローバルの行は hidden（r-ea17）
+             * @description 両方の置き場所にある名前の印。プロジェクトの行は in_effect、グローバルの行は hidden（r-ea17）
              * @enum {string}
              */
             mark?: "in_effect" | "hidden";
@@ -833,7 +833,7 @@ export interface components {
             summary: components["schemas"]["ProfileSummary"];
             problems: components["schemas"]["Counts"];
             /**
-             * @description 両方の層にある名前の印。プロジェクトの行は in_effect、グローバルの行は hidden（r-ea17）
+             * @description 両方の置き場所にある名前の印。プロジェクトの行は in_effect、グローバルの行は hidden（r-ea17）
              * @enum {string}
              */
             mark?: "in_effect" | "hidden";
@@ -1649,7 +1649,7 @@ export interface components {
             /** @description 有効なチーム定義の問題と警告の数 */
             problems: components["schemas"]["TeamCounts"];
             /**
-             * @description 両方の層にある名前の印。プロジェクトの行は in_effect、グローバルの行は hidden（r-ea17）
+             * @description 両方の置き場所にある名前の印。プロジェクトの行は in_effect、グローバルの行は hidden（r-ea17）
              * @enum {string}
              */
             mark?: "in_effect" | "hidden";
@@ -1784,8 +1784,11 @@ export interface components {
              * @enum {string}
              */
             kind?: "team" | "agreement";
-            /** @description 同名のプロジェクトのチーム定義に隠れているか */
-            hidden?: boolean;
+            /**
+             * @description 両方の置き場所にある名前の印（r-ea17）
+             * @enum {string}
+             */
+            mark?: "in_effect" | "hidden";
             /** @description ファイルの検査で見つかった問題 */
             problems: components["schemas"]["Problem"][] | null;
         };
