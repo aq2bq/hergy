@@ -363,6 +363,17 @@ func TestCHECK_ValidateSplitsTheUnitsAndSizes(t *testing.T) {
 			t.Errorf("the size list reads %q = %d (%v), the screen has %d", path, size, ok, got)
 		}
 	}
+	// And the other way: every row the screen draws names a definition validate
+	// reads (a row validate does not know is a row the screen made up).
+	teamNames := map[string]bool{}
+	for path := range teamSizes {
+		teamNames[strings.TrimSuffix(filepath.Base(path), ".yaml")] = true
+	}
+	for path := range wantTeams {
+		if !teamNames[filepath.Base(path)] {
+			t.Errorf("the screen draws %q, which the size list does not name", path)
+		}
+	}
 
 	var roles struct {
 		Items []struct {
@@ -388,6 +399,15 @@ func TestCHECK_ValidateSplitsTheUnitsAndSizes(t *testing.T) {
 	for path, size := range roleSizes {
 		if got, ok := wantRoles[path]; !ok || got != size {
 			t.Errorf("the role size list reads %q = %d (%v), the screen has %d", path, size, ok, got)
+		}
+	}
+	roleNames := map[string]bool{}
+	for path := range roleSizes {
+		roleNames[strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))] = true
+	}
+	for path := range wantRoles {
+		if !roleNames[strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))] {
+			t.Errorf("the screen draws %q, which the role size list does not name", path)
 		}
 	}
 }

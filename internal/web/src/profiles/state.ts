@@ -680,7 +680,18 @@ function applySaved(panel: Panel, answer: SavedAnswer | null): void {
     const held = byGroup.get(key);
     if (held) held.push(row);
   });
-  byGroup.set(group, model.rows.map(rowOf));
+  // The answer's rows go into the frame of their own place (the item's
+  // Effective): a save under one head carries the global rows too, and they
+  // must stay under the global head (r-ea17).
+  const answered = model.rows.map(rowOf);
+  const own = new Map<string, Row[]>();
+  answered.forEach((row) => {
+    const key = row.group || '';
+    if (!own.has(key)) own.set(key, []);
+    own.get(key)?.push(row);
+  });
+  own.forEach((list, key) => byGroup.set(key, list));
+  if (!own.has(group)) byGroup.set(group, []);
   const next = order.flatMap((key) => byGroup.get(key) || []);
   const open = new Set(openKeys.value);
   const written = panel.saved ? panel.draft.name : panel.draft.name;

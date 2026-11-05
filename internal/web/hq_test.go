@@ -375,3 +375,48 @@ func TestHQRunningCarriesWhyADefinitionCannotBeBuilt(t *testing.T) {
 		t.Fatalf("GET /api/hq/running = %d %s", resp.StatusCode, body)
 	}
 }
+
+// TestAProjectGroupDoesNotGrowAGlobalRoleRow: a role whose document stands in
+// the global layer, named by a project's member, is not a row of that project's
+// group; and a group's rows are the rows its own layer's count reads (r-ea17).
+func TestAProjectGroupDoesNotGrowAGlobalRoleRow(t *testing.T) {
+	f := newFixture(t)
+	roleDir := filepath.Join(f.global, "roles")
+	if err := os.MkdirAll(roleDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(roleDir, "shared-only.md"), []byte("# shared\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	team := filepath.Join(f.proj, ".hergy", "teams", "named")
+	if err := os.MkdirAll(team, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(team, "team.yaml"), []byte("version: 1\ndescription: named\nmembers:\n  - name: lead\n    role: shared-only\n    profile: coder\nturns:\n  - human -> lead\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	server := f.hqServer(t)
+	hq := server.hq.(fakeHQ)
+	hq.projects = HQProjects{
+		Mode:    "listed",
+		Current: HQProject{Path: f.proj, Name: "proj", Listed: true},
+		Projects: []HQProject{
+			{Path: f.proj, Name: "proj", Listed: true},
+		},
+		Global: HQGlobal{Path: f.global, Display: "~/.config/hergy"},
+	}
+	server.hq, server.projects = hq, hq
+	group, refusal := server.hqKindGroup(apiRoleKind, hq.projects.Current)
+	if refusal != nil {
+		t.Fatalf("the project's role group: %+v", refusal)
+	}
+	for _, item := range group.List.Items {
+		if item.Name == "shared-only" {
+			t.Errorf("the project's group draws the global layer's role as a row")
+		}
+	}
+	_, want, _ := server.cat.Counts(source.LayerLocal)
+	if len(group.List.Items) != want {
+		t.Errorf("the group draws %d role rows, the project's own count is %d", len(group.List.Items), want)
+	}
+}
