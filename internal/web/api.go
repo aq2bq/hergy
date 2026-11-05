@@ -5,8 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"io/fs"
 	"net/http"
+	"os"
 
+	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/i18n"
 )
@@ -120,6 +123,26 @@ type apiItem struct {
 	Hidden    []string            `json:"hidden"`
 	Summary   any                 `json:"summary"`
 	Problems  apiCounts           `json:"problems"`
+}
+
+// docUnreadableRefusal refuses a write over a document that is there and cannot
+// be read (r-ea17, d-0bf1): the owner decides whether a file reads, and a save
+// or a delete never replaces what it could not read. A file that is not there is
+// the empty file a save would make.
+func (s *Server) docUnreadableRefusal(kind, place, path string) *apiErr {
+	if path == "" {
+		return nil
+	}
+	if _, err := os.Stat(path); err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil
+		}
+		return refuse(http.StatusUnprocessableEntity, err.Error())
+	}
+	if ok, why := s.cat.ReadableOf(catalog.ListedRow{Kind: kind, Place: place, Path: path}); !ok {
+		return refuse(http.StatusUnprocessableEntity, why)
+	}
+	return nil
 }
 
 // apiCounts is how many errors and warnings one row carries.

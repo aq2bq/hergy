@@ -955,6 +955,9 @@ func (k apiTeam) saveAgreement(name string, in apiIn) (any, *apiErr) {
 	layer := catalog.Layer(in.Place)
 	path := s.t2AgreeFile(name, layer)
 	display := s.cat.Display(path)
+	if bad := s.docUnreadableRefusal(catalog.KindTeam, in.Place, path); bad != nil {
+		return nil, bad
+	}
 	text, readErr := s.cat.Reader().Read(source.Doc{Path: path})
 	hash := source.Hash("")
 	if readErr == nil {
@@ -1089,6 +1092,11 @@ func (k apiTeam) Delete(name string, in apiIn) (any, *apiErr) {
 	layer := catalog.Layer(in.Place)
 	teamPath := s.cat.TeamYAML(name, layer)
 	agreePath := s.t2AgreeFile(name, layer)
+	for _, path := range []string{teamPath, agreePath} {
+		if bad := s.docUnreadableRefusal(catalog.KindTeam, in.Place, path); bad != nil {
+			return nil, bad
+		}
+	}
 	for _, one := range []struct{ path, hash string }{
 		{teamPath, in.Hash},
 		{agreePath, in.AgreementHash},

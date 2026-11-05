@@ -2667,6 +2667,15 @@ export interface operations {
                     "application/json": components["schemas"]["Refusal"];
                 };
             };
+            /** @description 読めない文書は消さない（r-ea17、d-0bf1） */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Refusal"];
+                };
+            };
         };
     };
     getRoleContext: {

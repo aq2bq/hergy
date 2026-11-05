@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/profile"
 	"github.com/aq2bq/hergy/internal/source"
@@ -234,6 +235,9 @@ func (k apiProfile) savePanel(in apiIn) (any, *apiErr) {
 	if err := s.p2Write(path); err != nil {
 		return nil, refuse(http.StatusUnprocessableEntity, err.Error())
 	}
+	if bad := s.docUnreadableRefusal(catalog.KindProfile, placeOfFile(in.Place), path); bad != nil {
+		return nil, bad
+	}
 	var draft p2Draft
 	if err := json.Unmarshal(in.Doc, &draft); err != nil {
 		return nil, refuse(http.StatusUnprocessableEntity, i18n.Errorf("error.edit_yaml", "profile", err).Error())
@@ -274,6 +278,9 @@ func (k apiProfile) saveYAML(in apiIn) (any, *apiErr) {
 	if err := s.p2Write(path); err != nil {
 		return nil, refuse(http.StatusUnprocessableEntity, err.Error())
 	}
+	if bad := s.docUnreadableRefusal(catalog.KindProfile, placeOfFile(in.Place), path); bad != nil {
+		return nil, bad
+	}
 	if problem, bad := p2FirstError(in.Text, display); bad {
 		return nil, refuse(http.StatusUnprocessableEntity, problem)
 	}
@@ -299,6 +306,9 @@ func (k apiProfile) Delete(name string, in apiIn) (any, *apiErr) {
 	}
 	if err := s.p2Write(path); err != nil {
 		return nil, refuse(http.StatusUnprocessableEntity, err.Error())
+	}
+	if bad := s.docUnreadableRefusal(catalog.KindProfile, placeOfFile(in.Place), path); bad != nil {
+		return nil, bad
 	}
 	text, pathHash := s.p2Text(path)
 	if hash != pathHash {

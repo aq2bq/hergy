@@ -423,6 +423,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/RoleList"
+        "422":
+          description: 読めない文書は消さない（r-ea17、d-0bf1）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Refusal"
         "409":
           description: 読んだときからファイルが変わっていた
           content:
