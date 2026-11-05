@@ -4,15 +4,19 @@ import type { Schemas } from '../../lib/api.js';
 import { resource } from '../../lib/resource.js';
 import { CurrentPrompt, OriginLegend, OriginMarks, originLines, sectionAt, sectionSpans } from './prompt-origins.js';
 import type { OriginLine } from './prompt-origins.js';
-import { promptComparisonInput } from '../state.js';
+import { dkey, promptComparisonInput } from '../state.js';
 import type { Rec } from '../state.js';
+import { runOf, setRun } from './prompt-run.js';
 
 type View = 'recorded' | 'current' | 'diff';
 type Answer = Schemas['PromptComparison'];
 
 export function PromptComparison({ r, member, close }: {r: Rec; member: string; close: () => void}) {
  const dialog = useRef<HTMLDialogElement>(null);
- const [running, setRunning] = useState('');
+ const key = dkey(r);
+ // The team the person picked stands in the shared signal: the prompt column
+ // builds with the same name (r-0b69).
+ const [running, setRunning] = useState(runOf(key));
  const [view, setView] = useState<View>('diff');
  const initialized = useRef(false);
  const reading = useMemo(() => resource(async (signal: AbortSignal, payload: Schemas['PromptComparisonRequest']) => {
@@ -31,13 +35,20 @@ export function PromptComparison({ r, member, close }: {r: Rec; member: string; 
  }, [reading]);
  useEffect(() => { void load(); return () => reading.abort(); }, [reading, payload]);
  const answer = reading.value.value;
+ // A pick that is gone from the runs is let go, and a single running team is
+ // taken the way the server took it, so the prompt column reads the same name.
+ useEffect(() => {
+  if (!answer) return;
+  if (runOf(key) && !answer.runs.some(run => run.team === runOf(key))) { setRun(key, ''); setRunning(''); return; }
+  if (!runOf(key) && answer.selected) setRun(key, answer.selected.team);
+ }, [answer, key]);
  const lines = useMemo(() => answer?.current !== null && answer?.current !== undefined ? originLines(answer.current, answer.segments) : null, [answer]);
  const busy = reading.loading.value;
  const error = reading.error.value;
  return <dialog class="prompt-comparison" ref={dialog} aria-labelledby="prompt-comparison-title" onKeyDown={(event) => event.stopPropagation()} onCancel={(event) => {event.preventDefault(); close();}}>
   <header><h2 id="prompt-comparison-title">プロンプト · {r.name.value} / {member}</h2><button class="btn sm" type="button" onClick={close}>閉じる</button></header>
   <div class="prompt-controls">
-   {!!answer?.runs.length && <label>実行中のチーム <select value={running || answer.selected?.team || ''} onChange={(event) => { initialized.current = false; setRunning(event.currentTarget.value); }}>
+   {!!answer?.runs.length && <label>実行中のチーム <select value={running || answer.selected?.team || ''} onChange={(event) => { initialized.current = false; setRunning(event.currentTarget.value); setRun(key, event.currentTarget.value); }}>
     <option value="">チームを選ぶ</option>{answer.runs.map((run) => <option key={run.team} value={run.team}>{run.team} · {run.project}</option>)}
    </select></label>}
    <button class="btn sm" type="button" disabled={busy} onClick={() => {void load();}}>再取得</button>

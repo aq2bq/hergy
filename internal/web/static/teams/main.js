@@ -3820,10 +3820,20 @@ function CurrentPrompt({ text, lines }) {
   });
 }
 
+// teams/canvas/prompt-run.ts
+var promptRun = y({});
+var runOf = (key) => promptRun.value[key] || "";
+function setRun(key, team) {
+  if (runOf(key) === team)
+    return;
+  promptRun.value = { ...promptRun.value, [key]: team };
+}
+
 // teams/canvas/prompt-comparison.tsx
 function PromptComparison({ r, member, close }) {
   const dialog = A(null);
-  const [running, setRunning] = d("");
+  const key = dkey(r);
+  const [running, setRunning] = d(runOf(key));
   const [view, setView] = d("diff");
   const initialized = A(false);
   const reading = T(() => resource(async (signal, payload) => {
@@ -3853,6 +3863,17 @@ function PromptComparison({ r, member, close }) {
     return () => reading.abort();
   }, [reading, payload]);
   const answer = reading.value.value;
+  h(() => {
+    if (!answer)
+      return;
+    if (runOf(key) && !answer.runs.some((run) => run.team === runOf(key))) {
+      setRun(key, "");
+      setRunning("");
+      return;
+    }
+    if (!runOf(key) && answer.selected)
+      setRun(key, answer.selected.team);
+  }, [answer, key]);
   const lines = T(() => answer?.current !== null && answer?.current !== undefined ? originLines(answer.current, answer.segments) : null, [answer]);
   const busy = reading.loading.value;
   const error = reading.error.value;
@@ -3896,6 +3917,7 @@ function PromptComparison({ r, member, close }) {
                 onChange: (event) => {
                   initialized.current = false;
                   setRunning(event.currentTarget.value);
+                  setRun(key, event.currentTarget.value);
                 },
                 children: [
                   /* @__PURE__ */ u("option", {
@@ -4214,7 +4236,31 @@ var prange = (a, b) => b - a > 1 ? `${a + 1}–${b}` : `${a + 1}`;
 var PROMPT_BLOCKED = "このチーム定義には問題があるので、hergy はプロンプトを組みません（hergy up も止まります）。下の設定の検査の欄の問題を直すと、ここに出ます。";
 function MemberPrompt({ r, m }) {
   const [opened, setOpened] = d(false);
-  const hit = promptsOf(r).find((item) => item.name === m.name);
+  const key = dkey(r);
+  const blocked = promptBlockedOf(r);
+  const tick = r.check.value;
+  const reading = T(() => resource(async (signal, payload) => {
+    const answer = await call2("POST", "/api/team/prompt-comparison", payload, { signal });
+    if (!answer.json)
+      throw new Error("本文の応答がありません");
+    return answer.json;
+  }), [r, m.name]);
+  h(() => {
+    if (blocked) {
+      reading.abort();
+      return;
+    }
+    reading.run({ ...promptComparisonInput(r), member: m.name, running_team: runOf(key) });
+    return () => reading.abort();
+  }, [reading, key, m.name, tick, blocked, runOf(key)]);
+  const answer = reading.value.value;
+  const failure = reading.error.value;
+  const fallback = promptsOf(r).find((item) => item.name === m.name);
+  const segments = answer ? answer.segments : fallback?.segments || [];
+  const shown = answer ? answer.team : r.name.value;
+  const name = r.name.value;
+  const runs = answer && answer.runs || [];
+  const note = failure ? `${problemText2(failure, "本文を読めませんでした")} そのため、定義名 ${name} で作っています。` : !answer ? "" : answer.selected ? `実行中のチーム ${shown} の名前で作っています。` : runs.length > 1 ? `動いているチームが ${runs.length} つあるため、定義名 ${name} で作っています。全文と差分のパネルでチームを選ぶと、その名前で作ります。` : runs.length === 0 ? `この定義から動いているチームが無いため、定義名 ${name} で作っています。` : `定義名 ${name} で作っています。`;
   return /* @__PURE__ */ u("section", {
     class: "cv-sec cv-prompt cv-topology-prompt",
     children: [
@@ -4229,19 +4275,22 @@ function MemberPrompt({ r, m }) {
       }),
       /* @__PURE__ */ u("p", {
         class: "cv-note",
-        children: "今の定義から出る文。未保存の編集を含みます。"
+        children: [
+          "今の定義から出る文。未保存の編集を含みます。",
+          note
+        ]
       }),
-      promptBlockedOf(r) ? /* @__PURE__ */ u("p", {
+      blocked ? /* @__PURE__ */ u("p", {
         class: "cv-note",
         children: [
           PROMPT_BLOCKED,
           " 記録された本文は確認できます。"
         ]
-      }) : !hit ? /* @__PURE__ */ u("p", {
+      }) : !answer && !fallback ? /* @__PURE__ */ u("p", {
         role: "status",
         children: "プロンプトを読んでいます。"
       }) : topologySections.map(([kind, label]) => {
-        const parts = (hit.segments || []).filter((segment) => segment.kind === kind && segment.text !== "");
+        const parts = (segments || []).filter((segment) => segment.kind === kind && segment.text !== "");
         if (kind === "workers" && !parts.length)
           return null;
         return /* @__PURE__ */ u("section", {

@@ -5,12 +5,16 @@
 // came from (spec-boundary 5). The screen lays them out and says where a folded
 // document is read; it builds no line.
 import type { ComponentChildren, JSX } from 'preact';
-import { useState } from '../../lib/preact.js';
+import { useEffect, useMemo, useState } from '../../lib/preact.js';
+import { call, problemText } from '../../lib/api.js';
+import type { Schemas } from '../../lib/api.js';
+import { resource } from '../../lib/resource.js';
 import { PromptComparison } from './prompt-comparison.js';
 import { topologySections } from './prompt-origins.js';
-import { memberOf, promptBlockedOf, promptsOf, workerPrompt } from '../state.js';
+import { dkey, memberOf, promptBlockedOf, promptComparisonInput, promptsOf, workerPrompt } from '../state.js';
 import type { Member, PromptSegment, Rec, Worker, WorkerPrompt as WorkerPromptText } from '../state.js';
 import { selOf } from './shared.js';
+import { runOf } from './prompt-run.js';
 
 // lineAtMaker reads which line an offset of the whole prompt stands on.
 function lineAtMaker(full: string): (off: number) => number {
@@ -81,17 +85,50 @@ const prange = (a: number, b: number): string => (b - a > 1 ? `${a + 1}–${b}` 
 // server's, under the canvas.
 const PROMPT_BLOCKED = 'このチーム定義には問題があるので、hergy はプロンプトを組みません（hergy up も止まります）。下の設定の検査の欄の問題を直すと、ここに出ます。';
 
+// MemberPrompt is the プロンプト tab's member text (r-1af1, r-f0be). It is built
+// where the whole-text panel builds it, with the same running team, so the same
+// member name stands in both (r-0b69): the comparison API answers the segments
+// and the name it used.
 export function MemberPrompt({ r, m }: { r: Rec; m: Member }): JSX.Element {
   const [opened, setOpened] = useState(false);
-  const hit = promptsOf(r).find(item => item.name === m.name);
+  const key = dkey(r);
+  const blocked = promptBlockedOf(r);
+  // tick is the last answered check: the text follows unsaved edits at the
+  // check's own pace, not at every keystroke (r-0b69).
+  const tick = r.check.value;
+  const reading = useMemo(() => resource(async (signal: AbortSignal, payload: Schemas['PromptComparisonRequest']) => {
+    const answer = await call<Schemas['PromptComparison']>('POST', '/api/team/prompt-comparison', payload, { signal });
+    if (!answer.json) throw new Error('本文の応答がありません');
+    return answer.json;
+  }), [r, m.name]);
+  useEffect(() => {
+    if (blocked) { reading.abort(); return; }
+    void reading.run({ ...promptComparisonInput(r), member: m.name, running_team: runOf(key) });
+    return () => reading.abort();
+  }, [reading, key, m.name, tick, blocked, runOf(key)]);
+  const answer = reading.value.value;
+  const failure = reading.error.value;
+  // A text the server could not build with a running team's name falls back to
+  // the check's own segments, which stand on the definition's name.
+  const fallback = promptsOf(r).find(item => item.name === m.name);
+  const segments = answer ? answer.segments : (fallback?.segments || []);
+  const shown = answer ? answer.team : r.name.value;
+  const name = r.name.value;
+  const runs = (answer && answer.runs) || [];
+  const note = failure ? `${problemText(failure, '本文を読めませんでした')} そのため、定義名 ${name} で作っています。`
+    : !answer ? ''
+    : answer.selected ? `実行中のチーム ${shown} の名前で作っています。`
+    : runs.length > 1 ? `動いているチームが ${runs.length} つあるため、定義名 ${name} で作っています。全文と差分のパネルでチームを選ぶと、その名前で作ります。`
+    : runs.length === 0 ? `この定義から動いているチームが無いため、定義名 ${name} で作っています。`
+    : `定義名 ${name} で作っています。`;
   return <section class="cv-sec cv-prompt cv-topology-prompt">
     <h3>このメンバーにトポロジーから渡る文</h3>
     <button class="btn sm cv-prompt-open" type="button" onClick={() => setOpened(true)}>全文と差分を読む</button>
-    <p class="cv-note">今の定義から出る文。未保存の編集を含みます。</p>
-    {promptBlockedOf(r) ? <p class="cv-note">{PROMPT_BLOCKED} 記録された本文は確認できます。</p>
-      : !hit ? <p role="status">プロンプトを読んでいます。</p>
+    <p class="cv-note">今の定義から出る文。未保存の編集を含みます。{note}</p>
+    {blocked ? <p class="cv-note">{PROMPT_BLOCKED} 記録された本文は確認できます。</p>
+      : !answer && !fallback ? <p role="status">プロンプトを読んでいます。</p>
       : topologySections.map(([kind, label]) => {
-        const parts = (hit.segments || []).filter(segment => segment.kind === kind && segment.text !== '');
+        const parts = (segments || []).filter(segment => segment.kind === kind && segment.text !== '');
         if (kind === 'workers' && !parts.length) return null;
         return <section class="cv-topology-section" data-kind={kind} key={kind}><h4>{label}</h4>
           {parts.length ? parts.map((segment, i) => <pre class="cv-topology-text" key={i}>{segment.text}</pre>) : <p class="cv-note">この節は今のプロンプトに含まれません。</p>}
