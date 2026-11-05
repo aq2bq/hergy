@@ -27,19 +27,19 @@ import {
   bases2,
   problemText2,
   profileModel2
-} from "../chunk/nav-kf3902zg.js";
+} from "../chunk/nav-b6ev05ma.js";
 import {
   token2,
   parseOpen2,
   askConfirm,
   ConfirmDialog
-} from "../chunk/nav-9tvgkqmy.js";
-import"../chunk/nav-4vxnzpw3.js";
+} from "../chunk/nav-3e3qa83x.js";
+import"../chunk/nav-pym14z71.js";
 import {
   conflictOf,
   ConflictNotice,
   YamlTab2
-} from "../chunk/nav-t48ak8pe.js";
+} from "../chunk/nav-jr036za7.js";
 import {
   copyGroupOf,
   projectOfGroup,
@@ -225,6 +225,7 @@ function rowOf(row, index) {
   return {
     key,
     name: row.name || "",
+    mark: row.mark || "",
     group: row.group || "",
     kind: row.kind || "",
     kindClass: row.kindClass || "",
@@ -399,6 +400,7 @@ function addRow(file, group) {
     args: "",
     env: [],
     more: 0,
+    mark: "",
     users: 0,
     roles: "",
     err: 0,
@@ -438,6 +440,7 @@ function duplicateRow(panel) {
     group: panel.group,
     kind: saved.kind,
     kindClass: classOf(saved.kind),
+    mark: "",
     args: saved.args.join(" "),
     env: saved.env.map((pair) => pair.value),
     more: 0,
@@ -526,6 +529,7 @@ function copyPanel(panel) {
     group,
     kind: saved.kind,
     kindClass: classOf(saved.kind),
+    mark: "",
     args: saved.args.join(" "),
     env: saved.env.map((pair) => pair.value),
     more: 0,
@@ -1263,9 +1267,9 @@ function Row({ row }) {
                   children: "—"
                 })
               }),
-              (row.panels || []).some((p) => p.both) ? /* @__PURE__ */ u("span", {
-                class: "state " + (row.group === "global" ? "off" : "on"),
-                children: row.group === "global" ? "隠れている" : "効いている"
+              row.mark ? /* @__PURE__ */ u("span", {
+                class: "state " + (row.mark === "hidden" ? "off" : "on"),
+                children: row.mark === "hidden" ? "隠れている" : "効いている"
               }) : null,
               row.isNew ? /* @__PURE__ */ u("span", {
                 class: "tag",

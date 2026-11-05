@@ -212,7 +212,7 @@ function Sum({ r, open }: { r: Rec; open: boolean }) {
   return (
     <>
       <button type="button" class="chev disclosure" aria-label={`${teamLabel(r)} を開閉する`} aria-expanded={open} onClick={(e) => { e.stopPropagation(); pressToggle(r); }}></button>
-      <span class="c-name"><NameCell r={r} open={open} />{r.hidden.value.length ? <span class={'state ' + (r.place.value === 'global' ? 'off' : 'on')}>{r.place.value === 'global' ? '隠れている' : '効いている'}</span> : null}<span class="vcount"><Counts list={messagesOf(rowIssues(r))} /></span></span>
+      <span class="c-name"><NameCell r={r} open={open} />{r.mark.value ? <span class={'state ' + (r.mark.value === 'hidden' ? 'off' : 'on')}>{r.mark.value === 'hidden' ? '隠れている' : '効いている'}</span> : null}<span class="vcount"><Counts list={messagesOf(rowIssues(r))} /></span></span>
       <span class={'c-description' + (broken || !(t.description || open) ? ' none' : '')}>{cell}</span>
       <span class="c-place">{pills}</span>
       <span class="c-members c-num">{broken ? '—' : t.members.length}</span>
@@ -328,7 +328,7 @@ function TeamPanel({ r }: { r: Rec }) {
   const k = dkey(r);
   // The owner marks a name both places hold: its rows say 効いている / 隠れている
   // (r-ea17).
-  const both = r.hidden.value.length > 0;
+  const both = !!r.mark.value;
   const head = (
     <header class="ph"><code class="path">{r.teamPath.value}</code>
       <span class="phr">{both ? <span class={'state ' + (r.place.value === 'global' ? 'off' : 'on')}>{r.place.value === 'global' ? '隠れている' : '効いている'}</span> : null}</span></header>
@@ -628,7 +628,7 @@ export function YamlPage() {
 // draws what stands inside it and reads the file and the hash as props.
 function YamlFile({ f }: { f: YFile }) {
   const r = recForFile(f);
-  const both = r ? r.hidden.value.length > 0 : false;
+  const both = r ? !!r.mark.value : false;
   return (
     <section class="yed" data-key={keyOfFile(f)} data-hash={f.hash}>
       <YamlTab label={f.label} path={f.path}

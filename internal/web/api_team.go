@@ -177,9 +177,7 @@ func (s *Server) t2ListLayers(layers []string) apiList {
 		}
 		for _, listed := range s.cat.ShownRows(catalog.KindTeam, one.layer) {
 			item := s.t2ItemAt(listed.Name, one.place, ver)
-			if listed.InEffect || listed.Hidden {
-				item.Hidden = []string{catalog.PlaceGlobal}
-			}
+			item.Mark = markWord(listed)
 			out.Items = append(out.Items, item)
 			for _, file := range s.t2FilesAt(listed.Name, one.place) {
 				if seenFile[file.Path] {

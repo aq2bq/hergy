@@ -116,6 +116,8 @@ export type ModelPlace = { label: string; state: string };
 export type Row = {
   key: string;
   name: string;
+  // mark is the owner's word for a name both files hold (r-ea17).
+  mark: string;
   group: string;
   kind: string;
   kindClass: string;

@@ -279,7 +279,7 @@ export type ProfilePanel = {
 
 // ProfileRow is one item read as the row the list draws.
 export type ProfileRow = {
-  name: string; kind: string; kindClass: string;
+  name: string; kind: string; kindClass: string; mark: string;
   new: boolean; open: boolean;
   places: { label: string; state: string }[];
   args: string; env: string[]; more: number;
@@ -316,7 +316,7 @@ function profileRow(item: ListItem<'profile'>, isOpen: boolean): ProfileRow {
   });
   const c = countOf(item.problems);
   return {
-    name: item.name || '', kind: s.kind || '', kindClass: s.kindClass || '',
+    name: item.name || '', kind: s.kind || '', kindClass: s.kindClass || '', mark: item.mark || '',
     new: false, open: !!isOpen,
     places: names.map((file) => ({ label: PLACE_LABEL[file], state: hidden.indexOf(file) >= 0 ? 'shadow' : 'on' })),
     args: s.args || '', env: s.env || [], more: s.more || 0,
@@ -345,8 +345,8 @@ export type RoleRow = {
   uid: number;
   project: RolePlaceDoc | null;
   global: RolePlaceDoc | null;
-  // hidden is the owner's mark for a name both layers hold (r-ea17).
-  hidden?: string[];
+  // mark is the owner's word for a name both layers hold (r-ea17).
+  mark?: string;
   markdown?: string;
   name?: string;
   noDoc?: boolean;
@@ -379,7 +379,7 @@ function roleRow(item: RoleListRow, i: number): RoleRow {
   });
   if (s.noDoc) row.noDoc = true;
   if (s.isNew) row.isNew = true;
-  if (item.hidden && item.hidden.length) row.hidden = item.hidden;
+  if (item.mark) row.mark = item.mark;
   return row;
 }
 

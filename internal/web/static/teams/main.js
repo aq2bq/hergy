@@ -38,7 +38,7 @@ import {
   saved2,
   bases2,
   problemText2
-} from "../chunk/nav-kf3902zg.js";
+} from "../chunk/nav-b6ev05ma.js";
 import {
   num,
   documents,
@@ -56,7 +56,7 @@ import {
   Counts2,
   Vm2,
   RuleDoc2
-} from "../chunk/nav-rdc11v9h.js";
+} from "../chunk/nav-c5bkvhy6.js";
 import {
   st,
   token2,
@@ -64,19 +64,19 @@ import {
   projectName2,
   askConfirm,
   ConfirmDialog
-} from "../chunk/nav-9tvgkqmy.js";
+} from "../chunk/nav-3e3qa83x.js";
 import {
   RunCell2
-} from "../chunk/nav-4vxnzpw3.js";
+} from "../chunk/nav-pym14z71.js";
 import {
   conflictOf,
   ConflictNotice,
   YamlTab2
-} from "../chunk/nav-t48ak8pe.js";
+} from "../chunk/nav-jr036za7.js";
 import {
   roleEditor,
   roleProblems
-} from "../chunk/nav-hddy6c18.js";
+} from "../chunk/nav-ywf06a1b.js";
 import {
   copyGroupOf,
   groupPlace,
@@ -958,6 +958,7 @@ function recOf(init) {
     agreeHash: y(init.agreeHash),
     broken: y(init.broken),
     problem: y(init.problem),
+    mark: y(init.mark),
     hidden: y(init.hidden),
     ops: y(init.ops),
     saved: y(init.saved),
@@ -1054,6 +1055,7 @@ function defOf(item, project) {
     agreeHash: agree.hash || "",
     broken: !!doc?.broken,
     problem: place?.problem || "",
+    mark: item.mark || "",
     hidden,
     ops: [],
     saved: cloneTeam(doc),
@@ -1141,6 +1143,7 @@ function draftRecord(how, place, name, base, project) {
     agreeHash: "",
     broken: false,
     problem: "",
+    mark: "",
     hidden: [],
     ops: [],
     saved: cloneTeam(null),
@@ -5689,9 +5692,9 @@ function Sum({ r, open }) {
             r,
             open
           }),
-          r.hidden.value.length ? /* @__PURE__ */ u("span", {
-            class: "state " + (r.place.value === "global" ? "off" : "on"),
-            children: r.place.value === "global" ? "隠れている" : "効いている"
+          r.mark.value ? /* @__PURE__ */ u("span", {
+            class: "state " + (r.mark.value === "hidden" ? "off" : "on"),
+            children: r.mark.value === "hidden" ? "隠れている" : "効いている"
           }) : null,
           /* @__PURE__ */ u("span", {
             class: "vcount",
@@ -5949,7 +5952,7 @@ function Dacts({ r }) {
 }
 function TeamPanel({ r }) {
   const k = dkey(r);
-  const both = r.hidden.value.length > 0;
+  const both = !!r.mark.value;
   const head = /* @__PURE__ */ u("header", {
     class: "ph",
     children: [
@@ -6653,7 +6656,7 @@ function YamlPage() {
 }
 function YamlFile({ f }) {
   const r = recForFile(f);
-  const both = r ? r.hidden.value.length > 0 : false;
+  const both = r ? !!r.mark.value : false;
   return /* @__PURE__ */ u("section", {
     class: "yed",
     "data-key": keyOfFile(f),

@@ -87,8 +87,8 @@ func (s *Server) p2ListLayers(layers []string) apiList {
 			}
 			item.Places = map[string]apiPlace{one.place: place}
 			item.Hidden = nil
-			if mark, ok := marks[item.Name]; ok && (mark.InEffect || mark.Hidden) {
-				item.Hidden = []string{p2Shared}
+			if mark, ok := marks[item.Name]; ok {
+				item.Mark = markWord(mark)
 			}
 			item.Effective = one.place
 			item.Problems = place.Problems

@@ -238,6 +238,7 @@ function rowOf(row: ProfileRow & { group?: string }, index: number): Row {
   return {
     key,
     name: row.name || '',
+    mark: row.mark || '',
     group: row.group || '',
     kind: row.kind || '',
     kindClass: row.kindClass || '',
@@ -416,6 +417,7 @@ export function addRow(file: Place, group: string | undefined): Row {
   panel.born = bornOf(panel);
   const row: Row = {
     key, name: '', group: g, kind: 'claude', kindClass: classOf('claude'), args: '', env: [], more: 0,
+    mark: '',
     users: 0, roles: '', err: 0, warn: 0, chips: [], places: [], isNew: true, open: true, panels: [panel],
   };
   const next = new Set(openKeys.value);
@@ -443,7 +445,7 @@ export function duplicateRow(panel: Panel): Row | null {
   const list = rows.value.slice();
   const at = list.findIndex((r) => r.panels.some((p) => p.key === panel.key));
   const row: Row = {
-    key: newKey(), name: `${saved.name}-${suffix}`, group: panel.group, kind: saved.kind, kindClass: classOf(saved.kind),
+    key: newKey(), name: `${saved.name}-${suffix}`, group: panel.group, kind: saved.kind, kindClass: classOf(saved.kind), mark: '',
     args: saved.args.join(' '), env: saved.env.map((pair) => pair.value), more: 0, users: 0, roles: '', err: 0, warn: 0,
     chips: [], places: [], isNew: true, open: true,
     panels: [panelOf({
@@ -483,7 +485,7 @@ export function copyPanel(panel: Panel): Panel | null {
     shadowed: false, both: false, other: otherOf(file), savedLine: false, problem: '',
   }, group, panel.rowKey);
   const row: Row = {
-    key: newKey(), name: '', group, kind: saved.kind, kindClass: classOf(saved.kind),
+    key: newKey(), name: '', group, kind: saved.kind, kindClass: classOf(saved.kind), mark: '',
     args: saved.args.join(' '), env: saved.env.map((pair) => pair.value), more: 0, users: 0, roles: '', err: 0, warn: 0,
     chips: [], places: [], isNew: true, open: true, panels: [fresh],
   };

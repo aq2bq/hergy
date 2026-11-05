@@ -290,6 +290,8 @@ export type Rec = {
   // problem is why the definition's team.yaml cannot be read: the row stands and
   // says so (r-ea17, d-17ab).
   problem: Sig<string>;
+  // mark is the owner's word for a name both layers hold (r-ea17).
+  mark: Sig<string>;
   hidden: Sig<{ place: string; path?: string; hash?: string }[]>;
   ops: Sig<Op[]>; saved: Sig<Team>;
   agreeSaved: Sig<RuleDoc | null>; agreeDraft: Sig<RuleDoc>; agreeSavedIssues: Sig<Issue[] | null>;
@@ -420,7 +422,7 @@ type RecInit = {
   uid?: number; dom: string; project: string; places?: Place[];
   draftRow: boolean; how: string; base: TeamBase | null;
   name: string; place: Place; teamPath: string; agreePath: string;
-  hash: string; agreeHash: string; broken: boolean; problem: string;
+  hash: string; agreeHash: string; broken: boolean; problem: string; mark: string;
   hidden: { place: string; path?: string; hash?: string }[];
   ops: Op[]; saved: Team;
   agreeSaved: RuleDoc | null; agreeDraft: RuleDoc; agreeSavedIssues: Issue[] | null;
@@ -445,7 +447,7 @@ function recOf(init: RecInit): Rec {
     // the fields a change moves: one signal apiece
     name: signal(init.name), place: signal(init.place),
     teamPath: signal(init.teamPath), agreePath: signal(init.agreePath),
-    hash: signal(init.hash), agreeHash: signal(init.agreeHash), broken: signal(init.broken), problem: signal(init.problem),
+    hash: signal(init.hash), agreeHash: signal(init.agreeHash), broken: signal(init.broken), problem: signal(init.problem), mark: signal(init.mark),
     hidden: signal(init.hidden),
     ops: signal(init.ops), saved: signal(init.saved),
     agreeSaved: signal(init.agreeSaved), agreeDraft: signal(init.agreeDraft), agreeSavedIssues: signal(init.agreeSavedIssues),
@@ -537,7 +539,7 @@ function defOf(item: DefItem, project?: string): Rec {
   const r = recOf({
     name: item.name || '', dom, project: group, place: eff, places: PLACES.filter((p) => places[p]),
     teamPath: place?.path || '', agreePath: agree.path || '',
-    hash: place?.hash || '', agreeHash: agree.hash || '', broken: !!doc?.broken, problem: place?.problem || '',
+    hash: place?.hash || '', agreeHash: agree.hash || '', broken: !!doc?.broken, problem: place?.problem || '', mark: item.mark || '',
     hidden, ops: [],
     saved: cloneTeam(doc),
     agreeSaved: saved,
@@ -627,7 +629,7 @@ function draftRecord(how: string, place: Place, name: string, base: TeamBase | n
   const r = recOf({
     dom: '~new' + (++uids), draftRow: true, how, base: base || null, project: project || '',
     name: name || '', place: place || 'project', places: [],
-    teamPath: '', agreePath: '', hash: '', agreeHash: '', broken: false, problem: '',
+    teamPath: '', agreePath: '', hash: '', agreeHash: '', broken: false, problem: '', mark: '',
     hidden: [], ops: [],
     saved: cloneTeam(null),
     agreeSaved: null,

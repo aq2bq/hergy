@@ -23,7 +23,7 @@ import {
   problemText2,
   roleModel2,
   teamModel2
-} from "../chunk/nav-kf3902zg.js";
+} from "../chunk/nav-b6ev05ma.js";
 import {
   takeDraft2,
   setDirty2
@@ -33,8 +33,8 @@ import {
   parseOpen2,
   askConfirm,
   ConfirmDialog
-} from "../chunk/nav-9tvgkqmy.js";
-import"../chunk/nav-4vxnzpw3.js";
+} from "../chunk/nav-3e3qa83x.js";
+import"../chunk/nav-pym14z71.js";
 import {
   Measure,
   renameCarries2,
@@ -45,16 +45,16 @@ import {
   Badge2,
   Vm2,
   RuleDoc2
-} from "../chunk/nav-rdc11v9h.js";
+} from "../chunk/nav-c5bkvhy6.js";
 import {
   conflictOf,
   ConflictNotice,
   YamlTab2
-} from "../chunk/nav-t48ak8pe.js";
+} from "../chunk/nav-jr036za7.js";
 import {
   roleEditor,
   roleProblems
-} from "../chunk/nav-hddy6c18.js";
+} from "../chunk/nav-ywf06a1b.js";
 import {
   copyGroupOf,
   projectOfGroup,
@@ -140,8 +140,8 @@ function rowsOf(model, group) {
         row[l] = null;
       }
     }
-    if (r.hidden && r.hidden.length)
-      row.hidden = r.hidden;
+    if (r.mark)
+      row.mark = r.mark;
     if (!row.project && !row.global)
       continue;
     if (r.noDoc)
@@ -1656,7 +1656,7 @@ function placePills(r) {
   const label = r.group === "global" ? LNAME.global : r.group ? projectNameOf(r.group) : currentProjectName();
   const globalGroup = (HQ && HQ.roles || []).find((g) => g.global);
   const over = globalGroup && globalGroup.overridden_by || {};
-  const shadow = !!r.hidden && r.hidden.length > 0;
+  const shadow = r.mark === "hidden" || r.mark === "in_effect";
   const overriding = r.group === "global" ? over[curName(r)] || [] : [];
   return /* @__PURE__ */ u(S, {
     children: [
@@ -1750,9 +1750,9 @@ function sumInner(r) {
               children: "—"
             })
           }),
-          r.hidden && r.hidden.length ? /* @__PURE__ */ u("span", {
-            class: "state " + (r.group === "global" ? "off" : "on"),
-            children: r.group === "global" ? "隠れている" : "効いている"
+          r.mark ? /* @__PURE__ */ u("span", {
+            class: "state " + (r.mark === "hidden" ? "off" : "on"),
+            children: r.mark === "hidden" ? "隠れている" : "効いている"
           }) : "",
           /* @__PURE__ */ u("span", {
             class: "ttl",
@@ -1914,7 +1914,7 @@ function Panel({ r, l }) {
   if (!e)
     return "";
   const d = e.draft, key = r.uid + l;
-  const shadowed = !!r.hidden && r.hidden.includes(l);
+  const shadowed = r.mark === "hidden" && l === "global";
   const row = rowOfPanel(r, l);
   if (!row)
     return "";

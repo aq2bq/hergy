@@ -1391,6 +1391,10 @@ components:
           $ref: "#/components/schemas/RoleSummary"
         problems:
           $ref: "#/components/schemas/Counts"
+        mark:
+          type: string
+          enum: [in_effect, hidden]
+          description: 両方の層にある名前の印。プロジェクトの行は in_effect、グローバルの行は hidden（r-ea17）
     RolePlace:
       description: 1 つの置き場所のロールの文書と、それが入っているファイルの読み。
       type: object
@@ -1788,6 +1792,10 @@ components:
           $ref: "#/components/schemas/ProfileSummary"
         problems:
           $ref: "#/components/schemas/Counts"
+        mark:
+          type: string
+          enum: [in_effect, hidden]
+          description: 両方の層にある名前の印。プロジェクトの行は in_effect、グローバルの行は hidden（r-ea17）
     ProfilePlace:
       description: 1 つの置き場所のプロファイルと、そのファイルの読み。
       type: object
@@ -3226,6 +3234,10 @@ components:
           allOf:
             - $ref: '#/components/schemas/TeamCounts'
           description: 有効なチーム定義の問題と警告の数
+        mark:
+          type: string
+          enum: [in_effect, hidden]
+          description: 両方の層にある名前の印。プロジェクトの行は in_effect、グローバルの行は hidden（r-ea17）
     TeamPlace:
       description: 1 つの場所にあるチーム定義の読み取り。
       type: object

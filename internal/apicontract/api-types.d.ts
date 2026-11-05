@@ -603,6 +603,11 @@ export interface components {
             hidden: string[] | null;
             summary: components["schemas"]["RoleSummary"];
             problems: components["schemas"]["Counts"];
+            /**
+             * @description 両方の層にある名前の印。プロジェクトの行は in_effect、グローバルの行は hidden（r-ea17）
+             * @enum {string}
+             */
+            mark?: "in_effect" | "hidden";
         };
         /** @description 1 つの置き場所のロールの文書と、それが入っているファイルの読み。 */
         RolePlace: {
@@ -827,6 +832,11 @@ export interface components {
             hidden: string[] | null;
             summary: components["schemas"]["ProfileSummary"];
             problems: components["schemas"]["Counts"];
+            /**
+             * @description 両方の層にある名前の印。プロジェクトの行は in_effect、グローバルの行は hidden（r-ea17）
+             * @enum {string}
+             */
+            mark?: "in_effect" | "hidden";
         };
         /** @description 1 つの置き場所のプロファイルと、そのファイルの読み。 */
         ProfilePlace: {
@@ -1638,6 +1648,11 @@ export interface components {
             summary: components["schemas"]["TeamSummary"];
             /** @description 有効なチーム定義の問題と警告の数 */
             problems: components["schemas"]["TeamCounts"];
+            /**
+             * @description 両方の層にある名前の印。プロジェクトの行は in_effect、グローバルの行は hidden（r-ea17）
+             * @enum {string}
+             */
+            mark?: "in_effect" | "hidden";
         };
         /** @description 1 つの場所にあるチーム定義の読み取り。 */
         TeamPlace: {

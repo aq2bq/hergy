@@ -122,6 +122,10 @@ type apiItem struct {
 	Hidden    []string            `json:"hidden"`
 	Summary   any                 `json:"summary"`
 	Problems  apiCounts           `json:"problems"`
+	// Mark is the owner's word for a name both layers hold: "in_effect" for the
+	// project's row and "hidden" for the global one (r-ea17, d-0d00). A name
+	// only one layer holds carries none. It is the row's mark, not its place.
+	Mark string `json:"mark,omitempty"`
 }
 
 // docUnreadableRefusal refuses a write over a document that is there and cannot
@@ -136,6 +140,17 @@ func (s *Server) docUnreadableRefusal(path string) *apiErr {
 		return refuse(http.StatusUnprocessableEntity, why)
 	}
 	return nil
+}
+
+// markWord is the item's word for one row: the owner's InEffect/Hidden, or none.
+func markWord(row catalog.ListedRow) string {
+	switch {
+	case row.InEffect:
+		return "in_effect"
+	case row.Hidden:
+		return "hidden"
+	}
+	return ""
 }
 
 // effectiveOf is which place a name is in effect at, and which places are

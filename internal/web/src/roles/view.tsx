@@ -157,7 +157,7 @@ function placePills(r: RoleRow) {
   const over: Record<string, string[]> = (globalGroup && globalGroup.overridden_by) || {};
   // The crossed-out グローバル is the owner's mark for a name both layers hold
   // (r-ea17), not the screen's comparison of the two places.
-  const shadow = !!r.hidden && r.hidden.length > 0;
+  const shadow = r.mark === 'hidden' || (r.mark === 'in_effect');
   const overriding = r.group === 'global' ? (over[curName(r)] || []) : [];
   return <><span class="pill on">{label}</span>{shadow ? <span class="pill shadow">グローバル</span> : ''}{overriding.map((p) => <span class="pill hq-ov">{projectNameOf(p)} で上書き</span>)}</>;
 }
@@ -176,7 +176,7 @@ function sumInner(r: RoleRow) {
   const size = checks.value[r.uid + eff(r)];
   const teamIds = [...new Set(readers.map((x) => x.t.id))];
   return <><button type="button" class="chev disclosure" aria-label={`${r.markdown ? r.name : curName(r)} を開閉する`} aria-expanded={state.value.open.has(r.uid)} onClick={(e) => { e.stopPropagation(); pressToggle(r.uid); }}></button>
-      <span class="c-name"><span class="nm">{d.name ? d.name : <span class="none">—</span>}</span>{r.hidden && r.hidden.length ? <span class={'state ' + (r.group === 'global' ? 'off' : 'on')}>{r.group === 'global' ? '隠れている' : '効いている'}</span> : ''}<span class="ttl">{d.title}</span>{r.isNew ? <span class="tag">新規</span> : ''}{saved ? <Badge list={issues} /> : readers.length ? <span class="sev err">問題 {readers.length}</span> : ''}</span>
+      <span class="c-name"><span class="nm">{d.name ? d.name : <span class="none">—</span>}</span>{r.mark ? <span class={'state ' + (r.mark === 'hidden' ? 'off' : 'on')}>{r.mark === 'hidden' ? '隠れている' : '効いている'}</span> : ''}<span class="ttl">{d.title}</span>{r.isNew ? <span class="tag">新規</span> : ''}{saved ? <Badge list={issues} /> : readers.length ? <span class="sev err">問題 {readers.length}</span> : ''}</span>
       <span class="c-place">{r.noDoc ? '' : placePills(r)}</span>
       <span class="c-amount">{size && size.limit ? <Measure chars={size.size || 0} limit={size.limit} /> : <span class="none">—</span>}</span>
       <span class="c-readers">{GROUPED ? readersCell(r) : teamIds.length ? <><b>{teamIds.length}</b><span>{teamIds.join(' · ')}</span></> : <span class="none">0</span>}</span></>;
@@ -219,7 +219,7 @@ function Panel({ r, l }: { r: RoleRow; l: Place }) {
   const e = r[l];
   if (!e) return '';
   const d = e.draft, key = r.uid + l;
-  const shadowed = !!r.hidden && r.hidden.includes(l);
+  const shadowed = r.mark === 'hidden' && l === 'global';
   const row = rowOfPanel(r, l);
   if (!row) return '';
   const issues: RuleIssue[] = row.issues || [];
