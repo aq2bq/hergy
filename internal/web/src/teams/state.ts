@@ -29,6 +29,8 @@ import {
   fromJSON, toDoc, diffCount, clone,
 } from '../lib/ruledoc.js';
 import { parseOpen, token as roleToken } from '../lib/hq.js';
+import { TEAM as CHANGED_TEAM, diff as changedDiff, dirty as changedDirty, snapshot as changedSnapshot, teamNow as changedTeamNow } from '../lib/changed.js';
+import type { TeamWritten } from '../lib/changed.js';
 import { copyGroupOf, groupPlace, projectOfGroup } from '../lib/copy';
 import { roleDraftsDirty } from './role-modal.js';
 import { takeDraft, setDirty } from '../lib/nav.js';
@@ -701,7 +703,7 @@ function groupStart(group: string): number {
 // bornOf is everything 取り消し would throw away, as one string: the name, the
 // whole document a save would write (members, turns, workers, the description),
 // and the team's rules (r-d480).
-export const bornOf = (r: Rec): string => JSON.stringify([r.name.value, r.draft.value, r.agreeDraft.value.text]);
+export const bornOf = (r: Rec): string => JSON.stringify([r.name.value, changedSnapshot(writtenTeam(r)), r.agreeDraft.value.text]);
 
 // addDraft makes a row for a definition that is not there yet, checks it once,
 // and draws it: its figure, its rules and its preview are the server's own
@@ -791,55 +793,22 @@ export const rowIssues = (r: Rec) => (r.draftRow ? teamIssues(r) : pcountList(r.
 // written only when 保存 is pressed (spec-teams B2).
 // A row whose team.yaml cannot be read is never a change: there is no document
 // it would write (r-1e9a; seen when the list draws a broken row with ●).
-export const dirtyDef = (r: Rec) => (r.broken.value || r.problem.value ? false : (r.draftRow || changeCount(r) > 0 || (r.agreeSaved.value ? agreeDiff(r) > 0 : false)));
+export const dirtyDef = (r: Rec) => (r.draftRow || changedDirty(CHANGED_TEAM, savedTeam(r.saved.value), writtenTeam(r), !(r.broken.value || r.problem.value)) || (r.agreeSaved.value ? agreeDiff(r) > 0 : false));
 
-// workerOrigin is the worker of the saved file a draft worker stands in, read
-// back through the ops that changed its purpose or profile, or null when the
-// draft added it: it is how a purpose typed one letter at a time still counts
-// as one worker (spec-teams 1.4.6).
-function workerOrigin(w: Worker, ops: Op[]): Worker | null {
-  let from = w.from, purpose = w.purpose, profile = w.profile;
-  for (let i = ops.length - 1; i >= 0; i--) {
-    const op = ops[i];
-    if (op.kind === 'workerPurpose' && op.from === from && op.new === purpose) purpose = op.old;
-    else if (op.kind === 'workerProfile' && op.from === from && op.purpose === purpose) profile = op.profile;
-    else if (op.kind === 'moveWorker' && op.to === from && op.purpose === purpose) from = op.from;
-    else if (op.kind === 'addWorker' && op.from === from && op.purpose === purpose) return null;
-  }
-  return { from, purpose, profile };
-}
+// writtenTeam is the definition a save writes: its ops applied to the saved
+// document, with each worker's origin read back through them. The save and the
+// change test go through this one value (r-1e9a).
+export const writtenTeam = (r: Rec): TeamWritten => ({
+  description: r.draft.value.description,
+  turns: r.draft.value.turns,
+  members: r.draft.value.members,
+  workers: (r.draft.value.workers || []).map((w) => changedTeamNow(w, r.ops.value || []) || w),
+});
+const savedTeam = (s: Team): TeamWritten => ({ description: s.description, turns: s.turns, members: s.members, workers: s.workers || [] });
 
-// changeCount is 1.4.6's `N か所`: the description once, each turn that came in or
-// left, each worker added or taken away, and each worker whose purpose or
-// profile changed — one apiece, however many keystrokes wrote it.
+// changeCount is 1.4.6's `N か所`, from the owner's diff of the written value.
 export function changeCount(r: Rec): number {
-  const t = r.draft.value, s = r.saved.value, ops = r.ops.value || [];
-  let n = t.description !== s.description ? 1 : 0;
-  const key = (a: string, b: string): string => a + '\x00' + b;
-  const nowT = new Set((t.turns || []).map(([a, b]) => key(a, b)));
-  const wasT = new Set((s.turns || []).map(([a, b]) => key(a, b)));
-  nowT.forEach((k) => { if (!wasT.has(k)) n++; });
-  wasT.forEach((k) => { if (!nowT.has(k)) n++; });
-  const wasW = new Map((s.workers || []).map((w) => [key(w.from, w.purpose), w]));
-  const claimed = new Set();
-  (t.workers || []).forEach((w) => {
-    const o = workerOrigin(w, ops);
-    if (!o) { n++; return; }
-    claimed.add(key(o.from, o.purpose));
-    const sw = wasW.get(key(o.from, o.purpose));
-    if (!sw) { n++; return; }
-    if (w.from !== o.from || w.purpose !== o.purpose || w.profile !== sw.profile) n++;
-  });
-  wasW.forEach((_sw, k) => { if (!claimed.has(k)) n++; });
-  const wasM = new Map((s.members || []).map((m) => [m.name, m]));
-  const nowM = new Map((t.members || []).map((m) => [m.name, m]));
-  nowM.forEach((m, name) => {
-    const sm = wasM.get(name);
-    if (!sm) n++;
-    else if (sm.role !== m.role || sm.profile !== m.profile) n++;
-  });
-  wasM.forEach((_m, name) => { if (!nowM.has(name)) n++; });
-  return n;
+  return changedDiff(CHANGED_TEAM, savedTeam(r.saved.value), writtenTeam(r)).length;
 }
 
 // ownAgreement is whether a rule finding is about the team's own agreement:

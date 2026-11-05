@@ -92,6 +92,88 @@ import {
   resource
 } from "../chunk/nav-xgdfw3q1.js";
 
+// lib/changed.ts
+function same(a, b) {
+  if (Object.is(a, b))
+    return true;
+  if (Array.isArray(a) || Array.isArray(b)) {
+    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length)
+      return false;
+    return a.every((one, i) => same(one, b[i]));
+  }
+  if (typeof a !== "object" || typeof b !== "object" || a === null || b === null)
+    return false;
+  const ka = Object.keys(a).filter((key) => a[key] !== undefined);
+  const kb = Object.keys(b).filter((key) => b[key] !== undefined);
+  if (ka.length !== kb.length)
+    return false;
+  return ka.every((key) => (key in b) && same(a[key], b[key]));
+}
+function snapshot(v) {
+  if (Array.isArray(v))
+    return v.map((one) => snapshot(one));
+  if (v && typeof v === "object") {
+    const out = {};
+    for (const [key, one] of Object.entries(v))
+      out[key] = snapshot(one);
+    return out;
+  }
+  return v;
+}
+function dirty(_shape, from, to, readable = true) {
+  if (!readable)
+    return false;
+  if (from === null || from === undefined)
+    return to !== null && to !== undefined;
+  return !same(from, to);
+}
+function diff(shape, from, to, readable = true) {
+  if (!dirty(shape, from, to, readable))
+    return [];
+  if (from === null || from === undefined) {
+    const out = shape.fields.filter((f) => !empty(f.get(to)));
+    return out.length ? out : [{ key: "*", label: "そのほかの変更", get: () => {
+      return;
+    } }];
+  }
+  const out = shape.fields.filter((f) => !same(f.get(from), f.get(to)));
+  if (out.length === 0)
+    return [{ key: "*", label: "そのほかの変更", get: () => {
+      return;
+    } }];
+  return out;
+}
+function empty(v) {
+  if (v === null || v === undefined || v === "")
+    return true;
+  if (Array.isArray(v))
+    return v.length === 0;
+  if (typeof v === "object")
+    return Object.keys(v).length === 0;
+  return false;
+}
+var TEAM = { fields: [
+  { key: "description", label: "説明", get: (v) => v.description },
+  { key: "turns", label: "ターン", get: (v) => v.turns },
+  { key: "members", label: "メンバー", get: (v) => v.members.map((m) => ({ name: m.name, role: m.role, profile: m.profile })) },
+  { key: "workers", label: "ワーカー", get: (v) => v.workers.map((w) => ({ from: w.from, purpose: w.purpose, profile: w.profile })) }
+] };
+function teamNow(w, ops) {
+  let { from, purpose, profile } = w;
+  for (let i = ops.length - 1;i >= 0; i--) {
+    const op = ops[i];
+    if (op.kind === "workerPurpose" && op.from === from && op.new === purpose)
+      purpose = op.old;
+    else if (op.kind === "workerProfile" && op.from === from && op.purpose === purpose)
+      profile = op.profile;
+    else if (op.kind === "moveWorker" && op.to === from && op.purpose === purpose)
+      from = op.from;
+    else if (op.kind === "addWorker" && op.from === from && op.purpose === purpose)
+      return null;
+  }
+  return { from, purpose, profile };
+}
+
 // teams/rule-selection.ts
 var ruleSelection = y({});
 var selectedRules = (uid, available) => {
@@ -1219,7 +1301,7 @@ function groupStart(group) {
   const j = recs.value.findIndex((r) => order.indexOf(groupOfRecord(r)) > rank);
   return j >= 0 ? j : recs.value.length;
 }
-var bornOf = (r) => JSON.stringify([r.name.value, r.draft.value, r.agreeDraft.value.text]);
+var bornOf = (r) => JSON.stringify([r.name.value, snapshot(writtenTeam(r)), r.agreeDraft.value.text]);
 async function addDraft(how, place, name, base, project) {
   const r = draftRecord(how, place, name, base, project);
   await checkTeam(r);
@@ -1289,71 +1371,16 @@ var agreeDiff = (r) => !r.agreeSaved.value && !r.agreeDraft.value.text ? 0 : dif
 var teamIssues = (r) => r.findings.value;
 var pcountList = (c) => [...Array(c && c.err || 0)].map(() => ({ sev: "err" })).concat([...Array(c && c.warn || 0)].map(() => ({ sev: "warn" })));
 var rowIssues = (r) => r.draftRow ? teamIssues(r) : pcountList(r.problems.value);
-var dirtyDef = (r) => r.broken.value || r.problem.value ? false : r.draftRow || changeCount(r) > 0 || (r.agreeSaved.value ? agreeDiff(r) > 0 : false);
-function workerOrigin(w, ops) {
-  let { from, purpose, profile } = w;
-  for (let i = ops.length - 1;i >= 0; i--) {
-    const op = ops[i];
-    if (op.kind === "workerPurpose" && op.from === from && op.new === purpose)
-      purpose = op.old;
-    else if (op.kind === "workerProfile" && op.from === from && op.purpose === purpose)
-      profile = op.profile;
-    else if (op.kind === "moveWorker" && op.to === from && op.purpose === purpose)
-      from = op.from;
-    else if (op.kind === "addWorker" && op.from === from && op.purpose === purpose)
-      return null;
-  }
-  return { from, purpose, profile };
-}
+var dirtyDef = (r) => r.draftRow || dirty(TEAM, savedTeam(r.saved.value), writtenTeam(r), !(r.broken.value || r.problem.value)) || (r.agreeSaved.value ? agreeDiff(r) > 0 : false);
+var writtenTeam = (r) => ({
+  description: r.draft.value.description,
+  turns: r.draft.value.turns,
+  members: r.draft.value.members,
+  workers: (r.draft.value.workers || []).map((w) => teamNow(w, r.ops.value || []) || w)
+});
+var savedTeam = (s) => ({ description: s.description, turns: s.turns, members: s.members, workers: s.workers || [] });
 function changeCount(r) {
-  const t = r.draft.value, s = r.saved.value, ops = r.ops.value || [];
-  let n = t.description !== s.description ? 1 : 0;
-  const key = (a, b) => a + "\x00" + b;
-  const nowT = new Set((t.turns || []).map(([a, b]) => key(a, b)));
-  const wasT = new Set((s.turns || []).map(([a, b]) => key(a, b)));
-  nowT.forEach((k) => {
-    if (!wasT.has(k))
-      n++;
-  });
-  wasT.forEach((k) => {
-    if (!nowT.has(k))
-      n++;
-  });
-  const wasW = new Map((s.workers || []).map((w) => [key(w.from, w.purpose), w]));
-  const claimed = new Set;
-  (t.workers || []).forEach((w) => {
-    const o = workerOrigin(w, ops);
-    if (!o) {
-      n++;
-      return;
-    }
-    claimed.add(key(o.from, o.purpose));
-    const sw = wasW.get(key(o.from, o.purpose));
-    if (!sw) {
-      n++;
-      return;
-    }
-    if (w.from !== o.from || w.purpose !== o.purpose || w.profile !== sw.profile)
-      n++;
-  });
-  wasW.forEach((_sw, k) => {
-    if (!claimed.has(k))
-      n++;
-  });
-  const wasM = new Map((s.members || []).map((m) => [m.name, m]));
-  const nowM = new Map((t.members || []).map((m) => [m.name, m]));
-  nowM.forEach((m, name) => {
-    const sm = wasM.get(name);
-    if (!sm)
-      n++;
-    else if (sm.role !== m.role || sm.profile !== m.profile)
-      n++;
-  });
-  wasM.forEach((_m, name) => {
-    if (!nowM.has(name))
-      n++;
-  });
-  return n;
+  return diff(TEAM, savedTeam(r.saved.value), writtenTeam(r)).length;
 }
 var vlistParts = (r) => {
   const issues = teamIssues(r);
@@ -2018,7 +2045,7 @@ var rowOfPanel = (r) => {
     diff: check ? check.diff : { added: [], removedBefore: [], removedAtEnd: false }
   };
 };
-function dirty() {
+function dirty2() {
   if (roleDraftsDirty())
     return true;
   for (const r of recs.value)
@@ -2030,7 +2057,7 @@ function dirty() {
   return false;
 }
 function tellDirty() {
-  setDirty2(dirty());
+  setDirty2(dirty2());
 }
 function restore(carried) {
   (carried.teams || []).forEach((c) => {
@@ -6662,14 +6689,14 @@ function CanvasToast() {
 
 // teams/main.tsx
 if (view) {
-  const page = { screen: "teams", dirty, settled: false, take, tellDirty };
+  const page = { screen: "teams", dirty: dirty2, settled: false, take, tellDirty };
   Object.assign(window, { hergyPage: page });
   if (tabsEl)
     R(/* @__PURE__ */ u(Tabs, {}), tabsEl);
   R(/* @__PURE__ */ u(App, {}), view);
   mountCanvas(view);
   x(() => {
-    setDirty2(dirty());
+    setDirty2(dirty2());
   });
   let wasNarrow = narrow();
   let rt;

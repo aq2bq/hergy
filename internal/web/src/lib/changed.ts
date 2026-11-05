@@ -41,15 +41,18 @@ export function snapshot<T>(v: T): T {
 }
 
 // changed is whether the written value differs from the one held.
-export function dirty<T>(_shape: Shape<T>, from: T | null, to: T): boolean {
+export function dirty<T>(_shape: Shape<T>, from: T | null, to: T, readable = true): boolean {
+  // A document that cannot be read is never a change: there is nothing it would
+  // write, so a broken row carries no ● and no 未保存 (r-1e9a).
+  if (!readable) return false;
   if (from === null || from === undefined) return to !== null && to !== undefined;
   return !same(from, to);
 }
 
 // diff is the fields that differ, in the table's order, with one 「そのほかの
 // 変更」 when the value differs and no field in the table does.
-export function diff<T>(shape: Shape<T>, from: T | null, to: T): Field<T>[] {
-  if (!dirty(shape, from, to)) return [];
+export function diff<T>(shape: Shape<T>, from: T | null, to: T, readable = true): Field<T>[] {
+  if (!dirty(shape, from, to, readable)) return [];
   if (from === null || from === undefined) {
     const out = shape.fields.filter((f) => !empty(f.get(to)));
     return out.length ? out : [{ key: '*', label: 'そのほかの変更', get: () => undefined }];
@@ -60,8 +63,8 @@ export function diff<T>(shape: Shape<T>, from: T | null, to: T): Field<T>[] {
 }
 
 // lost is what a revert or a discard would drop, in words.
-export function lost<T>(shape: Shape<T>, from: T | null, to: T): string[] {
-  return diff(shape, from, to).map((f) => f.label);
+export function lost<T>(shape: Shape<T>, from: T | null, to: T, readable = true): string[] {
+  return diff(shape, from, to, readable).map((f) => f.label);
 }
 
 function empty(v: unknown): boolean {
@@ -115,3 +118,21 @@ export type YamlWritten = { text: string };
 export const YAML_TEXT: Shape<YamlWritten> = { fields: [
   { key: 'text', label: '本文', get: (v) => v.text },
 ] };
+
+// teamNow is a worker as the saved file holds it, read back through the ops
+// that changed its purpose or profile, or null when the draft added it: it is
+// how a purpose typed one letter at a time still counts as one worker
+// (spec-teams 1.4.6).
+export type TeamOp = { kind: string } & Record<string, string>;
+export type TeamWorker = { from: string; purpose: string; profile: string };
+export function teamNow(w: TeamWorker, ops: TeamOp[]): TeamWorker | null {
+  let from = w.from, purpose = w.purpose, profile = w.profile;
+  for (let i = ops.length - 1; i >= 0; i--) {
+    const op = ops[i];
+    if (op.kind === 'workerPurpose' && op.from === from && op.new === purpose) purpose = op.old;
+    else if (op.kind === 'workerProfile' && op.from === from && op.purpose === purpose) profile = op.profile;
+    else if (op.kind === 'moveWorker' && op.to === from && op.purpose === purpose) from = op.from;
+    else if (op.kind === 'addWorker' && op.from === from && op.purpose === purpose) return null;
+  }
+  return { from, purpose, profile };
+}
