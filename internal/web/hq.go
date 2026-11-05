@@ -574,6 +574,13 @@ func (s *Server) hqKindGroup(kindName string, project HQProject) (HQGroup, *apiE
 // hqGlobalGroup is the global layer's own names of one kind, read once.
 func (s *Server) hqGlobalGroup(kindName string, projects HQProjects) (HQGroup, *apiErr) {
 	global := s.globalCatalog()
+	// The one-project display reads the global group through this serve's own
+	// project, so a name both layers hold is answered from both (r-ea17). The
+	// listed display keeps the global layer alone: which project hides a name is
+	// the headquarters' own answer (overridden_by), not one project's.
+	if projects.Mode != "listed" {
+		global = s.cat
+	}
 	scoped := *s
 	scoped.cat = global
 	kind, ok := scoped.apiKindOf(kindName)

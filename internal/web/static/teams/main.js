@@ -1031,10 +1031,8 @@ function defOf(item, project) {
   const sum = item.summary;
   const dom = domOf(item.name || "", group);
   const had = byKey(dom + "." + eff);
-  if (had) {
-    had.mark.value = item.mark || "";
+  if (had)
     return had;
-  }
   let saved = null;
   if (agree.doc) {
     saved = fromJSON2(agree.doc);

@@ -1,6 +1,6 @@
 import { test, expect } from './fixtures';
 import { ready } from './helpers';
-import { copyFileSync, mkdirSync } from 'node:fs';
+import { appendFileSync, copyFileSync, cpSync, mkdirSync, writeFileSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
 // r-ea17: a name both layers hold is two rows, one 効いている and one
@@ -35,7 +35,7 @@ test.describe('roles', () => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto(`${app.base}/roles`); await ready(page);
     const rows = page.locator('#rows .role');
-    const both = rows.filter({ has: page.locator('.c-name .nm', { hasText: /^lead$/ }) });
+    const both = rows.filter({ has: page.locator('.c-name .nm', { hasText: /^scout$/ }) });
     await expect(both).toHaveCount(2);
     await expect(both.filter({ hasText: '効いている' })).toHaveCount(1);
     await expect(both.filter({ hasText: '隠れている' })).toHaveCount(1);
@@ -61,6 +61,31 @@ test.describe('profiles', () => {
 test.describe('the headquarters list', () => {
   test.use({ reads: 'hq' });
 
+  test('teams: a name both the global layer and a listed project hold', async ({ page, app }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    const alpha = path.join(app.home, 'src', 'alpha', '.hergy', 'teams');
+    mkdirSync(alpha, { recursive: true });
+    cpSync(path.join(app.cfg, 'hergy', 'teams', 'shared'), path.join(alpha, 'shared'), { recursive: true });
+    await page.goto(`${app.base}/teams`); await ready(page);
+    const rows = page.locator('#rows .tdef, #view .tdef');
+    const both = rows.filter({ has: page.locator('.c-name .nm', { hasText: /^shared$/ }) });
+    // The listed display does not call one project the hiding side: the global
+    // row carries no 隠れている, and the project's row is in effect (r-ea17).
+    await expect(both.filter({ hasText: '効いている' })).not.toHaveCount(0);
+    await expect(both.filter({ hasText: '隠れている' })).toHaveCount(0);
+  });
+
+  test('profiles: a name both the global layer and a listed project hold', async ({ page, app }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    const file = path.join(app.home, 'src', 'alpha', '.hergy', 'profiles.yaml');
+    appendFileSync(file, '  coder:\n    kind: claude\n    args: ["--model", "x"]\n');
+    await page.goto(`${app.base}/profiles`); await ready(page);
+    const rows = page.locator('#rows .row');
+    const both = rows.filter({ has: page.locator('.c-name .nm', { hasText: /^coder$/ }) });
+    await expect(both.filter({ hasText: '効いている' })).not.toHaveCount(0);
+    await expect(both.filter({ hasText: '隠れている' })).toHaveCount(0);
+  });
+
   test('roles: a name both the global layer and a listed project hold', async ({ page, app }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     const alpha = path.join(app.home, 'src', 'alpha', '.hergy', 'roles');
@@ -70,6 +95,6 @@ test.describe('the headquarters list', () => {
     const rows = page.locator('#rows .role');
     const both = rows.filter({ has: page.locator('.c-name .nm', { hasText: /^lead$/ }) });
     await expect(both.filter({ hasText: '効いている' })).not.toHaveCount(0);
-    await expect(both.filter({ hasText: '隠れている' })).not.toHaveCount(0);
+    await expect(both.filter({ hasText: '隠れている' })).toHaveCount(0);
   });
 });

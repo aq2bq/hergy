@@ -1656,7 +1656,7 @@ function placePills(r) {
   const label = r.group === "global" ? LNAME.global : r.group ? projectNameOf(r.group) : currentProjectName();
   const globalGroup = (HQ && HQ.roles || []).find((g) => g.global);
   const over = globalGroup && globalGroup.overridden_by || {};
-  const shadow = r.mark === "hidden" || r.mark === "in_effect";
+  const shadow = r.mark === "in_effect";
   const overriding = r.group === "global" ? over[curName(r)] || [] : [];
   return /* @__PURE__ */ u(S, {
     children: [

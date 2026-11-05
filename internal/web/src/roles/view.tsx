@@ -157,7 +157,7 @@ function placePills(r: RoleRow) {
   const over: Record<string, string[]> = (globalGroup && globalGroup.overridden_by) || {};
   // The crossed-out グローバル is the owner's mark for a name both layers hold
   // (r-ea17), not the screen's comparison of the two places.
-  const shadow = r.mark === 'hidden' || (r.mark === 'in_effect');
+  const shadow = r.mark === 'in_effect';
   const overriding = r.group === 'global' ? (over[curName(r)] || []) : [];
   return <><span class="pill on">{label}</span>{shadow ? <span class="pill shadow">グローバル</span> : ''}{overriding.map((p) => <span class="pill hq-ov">{projectNameOf(p)} で上書き</span>)}</>;
 }
