@@ -3,6 +3,7 @@
 // mount と、ページの外への受け渡しだけを持つ。描くのは board.js、状態は
 // state.js。押し込みは部品が持つ（board.js の onClick）。ここも DOM を書かない
 // （5 章 1）。
+import { installWheel } from '../lib/wheel.js';
 import { render } from '../lib/preact.js';
 import { Board } from './board.js';
 import { reading, refresh, POLL } from './state.js';
@@ -33,3 +34,6 @@ if (list) {
   // this screen's any more.
   window.addEventListener('pagehide', () => { reading.abort(); });
 }
+
+// The wheel over an input nobody is typing in sends the page (r-ddb7).
+installWheel();

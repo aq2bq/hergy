@@ -54,7 +54,7 @@ import {
 import {
   roleEditor,
   roleProblems
-} from "../chunk/nav-45g6ysqq.js";
+} from "../chunk/nav-3swfaejk.js";
 import {
   copyGroupOf,
   projectOfGroup,
@@ -64,7 +64,9 @@ import {
 import {
   Field
 } from "../chunk/nav-hrc2s6sc.js";
-import"../chunk/nav-spnv3sy9.js";
+import {
+  installWheel
+} from "../chunk/nav-y1258m5z.js";
 
 // roles/state.ts
 var view = document.getElementById("view");
@@ -1953,7 +1955,9 @@ function Panel({ r, l }) {
                 class: "btn danger",
                 "data-act": "discard",
                 onClick: () => {
-                  if (n === 0) {
+                  const untouched = e.draft.name === "" && e.draft.title === "" && e.draft.text === `## 責務
+`;
+                  if (untouched) {
                     pressDiscard(r.uid, l);
                     return;
                   }
@@ -2073,3 +2077,4 @@ if (view) {
     page.settled = true;
   });
 }
+installWheel();

@@ -41,8 +41,9 @@ import {
   exports_hq
 } from "../chunk/nav-ca9prev5.js";
 import {
+  installWheel,
   resource
-} from "../chunk/nav-spnv3sy9.js";
+} from "../chunk/nav-y1258m5z.js";
 
 // activity/state.ts
 var POLL = 1e4;
@@ -593,3 +594,4 @@ if (list) {
     reading.abort();
   });
 }
+installWheel();

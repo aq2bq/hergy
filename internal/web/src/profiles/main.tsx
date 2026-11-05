@@ -3,6 +3,7 @@
 // mount と、住所・帯への受け渡しだけを持つ。描くのは view.tsx / assign.tsx /
 // yaml.tsx、状態は state.ts、押し込みは部品が自分の onClick / onInput から
 // actions.ts の関数を直接呼ぶ。ここも DOM を書かない（5 章 1）。
+import { installWheel } from '../lib/wheel.js';
 import { render } from '../lib/preact.js';
 import { takeDraft } from '../lib/nav.js';
 import {
@@ -67,3 +68,6 @@ function flashFromHash(): void {
 const carried = takeDraft('profiles');
 if (carried) restore(carried);
 tellDirty();
+
+// The wheel over an input nobody is typing in sends the page (r-ddb7).
+installWheel();

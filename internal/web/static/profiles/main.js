@@ -51,8 +51,9 @@ import {
   Field
 } from "../chunk/nav-hrc2s6sc.js";
 import {
+  installWheel,
   resource
-} from "../chunk/nav-spnv3sy9.js";
+} from "../chunk/nav-y1258m5z.js";
 
 // profiles/state.ts
 function mustElement(id) {
@@ -1428,7 +1429,7 @@ function Panel({ panel }) {
             children: [
               /* @__PURE__ */ u("p", {
                 children: [
-                  `${panel.path} を消します。`,
+                  `${panel.path} から プロファイル ${panel.draft.name || panel.saved?.name || ""} を消します。ファイルは残ります。`,
                   panel.users ? `${panel.users} 人が使っています。` : ""
                 ]
               }),
@@ -1444,10 +1445,11 @@ function Panel({ panel }) {
         }),
         children: "削除"
       }) : /* @__PURE__ */ u("button", {
-        class: "btn" + (changedOf(panel).count > 0 ? " danger" : ""),
+        class: "btn danger",
         "data-act": "discard",
         onClick: () => {
-          if (changedOf(panel).count === 0) {
+          const untouched = !panel.saved && panel.draft.name === "" && panel.draft.args.length === 0 && panel.draft.env.length === 0 && panel.draft.kind === "claude";
+          if (untouched) {
             pressDiscard(panel.key);
             return;
           }
@@ -2392,3 +2394,4 @@ var carried = takeDraft2("profiles");
 if (carried)
   restore(carried);
 tellDirty();
+installWheel();

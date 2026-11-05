@@ -195,11 +195,14 @@ function Panel({ panel }: { panel: PanelState }) {
       {saved && canCopy(panel) ? <button class="btn" data-act="copy" onClick={() => pressCopy(panel.key)}>{panel.otherLabel}にコピー</button> : ''}
       {saved ? <button class="btn danger" data-act="del" onClick={() => askConfirm({
         title: `プロファイル ${panel.draft.name || panel.saved?.name || ''} を削除しますか`,
-        body: <><p>{`${panel.path} を消します。`}{panel.users ? `${panel.users} 人が使っています。` : ''}</p><p><b>取り消せません。</b></p></>,
+        body: <><p>{`${panel.path} から プロファイル ${panel.draft.name || panel.saved?.name || ''} を消します。ファイルは残ります。`}{panel.users ? `${panel.users} 人が使っています。` : ''}</p><p><b>取り消せません。</b></p></>,
         label: `削除する${panel.users ? `（${panel.users} 人が使っている）` : ''}`,
         run: () => pressDelYes(panel.key),
-      })}>削除</button> : <button class={'btn' + (changedOf(panel).count > 0 ? ' danger' : '')} data-act="discard" onClick={() => {
-        if (changedOf(panel).count === 0) { pressDiscard(panel.key); return; }
+      })}>削除</button> : <button class="btn danger" data-act="discard" onClick={() => {
+        // A new panel starts on the defaults; nothing else there is the person's
+        // input (r-d480).
+        const untouched = !panel.saved && panel.draft.name === '' && panel.draft.args.length === 0 && panel.draft.env.length === 0 && panel.draft.kind === 'claude';
+        if (untouched) { pressDiscard(panel.key); return; }
         askConfirm({ title: '入力した内容を捨てますか', body: <p>保存していない入力があります。<b>取り消せません。</b></p>, label: '破棄する', run: () => pressDiscard(panel.key) });
       }}>取り消し</button>}
     </>

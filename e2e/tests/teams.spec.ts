@@ -328,9 +328,8 @@ test('TEAMS-N1 add, the shared place and delete', async ({ page, app }) => {
   let before = await read<number>(page, list);
   await press(page, q('#view .list .hq-gh[data-place=project] [data-act=new]'));
   await wait(page, there2(draft, '.in-name'));
+  // A row nothing was put into is thrown away at once (r-d480).
   await press(page, `${draft}.querySelector('[data-act=discard]')`);
-  await wait(page, `!!document.querySelector('.confirm')`);
-  await press(page, `document.querySelector('.confirm .btn.danger.solid')`);
   await wait(page, `!document.querySelector('.tdef[data-name^="~new"]')`);
   expect(
     readdirSync(path.join(app.proj, '.hergy', 'teams')).sort(),

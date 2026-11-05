@@ -173,7 +173,9 @@ test('opening prose allocates a stable viewport below the real band and keeps sa
   const height = (await input.boundingBox())!.height;
   expect(before.y).toBeGreaterThan(80);
   expect(before.y + before.height).toBeLessThanOrEqual(900);
-  await input.hover();
+  // The wheel over an input nobody is typing in sends the page now (r-ddb7):
+  // press the input first, and its own frame keeps the board where it stands.
+  await input.click({ position: { x: 40, y: 40 } });
   await page.mouse.wheel(0, 700);
   await expect.poll(async () => (await input.boundingBox())!.height).toBe(height);
   await expect.poll(async () => (await board.boundingBox())!.y).toBe(before.y);

@@ -160,6 +160,7 @@ input[data-f]:focus, textarea[data-f]:focus { outline: 2px solid var(--accent-so
 
 .prose-column .prose-head { min-height: 144px; }
 .prose-drag-hint { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.prose-wheel-hint { color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .prose-scope { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; white-space: nowrap; }
 .scope-place { padding: 1px 4px; border-radius: 3px; background: var(--bg); }
 .prose-column .prose-head:not(:has(.prose-other-teams)) .prose-budget { margin-top: 20px; }

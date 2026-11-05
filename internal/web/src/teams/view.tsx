@@ -288,10 +288,12 @@ function Dacts({ r }: { r: Rec }) {
     label: '削除する（team.yaml と agreement.md）',
     run: () => pressDelYes(r),
   });
-  // A row that is not there yet can hold the starter's words before the person
-  // typed anything, so throwing it away is asked for like any other loss
-  // (r-d480).
+  // The starter's words stand on the base the row was seeded with, so the same
+  // rule as the other screens holds: nothing changed since it was made is thrown
+  // away at once, and anything the person put in is asked for (r-d480).
+  const touched = () => changeCount(r) > 0 || r.name.value !== '' || (r.agreeSaved.value ? agreeDiff(r) > 0 : false);
   const discard = () => {
+    if (!touched()) { pressDiscard(r); return; }
     askConfirm({
       title: '入力した内容を捨てますか',
       body: <p>保存していない入力があります。<b>取り消せません。</b></p>,
@@ -556,7 +558,7 @@ function AgreePanel({ r }: { r: Rec }) {
       <button class="btn" type="button" onClick={() => { ruleSelection.value = { ...ruleSelection.value, [r.uid]: available }; }}>すべて表示</button>
      </div>
      {active.length > 1 ? <p class="prose-compare-note">比較中 {active.length} 文書。{active.length > 2 ? '横に収まらない文書は、下のスクロールバーで表示できます。' : ''}文書名を押すと、その文書だけを読みます。</p> : null}
-     <div class="prose-tools"><EqualWidths /><span class="prose-drag-hint">見出しだけの表示で、行の左の ⠿ をつかんで別の列へ落とすと移します。{transferKeys()}</span>{places.length ? <span class="prose-scope"><span>確認できた範囲</span>{places.map((place) => <span class="scope-place">{place}</span>)}</span> : null}</div><div class="prose-board"><section hidden={!active.includes('agreement')} class={'prose-column panel agree-p' + (shadowed ? ' shadowed' : '')} data-uid={r.uid} data-l={r.place.value} data-key={dkey(r)} data-mode={mode}>
+     <div class="prose-tools"><EqualWidths /><span class="prose-drag-hint">見出しだけの表示で、行の左の ⠿ をつかんで別の列へ落とすと移します。{transferKeys()}</span><span class="prose-wheel-hint">本文を読み進めるときは、欄を一度押してからホイールを回します。</span>{places.length ? <span class="prose-scope"><span>確認できた範囲</span>{places.map((place) => <span class="scope-place">{place}</span>)}</span> : null}</div><div class="prose-board"><section hidden={!active.includes('agreement')} class={'prose-column panel agree-p' + (shadowed ? ' shadowed' : '')} data-uid={r.uid} data-l={r.place.value} data-key={dkey(r)} data-mode={mode}>
       <div class="pmain">
         <RuleDoc transfer={r.draftRow ? undefined : teamTransfer(r)} row={rowOfPanel(r)} issues={agreeIssues(r)} hasName={false} heading={{ id: `team-prose-${r.uid}`, kind: 'チーム定義', name: r.name.value, title: r.agreeDraft.value.title,
             path: `${placeName(r.place.value)} · teams/${r.name.value}/agreement.md`, members: r.draft.value.members.map((m) => m.name).join('、'),

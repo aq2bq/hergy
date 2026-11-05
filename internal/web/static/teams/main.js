@@ -77,7 +77,7 @@ import {
 import {
   roleEditor,
   roleProblems
-} from "../chunk/nav-45g6ysqq.js";
+} from "../chunk/nav-3swfaejk.js";
 import {
   copyGroupOf,
   groupPlace,
@@ -89,8 +89,9 @@ import {
   Field
 } from "../chunk/nav-hrc2s6sc.js";
 import {
+  installWheel,
   resource
-} from "../chunk/nav-spnv3sy9.js";
+} from "../chunk/nav-y1258m5z.js";
 
 // teams/rule-selection.ts
 var ruleSelection = y({});
@@ -5878,7 +5879,12 @@ function Dacts({ r }) {
     label: "削除する（team.yaml と agreement.md）",
     run: () => pressDelYes(r)
   });
+  const touched = () => changeCount(r) > 0 || r.name.value !== "" || (r.agreeSaved.value ? agreeDiff(r) > 0 : false);
   const discard = () => {
+    if (!touched()) {
+      pressDiscard(r);
+      return;
+    }
     askConfirm({
       title: "入力した内容を捨てますか",
       body: /* @__PURE__ */ u("p", {
@@ -6446,6 +6452,10 @@ function AgreePanel({ r }) {
               transferKeys()
             ]
           }),
+          /* @__PURE__ */ u("span", {
+            class: "prose-wheel-hint",
+            children: "本文を読み進めるときは、欄を一度押してからホイールを回します。"
+          }),
           places.length ? /* @__PURE__ */ u("span", {
             class: "prose-scope",
             children: [
@@ -6704,3 +6714,4 @@ if (view) {
     page.settled = true;
   });
 }
+installWheel();
