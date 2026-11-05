@@ -698,6 +698,10 @@ textarea.held-why { color: var(--faint); text-decoration: line-through; text-dec
 .prompt-origins { display: flex; flex-direction: column; align-items: start; gap: 2px; padding-top: 2px; }
 .prompt-origin { font: 12px/1.5 var(--f-body); color: var(--muted); border-left: 2px solid var(--line); padding-left: 4px; }
 .prompt-origin-legend { font-size: 12px; color: var(--muted); flex-shrink: 0; }
+/* What the diff holds and the one step to its first line (r-3a3767). It stands
+   outside the body's scroll, so it stays while the lines move. */
+.prompt-diff-summary { display: flex; align-items: center; gap: 12px; font-size: 12px; color: var(--muted); flex-shrink: 0; }
+.prompt-diff-summary .btn { margin-left: auto; }
 /* A topology section stands as one band from its heading to its last line
    (r-04fc): a left rule only, so the diff's add and remove tints stay. */
 .prompt-current-line[data-section], .prompt-diff-line[data-section] { box-shadow: inset 3px 0 0 var(--accent); }

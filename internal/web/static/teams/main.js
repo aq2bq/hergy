@@ -3873,6 +3873,11 @@ function PromptComparison({ r, member, close }) {
     return () => reading.abort();
   }, [reading, payload]);
   const answer = reading.value.value;
+  const body = A(null);
+  h(() => {
+    if (body.current)
+      body.current.scrollTop = 0;
+  }, [view]);
   h(() => {
     if (!answer)
       return;
@@ -4029,8 +4034,33 @@ function PromptComparison({ r, member, close }) {
           view !== "recorded" && /* @__PURE__ */ u(OriginLegend, {
             diff: view === "diff"
           }),
+          view === "diff" && !!answer.recorded && answer.current !== null && answer.diff.some((line) => line.kind !== "same") && /* @__PURE__ */ u("div", {
+            class: "prompt-diff-summary",
+            children: [
+              /* @__PURE__ */ u("span", {
+                children: [
+                  "追加 ",
+                  answer.diff.filter((line) => line.kind === "add").length,
+                  " 行・削除 ",
+                  answer.diff.filter((line) => line.kind === "remove").length,
+                  " 行"
+                ]
+              }),
+              /* @__PURE__ */ u("button", {
+                class: "btn sm",
+                type: "button",
+                onClick: () => {
+                  const host = body.current, first = host && host.querySelector(".prompt-diff-line.add, .prompt-diff-line.remove");
+                  if (host && first)
+                    host.scrollTop += first.getBoundingClientRect().top - host.getBoundingClientRect().top - 8;
+                },
+                children: "最初の差へ"
+              })
+            ]
+          }),
           /* @__PURE__ */ u("div", {
             class: "prompt-body",
+            ref: body,
             tabIndex: 0,
             "aria-label": view === "recorded" ? "渡した文の全文" : view === "current" ? "今の文の全文" : "本文の差",
             children: [

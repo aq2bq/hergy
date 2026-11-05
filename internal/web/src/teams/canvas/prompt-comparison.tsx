@@ -35,7 +35,10 @@ export function PromptComparison({ r, member, close }: {r: Rec; member: string; 
  }, [reading]);
  useEffect(() => { void load(); return () => reading.abort(); }, [reading, payload]);
  const answer = reading.value.value;
-
+ const body = useRef<HTMLDivElement>(null);
+ // Each view opens at its own top: a scroll left in one view does not carry the
+ // next one somewhere else (r-3a3767).
+ useEffect(() => { if (body.current) body.current.scrollTop = 0; }, [view]);
  // A pick that is gone from the runs is let go, and a single running team is
  // taken the way the server took it, so the prompt column reads the same name
  // (the same call stands in prompt.tsx).
@@ -66,7 +69,16 @@ export function PromptComparison({ r, member, close }: {r: Rec; member: string; 
     {answer.problems.map((problem) => <p class={problem.sev==='err' ? 'err' : ''}>{problem.text}</p>)}
    </div>
    {view !== 'recorded' && <OriginLegend diff={view === 'diff'} />}
-   <div class="prompt-body" tabIndex={0} aria-label={view==='recorded' ? '渡した文の全文' : view==='current' ? '今の文の全文' : '本文の差'}>
+   {view === 'diff' && !!answer.recorded && answer.current !== null && answer.diff.some((line) => line.kind !== 'same') && <div class="prompt-diff-summary">
+    <span>追加 {answer.diff.filter((line) => line.kind === 'add').length} 行・削除 {answer.diff.filter((line) => line.kind === 'remove').length} 行</span>
+    {/* The band sends the body alone: the dialog and the page keep their place
+        (r-3a3767, n-83f0). */}
+    <button class="btn sm" type="button" onClick={() => {
+     const host = body.current, first = host && host.querySelector<HTMLElement>('.prompt-diff-line.add, .prompt-diff-line.remove');
+     if (host && first) host.scrollTop += first.getBoundingClientRect().top - host.getBoundingClientRect().top - 8;
+    }}>最初の差へ</button>
+   </div>}
+   <div class="prompt-body" ref={body} tabIndex={0} aria-label={view==='recorded' ? '渡した文の全文' : view==='current' ? '今の文の全文' : '本文の差'}>
     {view==='recorded' && (answer.recorded ? <FullText text={answer.recorded.text}/> : <p>渡した文を表示できません。</p>)}
     {view==='current' && (answer.current!==null ? <CurrentPrompt text={answer.current} lines={lines}/> : <p>定義に問題があるため、今の文を組み立てられません。</p>)}
     {view==='diff' && <Difference answer={answer} lines={lines}/>}
