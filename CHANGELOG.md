@@ -1,5 +1,56 @@
 # Changelog
 
+## 0.9.8 - 2026-11-05
+
+### Added
+
+- **Light and dark are chosen at the top right**: a menu on every screen offers
+  light, dark and follow the OS. The choice is kept in the browser, shared by
+  the four screens and other tabs of the same origin, and restored before the
+  page is styled. When it cannot be kept, the screen follows the OS and says
+  why.
+- **A member's recorded prompt is read beside the topology draft**: for each
+  live member, the team definition screen shows the last recorded prompt body,
+  the current draft and an unfolded line diff. Recording and delivery are
+  unchanged; a recorded body omits the change-reason preamble and does not
+  prove that the member received it.
+- **Topology-derived lines say where they come from**: selecting a member
+  shows the roster, contact, turns and workers sections apart, and the full
+  text and the diff carry the same origin. A team started under another name
+  reads the same sections. Lines without a recorded origin are not guessed.
+
+### Changed
+
+- **Rules are read at a chosen width**: on the team definition and role
+  screens, pick a document to read it at about 40 characters per line, or
+  switch to compare or show all. The columns use the window's width: a widened
+  column is at least 480px, the others keep 240px and a column that does not
+  fit scrolls inside the row. A narrow column shows its footer actions as
+  icons and keeps the character count on one line. Hiding a document keeps the
+  draft and the save target.
+- **The band stays in place across screens**: the four screens share one
+  horizontal frame, the band fits on one line on wide screens and its tabs
+  take two columns on narrow ones. Actions line up at the top, the description
+  is edited in the attribute panel, helper text keeps a contrast of 4.5 or
+  more in both themes, and topology lines avoid the members between their
+  ends. Below 420px the body keeps a 16px gutter.
+- **The contact guidance in member and worker prompts checks the herdr
+  environment by `test`'s exit code** and passes `printenv` one variable at a
+  time. On macOS `printenv` with several names prints only the first, so Codex
+  took a set `HERDR_ENV` for unset and stopped right after starting. The
+  README and `hergy cheat` say that the guidance includes this check.
+
+### Fixed
+
+- **The activity screen opens the definition a team was started from**: a
+  team started from a global definition linked to the running project's place
+  and said not found, and the diagram could pick a project definition of the
+  same name. The link and the diagram now use the recorded place.
+- **A URL that names a place opens that place's definition alone**: without
+  the project list, a project definition and a global definition of the same
+  name opened together. The rules tab, the URL written back and undo keep the
+  named place.
+
 ## 0.9.7 - 2026-11-04
 
 - Copy or move exact heading ranges between team and role documents, with optional child headings and a chosen insertion point. Review and undo drafts before saving; moves save the destination first and report partial completion. Resize columns or restore equal widths.
