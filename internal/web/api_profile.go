@@ -99,11 +99,14 @@ func p2ItemOf(row p2Row, project, shared p2File) apiItem {
 // would make.
 func (s *Server) p2FileOf(file p2File) apiFile {
 	text := file.text
-	if !file.ok {
+	if !file.ok && file.problem == "" {
 		text = "version: 1\n"
 	}
 	_, problems := profile.ReadAll(text, s.cat.Display(file.path))
-	out := apiFile{Place: file.file, Label: file.label, Path: s.cat.Display(file.path), Text: text, Hash: file.hash}
+	if file.problem != "" {
+		problems = append(problems, profile.Problem{Sev: profile.Err, Line: 1, Text: file.problem})
+	}
+	out := apiFile{Place: file.file, Label: file.label, Path: s.cat.Display(file.path), Text: text, Hash: file.hash, Problem: file.problem}
 	for _, problem := range p2Sorted(problems) {
 		out.Problems = append(out.Problems, apiProblem{Sev: problem.Sev.Word(), At: "line", Text: problem.Text, Line: problem.Line})
 	}

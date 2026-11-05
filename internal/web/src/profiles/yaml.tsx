@@ -17,7 +17,7 @@ function YamlFileSection({ file }: { file: YamlFile }) {
   return (
     <section class="yed" data-file={file.file} data-hash={file.hash}>
       <YamlTab key={file.file} file={file.file} label={file.label} path={file.path}
-        text={file.text} hash={file.hash} kind="profile" place={file.file} name="_yaml" problems={file.problems || []}
+        text={file.text} hash={file.hash} kind="profile" place={file.file} name="_yaml" problems={file.problems || []} problem={file.problem || ''}
         carried={one.carried === undefined ? null : one.carried}
         onState={(state: YamlOne) => { tellYaml(file.file, { ...(yamlState.value.get(file.file) || {}), ...state, carried: null }); tellDirty(); }} />
     </section>

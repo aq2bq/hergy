@@ -2,8 +2,10 @@ package web
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html/template"
+	"io/fs"
 	"slices"
 	"strings"
 
@@ -189,6 +191,7 @@ type p2Yed struct {
 	Path     string       `json:"path"`
 	Text     string       `json:"text"`
 	Hash     string       `json:"hash"`
+	Problem  string       `json:"problem,omitempty"`
 	Height   string       `json:"height"`
 	Lines    []p2Line     `json:"lines"`
 	Problems []p2YProblem `json:"problems"`
@@ -219,6 +222,7 @@ type p2File struct {
 	path     string
 	display  string
 	ok       bool
+	problem  string
 	text     string
 	hash     string
 	entries  []profile.Entry
@@ -265,7 +269,12 @@ func (s *Server) p2ReadFile(file, path string) p2File {
 	out := p2File{file: file, label: p2Label(file), path: path, display: s.cat.Display(path), hash: source.Hash("")}
 	text, err := s.cat.Reader().Read(source.Doc{Path: path})
 	if err != nil {
-		_ = err
+		// A file that is not there is the empty file a save would make; one that
+		// is there and cannot be read keeps its reason, and the YAML tab offers
+		// no save over it (r-ea17, d-0bf1).
+		if !errors.Is(err, fs.ErrNotExist) {
+			out.problem = err.Error()
+		}
 		return out
 	}
 	out.ok = true

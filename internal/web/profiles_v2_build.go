@@ -16,7 +16,7 @@ import (
 func (s *Server) p2ProfilesData(data p2Data, project, shared p2File, defs []p2Def, q url.Values) p2Data {
 	chips := p2Chips(defs)
 	names := s.p2Names()
-	data.ProfileCount = len(names)
+	data.ProfileCount = s.p2RowCount()
 	data.Kinds = p2KindChips(project, shared)
 	data.KindFilter = q.Get("kind")
 	data.Query = q.Get("q")
@@ -217,14 +217,19 @@ func (s *Server) p2YamlData(data p2Data, project, shared p2File) p2Data {
 // p2Yed is one file's section of the YAML tab.
 func (s *Server) p2Yed(file p2File) p2Yed {
 	text := file.text
-	missing := !file.ok
+	missing := !file.ok && file.problem == ""
 	if missing {
 		text = "version: 1\n"
 	}
 	_, problems := profile.ReadAll(text, s.cat.Display(file.path))
+	if file.problem != "" {
+		// The file is there but cannot be read: say why, and do not let an empty
+		// text stand for it (d-0bf1).
+		problems = append(problems, profile.Problem{Sev: profile.Err, Line: 1, Text: file.problem})
+	}
 	out := p2Yed{
 		File: file.file, Label: file.label, Path: s.cat.Display(file.path),
-		Text: text, Hash: file.hash, Missing: missing,
+		Text: text, Hash: file.hash, Problem: file.problem, Missing: missing,
 	}
 	out.Err, out.Warn = p2Counts(problems)
 	marks := map[int]string{}

@@ -183,6 +183,9 @@ export type YamlFile = {
   text: string;
   hash: string;
   problems: Problem[];
+  // problem is why the file cannot be read: the YAML tab says it and offers no
+  // save over it (r-ea17, d-0bf1).
+  problem?: string;
 };
 
 // A file's text as this screen keeps it: what the file was read with (base),

@@ -31,5 +31,11 @@ test('the band counts the profiles file it cannot read, on every screen', async 
     await page.emulateMedia({ colorScheme: scheme });
     await page.screenshot({ path: info.outputPath(`unreadable-profiles-${scheme}.png`) });
   }
+  // The YAML tab asks the same owner: it says why and offers no save over the
+  // file it could not read (d-0bf1).
+  await page.goto(`${app.base}/profiles/yaml`); await ready(page);
+  const section = page.locator('.yed[data-file="project"]');
+  await expect(section.locator('.pf [role="alert"]')).toContainText('permission denied');
+  await expect(section.locator('[data-act="yaml-save"]')).toBeDisabled();
   chmodSync(file, 0o644);
 });

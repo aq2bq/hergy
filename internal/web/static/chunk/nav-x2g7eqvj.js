@@ -19,7 +19,7 @@ import {
   save2,
   saved2,
   problemText2
-} from "./nav-52v6896m.js";
+} from "./nav-nqz7cxqv.js";
 
 // lib/conflict.tsx
 var str = (v) => typeof v === "string" ? v : "";
@@ -249,7 +249,7 @@ var marksOf = (problems) => {
   return marks;
 };
 function YamlTab2(props) {
-  const { label, path, badge, file, text, hash, kind, place, name, extra, problems, onProblems, onSaved, onState, onRevert, carried } = props;
+  const { label, path, badge, file, text, hash, kind, place, name, extra, problems, problem, onProblems, onSaved, onState, onRevert, carried } = props;
   const ta = A(null);
   const gutter = A(null);
   const timer = A(0);
@@ -573,7 +573,7 @@ function YamlTab2(props) {
           /* @__PURE__ */ u("button", {
             class: "btn primary",
             "data-act": "yaml-save",
-            disabled: !dirty || grew,
+            disabled: !dirty || grew || !!problem,
             onClick: () => save(),
             children: "保存"
           }),
@@ -581,6 +581,11 @@ function YamlTab2(props) {
             class: "dirty",
             children: dirty ? "変更あり" : ""
           }),
+          problem ? /* @__PURE__ */ u("span", {
+            class: "sev err refusal",
+            role: "alert",
+            children: problem
+          }) : "",
           refusal ? /* @__PURE__ */ u("span", {
             class: "sev err refusal",
             children: refusal

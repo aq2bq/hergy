@@ -38,7 +38,7 @@ import {
   saved2,
   bases2,
   problemText2
-} from "../chunk/nav-52v6896m.js";
+} from "../chunk/nav-nqz7cxqv.js";
 import {
   num,
   documents,
@@ -56,7 +56,7 @@ import {
   Counts2,
   Vm2,
   RuleDoc2
-} from "../chunk/nav-1krhdr63.js";
+} from "../chunk/nav-mzp18d2b.js";
 import {
   st,
   token2,
@@ -64,19 +64,19 @@ import {
   projectName2,
   askConfirm,
   ConfirmDialog
-} from "../chunk/nav-601y94px.js";
+} from "../chunk/nav-bn4ntjqt.js";
 import {
   RunCell2
-} from "../chunk/nav-n7h5c10c.js";
+} from "../chunk/nav-xy5a0f4v.js";
 import {
   conflictOf,
   ConflictNotice,
   YamlTab2
-} from "../chunk/nav-5knnnn56.js";
+} from "../chunk/nav-x2g7eqvj.js";
 import {
   roleEditor,
   roleProblems
-} from "../chunk/nav-vpxvg8je.js";
+} from "../chunk/nav-m7pfsvzy.js";
 import {
   copyGroupOf,
   groupPlace,

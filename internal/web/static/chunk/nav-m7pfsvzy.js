@@ -14,7 +14,7 @@ import {
   Refusal2,
   check2,
   save2
-} from "./nav-52v6896m.js";
+} from "./nav-nqz7cxqv.js";
 import {
   resource
 } from "./nav-xgdfw3q1.js";

@@ -917,6 +917,8 @@ export interface components {
             hidden?: boolean;
             /** @description この文の問題 */
             problems: components["schemas"]["Problem"][] | null;
+            /** @description そのファイルが読めない理由。YAML の欄は理由を出し、保存しない（r-ea17、d-0bf1） */
+            problem?: string;
         };
         /** @description GET /api/profile/{name} の答え。その置き場所のプロファイル 1 つと、そのファイルの文とハッシュ。 */
         ProfileGet: {

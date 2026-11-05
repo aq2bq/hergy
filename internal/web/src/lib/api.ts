@@ -255,7 +255,7 @@ export function profileModel(list: Answer<'profile', 'list'> | null, openNames?:
     rows: ((list && list.items) || []).map((item) => profileRow(item, open.indexOf(item.name) >= 0)),
     files: ((list && list.files) || []).map((f) => ({
       file: f.place, label: placeLabel(f.place) || f.label, path: f.path, text: f.text, hash: f.hash,
-      problems: f.problems || [],
+      problems: f.problems || [], problem: f.problem || '',
     })),
     hashes: (list && list.hashes) || {},
   };

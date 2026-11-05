@@ -27,19 +27,19 @@ import {
   bases2,
   problemText2,
   profileModel2
-} from "../chunk/nav-52v6896m.js";
+} from "../chunk/nav-nqz7cxqv.js";
 import {
   token2,
   parseOpen2,
   askConfirm,
   ConfirmDialog
-} from "../chunk/nav-601y94px.js";
-import"../chunk/nav-n7h5c10c.js";
+} from "../chunk/nav-bn4ntjqt.js";
+import"../chunk/nav-xy5a0f4v.js";
 import {
   conflictOf,
   ConflictNotice,
   YamlTab2
-} from "../chunk/nav-5knnnn56.js";
+} from "../chunk/nav-x2g7eqvj.js";
 import {
   copyGroupOf,
   groupPlace,
@@ -2363,6 +2363,7 @@ function YamlFileSection({ file }) {
       place: file.file,
       name: "_yaml",
       problems: file.problems || [],
+      problem: file.problem || "",
       carried: one.carried === undefined ? null : one.carried,
       onState: (state) => {
         tellYaml(file.file, { ...yamlState.value.get(file.file) || {}, ...state, carried: null });

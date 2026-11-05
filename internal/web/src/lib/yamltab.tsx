@@ -46,6 +46,9 @@ export type YamlTabProps = {
   place: Place | string;
   name: string;
   problems?: Problem[];
+  // problem is why the file cannot be read: the section says it and offers no
+  // save over what it could not read (r-ea17, d-0bf1).
+  problem?: string;
   badge?: { cls: string; text: string } | null;
   file?: string;
   extra?: Pick<components['schemas']['TeamCheckRequest'], 'part'>;
@@ -161,7 +164,7 @@ const marksOf = (problems: Problem[] | null | undefined): Record<number, Problem
 //   onState({base,text,hash})  what the part holds, for the band's draft
 //   onRevert()            the person pressed 元に戻す, before the text goes back
 export function YamlTab(props: YamlTabProps) {
-  const { label, path, badge, file, text, hash, kind, place, name, extra, problems, onProblems, onSaved, onState, onRevert, carried } = props;
+  const { label, path, badge, file, text, hash, kind, place, name, extra, problems, problem, onProblems, onSaved, onState, onRevert, carried } = props;
   const ta = useRef<HTMLTextAreaElement | null>(null);
   const gutter = useRef<HTMLPreElement | null>(null);
   const timer = useRef<number>(0);
@@ -376,8 +379,8 @@ export function YamlTab(props: YamlTabProps) {
   </div>
   {conflict ? <ConflictNotice c={conflict} mine={base.current} undone={undone} onOverwrite={overwrite} onRevert={readIn} onUndo={undoRead} /> : null}
   <footer class="pf">
-    <button class="btn primary" data-act="yaml-save" disabled={!dirty || grew} onClick={() => save()}>保存</button><span class="dirty">{dirty ? '変更あり' : ''}</span>
-    {refusal ? <span class="sev err refusal">{refusal}</span> : ''}{saved ? <span class="ok">保存しました</span> : ''}
+    <button class="btn primary" data-act="yaml-save" disabled={!dirty || grew || !!problem} onClick={() => save()}>保存</button><span class="dirty">{dirty ? '変更あり' : ''}</span>
+    {problem ? <span class="sev err refusal" role="alert">{problem}</span> : ''}{refusal ? <span class="sev err refusal">{refusal}</span> : ''}{saved ? <span class="ok">保存しました</span> : ''}
     <span class="acts"><button class="btn" data-act="yaml-revert" hidden={!dirty} onClick={revert}>元に戻す</button></span>
   </footer></>;
 }

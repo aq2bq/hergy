@@ -129,7 +129,8 @@ function profileModel2(list, openNames) {
       path: f.path,
       text: f.text,
       hash: f.hash,
-      problems: f.problems || []
+      problems: f.problems || [],
+      problem: f.problem || ""
     })),
     hashes: list && list.hashes || {}
   };

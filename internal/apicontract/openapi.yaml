@@ -1952,6 +1952,9 @@ components:
           description: この文の問題
           items:
             $ref: "#/components/schemas/Problem"
+        problem:
+          type: string
+          description: そのファイルが読めない理由。YAML の欄は理由を出し、保存しない（r-ea17、d-0bf1）
     ProfileGet:
       description: GET /api/profile/{name} の答え。その置き場所のプロファイル 1 つと、そのファイルの文とハッシュ。
       type: object

@@ -160,6 +160,9 @@ type apiFile struct {
 	Kind     string       `json:"kind,omitempty"`
 	Hidden   bool         `json:"hidden,omitempty"`
 	Problems []apiProblem `json:"problems"`
+	// Problem is why the file cannot be read: the YAML tab says it and offers no
+	// save over it (r-ea17, d-0bf1).
+	Problem string `json:"problem,omitempty"`
 }
 
 // apiProblem is a finding with its field or line and server-written message.
