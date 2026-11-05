@@ -27,19 +27,19 @@ import {
   bases2,
   problemText2,
   profileModel2
-} from "../chunk/nav-59pgz9xy.js";
+} from "../chunk/nav-fy1k69g7.js";
 import {
   token2,
   parseOpen2,
   askConfirm,
   ConfirmDialog
-} from "../chunk/nav-x6k86cmx.js";
-import"../chunk/nav-ca9prev5.js";
+} from "../chunk/nav-7h17bh7m.js";
+import"../chunk/nav-h14gxn76.js";
 import {
   conflictOf,
   ConflictNotice,
   YamlTab2
-} from "../chunk/nav-kvfj6dq7.js";
+} from "../chunk/nav-8saftp8n.js";
 import {
   copyGroupOf,
   groupPlace,

@@ -26,11 +26,21 @@ import {
   applyCount2,
   applyMembers2,
   problemText2
-} from "./nav-59pgz9xy.js";
+} from "./nav-fy1k69g7.js";
 import {
   setCount2,
   setActivity2
 } from "./nav-b2ph1bfx.js";
+
+// lib/band-counts.ts
+function applyCounts(counts) {
+  setCount2("teams", counts.teams);
+  setCount2("roles", counts.roles);
+  setCount2("profiles", counts.profiles);
+}
+function applyActivity(running, waiting, counts) {
+  setActivity2(running, waiting, counts);
+}
 
 // lib/hq/state.ts
 var POLL2 = 1e4;
@@ -127,27 +137,44 @@ function definitionDoc(definition, project) {
 function bandActivity() {
   const teams = st.running.value.teams || [];
   const waiting = teams.reduce((n, t) => n + (t.waiting || []).length, 0);
-  setActivity2(teams.length, waiting, !!st.running.value.herdr.ok && teams.length > 0);
+  applyActivity(teams.length, waiting, !!st.running.value.herdr.ok && teams.length > 0);
 }
 function bandCounts() {
   const p = st.projects.value;
   if (!p)
     return;
-  if (p.mode !== "listed")
-    return;
   const totals = { teams: 0, roles: 0, profiles: 0 };
-  (p.projects || []).filter((x) => x.listed).forEach((x) => {
-    totals.teams += x.definitions || 0;
-    totals.roles += x.roles || 0;
-    totals.profiles += x.profiles || 0;
-  });
-  totals.teams += p.global && p.global.definitions || 0;
-  totals.roles += p.global && p.global.roles || 0;
-  totals.profiles += p.global && p.global.profiles || 0;
-  setCount2("teams", totals.teams);
-  setCount2("roles", totals.roles);
-  setCount2("profiles", totals.profiles);
+  const add = (one) => {
+    if (!one)
+      return;
+    totals.teams += one.definitions || 0;
+    totals.roles += one.roles || 0;
+    totals.profiles += one.profiles || 0;
+  };
+  if (p.mode === "listed") {
+    (p.projects || []).filter((x) => x.listed).forEach(add);
+    add(p.global);
+  } else {
+    add(p.current);
+    add(p.global);
+  }
+  applyCounts(totals);
 }
+var pending = null;
+function refreshCounts() {
+  if (pending !== null)
+    return;
+  pending = window.setTimeout(() => {
+    pending = null;
+    readJSONOr("/api/hq/projects").then((projects) => {
+      if (!projects)
+        return;
+      st.projects.value = projects;
+      bandCounts();
+    });
+  }, 150);
+}
+document.addEventListener("hergy:wrote", () => refreshCounts());
 function say() {
   document.dispatchEvent(new CustomEvent("hergy:hq", { detail: st }));
 }
@@ -1998,4 +2025,4 @@ async function send() {
   }
 }
 
-export { st, setRunning2, token2, parseOpen2, projectName2, runningFor, runningTeam2, lastWorkspaceOf, definitionOf2, readCore2, readGroups2, readAll2, readRunning2, startReads, askConfirm, ConfirmDialog, sheetOpen, closeSheet2, startSheet2, stopSheet2, projectsSheet, searchBoxOpen, closeBox, moveSel, mountSearch, resetSearch, searchHook, POLL, count, opened, answer, note, scope, chosen, teams, canApply, applyLabel, teamCount, toggle, readCount, readTeams, openSheet, close, send };
+export { applyActivity, st, setRunning2, token2, parseOpen2, projectName2, runningFor, runningTeam2, lastWorkspaceOf, definitionOf2, readCore2, readGroups2, readAll2, readRunning2, startReads, askConfirm, ConfirmDialog, sheetOpen, closeSheet2, startSheet2, stopSheet2, projectsSheet, searchBoxOpen, closeBox, moveSel, mountSearch, resetSearch, searchHook, POLL, count, opened, answer, note, scope, chosen, teams, canApply, applyLabel, teamCount, toggle, readCount, readTeams, openSheet, close, send };

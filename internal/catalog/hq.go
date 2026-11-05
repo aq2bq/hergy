@@ -12,76 +12,11 @@ import (
 // layer alone. Everything else about a layer is the reading this package already
 // does; these are the counts and the questions a screen asks per project.
 
-// Counts is how many names one layer holds: team definitions, role documents and
-// profiles. The counts are the layer's own, not what a name resolves to, so a
-// project that shadows a global name is counted once on each side, and the
-// headquarters can show every project's own size.
+// Counts is the band's three numbers for one layer: the rows that layer's lists
+// draw (listedrows.go owns the rule). A number is a number of rows, never a
+// separate count of files (r-ea17, d-4d88).
 func (c *Catalog) Counts(layer string) (definitions, roles, profiles int) {
-	dir := c.LayerDir(layer)
-	definitions = len(c.teamNames(dir))
-	seen := map[string]bool{}
-	for _, name := range c.roleNames(dir) {
-		if seen[name] {
-			continue
-		}
-		seen[name] = true
-		roles++
-	}
-	path := filepath.Join(dir, "profiles.yaml")
-	text, ok, err := c.fileText(path)
-	if err != nil || !ok {
-		return definitions, roles, 0
-	}
-	parsed, err := profile.ParseProfiles(text, path)
-	if err != nil {
-		return definitions, roles, 0
-	}
-	return definitions, roles, len(parsed)
-}
-
-// ListedRoles is how many role rows one layer's list draws (r-929e): a row per
-// name that layer holds a readable document for, plus, on the project's side,
-// the names the list still shows without a document of their own — a legacy
-// .yaml, and a name only a team member names. A document that cannot be read is
-// left out of the list, so it is left out here too. A name standing in both
-// layers is two rows, one on each side.
-func (c *Catalog) ListedRoles(layer string) int {
-	n := 0
-	for _, entry := range c.Roles() {
-		switch layer {
-		case source.LayerLocal:
-			if entry.HasDocument && !entry.Outside {
-				if c.roleReads(entry.Path) {
-					n++
-				}
-				continue
-			}
-			// No .md of its own: a legacy .yaml, or a name only a member names.
-			// The list draws a row for either way, so it is one row.
-			if !entry.HasDocument {
-				n++
-			}
-		case source.LayerGlobal:
-			path := ""
-			switch {
-			case entry.Outside:
-				path = entry.Path
-			case entry.UnusedPath != "":
-				path = entry.UnusedPath
-			}
-			if path != "" && c.roleReads(path) {
-				n++
-			}
-		}
-	}
-	return n
-}
-
-// roleReads is whether one role document can be read: the list leaves a name out
-// when its document cannot be (r2ReadingOf drops the row).
-func (c *Catalog) roleReads(path string) bool {
-	_, ok, err := c.fileText(path)
-	return ok && err == nil
+	return len(c.ShownRows(KindTeam, layer)), len(c.ShownRows(KindRole, layer)), len(c.ShownRows(KindProfile, layer))
 }
 
 // HoldsDefinition reports whether one layer holds a team definition of this name.

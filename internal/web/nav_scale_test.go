@@ -84,8 +84,10 @@ func TestNAV_N11_TheBandNumberFollowsASave(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("GET /roles answers %d, want 200", resp.StatusCode)
 	}
-	if band := bandOf(t, body); !strings.Contains(band, `data-screen="roles">ロール<span class="n">7</span>`) {
-		t.Errorf("the band after the save does not count 7 roles:\n%s", band)
+	// The band counts the rows the list draws, not the list's merged names: a
+	// name standing in both places is a row on each side (r-ea17).
+	if band := bandOf(t, body); !strings.Contains(band, `data-screen="roles">ロール<span class="n">8</span>`) {
+		t.Errorf("the band after the save does not count the list's rows, want 8:\n%s", band)
 	}
 
 	// The profile screen: one more row of the project's profiles.yaml, and the
@@ -107,7 +109,7 @@ func TestNAV_N11_TheBandNumberFollowsASave(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("GET /profiles answers %d, want 200", resp.StatusCode)
 	}
-	if band := bandOf(t, body); !strings.Contains(band, `data-screen="profiles">プロファイル<span class="n">12</span>`) {
-		t.Errorf("the band after the save does not count 12 profiles:\n%s", band)
+	if band := bandOf(t, body); !strings.Contains(band, `data-screen="profiles">プロファイル<span class="n">13</span>`) {
+		t.Errorf("the band after the save does not count the list's rows, want 13:\n%s", band)
 	}
 }

@@ -6,6 +6,8 @@ import (
 	"encoding/hex"
 	"net/http"
 	"path/filepath"
+
+	"github.com/aq2bq/hergy/internal/source"
 )
 
 // navData is the band every screen hangs at the top (spec-nav.md 1.1): where
@@ -68,14 +70,15 @@ func hqNavOf(projects HQProjects) *navHQ {
 // navOf gathers the band for one screen. The pages that carry the band take it
 // from here, so they cannot count the same thing differently.
 func (s *Server) navOf(current string) navData {
-	project, shared, _ := s.p2Read()
 	list := s.activity().List()
+	teams, roles, profiles := s.cat.Counts(source.LayerLocal)
+	globalTeams, globalRoles, globalProfiles := s.cat.Counts(source.LayerGlobal)
 	nav := navData{
 		Current:  current,
 		Project:  filepath.Base(s.cat.Base()),
-		Teams:    len(s.cat.Definitions()),
-		Profiles: len(p2Names(project, shared)),
-		Roles:    s.navRoles(),
+		Teams:    teams + globalTeams,
+		Profiles: profiles + globalProfiles,
+		Roles:    roles + globalRoles,
 		Activity: list.Running,
 		Waiting:  list.Waiting,
 		Counts:   list.Herdr.OK && list.Running > 0,
@@ -115,22 +118,6 @@ func hqNavTotals(projects HQProjects) (teams, roles, profiles int) {
 		profiles += project.Profiles
 	}
 	return teams + projects.Global.Defs, roles + projects.Global.Roles, profiles + projects.Global.Profiles
-}
-
-// navRoles is the number of roles the band shows: the names a document stands
-// behind, in either place. It is the same number the role screen's own count
-// (savedRoles().length) writes back into the band when a role is added or
-// removed, so the number does not jump when the page's script draws. A name
-// only a team definition writes has no document yet and is not counted
-// (spec-nav.md 1.0).
-func (s *Server) navRoles() int {
-	n := 0
-	for _, entry := range s.cat.Roles() {
-		if entry.HasDocument {
-			n++
-		}
-	}
-	return n
 }
 
 // navKey is the name this project's band remembers things under, so two

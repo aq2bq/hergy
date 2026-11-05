@@ -10,7 +10,7 @@
 // 画面は lib/hq.js から import して読む。
 import { signal } from '../preact.js';
 import { read, call, problemText } from '../api.js';
-import { setActivity, setCount } from '../nav.js';
+import { applyCounts, applyActivity } from '../band-counts.js';
 import type { components } from '../../../../apicontract/api-types';
 
 type HQProjects = components['schemas']['HQProjects'];
@@ -170,7 +170,7 @@ export function definitionDoc(definition: string, project: string): TeamDocument
 export function bandActivity() {
   const teams = st.running.value.teams || [];
   const waiting = teams.reduce((n, t) => n + (t.waiting || []).length, 0);
-  setActivity(teams.length, waiting, !!st.running.value.herdr.ok && teams.length > 0);
+  applyActivity(teams.length, waiting, !!st.running.value.herdr.ok && teams.length > 0);
 }
 
 // bandCounts writes the projects reading's totals into the band, so the four
@@ -180,20 +180,43 @@ export function bandActivity() {
 export function bandCounts() {
   const p = st.projects.value;
   if (!p) return;
-  if (p.mode !== 'listed') return;
   const totals = { teams: 0, roles: 0, profiles: 0 };
-  ((p.projects || []).filter((x) => x.listed)).forEach((x) => {
-    totals.teams += x.definitions || 0;
-    totals.roles += x.roles || 0;
-    totals.profiles += x.profiles || 0;
-  });
-  totals.teams += (p.global && p.global.definitions) || 0;
-  totals.roles += (p.global && p.global.roles) || 0;
-  totals.profiles += (p.global && p.global.profiles) || 0;
-  setCount('teams', totals.teams);
-  setCount('roles', totals.roles);
-  setCount('profiles', totals.profiles);
+  const add = (one: { definitions?: number; roles?: number; profiles?: number } | null | undefined) => {
+    if (!one) return;
+    totals.teams += one.definitions || 0;
+    totals.roles += one.roles || 0;
+    totals.profiles += one.profiles || 0;
+  };
+  if (p.mode === 'listed') {
+    ((p.projects || []).filter((x) => x.listed)).forEach(add);
+    add(p.global);
+  } else {
+    // One project and the global layer: the same rows the server's own band
+    // counts (r-ea17).
+    add(p.current);
+    add(p.global);
+  }
+  applyCounts(totals);
 }
+
+// refreshCounts is what a save, delete, copy or rename asks for: the projects
+// reading again, so the band counts the rows that are there now (ac-7fe6).
+let pending: number | null = null;
+export function refreshCounts(): void {
+  if (pending !== null) return;
+  pending = window.setTimeout(() => {
+    pending = null;
+    void readJSONOr<HQProjects>('/api/hq/projects').then((projects) => {
+      if (!projects) return;
+      st.projects.value = projects;
+      bandCounts();
+    });
+  }, 150);
+}
+
+// A write on any screen asks the band to count again. One listener, so no screen
+// has to remember (r-ea17).
+document.addEventListener('hergy:wrote', () => refreshCounts());
 
 // say tells the screens a reading came: the activity screen reads its own view
 // again when one does. What the parts draw is the signals themselves.

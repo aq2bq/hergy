@@ -9,7 +9,7 @@ import { signal, computed } from '../lib/preact.js';
 import { resource } from '../lib/resource';
 import { read } from '../lib/api.js';
 import * as A from '../lib/hq.js';
-import { setActivity } from '../lib/nav.js';
+import { applyActivity } from '../lib/band-counts.js';
 import type { components } from '../../../apicontract/api-types';
 
 type ActivityList = components['schemas']['ActivityList'];
@@ -140,7 +140,7 @@ async function readBoard(stop: AbortSignal): Promise<ActivityBoard> {
   const answer = await read<ActivityList>('/api/activity', { signal: stop });
   const items = answer.items || [];
   const note = answer.herdr || { ok: true, text: '' };
-  setActivity(answer.running || 0, answer.waiting || 0, !!(answer.herdr && answer.herdr.ok) && (answer.running || 0) > 0);
+  applyActivity(answer.running || 0, answer.waiting || 0, !!(answer.herdr && answer.herdr.ok) && (answer.running || 0) > 0);
 
   // The headquarters reading is the same one the list's 動き column uses, so a
   // team's state cannot read two ways (api.md 3.5).

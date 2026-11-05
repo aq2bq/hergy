@@ -259,20 +259,18 @@ func TestTheBandWritesNoActivityNumberThatIsNotThere(t *testing.T) {
 	}
 }
 
-// TestTheBandCountsTheRolesThatHaveADocument: the band's role number is the
-// number the screen's own count keeps (savedRoles().length), so a name only a
-// team definition writes — a row with no document yet — is shown in the list but
-// not counted, and the number does not jump when the page's script draws
-// (spec-nav.md 1.0).
-func TestTheBandCountsTheRolesThatHaveADocument(t *testing.T) {
+// TestTheBandCountsEveryRowTheListDraws: the band's role number is the number of
+// rows the list draws (r-ea17, d-4d88). A name only a team definition writes is
+// one of those rows, even before a document stands behind it.
+func TestTheBandCountsEveryRowTheListDraws(t *testing.T) {
 	f := newFixture(t)
 	f.write(t, filepath.Join("teams", "demo", "team.yaml"), "version: 1\ndescription: demo\nmembers:\n  - name: lead\n    role: lead\n    profile: coder\n  - name: ghost\n    role: ghost\n    profile: coder\nturns:\n  - human -> lead\n")
 	server := f.server(t)
 	_, body := f.get(t, server, "/roles")
-	// The list carries three names — builder, ghost and lead — and the band
-	// counts the two a document stands behind (S1).
-	if !strings.Contains(body, `data-screen="roles">ロール<span class="n">2</span>`) {
-		t.Errorf("the band counts the roles with a document, want 2:\n%s", body)
+	// The list carries three rows — builder, ghost and lead — and the band
+	// counts all three.
+	if !strings.Contains(body, `data-screen="roles">ロール<span class="n">3</span>`) {
+		t.Errorf("the band does not count every row the list draws, want 3:\n%s", body)
 	}
 	if !strings.Contains(body, `"name":"ghost"`) {
 		t.Errorf("the list does not hold the role with no document:\n%s", body)

@@ -57,6 +57,8 @@ async function call2(method, url, payload, opts) {
   const a = await raw2(method, url, payload, opts);
   if (!a.ok)
     throw new Refusal2(a.status, sentenceOf(a.json) || a.text, a.json);
+  if (method !== "GET")
+    document.dispatchEvent(new CustomEvent("hergy:wrote"));
   return a;
 }
 function sentenceOf(json) {

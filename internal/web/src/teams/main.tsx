@@ -6,9 +6,9 @@
 // ここも DOM を書かない（5 章 1）。
 import { installWheel } from '../lib/wheel.js';
 import { effect, render as draw } from '../lib/preact.js';
-import { setCount, setDirty } from '../lib/nav.js';
+import { setDirty } from '../lib/nav.js';
 import {
-  view, tabsEl, state, boot, take, dirty, tellDirty, savedCount, setStick, readAddress,
+  view, tabsEl, state, boot, take, dirty, tellDirty, setStick, readAddress,
   narrow, thin,
 } from './state.js';
 import { Tabs, App } from './view.js';
@@ -31,7 +31,7 @@ if (view) {
   // The band's number is the list's own — it counts the definitions that are
   // saved (spec-nav 1.1) — and its dot follows whether the files differ from
   // what the screen holds (nav.js 1.5).
-  effect(() => { setCount('teams', savedCount()); });
+
   effect(() => { setDirty(dirty()); });
 
   let wasNarrow = narrow();

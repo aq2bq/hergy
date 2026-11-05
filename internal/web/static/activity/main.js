@@ -19,8 +19,9 @@ import {
   call2,
   read2,
   problemText2
-} from "../chunk/nav-59pgz9xy.js";
+} from "../chunk/nav-fy1k69g7.js";
 import {
+  applyActivity,
   setRunning2,
   token2,
   parseOpen2,
@@ -32,14 +33,12 @@ import {
   stopSheet2,
   teamCount,
   openSheet
-} from "../chunk/nav-x6k86cmx.js";
-import {
-  setActivity2
-} from "../chunk/nav-b2ph1bfx.js";
+} from "../chunk/nav-7h17bh7m.js";
+import"../chunk/nav-b2ph1bfx.js";
 import {
   TeamFigure2,
   exports_hq
-} from "../chunk/nav-ca9prev5.js";
+} from "../chunk/nav-h14gxn76.js";
 import {
   installWheel,
   resource
@@ -118,7 +117,7 @@ async function readBoard(stop) {
   const answer = await read2("/api/activity", { signal: stop });
   const items = answer.items || [];
   const note = answer.herdr || { ok: true, text: "" };
-  setActivity2(answer.running || 0, answer.waiting || 0, !!(answer.herdr && answer.herdr.ok) && (answer.running || 0) > 0);
+  applyActivity(answer.running || 0, answer.waiting || 0, !!(answer.herdr && answer.herdr.ok) && (answer.running || 0) > 0);
   const running = await read2("/api/hq/running", { signal: stop }).catch(() => null);
   if (running && exports_hq)
     setRunning2(running);

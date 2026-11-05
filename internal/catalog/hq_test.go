@@ -70,15 +70,14 @@ func TestListedRolesCountsTheRowsTheListDraws(t *testing.T) {
 	writeFile(t, filepath.Join(global, "roles", "docs.md"), "# docs\n")
 	writeFile(t, filepath.Join(local, "teams", "core", "team.yaml"), "version: 1\nmembers:\n  - name: a\n    role: ghost\n    profile: fast\n")
 	cat := New(global, local, local, source.Disk{}, func(p string) string { return p })
-	if got := cat.ListedRoles(source.LayerLocal); got != 4 {
+	if got := len(cat.ShownRows(KindRole, source.LayerLocal)); got != 4 {
 		t.Errorf("ListedRoles(project) = %d, want 4 (lead, builder, old, ghost)", got)
 	}
-	if got := cat.ListedRoles(source.LayerGlobal); got != 2 {
+	if got := len(cat.ShownRows(KindRole, source.LayerGlobal)); got != 2 {
 		t.Errorf("ListedRoles(global) = %d, want 2 (lead, docs)", got)
 	}
-	_, counts, _ := cat.Counts(source.LayerLocal)
-	if counts != 3 {
-		t.Fatalf("Counts(project).roles = %d, want 3: this test needs the old count to differ", counts)
+	if _, counts, _ := cat.Counts(source.LayerLocal); counts != 4 {
+		t.Fatalf("Counts(project).roles = %d, want the row count 4", counts)
 	}
 }
 
@@ -95,10 +94,62 @@ func TestListedRolesLeavesOutUnreadableDocuments(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = os.Chmod(bad, 0o644) })
 	cat := New(global, local, local, source.Disk{}, func(p string) string { return p })
-	if got := cat.ListedRoles(source.LayerLocal); got != 1 {
+	if got := len(cat.ShownRows(KindRole, source.LayerLocal)); got != 1 {
 		t.Errorf("ListedRoles(project) = %d, want 1", got)
 	}
-	if _, counts, _ := cat.Counts(source.LayerLocal); counts != 2 {
-		t.Fatalf("Counts(project).roles = %d, want 2: this test needs the old count to differ", counts)
+	if _, counts, _ := cat.Counts(source.LayerLocal); counts != 1 {
+		t.Fatalf("Counts(project).roles = %d, want the row count 1", counts)
+	}
+}
+
+// TestListedRowsAreTheRowsTheListsDraw: one name in one place is one row, for
+// each kind; the counts are those rows (r-ea17, d-4d88).
+func TestListedRowsAreTheRowsTheListsDraw(t *testing.T) {
+	global := t.TempDir()
+	local := t.TempDir()
+	// Teams: one in each layer, one of them without a readable team.yaml.
+	writeFile(t, filepath.Join(local, "teams", "core", "team.yaml"), "version: 1\n")
+	writeFile(t, filepath.Join(local, "teams", "broken", "team.yaml"), "not: [a team")
+	writeFile(t, filepath.Join(global, "teams", "shared", "team.yaml"), "version: 1\n")
+	// Roles: one in each layer, a legacy .yaml, a named-only name, and one
+	// document that cannot be read.
+	writeFile(t, filepath.Join(local, "roles", "lead.md"), "# lead\n")
+	writeFile(t, filepath.Join(local, "roles", "old.yaml"), "version: 1\n")
+	writeFile(t, filepath.Join(global, "roles", "shared.md"), "# shared\n")
+	writeFile(t, filepath.Join(local, "roles", "bad.md"), "# bad\n")
+	if err := os.Chmod(filepath.Join(local, "roles", "bad.md"), 0o000); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(filepath.Join(local, "roles", "bad.md"), 0o644) })
+	writeFile(t, filepath.Join(local, "teams", "ghost", "team.yaml"), "version: 1\nmembers:\n  - name: a\n    role: ghost\n    profile: fast\n")
+	// Profiles: one in each layer.
+	writeFile(t, filepath.Join(local, "profiles.yaml"), "version: 1\nprofiles:\n  fast:\n    kind: claude\n")
+	writeFile(t, filepath.Join(global, "profiles.yaml"), "version: 1\nprofiles:\n  shared:\n    kind: claude\n")
+	cat := New(global, local, local, source.Disk{}, func(p string) string { return p })
+
+	if got := len(cat.ShownRows(KindTeam, source.LayerLocal)); got != 3 {
+		t.Errorf("team rows (project) = %d, want 3 (core, broken, ghost)", got)
+	}
+	if got := len(cat.ShownRows(KindTeam, source.LayerGlobal)); got != 1 {
+		t.Errorf("team rows (global) = %d, want 1 (shared)", got)
+	}
+	// lead, old (legacy), ghost (no document). bad.md cannot be read, so the
+	// list leaves it out until the master answers q-a8a3.
+	if got := len(cat.ShownRows(KindRole, source.LayerLocal)); got != 3 {
+		t.Errorf("role rows (project) = %d, want 3 (lead, old, ghost)", got)
+	}
+	if got := len(cat.ShownRows(KindRole, source.LayerGlobal)); got != 1 {
+		t.Errorf("role rows (global) = %d, want 1 (shared)", got)
+	}
+	if got := len(cat.ShownRows(KindProfile, source.LayerLocal)); got != 1 {
+		t.Errorf("profile rows (project) = %d, want 1 (fast)", got)
+	}
+	if got := len(cat.ShownRows(KindProfile, source.LayerGlobal)); got != 1 {
+		t.Errorf("profile rows (global) = %d, want 1 (shared)", got)
+	}
+	// The counts are those rows, and nothing else.
+	defs, roles, profiles := cat.Counts(source.LayerLocal)
+	if defs != 3 || roles != 3 || profiles != 1 {
+		t.Errorf("Counts(project) = %d, %d, %d, want the rows 3, 3, 1", defs, roles, profiles)
 	}
 }

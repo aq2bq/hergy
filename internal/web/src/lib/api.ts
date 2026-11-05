@@ -87,6 +87,9 @@ export async function raw<T = unknown>(method: string, url: string, payload?: un
 export async function call<T = unknown>(method: string, url: string, payload?: unknown, opts?: CallOptions): Promise<RawAnswer<T>> {
   const a = await raw<T>(method, url, payload, opts);
   if (!a.ok) throw new Refusal(a.status, sentenceOf(a.json) || a.text, a.json);
+  // A write is the one moment the band's numbers can move without a reload:
+  // the band's module counts again (r-ea17, ac-7fe6).
+  if (method !== 'GET') document.dispatchEvent(new CustomEvent('hergy:wrote'));
   return a;
 }
 

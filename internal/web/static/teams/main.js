@@ -24,8 +24,7 @@ import {
 import {
   carryTo2,
   takeDraft2,
-  setDirty2,
-  setCount2
+  setDirty2
 } from "../chunk/nav-b2ph1bfx.js";
 import {
   call2,
@@ -39,7 +38,7 @@ import {
   saved2,
   bases2,
   problemText2
-} from "../chunk/nav-59pgz9xy.js";
+} from "../chunk/nav-fy1k69g7.js";
 import {
   num,
   documents,
@@ -57,7 +56,7 @@ import {
   Counts2,
   Vm2,
   RuleDoc2
-} from "../chunk/nav-4d80svve.js";
+} from "../chunk/nav-djsfngdj.js";
 import {
   st,
   token2,
@@ -65,19 +64,19 @@ import {
   projectName2,
   askConfirm,
   ConfirmDialog
-} from "../chunk/nav-x6k86cmx.js";
+} from "../chunk/nav-7h17bh7m.js";
 import {
   RunCell2
-} from "../chunk/nav-ca9prev5.js";
+} from "../chunk/nav-h14gxn76.js";
 import {
   conflictOf,
   ConflictNotice,
   YamlTab2
-} from "../chunk/nav-kvfj6dq7.js";
+} from "../chunk/nav-8saftp8n.js";
 import {
   roleEditor,
   roleProblems
-} from "../chunk/nav-xmnvjrnr.js";
+} from "../chunk/nav-qbedfr24.js";
 import {
   copyGroupOf,
   groupPlace,
@@ -2006,7 +2005,6 @@ var rowOfPanel = (r) => {
     diff: check ? check.diff : { added: [], removedBefore: [], removedAtEnd: false }
   };
 };
-var savedCount = () => recs.value.filter((r) => !r.draftRow).length;
 function dirty() {
   if (roleDraftsDirty())
     return true;
@@ -6679,9 +6677,6 @@ if (view) {
     R(/* @__PURE__ */ u(Tabs, {}), tabsEl);
   R(/* @__PURE__ */ u(App, {}), view);
   mountCanvas(view);
-  x(() => {
-    setCount2("teams", savedCount());
-  });
   x(() => {
     setDirty2(dirty());
   });

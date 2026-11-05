@@ -266,8 +266,7 @@ func (h *hqRead) projectOf(path string, listed bool, sourceName string) (web.HQP
 		return web.HQProject{}, hqRefuse(http.StatusUnprocessableEntity, err.Error())
 	}
 	cat := env.Catalog(h.act.fileReader())
-	defs, _, profiles := cat.Counts(source.LayerLocal)
-	roles := cat.ListedRoles(source.LayerLocal)
+	defs, roles, profiles := cat.Counts(source.LayerLocal)
 	_, statErr := os.Stat(env.ProjectRoot)
 	_, hergyErr := os.Stat(env.LocalDir)
 	one := web.HQProject{
@@ -317,8 +316,7 @@ func nameProjectsOf(projects []web.HQProject) {
 // globalCounts is the global layer's own counts.
 func (h *hqRead) globalCounts() web.HQGlobal {
 	cat := h.act.env.Catalog(h.act.fileReader())
-	defs, _, profiles := cat.Counts(source.LayerGlobal)
-	roles := cat.ListedRoles(source.LayerGlobal)
+	defs, roles, profiles := cat.Counts(source.LayerGlobal)
 	return web.HQGlobal{
 		Path: h.act.env.GlobalDir, Display: h.act.env.DisplayPath(h.act.env.GlobalDir),
 		Defs: defs, Roles: roles, Profiles: profiles,
