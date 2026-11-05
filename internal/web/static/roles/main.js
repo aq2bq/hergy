@@ -40,6 +40,8 @@ import {
   dirty,
   ROLE_DOC,
   roleDirty,
+  assignDirty,
+  yamlDirty,
   Measure,
   renameCarries2,
   fromJSON2,
@@ -48,7 +50,7 @@ import {
   Badge2,
   Vm2,
   RuleDoc2
-} from "../chunk/nav-k3vfbdtb.js";
+} from "../chunk/nav-6zzwdkqh.js";
 import {
   conflictOf,
   ConflictNotice,
@@ -837,7 +839,7 @@ async function doAssignSave(id) {
   const t = teams.value.find((x) => x.id === id);
   if (!t)
     return;
-  const changes = t.members.filter((m) => m.draft !== m.saved).map((m) => ({ member: m.name, role: m.draft }));
+  const changes = t.members.filter((m) => assignDirty(m)).map((m) => ({ member: m.name, role: m.draft }));
   if (!changes.length)
     return;
   let res;
@@ -865,16 +867,10 @@ async function doAssignSave(id) {
   touch();
   saved2();
 }
-function rowDirty(r) {
-  return PLACES.some((l) => {
-    const entry = r[l];
-    return !!entry && roleDirty(entry);
-  });
-}
 function dirty2() {
-  const rows = roles.value.some(rowDirty);
-  const members = teams.value.some((t) => t.members.some((m) => m.draft !== m.saved));
-  const ytexts = allEntries().some(({ e }) => e.ytext !== undefined && e.ytext !== (e.text || ""));
+  const rows = roles.value.some((r) => PLACES.some((l) => r[l] && roleDirty(r[l])));
+  const members = teams.value.some((t) => t.members.some((m) => assignDirty(m)));
+  const ytexts = allEntries().some(({ e }) => yamlDirty(e.text || "", e.ytext));
   return rows || members || ytexts;
 }
 function tellDirty() {
@@ -889,16 +885,16 @@ function take() {
         return;
       if (!e.saved) {
         rows.push({ place: l, group: r.group || "", saved: null, name: e.draft.name, hash: e.hash || "", draft: e.draft, isNew: !!r.isNew, noDoc: !!r.noDoc });
-      } else if (JSON.stringify(e.draft) !== JSON.stringify(e.saved)) {
+      } else if (roleDirty(e)) {
         rows.push({ place: l, group: r.group || "", saved: e.saved.name, name: e.draft.name, hash: e.hash || "", draft: e.draft });
       }
-      if (e.ytext !== undefined && e.ytext !== (e.text || "")) {
-        ytexts.push({ place: l, group: r.group || "", name: (e.saved || e.draft).name, hash: e.hash || "", text: e.ytext });
+      if (yamlDirty(e.text || "", e.ytext)) {
+        ytexts.push({ place: l, group: r.group || "", name: (e.saved || e.draft).name, hash: e.hash || "", text: e.ytext || "" });
       }
     });
   });
   teams.value.forEach((t) => t.members.forEach((m) => {
-    if (m.draft !== m.saved)
+    if (assignDirty(m))
       members.push({ team: t.id, hash: t.hash || "", name: m.name, saved: m.saved, draft: m.draft });
   }));
   return { rows, ytexts, members };
@@ -1979,8 +1975,7 @@ function Panel({ r, l }) {
                 class: "btn danger",
                 "data-act": "discard",
                 onClick: () => {
-                  const untouched = !dirty(ROLE_DOC, r.born || { name: "", title: "", text: `## 責務
-` }, { name: e.draft.name, title: e.draft.title || "", text: e.draft.text });
+                  const untouched = !r.born || !dirty(ROLE_DOC, r.born, { name: e.draft.name, title: e.draft.title || "", text: e.draft.text });
                   if (untouched) {
                     pressDiscard(r.uid, l);
                     return;

@@ -97,6 +97,9 @@ var TEAM = { fields: [
 var TEAM_AGREEMENT = { fields: [
   { key: "text", label: "チームの規則", get: (v) => v.text }
 ] };
+var PROFILE_ASSIGN = { fields: [
+  { key: "picks", label: "割り当て", get: (v) => v.picks }
+] };
 var YAML_TEXT = { fields: [
   { key: "text", label: "本文", get: (v) => v.text }
 ] };
@@ -118,6 +121,12 @@ function teamNow(w, ops) {
 var docOf = (d) => ({ name: d.name || "", title: d.title || "", text: d.text || "" });
 function roleDirty(e) {
   return dirty(ROLE_DOC, e.saved ? docOf(e.saved) : null, docOf(e.draft), !e.problem);
+}
+function assignDirty(m) {
+  return dirty(PROFILE_ASSIGN, { picks: [{ member: m.name, role: m.saved }] }, { picks: [{ member: m.name, role: m.draft }] });
+}
+function yamlDirty(text, typed) {
+  return dirty(YAML_TEXT, { text }, { text: typed === undefined ? text : typed });
 }
 
 // lib/measure.tsx
@@ -1052,4 +1061,4 @@ function RuleDoc2({ row, hasName = true, heading, nameError, issues, onChange, t
   });
 }
 
-export { snapshot, dirty, diff, ROLE_DOC, TEAM, TEAM_AGREEMENT, YAML_TEXT, teamNow, roleDirty, num, Measure, documents, documentID, transferKeys, EqualWidths, chars, title, ProseIdentity, renameCarries2, clone2, fromJSON2, toDoc2, Sev2, Counts2, Badge2, Vm2, RuleDoc2 };
+export { snapshot, dirty, diff, ROLE_DOC, TEAM, TEAM_AGREEMENT, YAML_TEXT, teamNow, roleDirty, assignDirty, yamlDirty, num, Measure, documents, documentID, transferKeys, EqualWidths, chars, title, ProseIdentity, renameCarries2, clone2, fromJSON2, toDoc2, Sev2, Counts2, Badge2, Vm2, RuleDoc2 };

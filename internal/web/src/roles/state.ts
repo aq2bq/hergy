@@ -6,7 +6,7 @@
 // 呼ぶ関数は無い（依頼書 1）。行の下書きは共有部品（ruledoc）が書き換え、変える
 // たびに onChange で知らせるので、画面はそのたびに新しい行（新しい下書きの写し）を
 // signal に入れる。
-import { roleDirty, snapshot as changedSnapshot } from '../lib/changed.js';
+import { assignDirty, roleDirty, yamlDirty, snapshot as changedSnapshot } from '../lib/changed.js';
 import { signal } from '../lib/preact.js';
 import { roleEditor, roleProblems } from '../lib/role-editor.js';
 import { takeDraft, setDirty } from '../lib/nav.js';
@@ -986,7 +986,7 @@ export async function doDelete(id: number | string, l: Place): Promise<void> {
 export async function doAssignSave(id: string): Promise<void> {
   const t = teams.value.find((x) => x.id === id);
   if (!t) return;
-  const changes = t.members.filter((m) => m.draft !== m.saved).map((m) => ({ member: m.name, role: m.draft }));
+  const changes = t.members.filter((m) => assignDirty(m)).map((m) => ({ member: m.name, role: m.draft }));
   if (!changes.length) return;
   // The pick travels as the team kind's own op, so the save writes one line of
   // team.yaml and no other (spec-boundary 6, spec-teams 1.3). The place is the
@@ -1019,14 +1019,10 @@ export async function doAssignSave(id: string): Promise<void> {
 // ---- 帯への報告と持ち越し (spec-nav.md 1.4, 1.5) ---------------------
 // dirty is whether the screen holds something no save wrote yet: a row's draft,
 // a row a person added, a pick in the assign tab, or a YAML text.
-function rowDirty(r: RoleRow): boolean {
-  return PLACES.some((l) => { const entry = r[l]; return !!entry && roleDirty(entry); });
-}
-
 export function dirty(): boolean {
-  const rows = roles.value.some(rowDirty);
-  const members = teams.value.some((t) => t.members.some((m) => m.draft !== m.saved));
-  const ytexts = allEntries().some(({ e }) => e.ytext !== undefined && e.ytext !== (e.text || ''));
+  const rows = roles.value.some((r) => PLACES.some((l) => r[l] && roleDirty(r[l]!)));
+  const members = teams.value.some((t) => t.members.some((m) => assignDirty(m)));
+  const ytexts = allEntries().some(({ e }) => yamlDirty(e.text || '', e.ytext));
   return rows || members || ytexts;
 }
 
@@ -1046,16 +1042,16 @@ export function take(): CarriedRoles {
       if (!e) return;
       if (!e.saved) {
         rows.push({ place: l, group: r.group || '', saved: null, name: e.draft.name, hash: e.hash || '', draft: e.draft, isNew: !!r.isNew, noDoc: !!r.noDoc });
-      } else if (JSON.stringify(e.draft) !== JSON.stringify(e.saved)) {
+      } else if (roleDirty(e)) {
         rows.push({ place: l, group: r.group || '', saved: e.saved.name, name: e.draft.name, hash: e.hash || '', draft: e.draft });
       }
-      if (e.ytext !== undefined && e.ytext !== (e.text || '')) {
-        ytexts.push({ place: l, group: r.group || '', name: (e.saved || e.draft).name, hash: e.hash || '', text: e.ytext });
+      if (yamlDirty(e.text || '', e.ytext)) {
+        ytexts.push({ place: l, group: r.group || '', name: (e.saved || e.draft).name, hash: e.hash || '', text: e.ytext || '' });
       }
     });
   });
   teams.value.forEach((t) => t.members.forEach((m) => {
-    if (m.draft !== m.saved) members.push({ team: t.id, hash: t.hash || '', name: m.name, saved: m.saved, draft: m.draft });
+    if (assignDirty(m)) members.push({ team: t.id, hash: t.hash || '', name: m.name, saved: m.saved, draft: m.draft });
   }));
   return { rows, ytexts, members };
 }

@@ -256,8 +256,9 @@ function Panel({ r, l }: { r: RoleRow; l: Place }) {
             // or a copy), so a fresh copy that nobody touched goes at once
             // (r-d480).
             // Compared with what the row was made with, through the one owner
-            // (r-d480, r-1e9a). A new row's born is its template.
-            const untouched = !changedDirty(ROLE_DOC, r.born || { name: '', title: '', text: '## 責務\n' }, { name: e.draft.name, title: e.draft.title || '', text: e.draft.text });
+            // (r-d480, r-1e9a). A row with no born has nothing to compare, so it
+            // goes; there is no template to compare with.
+            const untouched = !r.born || !changedDirty(ROLE_DOC, r.born, { name: e.draft.name, title: e.draft.title || '', text: e.draft.text });
             if (untouched) { pressDiscard(r.uid, l); return; }
             askConfirm({ title: '入力した内容を捨てますか', body: <p>保存していない入力があります。<b>取り消せません。</b></p>, label: '破棄する', run: () => pressDiscard(r.uid, l) });
           }}>取り消し</button>

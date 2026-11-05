@@ -109,7 +109,8 @@ export const PROFILE: Shape<ProfileWritten> = { fields: [
   { key: 'env', label: '環境変数', get: (v) => v.env },
 ] };
 
-export type AssignWritten = { picks: { member: string; role: string; profile: string }[] };
+export type AssignPicks = { member: string; role: string; profile?: string };
+export type AssignWritten = { picks: AssignPicks[] };
 export const PROFILE_ASSIGN: Shape<AssignWritten> = { fields: [
   { key: 'picks', label: '割り当て', get: (v) => v.picks },
 ] };
@@ -145,4 +146,13 @@ const docOf = (d: RoleDoc): RoleDoc => ({ name: d.name || '', title: d.title || 
 // document that cannot be read is never a change (r-1e9a).
 export function roleDirty(e: RoleEntryLike): boolean {
   return dirty(ROLE_DOC, e.saved ? docOf(e.saved) : null, docOf(e.draft), !e.problem);
+}
+
+// assignDirty is whether one member's role pick differs from the file's.
+export function assignDirty(m: { name: string; saved: string; draft: string }): boolean {
+  return dirty(PROFILE_ASSIGN, { picks: [{ member: m.name, role: m.saved }] }, { picks: [{ member: m.name, role: m.draft }] });
+}
+// yamlDirty is whether a YAML tab's text differs from the file's.
+export function yamlDirty(text: string, typed: string | undefined): boolean {
+  return dirty(YAML_TEXT, { text }, { text: typed === undefined ? text : typed });
 }
