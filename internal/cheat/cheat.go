@@ -174,6 +174,7 @@ const tail = `Running against herdr:
   A member with no pane is refused, and hergy apply is named: adding a member to a running team is the apply's road.
   The screens apply the same drift: GET /api/apply names each running team and member that differs from the saved definition, with the way hergy would put it right (resend, start, restart, cannot) and what changed; POST /api/apply takes the members to apply, answers 202 with a start's own state, and the progress and the startup question are read at GET /api/hq/launches/{id}. A member that is working or waiting for permission is left, and the rest go on.
   env is fixed when a pane is made: after editing env, run down then up. refresh keeps the pane and its env. Every pane hergy makes also gets GY_ACTOR=<herdr name>: the name the agent writes into gy. A profile's own GY_ACTOR does not win, and validate warns when a profile writes it.
+  The contact guide tells members and workers to check the herdr environment with the exit status of test "${HERDR_ENV:-}" = 1 and to pass only one variable name per printenv call; on macOS, several names print only the first value.
 
 Reading the output:
   Most lines are "name: value" (for example "team: demo", or "team definition: demo" for a team definition). The field names are translated by --lang, so a Japanese run prints "チーム: demo".
