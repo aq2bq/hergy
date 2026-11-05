@@ -26,7 +26,7 @@ import {
   takeDraft2,
   setDirty2,
   setCount2
-} from "../chunk/nav-09ttxdhn.js";
+} from "../chunk/nav-b2ph1bfx.js";
 import {
   call2,
   read2,
@@ -42,7 +42,6 @@ import {
 } from "../chunk/nav-59pgz9xy.js";
 import {
   num,
-  Measure,
   documents,
   documentID,
   transferKeys,
@@ -58,16 +57,16 @@ import {
   Counts2,
   Vm2,
   RuleDoc2
-} from "../chunk/nav-z37srsqa.js";
+} from "../chunk/nav-4d80svve.js";
 import {
   st,
   token2,
   parseOpen2,
   projectName2
-} from "../chunk/nav-vahmk4me.js";
+} from "../chunk/nav-ebbbd1zh.js";
 import {
   RunCell2
-} from "../chunk/nav-0znfs6e2.js";
+} from "../chunk/nav-gp5akqyb.js";
 import {
   conflictOf,
   ConflictNotice,
@@ -83,13 +82,22 @@ import {
   projectOfGroup,
   bringUnderBand,
   ProjectView
-} from "../chunk/nav-p855w4vj.js";
+} from "../chunk/nav-2krt94z2.js";
 import {
   Field
 } from "../chunk/nav-hrc2s6sc.js";
 import {
   resource
 } from "../chunk/nav-spnv3sy9.js";
+
+// teams/rule-selection.ts
+var ruleSelection = y({});
+var selectedRules = (uid) => ruleSelection.value[uid] || ["agreement"];
+function selectRule(uid, name, add = false) {
+  const current = selectedRules(uid);
+  const next = add ? current.includes(name) ? current.filter((item) => item !== name) : [...current, name] : [name];
+  ruleSelection.value = { ...ruleSelection.value, [uid]: next.length ? next : ["agreement"] };
+}
 
 // teams/prose-transfer.ts
 function teamTransfer(r) {
@@ -166,17 +174,19 @@ function RoleButton({ r, name, children = "ロールを確認・編集" }) {
     type: "button",
     disabled: !name,
     onClick: () => {
+      selectRule(r.uid, "role:" + name);
       focusTarget.value = `prose-${r.uid}-${name}`;
       pressDtab(r, "agree");
     },
     children
   });
 }
-function RoleColumn({ r, name, onScanned }) {
+function RoleColumn({ r, name, onScanned, visible = true }) {
   const session = T(() => ({ id: ++ids, r, name, trigger: null }), [r, name]);
   return /* @__PURE__ */ u(Editor, {
     session,
-    onScanned
+    onScanned,
+    visible
   });
 }
 function newModel(session) {
@@ -205,7 +215,21 @@ function roleDraftsDirty() {
     return !!e && e.draft.text !== e.saved.text;
   });
 }
-function Editor({ session, onScanned }) {
+function roleSummary(r, name) {
+  const model = models.get(`${r.uid}:${r.place.value}:${name}`);
+  if (!model)
+    return "読み込み中";
+  const entry = model.entry.value;
+  const context = model.context.value.value;
+  const problems = model.editor.check.value.value?.json?.problems || [];
+  const status = entry && entry.draft.text !== entry.saved.text ? "未保存" : "保存済み";
+  if (model.context.loading.value)
+    return "読み込み中";
+  if (model.context.error.value || context?.errors.length || context?.state !== "readable" || model.error.value || model.editor.check.error.value)
+    return `${status} · 読み込み・保存の確認が必要`;
+  return `${status}${problems.length ? ` · 問題・警告 ${problems.length}` : ""}`;
+}
+function Editor({ session, onScanned, visible }) {
   const dialog = A(null);
   const model = T(() => {
     const key = `${session.r.uid}:${session.r.place.value}:${session.name}`;
@@ -350,6 +374,7 @@ function Editor({ session, onScanned }) {
     state: ctx?.state === "missing" ? "文書なし" : ctx?.state === "unreadable" ? "読み込み不可" : dirty() ? "未保存" : model.ok.value ? "保存しました" : "保存済み"
   };
   return /* @__PURE__ */ u("section", {
+    hidden: !visible,
     class: "prose-column role-column" + (ctx?.state === "missing" ? " missing-document" : ""),
     ref: dialog,
     id: `prose-${session.r.uid}-${session.name}`,
@@ -2064,13 +2089,6 @@ function pressName(r, value) {
   r.name.value = value;
   debounce("n" + r.dom, () => checkTeam(r));
 }
-function pressDescription(r, value) {
-  const text = value.replace(/\n/g, " ");
-  r.ops.value = r.ops.value.filter((o) => o.kind !== "description");
-  if (text !== r.saved.value.description)
-    pushOp(r, { kind: "description", text });
-  checkTeam(r);
-}
 function pressDtab(r, t) {
   setDtab(r.dom, t);
   syncURL();
@@ -2581,6 +2599,63 @@ function afterTPrev(r) {
   }
 }
 
+// teams/edge-route.ts
+function crosses(a, b, box) {
+  let lo = 0, hi = 1;
+  for (const [origin, delta, min, max] of [[a[0], b[0] - a[0], box.left + 0.01, box.right - 0.01], [a[1], b[1] - a[1], box.top + 0.01, box.bottom - 0.01]]) {
+    if (!delta) {
+      if (origin <= min || origin >= max)
+        return false;
+    } else {
+      const first = (min - origin) / delta, last = (max - origin) / delta;
+      lo = Math.max(lo, Math.min(first, last));
+      hi = Math.min(hi, Math.max(first, last));
+    }
+  }
+  return lo <= hi;
+}
+function routeEdge(from, to, positions, boxes) {
+  const obstacles = Object.entries(positions).filter(([id]) => boxes[id]).map(([id, p]) => ({ left: p[0] - boxes[id].w / 2 - 2, right: p[0] + boxes[id].w / 2 + 2, top: p[1] - boxes[id].h / 2 - 2, bottom: p[1] + boxes[id].h / 2 + 2 }));
+  const clear = (a, b) => !obstacles.some((box) => crosses(a, b, box));
+  if (clear(from, to))
+    return [from, to];
+  const xs = [...new Set([from[0], to[0], ...obstacles.flatMap((box) => [box.left - 6, box.right + 6])])].sort((a, b) => a - b);
+  const ys = [...new Set([from[1], to[1], ...obstacles.flatMap((box) => [box.top - 6, box.bottom + 6])])].sort((a, b) => a - b);
+  const key = (x, y) => y * xs.length + x;
+  const point = (id) => [xs[id % xs.length], ys[Math.floor(id / xs.length)]];
+  const start = key(xs.indexOf(from[0]), ys.indexOf(from[1])), end = key(xs.indexOf(to[0]), ys.indexOf(to[1]));
+  const distance = new Map([[start, 0]]), previous = new Map, pending = new Set([start]);
+  const estimate = (id) => {
+    const p = point(id);
+    return distance.get(id) + Math.abs(to[0] - p[0]) + Math.abs(to[1] - p[1]);
+  };
+  while (pending.size) {
+    const current = [...pending].sort((a, b) => estimate(a) - estimate(b))[0];
+    if (current === end) {
+      const path = [to];
+      let at = end;
+      while (at !== start) {
+        at = previous.get(at);
+        path.unshift(point(at));
+      }
+      return path.filter((p, i) => !i || i === path.length - 1 || !(path[i - 1][0] === p[0] && p[0] === path[i + 1][0] || path[i - 1][1] === p[1] && p[1] === path[i + 1][1]));
+    }
+    pending.delete(current);
+    const x = current % xs.length, y = Math.floor(current / xs.length), a = point(current);
+    for (const [nx, ny] of [[x - 1, y], [x + 1, y], [x, y - 1], [x, y + 1]]) {
+      if (nx < 0 || nx >= xs.length || ny < 0 || ny >= ys.length)
+        continue;
+      const next = key(nx, ny), b = point(next), cost = distance.get(current) + Math.abs(b[0] - a[0]) + Math.abs(b[1] - a[1]);
+      if (cost >= (distance.get(next) ?? Infinity) || !clear(a, b))
+        continue;
+      distance.set(next, cost);
+      previous.set(next, current);
+      pending.add(next);
+    }
+  }
+  return [from, to];
+}
+
 // teams/canvas/figure.tsx
 function Bdg({ m, b }) {
   const w = 34;
@@ -2638,8 +2713,10 @@ function Figure({ r }) {
     const fwd = hasTurn(t, a, b), back = hasTurn(t, b, a);
     const isNew = fwd && !hasTurn(s, a, b) || back && !hasTurn(s, b, a);
     const mk = selE === k ? "a" : isNew ? "c" : "n";
-    const dd = `M${p1[0].toFixed(1)},${p1[1].toFixed(1)} L${p2[0].toFixed(1)},${p2[1].toFixed(1)}`;
-    const [mx, my] = [(p1[0] + p2[0]) / 2, (p1[1] + p2[1]) / 2];
+    const route = routeEdge(p1, p2, p, boxes);
+    const dd = route.map((point, i) => `${i ? "L" : "M"}${point[0].toFixed(1)},${point[1].toFixed(1)}`).join(" ");
+    const middle = Math.floor((route.length - 1) / 2);
+    const [mx, my] = [(route[middle][0] + route[middle + 1][0]) / 2, (route[middle][1] + route[middle + 1][1]) / 2];
     return /* @__PURE__ */ u(S, {
       children: [
         /* @__PURE__ */ u("path", {
@@ -2688,7 +2765,7 @@ function Figure({ r }) {
     const p1 = edgePt(p[w.from], boxes[w.from], p["w" + i]), p2 = edgePt(p["w" + i], boxes["w" + i], p[w.from]);
     return /* @__PURE__ */ u("path", {
       class: "cv-e wk",
-      d: `M${p1[0].toFixed(1)},${p1[1].toFixed(1)} L${p2[0].toFixed(1)},${p2[1].toFixed(1)}`
+      d: routeEdge(p1, p2, p, boxes).map((point, i) => `${i ? "L" : "M"}${point[0].toFixed(1)},${point[1].toFixed(1)}`).join(" ")
     });
   });
   const savedNames = new Set(s.members.map((m) => m.name));
@@ -3753,12 +3830,12 @@ function SideAttr({ r }) {
           class: "cv-f",
           children: [
             /* @__PURE__ */ u("label", {
-              for: `cv-mi-${team}`,
+              for: `cv-mi-${r.uid}`,
               children: "説明"
             }),
             /* @__PURE__ */ u(Field, {
-              id: `cv-mi-${team}`,
-              class: "cv-body",
+              id: `cv-mi-${r.uid}`,
+              class: "cv-body in-description",
               "data-cv-f": "description",
               value: t.description,
               autocomplete: "off",
@@ -3781,7 +3858,7 @@ function SideAttr({ r }) {
           class: "cv-warn",
           children: "人間に届くターンがありません。人間の点の縁の丸から、または人間へ渡すメンバーの縁の丸から、線を引いてください"
         }),
-        /* @__PURE__ */ u("div", {
+        d.length ? /* @__PURE__ */ u("div", {
           class: "cv-sec",
           children: [
             /* @__PURE__ */ u("span", {
@@ -3791,7 +3868,7 @@ function SideAttr({ r }) {
                 d.length
               ]
             }),
-            d.length ? /* @__PURE__ */ u("div", {
+            /* @__PURE__ */ u("div", {
               class: "cv-diff",
               children: d.map(([k, x]) => /* @__PURE__ */ u("span", {
                 class: "cv-" + k,
@@ -3800,12 +3877,9 @@ function SideAttr({ r }) {
                   x
                 ]
               }))
-            }) : /* @__PURE__ */ u("span", {
-              class: "cv-empty",
-              children: "なし"
             })
           ]
-        }),
+        }) : null,
         /* @__PURE__ */ u("div", {
           class: "cv-sec",
           children: [
@@ -3944,11 +4018,11 @@ function SideAttr({ r }) {
           class: "cv-f",
           children: [
             /* @__PURE__ */ u("label", {
-              for: `cv-wp-${team}`,
+              for: `cv-wp-${r.uid}`,
               children: "目的"
             }),
             /* @__PURE__ */ u(Field, {
-              id: `cv-wp-${team}`,
+              id: `cv-wp-${r.uid}`,
               "data-cv-f": "w-purpose",
               value: w.purpose,
               placeholder: "例: 調べ物",
@@ -3961,13 +4035,13 @@ function SideAttr({ r }) {
           class: "cv-f",
           children: [
             /* @__PURE__ */ u("label", {
-              for: `cv-wf-${team}`,
+              for: `cv-wf-${r.uid}`,
               children: "追加するメンバー"
             }),
             /* @__PURE__ */ u("span", {
               class: "sel",
               children: /* @__PURE__ */ u("select", {
-                id: `cv-wf-${team}`,
+                id: `cv-wf-${r.uid}`,
                 "data-cv-f": "w-from",
                 children: t.members.map((m) => /* @__PURE__ */ u(Opt, {
                   v: m.name,
@@ -3982,13 +4056,13 @@ function SideAttr({ r }) {
           class: "cv-f",
           children: [
             /* @__PURE__ */ u("label", {
-              for: `cv-wpf-${team}`,
+              for: `cv-wpf-${r.uid}`,
               children: "プロファイル"
             }),
             /* @__PURE__ */ u("span", {
               class: "sel",
               children: /* @__PURE__ */ u("select", {
-                id: `cv-wpf-${team}`,
+                id: `cv-wpf-${r.uid}`,
                 "data-cv-f": "w-profile",
                 children: profs.map((p) => /* @__PURE__ */ u(Opt, {
                   v: p,
@@ -4088,11 +4162,11 @@ function SideAttr({ r }) {
         class: "cv-f",
         children: [
           /* @__PURE__ */ u("label", {
-            for: `cv-mn-${team}`,
+            for: `cv-mn-${r.uid}`,
             children: "メンバー名"
           }),
           /* @__PURE__ */ u(Field, {
-            id: `cv-mn-${team}`,
+            id: `cv-mn-${r.uid}`,
             "data-cv-f": "m-name",
             value: mine ? mine.value : m.name,
             spellcheck: false,
@@ -4115,13 +4189,13 @@ function SideAttr({ r }) {
         class: "cv-f",
         children: [
           /* @__PURE__ */ u("label", {
-            for: `cv-mr-${team}`,
+            for: `cv-mr-${r.uid}`,
             children: "ロール"
           }),
           /* @__PURE__ */ u("span", {
             class: "sel",
             children: /* @__PURE__ */ u("select", {
-              id: `cv-mr-${team}`,
+              id: `cv-mr-${r.uid}`,
               "data-cv-f": "m-role",
               children: [
                 role ? null : /* @__PURE__ */ u("option", {
@@ -4151,13 +4225,13 @@ function SideAttr({ r }) {
         class: "cv-f",
         children: [
           /* @__PURE__ */ u("label", {
-            for: `cv-mp-${team}`,
+            for: `cv-mp-${r.uid}`,
             children: "プロファイル"
           }),
           /* @__PURE__ */ u("span", {
             class: "sel",
             children: /* @__PURE__ */ u("select", {
-              id: `cv-mp-${team}`,
+              id: `cv-mp-${r.uid}`,
               "data-cv-f": "m-profile",
               children: [
                 profilesFor(r).includes(m.profile) ? null : /* @__PURE__ */ u("option", {
@@ -4878,10 +4952,35 @@ function Canvas({ r, vlist }) {
                 "data-cv-act": "w-add",
                 children: "＋ ワーカー"
               }),
+              /* @__PURE__ */ u("button", {
+                class: "btn sm",
+                type: "button",
+                onClick: (event) => {
+                  event.stopPropagation();
+                  selectPick(r, null, "attr");
+                },
+                children: "チームの説明を編集"
+              }),
               /* @__PURE__ */ u("span", {
                 class: "cv-hint",
                 children: hint
-              })
+              }),
+              cur ? /* @__PURE__ */ u("button", {
+                class: "btn sm cv-edit-selection",
+                type: "button",
+                onClick: (event) => {
+                  event.stopPropagation();
+                  const panel = box.current?.querySelector(".cv-side");
+                  if (!panel)
+                    return;
+                  const band = document.querySelector(".bar")?.offsetHeight || 0;
+                  const summary = box.current?.closest(".tdef")?.querySelector(":scope > .sum")?.offsetHeight || 0;
+                  panel.style.scrollMarginTop = `${band + summary + 12}px`;
+                  panel.scrollIntoView({ block: "start", behavior: "smooth" });
+                  (panel.querySelector("input, select") || panel.querySelector("button"))?.focus({ preventScroll: true });
+                },
+                children: "選択した属性を編集"
+              }) : null
             ]
           }),
           /* @__PURE__ */ u("div", {
@@ -5115,19 +5214,13 @@ function List() {
         children: "説明"
       }),
       /* @__PURE__ */ u("span", {
-        children: "置き場所"
-      }),
-      /* @__PURE__ */ u("span", {
         children: "メンバー"
       }),
       /* @__PURE__ */ u("span", {
         children: "ワーカー"
       }),
       /* @__PURE__ */ u("span", {
-        children: "規則"
-      }),
-      /* @__PURE__ */ u("span", {
-        children: "大きさ"
+        children: "規則とひな形（目安 1,200 字）"
       }),
       HQ ? /* @__PURE__ */ u("span", {
         class: "hq-runh",
@@ -5366,21 +5459,14 @@ function placePills(r) {
 }
 var runProject = (r) => r.place.value === "global" ? "" : r.project || CURRENT;
 function Sum({ r, open }) {
-  const t = r.draft.value, saved = r.saved.value;
+  const t = r.draft.value;
   const broken = r.broken.value;
   const pills = r.draftRow ? /* @__PURE__ */ u("span", {
     class: "pill pending",
     children: groupLabel(r)
   }) : placePills(r);
-  const cell = broken ? "—" : open ? /* @__PURE__ */ u(Field, {
-    id: "m-" + r.dom,
-    class: "in-description" + (t.description !== saved.description ? " changed" : ""),
-    "data-f": "description",
-    value: t.description,
-    autocomplete: "off",
-    "aria-label": `${teamLabel(r)} の説明`,
-    onInput: (e) => pressDescription(r, inputValue(e))
-  }) : t.description ? t.description : "—";
+  const cell = broken ? "—" : t.description || "—";
+  const size = chars(r.agreeDraft.value.text) + (r.check.value?.templateSize ?? Math.max(0, r.size.value - chars(r.agreeSaved.value?.text || "")));
   return /* @__PURE__ */ u(S, {
     children: [
       /* @__PURE__ */ u("button", {
@@ -5425,17 +5511,20 @@ function Sum({ r, open }) {
         children: broken ? "—" : t.workers.length
       }),
       /* @__PURE__ */ u("span", {
-        class: "c-agree c-num",
-        children: num(chars(r.agreeDraft.value.text))
-      }),
-      /* @__PURE__ */ u("span", {
         class: "c-size",
         children: broken || !r.limit.value ? /* @__PURE__ */ u("span", {
           class: "none",
           children: "—"
-        }) : /* @__PURE__ */ u(Measure, {
-          chars: chars(r.agreeDraft.value.text) + (r.check.value?.templateSize ?? Math.max(0, r.size.value - chars(r.agreeSaved.value?.text || ""))),
-          limit: r.limit.value
+        }) : /* @__PURE__ */ u("span", {
+          class: "amt" + (size > r.limit.value ? " over" : ""),
+          title: `暫定の目安：${num(r.limit.value)}字。超えても保存・起動できます。`,
+          children: /* @__PURE__ */ u("span", {
+            class: "v",
+            children: [
+              num(size),
+              " 字"
+            ]
+          })
         })
       }),
       HQ && !r.draftRow ? /* @__PURE__ */ u("span", {
@@ -5466,9 +5555,6 @@ function Detail({ r }) {
           r
         })
       }),
-      !r.draftRow ? /* @__PURE__ */ u(Rename, {
-        r
-      }) : null,
       dtabOf(r) === "shape" ? /* @__PURE__ */ u(TeamPanel, {
         r
       }) : /* @__PURE__ */ u(AgreePanel, {
@@ -5544,9 +5630,14 @@ function DtabsNav({ r }) {
       }),
       /* @__PURE__ */ u("span", {
         class: "dacts",
-        children: /* @__PURE__ */ u(Dacts, {
-          r
-        })
+        children: [
+          !r.draftRow ? /* @__PURE__ */ u(Rename, {
+            r
+          }) : null,
+          /* @__PURE__ */ u(Dacts, {
+            r
+          })
+        ]
       })
     ]
   });
@@ -6015,39 +6106,114 @@ function AgreePanel({ r }) {
   const places = [...new Set(Object.values(scanned).flat())];
   const shadowed = r.place.value === "global" && (r.places || []).includes("project");
   const mode = pmodeOf(r);
-  const board = A(null);
+  const workspace = A(null);
   h(() => {
-    const node = board.current;
-    if (!node)
+    const frame = requestAnimationFrame(() => {
+      const node = workspace.current;
+      if (!node)
+        return;
+      const band = document.querySelector(".bar")?.offsetHeight || 0;
+      const summary = node.closest(".tdef")?.querySelector(":scope > .sum")?.offsetHeight || 0;
+      window.scrollBy({ top: node.getBoundingClientRect().top - band - summary, behavior: "instant" });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, []);
+  const names = [...new Set(r.draft.value.members.map((m) => m.role).filter(Boolean))];
+  const available = ["agreement", ...names.map((name) => "role:" + name)];
+  const selected = selectedRules(r.uid).filter((name) => available.includes(name));
+  const active = selected.length ? selected : ["agreement"];
+  h(() => {
+    const node = workspace.current;
+    if (!node || active.length < 2)
       return;
-    const bar = document.querySelector(".bar");
+    const board = node.querySelector(".prose-board");
+    const tools = node.querySelector(".prose-tools");
+    const band = document.querySelector(".bar");
     const summary = node.closest(".tdef")?.querySelector(":scope > .sum");
-    const tools = node.previousElementSibling;
-    const bandBottom = () => (bar?.offsetHeight || 0) + (summary?.offsetHeight || 0);
     const fit = () => {
-      const top = bandBottom() + node.getBoundingClientRect().top - tools.getBoundingClientRect().top;
-      node.style.setProperty("--prose-height", `${Math.max(360, window.innerHeight - top - 8)}px`);
+      const top = (band?.offsetHeight || 0) + (summary?.offsetHeight || 0);
+      board?.style.setProperty("--prose-height", `${Math.max(360, window.innerHeight - top - (tools?.offsetHeight || 0) - 20)}px`);
     };
     const frame = requestAnimationFrame(() => {
       fit();
-      window.scrollBy({ top: tools.getBoundingClientRect().top - bandBottom(), behavior: "instant" });
+      if (tools)
+        window.scrollBy({ top: tools.getBoundingClientRect().top - (band?.offsetHeight || 0) - (summary?.offsetHeight || 0) - 8, behavior: "instant" });
     });
     const observer = new ResizeObserver(fit);
-    if (bar)
-      observer.observe(bar);
-    if (summary)
-      observer.observe(summary);
-    observer.observe(tools);
+    for (const element of [band, summary, tools])
+      if (element)
+        observer.observe(element);
     window.addEventListener("resize", fit);
     return () => {
       cancelAnimationFrame(frame);
       observer.disconnect();
       window.removeEventListener("resize", fit);
     };
-  }, []);
+  }, [active.join("|")]);
+  const docs = [
+    { key: "agreement", label: `チームの規則 ${r.name.value}`, members: r.draft.value.members.map((m) => m.name).join("、"), status: `${agreeDiff(r) ? "未保存" : "保存済み"}${agreeIssues(r).length ? ` · 問題・警告 ${agreeIssues(r).length}` : ""}` },
+    ...names.map((name) => ({ key: "role:" + name, label: `ロール ${name}`, members: r.draft.value.members.filter((m) => m.role === name).map((m) => m.name).join("、"), status: roleSummary(r, name) }))
+  ];
   return /* @__PURE__ */ u("div", {
     class: "prose-workspace",
+    ref: workspace,
+    "data-mode": active.length === 1 ? "single" : active.length === 2 ? "compare" : "all",
     children: [
+      /* @__PURE__ */ u("div", {
+        class: "prose-documents",
+        "aria-label": "読む文書",
+        children: [
+          docs.map((doc) => /* @__PURE__ */ u("div", {
+            class: "prose-choice" + (active.includes(doc.key) ? " on" : ""),
+            children: [
+              /* @__PURE__ */ u("button", {
+                type: "button",
+                class: "btn",
+                "aria-pressed": active.includes(doc.key),
+                onClick: () => selectRule(r.uid, doc.key),
+                children: [
+                  doc.label,
+                  /* @__PURE__ */ u("small", {
+                    children: doc.members
+                  }),
+                  /* @__PURE__ */ u("small", {
+                    children: doc.status
+                  })
+                ]
+              }),
+              /* @__PURE__ */ u("label", {
+                children: [
+                  /* @__PURE__ */ u("input", {
+                    type: "checkbox",
+                    "aria-label": `${doc.label} を並べる`,
+                    checked: active.includes(doc.key),
+                    onChange: () => selectRule(r.uid, doc.key, true)
+                  }),
+                  "並べる"
+                ]
+              })
+            ]
+          })),
+          /* @__PURE__ */ u("button", {
+            class: "btn",
+            type: "button",
+            onClick: () => {
+              ruleSelection.value = { ...ruleSelection.value, [r.uid]: available };
+            },
+            children: "すべて表示"
+          })
+        ]
+      }),
+      active.length > 1 ? /* @__PURE__ */ u("p", {
+        class: "prose-compare-note",
+        children: [
+          "比較中 ",
+          active.length,
+          " 文書。",
+          active.length > 2 ? "横に収まらない文書は、下のスクロールバーで表示できます。" : "",
+          "文書名を押すと、その文書だけを読みます。"
+        ]
+      }) : null,
       /* @__PURE__ */ u("div", {
         class: "prose-tools",
         children: [
@@ -6075,9 +6241,9 @@ function AgreePanel({ r }) {
       }),
       /* @__PURE__ */ u("div", {
         class: "prose-board",
-        ref: board,
         children: [
           /* @__PURE__ */ u("section", {
+            hidden: !active.includes("agreement"),
             class: "prose-column panel agree-p" + (shadowed ? " shadowed" : ""),
             "data-uid": r.uid,
             "data-l": r.place.value,
@@ -6112,9 +6278,10 @@ function AgreePanel({ r }) {
               })
             ]
           }),
-          [...new Set(r.draft.value.members.map((m) => m.role).filter(Boolean))].map((name) => /* @__PURE__ */ u(RoleColumn, {
+          names.map((name) => /* @__PURE__ */ u(RoleColumn, {
             r,
             name,
+            visible: active.includes("role:" + name),
             onScanned
           }, name))
         ]

@@ -12,7 +12,7 @@
 // canvas/menu.tsx、押し込みとキーとドラッグは canvas/act.ts が持つ。
 import { useLayoutEffect, useRef } from '../lib/preact.js';
 import type { JSX } from 'preact';
-import { dkey, recs, rolesIn, setWide } from './state.js';
+import { dkey, recs, rolesIn, selectPick, setWide } from './state.js';
 import type { Rec } from './state.js';
 import { afterTPrev, fitYbox, TPrev } from './canvas/yaml.js';
 import { Figure, frameOf } from './canvas/figure.js';
@@ -92,7 +92,9 @@ export function Canvas({ r, vlist }: { r: Rec; vlist: JSX.Element }): JSX.Elemen
         <div class="cv-tools">
           <button class="btn sm" type="button" data-cv-act="m-add" disabled={!rolesIn()}>＋ メンバー</button>
           <button class="btn sm" type="button" data-cv-act="w-add">＋ ワーカー</button>
+          <button class="btn sm" type="button" onClick={(event) => { event.stopPropagation(); selectPick(r, null, 'attr'); }}>チームの説明を編集</button>
           <span class="cv-hint">{hint}</span>
+          {cur ? <button class="btn sm cv-edit-selection" type="button" onClick={(event) => { event.stopPropagation(); const panel = box.current?.querySelector<HTMLElement>('.cv-side'); if (!panel) return; const band = document.querySelector<HTMLElement>('.bar')?.offsetHeight || 0; const summary = box.current?.closest('.tdef')?.querySelector<HTMLElement>(':scope > .sum')?.offsetHeight || 0; panel.style.scrollMarginTop = `${band + summary + 12}px`; panel.scrollIntoView({ block: 'start', behavior: 'smooth' }); (panel.querySelector<HTMLElement>('input, select') || panel.querySelector<HTMLElement>('button'))?.focus({ preventScroll: true }); }}>選択した属性を編集</button> : null}
         </div>
         <div class="cv-canvas"><Figure r={r} /><Menu r={r} /></div>
         <div class="vlist">{vlist}</div>

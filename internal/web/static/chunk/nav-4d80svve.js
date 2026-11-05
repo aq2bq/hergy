@@ -11,6 +11,7 @@ import {
   S,
   d,
   h,
+  _,
   A,
   y,
   u
@@ -46,7 +47,7 @@ function Measure({ chars, limit }) {
           /* @__PURE__ */ u("span", {
             class: "lim",
             children: [
-              " / ",
+              " 字 · 目安 ",
               num(limit),
               " 字"
             ]
@@ -596,16 +597,10 @@ function ProseHeader({ heading, text, children, position }) {
       /* @__PURE__ */ u("div", {
         class: "prose-budget",
         title: template ? `内訳: 規則 ${num(count)} 字・ひな形 ${num(template)} 字` : undefined,
-        children: [
-          /* @__PURE__ */ u(Measure, {
-            chars: total,
-            limit: 1200
-          }),
-          /* @__PURE__ */ u("span", {
-            class: total > 1200 ? "over" : "",
-            children: total > 1200 ? `${num(total - 1200)} 字超過` : `残り ${num(1200 - total)} 字`
-          })
-        ]
+        children: /* @__PURE__ */ u(Measure, {
+          chars: total,
+          limit: 1200
+        })
       }),
       /* @__PURE__ */ u("div", {
         class: "prose-status",
@@ -629,12 +624,43 @@ function ProseEditor({ text, heading, onChange, transfer }) {
   const input = A(null);
   const [menu, setMenu] = d(null);
   const current = parts.find((part, i) => cursor >= part.start && (cursor < part.end || i === parts.length - 1));
+  _(() => {
+    const field = input.current;
+    if (!field)
+      return;
+    const fit = () => {
+      if (!field.clientWidth)
+        return;
+      const board = field.closest(".prose-workspace");
+      if (board && board.getAttribute("data-mode") !== "single") {
+        field.style.height = "";
+        return;
+      }
+      field.style.height = "auto";
+      field.style.height = `${Math.max(320, field.scrollHeight + 2)}px`;
+    };
+    fit();
+    let width = field.clientWidth;
+    const observer = new ResizeObserver(() => {
+      if (width !== field.clientWidth) {
+        width = field.clientWidth;
+        fit();
+      }
+    });
+    observer.observe(field);
+    document.fonts?.addEventListener("loadingdone", fit);
+    return () => {
+      observer.disconnect();
+      document.fonts?.removeEventListener("loadingdone", fit);
+    };
+  }, [text, showOutline, widths.value[heading.id || ""]]);
   const position = (event) => {
     if (event.currentTarget instanceof HTMLTextAreaElement)
       setCursor(event.currentTarget.selectionStart);
   };
   return /* @__PURE__ */ u("div", {
     class: "prose-editor",
+    "data-width": widths.value[heading.id || ""],
     onDragOver: (e) => {
       if (transfer)
         e.preventDefault();
@@ -657,73 +683,80 @@ function ProseEditor({ text, heading, onChange, transfer }) {
         heading,
         text,
         position: focused && !showOutline && text && current ? `入力位置: ${current.heading}（${num(chars(text.slice(current.start, current.end)))} 字）` : undefined,
-        children: /* @__PURE__ */ u("div", {
-          class: "prose-modes",
-          role: "group",
-          "aria-label": `${heading.name} の表示`,
+        children: /* @__PURE__ */ u(S, {
           children: [
-            /* @__PURE__ */ u("button", {
-              type: "button",
-              class: "btn sm",
-              title: "全文",
-              "aria-label": "全文",
-              "aria-pressed": !showOutline,
-              onClick: () => {
-                setOutline(false);
-                if (heading.id)
-                  widths.value = { ...widths.value, [heading.id]: "" };
-              },
-              children: /* @__PURE__ */ u("svg", {
-                viewBox: "0 0 24 24",
-                "aria-hidden": "true",
-                children: [
-                  /* @__PURE__ */ u("rect", {
-                    x: "5",
-                    y: "3",
-                    width: "14",
-                    height: "18",
-                    rx: "2"
-                  }),
-                  /* @__PURE__ */ u("path", {
-                    d: "M8 7h8M8 11h8M8 15h5"
+            heading.compact && heading.id ? /* @__PURE__ */ u(WidthButtons, {
+              id: heading.id
+            }) : null,
+            /* @__PURE__ */ u("div", {
+              class: "prose-modes",
+              role: "group",
+              "aria-label": `${heading.name} の表示`,
+              children: [
+                /* @__PURE__ */ u("button", {
+                  type: "button",
+                  class: "btn sm",
+                  title: "全文",
+                  "aria-label": "全文",
+                  "aria-pressed": !showOutline,
+                  onClick: () => {
+                    setOutline(false);
+                    if (heading.id)
+                      widths.value = { ...widths.value, [heading.id]: "" };
+                  },
+                  children: /* @__PURE__ */ u("svg", {
+                    viewBox: "0 0 24 24",
+                    "aria-hidden": "true",
+                    children: [
+                      /* @__PURE__ */ u("rect", {
+                        x: "5",
+                        y: "3",
+                        width: "14",
+                        height: "18",
+                        rx: "2"
+                      }),
+                      /* @__PURE__ */ u("path", {
+                        d: "M8 7h8M8 11h8M8 15h5"
+                      })
+                    ]
                   })
-                ]
-              })
-            }),
-            /* @__PURE__ */ u("button", {
-              type: "button",
-              class: "btn sm",
-              title: "見出しだけ",
-              "aria-label": "見出しだけ",
-              "aria-pressed": showOutline,
-              onClick: () => {
-                setOutline(true);
-                setFocused(false);
-              },
-              children: /* @__PURE__ */ u("svg", {
-                viewBox: "0 0 24 24",
-                "aria-hidden": "true",
-                children: [
-                  /* @__PURE__ */ u("path", {
-                    d: "M8 5h13M8 12h13M8 19h13"
-                  }),
-                  /* @__PURE__ */ u("circle", {
-                    cx: "3",
-                    cy: "5",
-                    r: "1"
-                  }),
-                  /* @__PURE__ */ u("circle", {
-                    cx: "3",
-                    cy: "12",
-                    r: "1"
-                  }),
-                  /* @__PURE__ */ u("circle", {
-                    cx: "3",
-                    cy: "19",
-                    r: "1"
+                }),
+                /* @__PURE__ */ u("button", {
+                  type: "button",
+                  class: "btn sm",
+                  title: "見出しだけ",
+                  "aria-label": "見出しだけ",
+                  "aria-pressed": showOutline,
+                  onClick: () => {
+                    setOutline(true);
+                    setFocused(false);
+                  },
+                  children: /* @__PURE__ */ u("svg", {
+                    viewBox: "0 0 24 24",
+                    "aria-hidden": "true",
+                    children: [
+                      /* @__PURE__ */ u("path", {
+                        d: "M8 5h13M8 12h13M8 19h13"
+                      }),
+                      /* @__PURE__ */ u("circle", {
+                        cx: "3",
+                        cy: "5",
+                        r: "1"
+                      }),
+                      /* @__PURE__ */ u("circle", {
+                        cx: "3",
+                        cy: "12",
+                        r: "1"
+                      }),
+                      /* @__PURE__ */ u("circle", {
+                        cx: "3",
+                        cy: "19",
+                        r: "1"
+                      })
+                    ]
                   })
-                ]
-              })
+                })
+              ]
             })
           ]
         })

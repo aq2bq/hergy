@@ -8,6 +8,7 @@ const separate = (text: string) => !text || /\n[ \t]*\n$/.test(text) ? text : te
 async function open(page, app) {
  await page.setViewportSize({ width: 1440, height: 900 });
  await page.goto(`${app.base}/teams?open=core&agree=core`); await ready(page);
+ await page.getByRole('button', { name: 'すべて表示', exact: true }).click();
  const row = page.locator('.tdef[data-name="core"]');
  const role = row.locator('.role-column').filter({ has: page.getByRole('heading', { name: /builder/ }) });
  await expect(role.getByRole('textbox', { name: '規則の全文' })).toBeEnabled();

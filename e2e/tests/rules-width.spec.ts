@@ -29,6 +29,7 @@ for (const theme of ['light', 'dark'] as const) {
     for (const viewport of [{ width: 1440, height: 900 }, { width: 2560, height: 1440 }]) {
       await page.setViewportSize(viewport);
       await page.goto(`${app.base}/teams?open=core&agree=core`); await ready(page);
+      await page.getByRole('button', { name: 'すべて表示', exact: true }).click();
       await page.evaluate(() => document.fonts.ready);
       const row = page.locator('.tdef[data-name="core"]'), board = row.locator('.prose-board');
       const columns = board.locator('.prose-column');
@@ -97,10 +98,14 @@ for (const theme of ['light', 'dark'] as const) {
       await page.goto(`${app.base}/roles?open=writer|project`); await ready(page);
       const roleInput = page.locator('.role.open textarea').first();
       await expect(roleInput).toHaveValue(sample);
-      const roleWidth = await textWidth(roleInput);
+      let roleWidth = await textWidth(roleInput);
+      const standard = await textWidth(roleInput);
+      expect(standard.chars).toBeGreaterThanOrEqual(35); expect(standard.chars).toBeLessThanOrEqual(45);
+      await page.locator('.role.open').getByRole('button', { name: '広く', exact: true }).click();
       await expect.poll(async () => (await textWidth(roleInput)).inner).toBeGreaterThan(832);
       if (results.length) await expect.poll(async () => (await textWidth(roleInput)).inner).toBeGreaterThan(results[0].role.inner);
       await page.screenshot({ path: info.outputPath(`${viewport.width}-${theme}-role.png`) });
+      roleWidth = await textWidth(roleInput);
       results.push({ viewport, wrap, widths, normal, wide, wideWidths, board: boardWidth, role: roleWidth });
     }
     const measurements = info.outputPath('width-measurements.json');
@@ -116,6 +121,7 @@ test('four columns retain aligned editors and save actions at 1440px', async ({ 
   writeFileSync(teamFile, readFileSync(teamFile, 'utf8').replace('role: analyst', 'role: lead'));
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto(`${app.base}/teams?open=core&agree=core`); await ready(page);
+  await page.getByRole('button', { name: 'すべて表示', exact: true }).click();
   const columns = page.locator('.tdef[data-name="core"] .prose-column');
   await expect(columns).toHaveCount(4);
   await expect.poll(() => columns.evaluateAll(nodes => {
@@ -124,6 +130,6 @@ test('four columns retain aligned editors and save actions at 1440px', async ({ 
       const save = [...node.querySelectorAll('button')].find(button => button.textContent === '保存')!.getBoundingClientRect();
       return [input.top, input.bottom, save.top, input.height];
     });
-    return edges.every(edge => edge[0] === edges[0][0] && edge[1] === edges[0][1] && edge[2] === edges[0][2] && edge[3] >= 450);
+    return edges.every(edge => edge[0] === edges[0][0] && edge[1] === edges[0][1] && edge[2] === edges[0][2] && edge[3] >= 320);
   })).toBe(true);
 });

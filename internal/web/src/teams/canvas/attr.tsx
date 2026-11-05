@@ -95,13 +95,13 @@ export function SideAttr({ r }: { r: Rec }): JSX.Element | null {
     return (
       <>
         <div class="cv-t"><code>{team}</code><span class="cv-k">チーム定義</span></div>
-        <div class="cv-f"><label for={`cv-mi-${team}`}>説明</label><Field id={`cv-mi-${team}`} class="cv-body" data-cv-f="description" value={t.description} autocomplete="off" spellcheck={false} /></div>
+        <div class="cv-f"><label for={`cv-mi-${r.uid}`}>説明</label><Field id={`cv-mi-${r.uid}`} class="cv-body in-description" data-cv-f="description" value={t.description} autocomplete="off" spellcheck={false} /></div>
         <div class="cv-note">メンバー {t.members.length} · ワーカー {t.workers.length} · ターン {t.turns.length}</div>
         {humanIn ? '' : <div class="cv-warn">人間に届くターンがありません。人間の点の縁の丸から、または人間へ渡すメンバーの縁の丸から、線を引いてください</div>}
-        <div class="cv-sec">
+        {d.length ? <div class="cv-sec">
           <span class="cv-sl">保存していない変更 {d.length}</span>
-          {d.length ? <div class="cv-diff">{d.map(([k, x]) => <span class={'cv-' + k}>{k === 'a' ? '+ ' : k === 'd' ? '− ' : '~ '}{x}</span>)}</div> : <span class="cv-empty">なし</span>}
-        </div>
+          <div class="cv-diff">{d.map(([k, x]) => <span class={'cv-' + k}>{k === 'a' ? '+ ' : k === 'd' ? '− ' : '~ '}{x}</span>)}</div>
+        </div> : null}
         <div class="cv-sec"><span class="cv-sl">操作</span><span class="cv-note">点や線を押すと、ここにその属性が出る。選んだ点の縁の丸から、ほかの点へ引くとターンができる。<span class="cv-kbd">Delete</span> で外す、<span class="cv-kbd">Esc</span> で選ぶのをやめる、<span class="cv-kbd">⌘Z</span> で 1 つ取り消す。</span></div>
       </>
     );
@@ -126,14 +126,14 @@ export function SideAttr({ r }: { r: Rec }): JSX.Element | null {
     return (
       <>
         <div class="cv-t"><code>{w.purpose || '（目的）'}</code><span class="cv-k">ワーカー</span></div>
-        <div class="cv-f"><label for={`cv-wp-${team}`}>目的</label><Field id={`cv-wp-${team}`} data-cv-f="w-purpose" value={w.purpose} placeholder="例: 調べ物" autocomplete="off" spellcheck={false} /></div>
+        <div class="cv-f"><label for={`cv-wp-${r.uid}`}>目的</label><Field id={`cv-wp-${r.uid}`} data-cv-f="w-purpose" value={w.purpose} placeholder="例: 調べ物" autocomplete="off" spellcheck={false} /></div>
         <div class="cv-f">
-          <label for={`cv-wf-${team}`}>追加するメンバー</label>
-          <span class="sel"><select id={`cv-wf-${team}`} data-cv-f="w-from">{t.members.map((m) => <Opt v={m.name} on={m.name === w.from}>{m.name}</Opt>)}</select></span>
+          <label for={`cv-wf-${r.uid}`}>追加するメンバー</label>
+          <span class="sel"><select id={`cv-wf-${r.uid}`} data-cv-f="w-from">{t.members.map((m) => <Opt v={m.name} on={m.name === w.from}>{m.name}</Opt>)}</select></span>
         </div>
         <div class="cv-f">
-          <label for={`cv-wpf-${team}`}>プロファイル</label>
-          <span class="sel"><select id={`cv-wpf-${team}`} data-cv-f="w-profile">{profs.map((p) => <Opt v={p} on={p === w.profile}>{p}</Opt>)}</select></span>
+          <label for={`cv-wpf-${r.uid}`}>プロファイル</label>
+          <span class="sel"><select id={`cv-wpf-${r.uid}`} data-cv-f="w-profile">{profs.map((p) => <Opt v={p} on={p === w.profile}>{p}</Opt>)}</select></span>
           <span class="cv-sub">ワーカーは規則を受けない。安いプロファイルで</span>
         </div>
         <WorkerPromptSection r={r} w={w} i={sel.i} />
@@ -167,19 +167,19 @@ export function SideAttr({ r }: { r: Rec }): JSX.Element | null {
     <>
       <div class="cv-t"><code>{m.name}</code><span class="cv-k">メンバー{role && role.title ? ` · ${role.title}` : ''}</span></div>
       <div class="cv-f">
-        <label for={`cv-mn-${team}`}>メンバー名</label>
-        <Field id={`cv-mn-${team}`} data-cv-f="m-name" value={mine ? mine.value : m.name} spellcheck={false} autocomplete="off" />
+        <label for={`cv-mn-${r.uid}`}>メンバー名</label>
+        <Field id={`cv-mn-${r.uid}`} data-cv-f="m-name" value={mine ? mine.value : m.name} spellcheck={false} autocomplete="off" />
         {msgs.map((x) => <span class="cv-msg">{x}</span>)}
         <span class="cv-sub">herdr 名 {`${team}-${m.name}`}</span>
       </div>
       <div class="cv-f">
-        <label for={`cv-mr-${team}`}>ロール</label>
-        <span class="sel"><select id={`cv-mr-${team}`} data-cv-f="m-role">{role ? null : <option value="" disabled selected>ロールを選ぶ</option>}{(rolesFor(r) || []).map((x) => <Opt v={x.name} on={x.name === m.role}>{x.name}{x.title ? ` · ${x.title}` : ''}</Opt>)}</select></span>
+        <label for={`cv-mr-${r.uid}`}>ロール</label>
+        <span class="sel"><select id={`cv-mr-${r.uid}`} data-cv-f="m-role">{role ? null : <option value="" disabled selected>ロールを選ぶ</option>}{(rolesFor(r) || []).map((x) => <Opt v={x.name} on={x.name === m.role}>{x.name}{x.title ? ` · ${x.title}` : ''}</Opt>)}</select></span>
         <RoleButton r={r} name={m.role} />
       </div>
       <div class="cv-f">
-        <label for={`cv-mp-${team}`}>プロファイル</label>
-        <span class="sel"><select id={`cv-mp-${team}`} data-cv-f="m-profile">{profilesFor(r).includes(m.profile) ? null : <option value="" disabled selected>プロファイルを選ぶ</option>}{profilesFor(r).map((p) => <Opt v={p} on={p === m.profile}>{p}</Opt>)}</select></span>
+        <label for={`cv-mp-${r.uid}`}>プロファイル</label>
+        <span class="sel"><select id={`cv-mp-${r.uid}`} data-cv-f="m-profile">{profilesFor(r).includes(m.profile) ? null : <option value="" disabled selected>プロファイルを選ぶ</option>}{profilesFor(r).map((p) => <Opt v={p} on={p === m.profile}>{p}</Opt>)}</select></span>
       </div>
       <div class="cv-sec">
         <span class="cv-sl">ターンを渡す相手</span>{turnRows(t, s, id, 'out')}

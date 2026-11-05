@@ -123,9 +123,9 @@ export function Row({ row }: { row: Row }) {
         </span>
         <span class="c-kind">{kind ? <><i class={'sw ' + kindClass}></i>{kind}</> : ''}</span>
         <span class="c-place">{row.isNew && (row.places || []).length === 0 ? <span class="pill pending">{groupName(row.group)}</span> : <PlacePills row={row} />}</span>
-        <span class="c-args">{row.args ? row.args : <span class="none">—</span>}</span>
-        <span class="c-env">{(row.env && row.env.length) ? [row.env.map((value) => <span>{value}</span>), row.more > 0 ? <span class="more">+{row.more}</span> : ''] : <span class="none">—</span>}</span>
-        <span class="c-users">{row.users > 0 ? <><b>{row.users}</b><span>{row.roles}</span></> : <span class="none">0</span>}</span>
+        <span class="c-args">{row.args || ''}</span>
+        <span class="c-env">{(row.env && row.env.length) ? [row.env.map((value) => <span>{value}</span>), row.more > 0 ? <span class="more">+{row.more}</span> : ''] : ''}</span>
+        <span class="c-users">{row.users > 0 ? <><b><span class="usage-label">使用 </span>{row.users}<span class="usage-label"> 人</span></b><span class="usage-names">{row.roles}</span></> : <b class="none">未使用</b>}</span>
       </div>
       <div class="detail" ref={detail} hidden={!row.open}>
         {row.open ? <>
@@ -203,6 +203,12 @@ function Panel({ panel }: { panel: PanelState }) {
         <span class="ln">{groupName(panel.group)}</span>
         <code class="path">{panel.path}</code>
         {panel.both ? <span class={'state ' + (panel.shadowed ? 'off' : 'on')}>{panel.shadowed ? '隠れている' : '効いている'}</span> : ''}
+        <span class="acts">{panel.confirming
+          ? <>
+            <button class="btn danger solid" data-act="del-yes" ref={confirmButton} onClick={() => pressDelYes(panel.key)}>削除する{panel.users ? `（${panel.users} 人が使っている）` : ''}</button>
+            <button class="btn" data-act="del-no" onClick={() => pressDelNo(panel.key)}>やめる</button>
+          </>
+          : acts}</span>
       </header>
       <div class="field"><label>プロファイル名</label><div>
         <Field aria-label="プロファイル名" class={'in-name' + (changed.name ? ' changed' : '') + (bad.name ? ' bad' : '')} data-f="name" value={panel.draft.name} spellcheck={false} autocomplete="off" fieldRef={nameInput} onInput={(e: Event) => inputField(panel.key, 'name', 0, inputValue(e))} />
@@ -233,12 +239,7 @@ function Panel({ panel }: { panel: PanelState }) {
         onUndo={() => { pressUndoConflict(panel.key); scheduleCheck(panel.key); }} /> : null}
       <footer class="pf">
         <button class="btn primary" data-act="save" disabled={saveBlocked(panel)} onClick={() => pressSave(panel.key)}>保存</button><span class="dirty">{saved && changed.count ? `${changed.count} か所` : ''}</span><span class="vcount">{counts(panel)}</span>{panel.savedLine ? <span class="ok">保存しました</span> : ''}{held.length ? <span class="sev err refusal">{held.join(' ')}</span> : null}
-        <span class="acts">{panel.confirming
-          ? <>
-            <button class="btn danger solid" data-act="del-yes" ref={confirmButton} onClick={() => pressDelYes(panel.key)}>削除する{panel.users ? `（${panel.users} 人が使っている）` : ''}</button>
-            <button class="btn" data-act="del-no" onClick={() => pressDelNo(panel.key)}>やめる</button>
-          </>
-          : acts}</span>
+
       </footer>
     </section>
   );

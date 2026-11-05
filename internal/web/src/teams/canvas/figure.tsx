@@ -4,6 +4,7 @@
 // カーソルが外れない、webui-preact-design 9 章）。点の場所は place.ts が組み立て、
 // ここはそれを SVG にするだけ。押し込みは canvas が受ける（5 章 1）。
 import type { JSX } from 'preact';
+import { routeEdge } from '../edge-route.js';
 import { boxOf } from '../place.js';
 import type { Box, Spot } from '../place.js';
 import { dkey, hasTurn, memberOf, nodeName, teamIssues } from '../state.js';
@@ -61,8 +62,10 @@ export function Figure({ r }: { r: Rec }) {
     const fwd = hasTurn(t, a, b), back = hasTurn(t, b, a);
     const isNew = (fwd && !hasTurn(s, a, b)) || (back && !hasTurn(s, b, a));
     const mk = selE === k ? 'a' : isNew ? 'c' : 'n';
-    const dd = `M${p1[0].toFixed(1)},${p1[1].toFixed(1)} L${p2[0].toFixed(1)},${p2[1].toFixed(1)}`;
-    const [mx, my] = [(p1[0] + p2[0]) / 2, (p1[1] + p2[1]) / 2];
+    const route = routeEdge(p1, p2, p, boxes);
+    const dd = route.map((point, i) => `${i ? 'L' : 'M'}${point[0].toFixed(1)},${point[1].toFixed(1)}`).join(' ');
+    const middle = Math.floor((route.length - 1) / 2);
+    const [mx, my] = [(route[middle][0] + route[middle + 1][0]) / 2, (route[middle][1] + route[middle + 1][1]) / 2];
     return (
       <>
         <path class="cv-hit" d={dd} data-cv-e={k} tabindex={0} role="button" aria-label={`${nodeName(a)} と ${nodeName(b)} のターン`}></path>
@@ -74,7 +77,7 @@ export function Figure({ r }: { r: Rec }) {
   const wedges = t.workers.map((w, i) => {
     if (!p['w' + i] || !p[w.from]) return '';
     const p1 = edgePt(p[w.from], boxes[w.from], p['w' + i]), p2 = edgePt(p['w' + i], boxes['w' + i], p[w.from]);
-    return <path class="cv-e wk" d={`M${p1[0].toFixed(1)},${p1[1].toFixed(1)} L${p2[0].toFixed(1)},${p2[1].toFixed(1)}`}></path>;
+    return <path class="cv-e wk" d={routeEdge(p1, p2, p, boxes).map((point, i) => `${i ? 'L' : 'M'}${point[0].toFixed(1)},${point[1].toFixed(1)}`).join(' ')}></path>;
   });
 
   const savedNames = new Set(s.members.map((m) => m.name));

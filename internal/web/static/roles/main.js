@@ -20,7 +20,7 @@ import {
   takeDraft2,
   setDirty2,
   setCount2
-} from "../chunk/nav-09ttxdhn.js";
+} from "../chunk/nav-b2ph1bfx.js";
 import {
   save2,
   del2,
@@ -33,8 +33,8 @@ import {
 import {
   token2,
   parseOpen2
-} from "../chunk/nav-vahmk4me.js";
-import"../chunk/nav-0znfs6e2.js";
+} from "../chunk/nav-ebbbd1zh.js";
+import"../chunk/nav-gp5akqyb.js";
 import {
   Measure,
   renameCarries2,
@@ -45,7 +45,7 @@ import {
   Badge2,
   Vm2,
   RuleDoc2
-} from "../chunk/nav-z37srsqa.js";
+} from "../chunk/nav-4d80svve.js";
 import {
   conflictOf,
   ConflictNotice,
@@ -60,7 +60,7 @@ import {
   projectOfGroup,
   bringUnderBand,
   ProjectView
-} from "../chunk/nav-p855w4vj.js";
+} from "../chunk/nav-2krt94z2.js";
 import {
   Field
 } from "../chunk/nav-hrc2s6sc.js";
@@ -1405,7 +1405,7 @@ function List() {
         children: [
           /* @__PURE__ */ u("div", {
             class: "filters",
-            children: FILTERS.map(([f, label]) => /* @__PURE__ */ u("button", {
+            children: FILTERS.filter(([f]) => !f || filterCount(f) > 0 || s.filter === f).map(([f, label]) => /* @__PURE__ */ u("button", {
               class: "fchip" + (s.filter === f ? " on" : ""),
               "data-act": "filter",
               "data-f": f || "",
@@ -1918,66 +1918,16 @@ function Panel({ r, l }) {
     "data-l": l,
     "data-mode": mode,
     children: [
-      /* @__PURE__ */ u("div", {
-        class: "pmain",
-        children: /* @__PURE__ */ u(RuleDoc2, {
-          row,
-          issues,
-          nameError,
-          heading: {
-            kind: "ロール",
-            name: row.draft.name || "新しいロール",
-            title: row.draft.title,
-            compact: true,
-            path: `${placeLabel} · roles/${d.name}.md`,
-            fullPath: pathOfRow(r, l, d),
-            state: (n ? "未保存" : "保存済み") + (shadowed ? "（隠れている）" : ""),
-            members: whoReads(row.draft.name, r.group).map((u2) => `${u2.t.id}: ${u2.m.name}`).join("、")
-          },
-          filtering: filtering(),
-          query: state.value.q,
-          readerCount: (name) => whoReads(name, GROUPED ? CURRENT : "").length,
-          onChange: () => onChangeDraft(r, l),
-          onMode: (v) => pressPmode(r.uid, l, v),
-          onURL: () => syncURL(false)
-        })
-      }),
-      hold ? /* @__PURE__ */ u(ConflictNotice, {
-        c: hold.c,
-        mine: e.text || "",
-        undone: hold.undone,
-        onOverwrite: () => pressOverwrite(r.uid, l),
-        onRevert: () => pressRevertConflict(r.uid, l),
-        onUndo: () => pressUndoConflict(r.uid, l)
-      }) : null,
-      /* @__PURE__ */ u("footer", {
-        class: "pf",
+      /* @__PURE__ */ u("header", {
+        class: "edit-actions",
         children: [
-          /* @__PURE__ */ u("button", {
-            class: "btn primary",
-            "data-act": "save",
-            disabled: blocked,
-            onClick: () => doSave(r.uid, l),
-            children: "保存"
+          /* @__PURE__ */ u("b", {
+            children: [
+              "ロール ",
+              d.name
+            ]
           }),
-          held.length ? /* @__PURE__ */ u("span", {
-            class: "sev err refusal",
-            children: held.join(" ")
-          }) : null,
-          /* @__PURE__ */ u("span", {
-            class: "dirty",
-            children: e.saved && n ? `${n} か所` : ""
-          }),
-          /* @__PURE__ */ u("span", {
-            class: "vcount",
-            children: /* @__PURE__ */ u(Counts2, {
-              list: issues.filter((p) => p.f !== "size")
-            })
-          }),
-          okOf(key) ? /* @__PURE__ */ u("span", {
-            class: "ok",
-            children: "保存しました"
-          }) : "",
+          "        ",
           /* @__PURE__ */ u("span", {
             class: "acts",
             children: [
@@ -2027,6 +1977,69 @@ function Panel({ r, l }) {
               })
             ]
           })
+        ]
+      }),
+      /* @__PURE__ */ u("div", {
+        class: "pmain",
+        children: /* @__PURE__ */ u(RuleDoc2, {
+          row,
+          issues,
+          nameError,
+          heading: {
+            kind: "ロール",
+            name: row.draft.name || "新しいロール",
+            title: row.draft.title,
+            id: `role-${r.uid}-${l}`,
+            compact: true,
+            path: `${placeLabel} · roles/${d.name}.md`,
+            fullPath: pathOfRow(r, l, d),
+            state: (n ? "未保存" : "保存済み") + (shadowed ? "（隠れている）" : ""),
+            members: whoReads(row.draft.name, r.group).map((u2) => `${u2.t.id}: ${u2.m.name}`).join("、")
+          },
+          filtering: filtering(),
+          query: state.value.q,
+          readerCount: (name) => whoReads(name, GROUPED ? CURRENT : "").length,
+          onChange: () => onChangeDraft(r, l),
+          onMode: (v) => pressPmode(r.uid, l, v),
+          onURL: () => syncURL(false)
+        })
+      }),
+      hold ? /* @__PURE__ */ u(ConflictNotice, {
+        c: hold.c,
+        mine: e.text || "",
+        undone: hold.undone,
+        onOverwrite: () => pressOverwrite(r.uid, l),
+        onRevert: () => pressRevertConflict(r.uid, l),
+        onUndo: () => pressUndoConflict(r.uid, l)
+      }) : null,
+      /* @__PURE__ */ u("footer", {
+        class: "pf",
+        children: [
+          /* @__PURE__ */ u("button", {
+            class: "btn primary",
+            "data-act": "save",
+            disabled: blocked,
+            onClick: () => doSave(r.uid, l),
+            children: "保存"
+          }),
+          held.length ? /* @__PURE__ */ u("span", {
+            class: "sev err refusal",
+            children: held.join(" ")
+          }) : null,
+          /* @__PURE__ */ u("span", {
+            class: "dirty",
+            children: e.saved && n ? `${n} か所` : ""
+          }),
+          /* @__PURE__ */ u("span", {
+            class: "vcount",
+            children: /* @__PURE__ */ u(Counts2, {
+              list: issues.filter((p) => p.f !== "size")
+            })
+          }),
+          okOf(key) ? /* @__PURE__ */ u("span", {
+            class: "ok",
+            children: "保存しました"
+          }) : ""
         ]
       })
     ]

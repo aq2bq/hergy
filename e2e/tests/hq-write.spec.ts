@@ -194,29 +194,22 @@ test('HQ-WRITE-P1 a listed project’s team definition is saved and deleted with
   const alphaName = `alpha-dev|${alpha}`;
   const betaName = `alpha-dev|${betaDir}`;
 
-  await page.goto(`${app.base}/teams`);
-  await wait(page, drawn(rowIn(LIST, TEAMS, alpha, alphaName)));
-
-  // This serve's own definition moves first.
-  await press(page, `${rowIn(LIST, TEAMS, alpha, alphaName)}.querySelector('.sum')`);
-  await wait(page, drawn(`${rowIn(LIST, TEAMS, alpha, alphaName)}.querySelector('.in-description')`));
-  await set(page, `${rowIn(LIST, TEAMS, alpha, alphaName)}.querySelector('.in-description')`, 'served の説明。');
-  await press(page, `${rowIn(LIST, TEAMS, alpha, alphaName)}.querySelector('.panel.team-p [data-act=t-save]')`);
-  await wait(page, drawn(`${rowIn(LIST, TEAMS, alpha, alphaName)}.querySelector('.panel.team-p .ok')`));
+  await page.goto(`${app.base}/teams`); await ready(page);
+  const own = page.locator(`.tdef[data-name="${alphaName}"]`);
+  const listed = page.locator(`.tdef[data-name="${betaName}"]`);
+  await own.getByRole('button', { name: /を開閉する/ }).click();
+  await own.getByRole('textbox', { name: '説明', exact: true }).fill('served の説明。');
+  await own.locator('.panel.team-p [data-act=t-save]').click();
+  await expect(own.locator('.panel.team-p .ok')).toBeVisible();
   const before = { profiles: read(served.profiles), role: read(served.role), team: read(served.team) };
-
-  // The listed project's definition of the same name saves with its own file's
-  // hash and then goes.
-  await press(page, `${rowIn(LIST, TEAMS, betaDir, betaName)}.querySelector('.sum')`);
-  await wait(page, drawn(`${rowIn(LIST, TEAMS, betaDir, betaName)}.querySelector('.in-description')`));
-  await set(page, `${rowIn(LIST, TEAMS, betaDir, betaName)}.querySelector('.in-description')`, 'listed の説明。');
-  await press(page, `${rowIn(LIST, TEAMS, betaDir, betaName)}.querySelector('.panel.team-p [data-act=t-save]')`);
-  await wait(page, drawn(`${rowIn(LIST, TEAMS, betaDir, betaName)}.querySelector('.panel.team-p .ok')`));
-  expect(read(shared), 'the listed project’s team.yaml does not hold the description the save wrote').toContain('listed の説明。');
-
-  await press(page, `${rowIn(LIST, TEAMS, betaDir, betaName)}.querySelector('nav.dtabs .dacts [data-act=del]')`);
-  await press(page, `${rowIn(LIST, TEAMS, betaDir, betaName)}.querySelector('nav.dtabs .dacts [data-act=del-yes]')`);
-  await wait(page, `!${rowIn(LIST, TEAMS, betaDir, betaName)}`);
+  await listed.getByRole('button', { name: /を開閉する/ }).click();
+  await listed.getByRole('textbox', { name: '説明', exact: true }).fill('listed の説明。');
+  await listed.locator('.panel.team-p [data-act=t-save]').click();
+  await expect(listed.locator('.panel.team-p .ok')).toBeVisible();
+  expect(read(shared)).toContain('listed の説明。');
+  await listed.locator('nav.dtabs .dacts [data-act=del]').click();
+  await listed.locator('nav.dtabs .dacts [data-act=del-yes]').click();
+  await expect(listed).toHaveCount(0);
   expect(existsSync(shared), 'the listed project’s team.yaml is still there after the delete').toBe(false);
 
   expect(read(served.profiles), 'the served project’s profiles.yaml moved').toBe(before.profiles);

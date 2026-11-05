@@ -22,6 +22,9 @@ for (const end of ['blank', 'new turn', 'existing turn', 'self', 'cancel', 'lost
     const panel = page.locator('.tdef[data-name="core"] .panel.team-p');
     const svg = panel.locator('.cv-canvas svg');
     const source = svg.locator('[data-cv-n="impl-a"]');
+    // Bringing only the source into view can leave reviewer under the sticky
+    // summary. A drag starts with the whole figure visible.
+    await svg.scrollIntoViewIfNeeded();
     await source.click();
     const handle = await svg.locator('[data-cv-h="impl-a"]').first().boundingBox();
     expect(handle).not.toBeNull();
@@ -215,7 +218,7 @@ async function saveShape(page: Parameters<typeof read>[0], app: { base: string; 
 test('TEAMS-D1 the description is read where a definition is picked', async ({ page, app }) => {
   // d-5f55: the description is the line the places a person picks or reads a
   // definition show. The list names its column 説明, the row carries the saved
-  // line, and the opened row writes it in the same place.
+  // line; the attribute field is its single editing location.
   await page.goto(`${app.base}/teams`);
   await wait(page, there('#view .tdef'));
   await readTo<string>(page, `document.querySelector('#view .head').textContent`, 'the list does not name the 説明 column').toContain('説明');
@@ -510,6 +513,8 @@ test('TEAMS-R1 team prose and roles use one full-text editor per document', asyn
   await page.goto(`${app.base}/teams?open=core&agree=core`); await ready(page);
   const row = page.locator('.tdef[data-name="core"]');
   await expect(row.locator('.prose-column')).toHaveCount(5);
+  await expect(row.getByRole('textbox', { name: '規則の全文' })).toHaveCount(1);
+  await row.getByRole('button', { name: 'すべて表示', exact: true }).click();
   await expect(row.getByRole('textbox', { name: '規則の全文' })).toHaveCount(5);
   await expect(row.locator('.prose-budget')).toHaveCount(5);
   await expect(row.locator('.agree-p .prose-budget')).not.toHaveAttribute('title', /ひな形 0 字/);

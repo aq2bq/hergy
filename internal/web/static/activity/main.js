@@ -22,7 +22,7 @@ import {
 } from "../chunk/nav-59pgz9xy.js";
 import {
   setActivity2
-} from "../chunk/nav-09ttxdhn.js";
+} from "../chunk/nav-b2ph1bfx.js";
 import {
   setRunning2,
   token2,
@@ -34,11 +34,11 @@ import {
   stopSheet2,
   teamCount,
   openSheet
-} from "../chunk/nav-vahmk4me.js";
+} from "../chunk/nav-ebbbd1zh.js";
 import {
   TeamFigure2,
   exports_hq
-} from "../chunk/nav-0znfs6e2.js";
+} from "../chunk/nav-gp5akqyb.js";
 import {
   resource
 } from "../chunk/nav-spnv3sy9.js";
@@ -198,7 +198,7 @@ function Figure({ team }) {
       }),
       unknown ? /* @__PURE__ */ u("p", {
         class: "hq-worker-note",
-        children: "ワーカー（雇ったメンバーを確認できない）：起動記録では、ワーカーを雇ったメンバーを確認できません。ワーカーのペインで確認してください。"
+        children: "雇ったメンバーを確認できないワーカーがいます。"
       }) : null
     ]
   });
@@ -549,7 +549,11 @@ function Board() {
         children: rows.map((t) => /* @__PURE__ */ u(Tile, {
           team: t
         }, t.name))
-      })
+      }),
+      rows.some((t) => t.workers.some((w) => !w.from)) ? /* @__PURE__ */ u("p", {
+        class: "hq-worker-guide",
+        children: "雇い主不明：起動記録には、ワーカーを雇ったメンバーの情報がありません。ワーカーのペインで確認してください。"
+      }) : null
     ]
   });
 }

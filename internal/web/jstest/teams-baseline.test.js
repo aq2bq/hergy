@@ -40,7 +40,7 @@ test('an edit made while the first check is out keeps the file as the save\'s ba
   await import('../src/teams/main');
   await settle();
 
-  const description = document.querySelector('.tdef.open .in-description');
+  const description = document.querySelector('.tdef.open [data-cv-f="description"]');
   expect(description).not.toBe(null);
   type(description, '書きかけの説明');
   await settle();
@@ -50,7 +50,7 @@ test('an edit made while the first check is out keeps the file as the save\'s ba
   fileCheck.resolve({ problems: [fileError] });
   await settle();
 
-  expect(document.querySelector('.tdef.open .in-description').value).toBe('書きかけの説明');
+  expect(document.querySelector('.tdef.open [data-cv-f="description"]').value).toBe('書きかけの説明');
   expect(document.querySelector('.tdef.open .panel.team-p .vlist').textContent).toContain('gemini-flash');
   expect(document.querySelector('.tdef.open .panel.team-p [data-act=t-save]').disabled).toBe(false);
 });

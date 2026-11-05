@@ -39,7 +39,7 @@ import {
   searchHook,
   teamCount,
   openSheet
-} from "./nav-vahmk4me.js";
+} from "./nav-ebbbd1zh.js";
 var __defProp = Object.defineProperty;
 var __returnValue = (v) => v;
 function __exportSetter(name, newValue) {
@@ -695,7 +695,7 @@ document.addEventListener("keydown", (e) => {
     const q = document.getElementById("hq-q");
     if (q) {
       e.preventDefault();
-      q.focus();
+      showSearch(true);
     }
     return;
   }
@@ -727,4 +727,20 @@ function stickBar() {
   if (bar)
     document.documentElement.style.setProperty("--stick", bar.offsetHeight + "px");
 }
+function showSearch(open) {
+  const band = document.querySelector(".bar");
+  if (band)
+    band.dataset.searchOpen = String(open);
+  document.querySelector('[data-hq="search-toggle"]')?.setAttribute("aria-expanded", String(open));
+  if (open)
+    document.getElementById("hq-q")?.focus();
+}
+document.addEventListener("click", (event) => {
+  if (!(event.target instanceof Element))
+    return;
+  const trigger = event.target.closest('[data-hq="search-toggle"]');
+  if (trigger)
+    showSearch(trigger.getAttribute("aria-expanded") !== "true");
+});
+
 export { RunCell2, TeamFigure2, exports_hq };

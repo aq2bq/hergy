@@ -55,7 +55,7 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && searchBoxOpen()) { resetSearch(); return; }
   if (e.key === '/' && !e.target.closest('input, textarea, select, [contenteditable]')) {
     const q = document.getElementById('hq-q');
-    if (q) { e.preventDefault(); q.focus(); }
+    if (q) { e.preventDefault(); showSearch(true); }
     return;
   }
   if (!searchBoxOpen() || !e.target.closest('.hq-search')) return;
@@ -99,3 +99,15 @@ export {
   st as state, setRunning, token, parseOpen, projectName, runningTeam, definitionOf, readGroups,
   readRunning, readCore, readAll, stopSheet, startSheet, closeSheet, RunCell, TeamFigure,
 };
+
+function showSearch(open: boolean): void {
+ const band = document.querySelector<HTMLElement>('.bar');
+ if (band) band.dataset.searchOpen = String(open);
+ document.querySelector('[data-hq="search-toggle"]')?.setAttribute('aria-expanded', String(open));
+ if (open) document.getElementById('hq-q')?.focus();
+}
+document.addEventListener('click', (event) => {
+ if (!(event.target instanceof Element)) return;
+ const trigger = event.target.closest('[data-hq="search-toggle"]');
+ if (trigger) showSearch(trigger.getAttribute('aria-expanded') !== 'true');
+});

@@ -30,14 +30,15 @@ for (const width of [2000, 1440]) for (const theme of ['light', 'dark'] as const
    measurements.push({ screen, band: await measureBand() });
    await page.screenshot({ path: info.outputPath(`${screen}.png`) });
    if (screen !== 'teams' && screen !== 'roles') continue;
-   const inputs = page.locator(screen === 'teams' ? '.tdef[data-name="core"] .prose-column textarea' : '.role.open textarea');
-   if (screen === 'teams') await expect(inputs).toHaveCount(5);
+   const inputs = page.locator(screen === 'teams' ? '.tdef[data-name="core"] .prose-column:visible textarea' : '.role.open textarea');
+   if (screen === 'teams') await expect(inputs).toHaveCount(1);
    await expect.poll(() => inputs.evaluateAll(ns => {
     const b = ns.map(n => n.getBoundingClientRect());
     return Math.min(...b.map(r => r.left)) >= 40 && document.documentElement.clientWidth - Math.max(...b.map(r => r.right)) >= 40;
    })).toBe(true);
    if (screen === 'teams') {
-    const last = page.locator('.tdef[data-name="core"] .prose-column').last();
+    await page.locator('.prose-documents').getByRole('button', { name: /^ロール reviewer / }).click();
+    const last = page.locator('.tdef[data-name="core"] .prose-column:visible');
     await last.getByRole('button', { name: '広く', exact: true }).click();
     await last.scrollIntoViewIfNeeded();
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);

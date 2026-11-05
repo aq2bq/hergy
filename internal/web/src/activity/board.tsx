@@ -113,5 +113,5 @@ export function Board(): JSX.Element {
   const n = note.value;
   if (!rows.length) return <p class="gone">{n.ok ? noneText : n.text}</p>;
   if (!n.ok) return <p class="gone">{n.text}</p>;
-  return <div class="hq-board"><Attention rows={rows} /><div class="hq-tiles">{rows.map((t) => <Tile key={t.name} team={t} />)}</div></div>;
+  return <div class="hq-board"><Attention rows={rows} /><div class="hq-tiles">{rows.map((t) => <Tile key={t.name} team={t} />)}</div>{rows.some(t => t.workers.some(w => !w.from)) ? <p class="hq-worker-guide">雇い主不明：起動記録には、ワーカーを雇ったメンバーの情報がありません。ワーカーのペインで確認してください。</p> : null}</div>;
 }

@@ -207,5 +207,11 @@ document.addEventListener("keydown", (e) => {
   tabs[index].focus();
   tabs[index].click();
 });
+var header = document.querySelector(".bar");
+if (header) {
+  const followBand = () => document.documentElement.style.setProperty("--stick", `${header.offsetHeight}px`);
+  followBand();
+  new ResizeObserver(followBand).observe(header);
+}
 
 export { carryTo2, takeDraft2, setDirty2, setCount2, setActivity2, confirmLeave2 };

@@ -217,3 +217,12 @@ document.addEventListener('keydown', (e) => {
   const index = e.key === 'Home' ? 0 : e.key === 'End' ? tabs.length - 1 : (at + (e.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
   tabs[index].focus(); tabs[index].click();
 });
+
+// Search visibility, fonts and incoming counts can change the band's height.
+// Every screen's sticky content follows the actual shared band.
+const header = document.querySelector<HTMLElement>('.bar');
+if (header) {
+ const followBand = () => document.documentElement.style.setProperty('--stick', `${header.offsetHeight}px`);
+ followBand();
+ new ResizeObserver(followBand).observe(header);
+}

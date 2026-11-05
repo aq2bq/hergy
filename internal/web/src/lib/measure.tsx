@@ -20,5 +20,5 @@ export function Measure({ chars, limit }: MeasureProps) {
   const over = chars > limit;
   const near = !over && chars > limit * 0.9;
   const w = Math.min(100, (chars / (limit * 1.25)) * 100);
-  return <span title={`暫定の目安：${num(limit)}字。縦線は暫定の目安です。超えても保存・起動できます。`} class={'amt' + (over ? ' over' : '')}><span class={'meter' + (over ? ' over' : near ? ' near' : '')}><i data-w={w} style={{ width: w + '%' }}></i></span><span class="v">{num(chars)}<span class="lim"> / {num(limit)} 字</span></span></span>;
+  return <span title={`暫定の目安：${num(limit)}字。縦線は暫定の目安です。超えても保存・起動できます。`} class={'amt' + (over ? ' over' : '')}><span class={'meter' + (over ? ' over' : near ? ' near' : '')}><i data-w={w} style={{ width: w + '%' }}></i></span><span class="v">{num(chars)}<span class="lim"> 字 · 目安 {num(limit)} 字</span></span></span>;
 }

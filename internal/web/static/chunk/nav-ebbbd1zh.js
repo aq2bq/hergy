@@ -30,7 +30,7 @@ import {
 import {
   setCount2,
   setActivity2
-} from "./nav-09ttxdhn.js";
+} from "./nav-b2ph1bfx.js";
 
 // lib/hq/state.ts
 var POLL2 = 1e4;

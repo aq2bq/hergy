@@ -34,14 +34,14 @@
 .apl-sheet .apl-h b { font-size: 14px; }
 .apl-sheet .apl-x { margin-left: auto; border: 0; background: none; color: var(--muted); font-size: 16px; cursor: pointer; padding: 0 4px; }
 .apl-sheet .apl-x:hover { color: var(--ink); }
-.apl-intro { color: var(--muted); font-size: 12.5px; }
-.apl-note { margin: 0; font-size: 12.5px; color: var(--danger); white-space: pre-line; }
+.apl-intro { color: var(--muted); font-size: 13px; }
+.apl-note { margin: 0; font-size: 13px; color: var(--danger); white-space: pre-line; }
 .apl-note[hidden] { display: none; }
-.apl-empty { margin: 0; color: var(--muted); font-size: 12.5px; }
+.apl-empty { margin: 0; color: var(--muted); font-size: 13px; }
 .apl-team { display: grid; gap: 6px; }
 .apl-th { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
 .apl-th code { color: var(--ink); font-weight: 600; }
-.apl-where { margin-left: 8px; font-size: 11.5px; color: var(--faint); }
+.apl-where { margin-left: 8px; font-size: 12px; color: var(--faint); }
 .apl-tnote { margin: 0; font-size: 12px; color: var(--muted); }
 .apl-err { margin: 0; font-size: 12px; color: var(--danger); white-space: pre-line; }
 .apl-ms { display: grid; gap: 6px; }
@@ -56,8 +56,8 @@
 .apl-pick { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; }
 .apl-pick code { font-weight: 600; overflow-wrap: anywhere; }
 .apl-nopick { color: var(--muted); text-align: center; font-size: 13px; }
-.apl-how { font-size: 12.5px; color: var(--ink); white-space: nowrap; }
-.apl-how .apl-cost { margin-left: 4px; font-size: 11.5px; color: var(--muted); }
+.apl-how { font-size: 13px; color: var(--ink); white-space: nowrap; }
+.apl-how .apl-cost { margin-left: 4px; font-size: 12px; color: var(--muted); }
 .apl-how .apl-cost.lost { color: var(--danger); }
 .apl-how.cannot { color: var(--faint); }
 .apl-state { margin: 0; padding-left: 23px; font-size: 12px; color: var(--muted); }
@@ -70,7 +70,7 @@
 .apl-state.blocked .apl-st::before { background: var(--danger); }
 .apl-state.absent .apl-st::before { background: transparent; border: 1px solid var(--faint); }
 .apl-why { margin: 0; padding-left: 23px; font-size: 12px; color: var(--muted); }
-.apl-what { display: grid; gap: 1px; padding-left: 23px; font-size: 12.5px; color: var(--ink); min-width: 0; overflow-wrap: anywhere; }
+.apl-what { display: grid; gap: 1px; padding-left: 23px; font-size: 13px; color: var(--ink); min-width: 0; overflow-wrap: anywhere; }
 .apl-what:empty { display: none; }
 .apl-what > span::before { content: "・"; color: var(--faint); }
 .apl-what a { color: var(--accent); text-underline-offset: 2px; }
@@ -87,5 +87,5 @@
 .apl-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 @media (max-width: 760px) {
-  .apl-bandbtn { font-size: 12.5px; padding: 5px 10px; }
+  .apl-bandbtn { font-size: 13px; padding: 5px 10px; }
 }

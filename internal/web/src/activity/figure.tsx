@@ -9,6 +9,6 @@ export function Figure({ team }: { team: ActivityTeam }): JSX.Element {
   return <div class="hq-fig">
     <label class="hq-worker-note">表示するターン <select aria-label={`${team.name} の表示するターン`} value={member} onChange={(e) => setMember(e.currentTarget.value)}><option value="human">人間</option>{team.crew.map((m) => <option value={m.name}>{m.name}</option>)}</select></label>
     <TeamFigure team={team} turns={turns} W={440} layout="packed" />
-    {unknown ? <p class="hq-worker-note">ワーカー（雇ったメンバーを確認できない）：起動記録では、ワーカーを雇ったメンバーを確認できません。ワーカーのペインで確認してください。</p> : null}
+    {unknown ? <p class="hq-worker-note">雇ったメンバーを確認できないワーカーがいます。</p> : null}
   </div>;
 }

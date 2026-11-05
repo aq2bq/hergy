@@ -1,3 +1,4 @@
+import { selectRule } from './rule-selection.js';
 import { transferTargets } from './prose-transfer.js';
 import { documentID, documents } from '../lib/prose-transfer.js';
 import type { TransferSource } from '../lib/prose-transfer.js';
@@ -22,14 +23,15 @@ let ids = 1000000;
 const focusTarget = signal('');
 export function RoleButton({ r, name, children = 'ロールを確認・編集' }: { r: Rec; name: string; expectedPlace?: string; children?: string }) {
   return <button class="btn sm" type="button" disabled={!name} onClick={() => {
+    selectRule(r.uid, 'role:' + name);
     focusTarget.value = `prose-${r.uid}-${name}`;
     pressDtab(r, 'agree');
   }}>{children}</button>;
 }
 type Scanned = (name: string, places: string[] | null) => void;
-export function RoleColumn({ r, name, onScanned }: { r: Rec; name: string; onScanned: Scanned }) {
+export function RoleColumn({ r, name, onScanned, visible = true }: { r: Rec; name: string; onScanned: Scanned; visible?: boolean }) {
   const session = useMemo<Session>(() => ({ id: ++ids, r, name, trigger: null }), [r, name]);
-  return <Editor session={session} onScanned={onScanned} />;
+  return <Editor session={session} onScanned={onScanned} visible={visible} />;
 }
 
 function newModel(session: Session) {
@@ -54,7 +56,19 @@ export function roleDraftsDirty(): boolean {
   });
 }
 
-function Editor({ session, onScanned }: { session: Session; onScanned: Scanned }) {
+export function roleSummary(r: Rec, name: string): string {
+ const model = models.get(`${r.uid}:${r.place.value}:${name}`);
+ if (!model) return '読み込み中';
+ const entry = model.entry.value;
+ const context = model.context.value.value;
+ const problems = model.editor.check.value.value?.json?.problems || [];
+ const status = entry && entry.draft.text !== entry.saved.text ? '未保存' : '保存済み';
+ if (model.context.loading.value) return '読み込み中';
+ if (model.context.error.value || context?.errors.length || context?.state !== 'readable' || model.error.value || model.editor.check.error.value) return `${status} · 読み込み・保存の確認が必要`;
+ return `${status}${problems.length ? ` · 問題・警告 ${problems.length}` : ''}`;
+}
+
+function Editor({ session, onScanned, visible }: { session: Session; onScanned: Scanned; visible: boolean }) {
   const dialog = useRef<HTMLElement>(null);
   const model = useMemo(() => {
     const key = `${session.r.uid}:${session.r.place.value}:${session.name}`;
@@ -151,7 +165,7 @@ function Editor({ session, onScanned }: { session: Session; onScanned: Scanned }
     members: session.r.draft.value.members.filter((m) => m.role === session.name).map((m) => m.name).join('、'),
     otherTeams: other.map((u) => `${u.project_name} ${u.name}（${u.members.join('、')}）`).join('、'),
     state: ctx?.state === 'missing' ? '文書なし' : ctx?.state === 'unreadable' ? '読み込み不可' : dirty() ? '未保存' : model.ok.value ? '保存しました' : '保存済み' };
-  return <section class={'prose-column role-column' + (ctx?.state === 'missing' ? ' missing-document' : '')} ref={dialog} id={`prose-${session.r.uid}-${session.name}`} aria-labelledby={`role-title-${session.id}`}>
+  return <section hidden={!visible} class={'prose-column role-column' + (ctx?.state === 'missing' ? ' missing-document' : '')} ref={dialog} id={`prose-${session.r.uid}-${session.name}`} aria-labelledby={`role-title-${session.id}`}>
     <div class="role-dialog-body">
     {!e || ctx?.state !== 'readable' ? <><header class="prose-head prose-head-unavailable"><ProseIdentity heading={heading} /></header><div class="prose-unavailable">
       <p role="alert">{ctx?.problem || (model.context.loading.value ? 'ロールの文書を読んでいます。' : 'ロールの文書を読み込めませんでした。')}</p>

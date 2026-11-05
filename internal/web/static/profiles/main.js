@@ -19,7 +19,7 @@ import {
 import {
   takeDraft2,
   setDirty2
-} from "../chunk/nav-09ttxdhn.js";
+} from "../chunk/nav-b2ph1bfx.js";
 import {
   check2,
   save2,
@@ -31,8 +31,8 @@ import {
 import {
   token2,
   parseOpen2
-} from "../chunk/nav-vahmk4me.js";
-import"../chunk/nav-0znfs6e2.js";
+} from "../chunk/nav-ebbbd1zh.js";
+import"../chunk/nav-gp5akqyb.js";
 import {
   conflictOf,
   ConflictNotice,
@@ -44,7 +44,7 @@ import {
   projectOfGroup,
   bringUnderBand,
   ProjectView
-} from "../chunk/nav-p855w4vj.js";
+} from "../chunk/nav-2krt94z2.js";
 import {
   Field
 } from "../chunk/nav-hrc2s6sc.js";
@@ -1287,10 +1287,7 @@ function Row({ row }) {
           }),
           /* @__PURE__ */ u("span", {
             class: "c-args",
-            children: row.args ? row.args : /* @__PURE__ */ u("span", {
-              class: "none",
-              children: "—"
-            })
+            children: row.args || ""
           }),
           /* @__PURE__ */ u("span", {
             class: "c-env",
@@ -1302,25 +1299,33 @@ function Row({ row }) {
                 "+",
                 row.more
               ]
-            }) : ""] : /* @__PURE__ */ u("span", {
-              class: "none",
-              children: "—"
-            })
+            }) : ""] : ""
           }),
           /* @__PURE__ */ u("span", {
             class: "c-users",
             children: row.users > 0 ? /* @__PURE__ */ u(S, {
               children: [
                 /* @__PURE__ */ u("b", {
-                  children: row.users
+                  children: [
+                    /* @__PURE__ */ u("span", {
+                      class: "usage-label",
+                      children: "使用 "
+                    }),
+                    row.users,
+                    /* @__PURE__ */ u("span", {
+                      class: "usage-label",
+                      children: " 人"
+                    })
+                  ]
                 }),
                 /* @__PURE__ */ u("span", {
+                  class: "usage-names",
                   children: row.roles
                 })
               ]
-            }) : /* @__PURE__ */ u("span", {
+            }) : /* @__PURE__ */ u("b", {
               class: "none",
-              children: "0"
+              children: "未使用"
             })
           })
         ]
@@ -1459,7 +1464,30 @@ function Panel({ panel }) {
           panel.both ? /* @__PURE__ */ u("span", {
             class: "state " + (panel.shadowed ? "off" : "on"),
             children: panel.shadowed ? "隠れている" : "効いている"
-          }) : ""
+          }) : "",
+          /* @__PURE__ */ u("span", {
+            class: "acts",
+            children: panel.confirming ? /* @__PURE__ */ u(S, {
+              children: [
+                /* @__PURE__ */ u("button", {
+                  class: "btn danger solid",
+                  "data-act": "del-yes",
+                  ref: confirmButton,
+                  onClick: () => pressDelYes(panel.key),
+                  children: [
+                    "削除する",
+                    panel.users ? `（${panel.users} 人が使っている）` : ""
+                  ]
+                }),
+                /* @__PURE__ */ u("button", {
+                  class: "btn",
+                  "data-act": "del-no",
+                  onClick: () => pressDelNo(panel.key),
+                  children: "やめる"
+                })
+              ]
+            }) : acts
+          })
         ]
       }),
       /* @__PURE__ */ u("div", {
@@ -1638,30 +1666,7 @@ function Panel({ panel }) {
           held.length ? /* @__PURE__ */ u("span", {
             class: "sev err refusal",
             children: held.join(" ")
-          }) : null,
-          /* @__PURE__ */ u("span", {
-            class: "acts",
-            children: panel.confirming ? /* @__PURE__ */ u(S, {
-              children: [
-                /* @__PURE__ */ u("button", {
-                  class: "btn danger solid",
-                  "data-act": "del-yes",
-                  ref: confirmButton,
-                  onClick: () => pressDelYes(panel.key),
-                  children: [
-                    "削除する",
-                    panel.users ? `（${panel.users} 人が使っている）` : ""
-                  ]
-                }),
-                /* @__PURE__ */ u("button", {
-                  class: "btn",
-                  "data-act": "del-no",
-                  onClick: () => pressDelNo(panel.key),
-                  children: "やめる"
-                })
-              ]
-            }) : acts
-          })
+          }) : null
         ]
       })
     ]

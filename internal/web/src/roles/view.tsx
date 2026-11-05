@@ -1,7 +1,7 @@
 // roles/view.js — 一覧のタブと、パネル（webui-preact-design 4 章）。
 //
 // 行・パネル・足を描く。class と data-* と入れ子は、移す前のマークアップから 1 つ
-// も変えない（5 章 6）。状態は state.js の signal を読み、押し込みは自分の
+// も変えずに移した構成を基に、編集操作を上部へそろえる。状態は state.js の signal を読み、押し込みは自分の
 // onClick / onInput / onKeyDown から state.js の関数を直接呼ぶ（5 章 1）。規則の
 // 文書の中は共有部品（lib/ruledoc.js）が描き、その押し込みも部品のもの。
 import { useEffect, useRef } from '../lib/preact.js';
@@ -47,7 +47,7 @@ export function App() {
 export function List() {
   const s = state.value;
   return <><div class="toolbar">
-      <div class="filters">{FILTERS.map(([f, label]) => <button class={'fchip' + (s.filter === f ? ' on' : '')} data-act="filter" data-f={f || ''} aria-pressed={s.filter === f} onClick={() => pressFilter(f)}>{label}<span class="n">{filterCount(f)} ロール</span></button>)}</div>
+      <div class="filters">{FILTERS.filter(([f]) => !f || filterCount(f) > 0 || s.filter === f).map(([f, label]) => <button class={'fchip' + (s.filter === f ? ' on' : '')} data-act="filter" data-f={f || ''} aria-pressed={s.filter === f} onClick={() => pressFilter(f)}>{label}<span class="n">{filterCount(f)} ロール</span></button>)}</div>
       <Field id="q" class="search" type="search" placeholder="文書を探す" value={s.q} autocomplete="off" onInput={(e: Event) => { if (e.currentTarget instanceof HTMLInputElement) pressSearch(e.currentTarget.value); }} />
     </div>
     {HQ && HQ.error
@@ -242,8 +242,15 @@ function Panel({ r, l }: { r: RoleRow; l: Place }) {
   say(nameIssue ? nameIssue.text : '');
   (e.saved ? grew : issues.filter((m) => m.sev === 'err')).forEach((m) => say(m.text));
   return <section class={'panel' + (shadowed ? ' shadowed' : '')} data-uid={r.uid} data-l={l} data-mode={mode}>
+      <header class="edit-actions"><b>ロール {d.name}</b>        <span class="acts">
+          {e.saved ? <button class="btn" data-act="dup" onClick={() => pressDup(r.uid, l)}>複製</button> : ''}
+          {canCopy(r, l) ? <button class="btn" data-act="copy" onClick={() => pressCopy(r.uid, l)}>{LNAME[other(l)]}にコピー</button> : ''}
+          {!e.saved ? <button class="btn danger" data-act="discard" onClick={() => pressDiscard(r.uid, l)}>取り消し</button>
+            : state.value.confirm[key] ? <><button class="btn danger solid" data-act="del-yes" onClick={() => doDelete(r.uid, l)}>削除する{nread ? `（${nread} 人が読んでいる）` : ''}</button><button class="btn" data-act="del-no" onClick={() => pressDelNo(r.uid, l)}>やめる</button></>
+            : <button class="btn danger" data-act="del" onClick={() => pressDel(r.uid, l)}>削除</button>}
+        </span></header>
       <div class="pmain"><RuleDoc row={row} issues={issues} nameError={nameError} heading={{ kind: 'ロール', name: row.draft.name || '新しいロール', title: row.draft.title,
-          compact: true, path: `${placeLabel} · roles/${d.name}.md`, fullPath: pathOfRow(r, l, d), state: (n ? '未保存' : '保存済み') + (shadowed ? '（隠れている）' : ''), members: whoReads(row.draft.name, r.group).map((u) => `${u.t.id}: ${u.m.name}`).join('、') }}
+          id: `role-${r.uid}-${l}`, compact: true, path: `${placeLabel} · roles/${d.name}.md`, fullPath: pathOfRow(r, l, d), state: (n ? '未保存' : '保存済み') + (shadowed ? '（隠れている）' : ''), members: whoReads(row.draft.name, r.group).map((u) => `${u.t.id}: ${u.m.name}`).join('、') }}
         filtering={filtering()} query={state.value.q}
         readerCount={(name: string) => whoReads(name, GROUPED ? CURRENT : '').length}
         onChange={() => onChangeDraft(r, l)}
@@ -255,13 +262,7 @@ function Panel({ r, l }: { r: RoleRow; l: Place }) {
         onUndo={() => pressUndoConflict(r.uid, l)} /> : null}
       <footer class="pf">
         <button class="btn primary" data-act="save" disabled={blocked} onClick={() => doSave(r.uid, l)}>保存</button>{held.length ? <span class="sev err refusal">{held.join(' ')}</span> : null}<span class="dirty">{e.saved && n ? `${n} か所` : ''}</span><span class="vcount"><Counts list={issues.filter((p) => p.f !== 'size')} /></span>{okOf(key) ? <span class="ok">保存しました</span> : ''}
-        <span class="acts">
-          {e.saved ? <button class="btn" data-act="dup" onClick={() => pressDup(r.uid, l)}>複製</button> : ''}
-          {canCopy(r, l) ? <button class="btn" data-act="copy" onClick={() => pressCopy(r.uid, l)}>{LNAME[other(l)]}にコピー</button> : ''}
-          {!e.saved ? <button class="btn danger" data-act="discard" onClick={() => pressDiscard(r.uid, l)}>取り消し</button>
-            : state.value.confirm[key] ? <><button class="btn danger solid" data-act="del-yes" onClick={() => doDelete(r.uid, l)}>削除する{nread ? `（${nread} 人が読んでいる）` : ''}</button><button class="btn" data-act="del-no" onClick={() => pressDelNo(r.uid, l)}>やめる</button></>
-            : <button class="btn danger" data-act="del" onClick={() => pressDel(r.uid, l)}>削除</button>}
-        </span>
+
       </footer>
     </section>;
 }

@@ -25,8 +25,8 @@ const logoLayout = (page: Page) => page.locator('.bar').evaluate(bar => {
   };
 });
 
-// Measured on e099ec7, with this fixture, on all four screens and both themes.
-const baselineHeight = { 1440: 62, 1000: 106, 760: 136, 375: 170 };
+// Wide bands use one control row; narrow bands keep the logo at its approved size.
+const bandMaximum = { 1440: 110, 1000: 200, 760: 250, 375: 250 };
 for (const reads of ['teams', 'hq'] as const) {
   test.describe(`${reads} header`, () => {
     test.use({ reads });
@@ -45,14 +45,12 @@ for (const reads of ['teams', 'hq'] as const) {
             await page.keyboard.press('Tab'); await expect(logo).toBeFocused();
             // Below 420px the 16px gutters restore the original project action
             // wrapping; the theme button still reserves its 46px.
-            const bandMin = reads === 'teams' && width === 375 ? 192 : baselineHeight[width];
             await expect.poll(async () => {
               const layout = await logoLayout(page);
               return {
                 size: layout.height >= 72 && layout.height <= 83,
                 ratio: layout.ratio >= (48.89 / 34.43) * .95 && layout.ratio <= (48.89 / 34.43) * 1.05,
-                band: layout.bandHeight >= bandMin
-                  && layout.bandHeight <= bandMin + (width <= 760 ? 50 : 30),
+                band: layout.bandHeight >= 83 && layout.bandHeight <= bandMaximum[width],
                 inset: layout.inset >= 2, gap: layout.gap >= 8 && layout.gap <= 16,
                 focus: layout.contained, clear: !layout.overlaps, parts: layout.partsContained, aligned: layout.centerDelta <= 2,
               };

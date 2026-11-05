@@ -2,19 +2,20 @@ import { ProjectView } from '../lib/project-view';
 // teams/view.tsx — チーム定義の画面の一覧とパネル（webui-preact-design 4 章）。
 //
 // 一覧の行・パネル・足・YAML のタブ・トポロジーの器を描く。class と data-* と
-// 入れ子は、移す前のマークアップから 1 つも変えない（5 章 6）。状態は state.ts の
+// 文書の表示選択は保存対象から独立させる。状態は state.ts の
 // signal を読み、押し込みは自分の onClick / onInput / onKeyDown から state.ts の
 // 関数を直接呼ぶ（依頼書 2）。規則の文書の中は共有部品（lib/ruledoc.js）が描く。
 import { useEffect, useRef, useState, useCallback } from '../lib/preact.js';
 import type { ComponentChildren, TargetedEvent } from 'preact';
-import { Measure, num } from '../lib/measure.js';
+import { num } from '../lib/measure.js';
 import { YamlTab } from '../lib/yamltab.js';
 import { Canvas } from './canvas.js';
 import { Rename } from './rename.js';
 import { EqualWidths } from '../lib/prose-width.js';
 import { transferKeys } from '../lib/prose-transfer-view.js';
 import { teamTransfer } from './prose-transfer.js';
-import { RoleColumn } from './role-modal.js';
+import { selectedRules, ruleSelection, selectRule } from './rule-selection.js';
+import { RoleColumn, roleSummary } from './role-modal.js';
 import { RuleDoc, Counts, Vm, Sev, clone } from '../lib/ruledoc.js';
 import { chars } from '../lib/prose-editor.js';
 import { Field } from '../lib/field.js';
@@ -31,7 +32,7 @@ import {
   recForFile, chosenFile, scheduleAgree, syncURL, focusAsk, groupOfRecord,
   pressTab, pressToggle, pressNew, pressDup, pressCopy, pressDiscard,
   pressStarterRoles, pressStarterProfile, pressCarry,
-  pressDel, pressDelNo, pressDelYes, pressName, pressDescription, pressDtab, pressPmode,
+  pressDel, pressDelNo, pressDelYes, pressName, pressDtab, pressPmode,
   pressToYaml, pressTSave, pressTRevert, pressSave, pressRevert, pressVpick,
   pressToastUndo, pressYfile, yamlState, yamlProblems, yamlRevert, yamlSaved, fileText,
   conflictAt, pressOverwrite, pressRevertConflict, pressUndoConflict,
@@ -83,7 +84,7 @@ export function List() {
   // the one project's lists as though the projects were not there (r-1db7 L1).
   if (HQ && HQ.error) return <p class="hq-err" data-role="hq-error">{HQ.error}</p>;
   const head = (
-    <div class="head"><span></span><span>チーム定義名</span><span>説明</span><span>置き場所</span><span>メンバー</span><span>ワーカー</span><span>規則</span><span>大きさ</span>{HQ ? <span class="hq-runh">状態と操作</span> : null}</div>
+    <div class="head"><span></span><span>チーム定義名</span><span>説明</span><span>メンバー</span><span>ワーカー</span><span>規則とひな形（目安 1,200 字）</span>{HQ ? <span class="hq-runh">状態と操作</span> : null}</div>
   );
   const body = placeGroups().map((g) => {
     const rows = rowsOfGroup(g.key);
@@ -194,7 +195,7 @@ function placePills(r: Rec): ComponentChildren {
 const runProject = (r: Rec): string => (r.place.value === 'global' ? '' : (r.project || CURRENT));
 
 function Sum({ r, open }: { r: Rec; open: boolean }) {
-  const t = r.draft.value, saved = r.saved.value;
+  const t = r.draft.value;
   // A team.yaml that does not read has no figure and no numbers to count, so
   // its row says 説明 —, keeps the problems validate named, and leaves the
   // counts blank (spec-teams 1.9). It is fixed in the YAML tab.
@@ -205,10 +206,8 @@ function Sum({ r, open }: { r: Rec; open: boolean }) {
   const pills: ComponentChildren = r.draftRow
     ? <span class="pill pending">{groupLabel(r)}</span>
     : placePills(r);
-  const cell = broken ? '—'
-    : open
-      ? <Field id={'m-' + r.dom} class={'in-description' + (t.description !== saved.description ? ' changed' : '')} data-f="description" value={t.description} autocomplete="off" aria-label={`${teamLabel(r)} の説明`} onInput={(e: Event) => pressDescription(r, inputValue(e))} />
-      : t.description ? t.description : '—';
+  const cell = broken ? '—' : t.description || '—';
+  const size = chars(r.agreeDraft.value.text) + (r.check.value?.templateSize ?? Math.max(0, r.size.value - chars(r.agreeSaved.value?.text || '')));
   return (
     <>
       <button type="button" class="chev disclosure" aria-label={`${teamLabel(r)} を開閉する`} aria-expanded={open} onClick={(e) => { e.stopPropagation(); pressToggle(r); }}></button>
@@ -217,8 +216,8 @@ function Sum({ r, open }: { r: Rec; open: boolean }) {
       <span class="c-place">{pills}</span>
       <span class="c-members c-num">{broken ? '—' : t.members.length}</span>
       <span class="c-turns c-num">{broken ? '—' : t.workers.length}</span>
-      <span class="c-agree c-num">{num(chars(r.agreeDraft.value.text))}</span>
-      <span class="c-size">{broken || !r.limit.value ? <span class="none">—</span> : <Measure chars={chars(r.agreeDraft.value.text) + (r.check.value?.templateSize ?? Math.max(0, r.size.value - chars(r.agreeSaved.value?.text || '')))} limit={r.limit.value} />}</span>
+
+      <span class="c-size">{broken || !r.limit.value ? <span class="none">—</span> : <span class={'amt' + (size > r.limit.value ? ' over' : '')} title={`暫定の目安：${num(r.limit.value)}字。超えても保存・起動できます。`}><span class="v">{num(size)} 字</span></span>}</span>
       {HQ && !r.draftRow ? <span class="hq-runc"><RunCell definition={r.name.value} place={r.place.value} project={runProject(r)} /></span> : null}
     </>
   );
@@ -231,7 +230,7 @@ function Detail({ r }: { r: Rec }) {
     <div class="detail">
       <ul class="vm mvm"><Vm list={[...(r.nameIssues.value || []), ...r.findings.value.filter((m) => m.field === 'description')].map((m) => ({ sev: m.sev, text: m.text }))} /></ul>
       <nav class="dtabs"><DtabsNav r={r} /></nav>
-      {!r.draftRow ? <Rename r={r} /> : null}
+
       {dtabOf(r) === 'shape' ? <TeamPanel r={r} /> : <AgreePanel r={r} />}
       {hidden.map((h) => (
         <section class="panel shadowed"><header class="ph"><span class="ln">{placeName(h.place)}</span><code class="path">{(DIR[h.place] || '') + r.name.value}/</code><span class="state off">隠れている</span><span class="phr"><button class="btn sm" data-act="to-yaml" data-key={`${r.name.value}.${h.place}.team`} onClick={() => pressToYaml(`${r.name.value}.${h.place}.team`)}>YAML</button></span></header></section>
@@ -249,7 +248,7 @@ function DtabsNav({ r }: { r: Rec }) {
   return (
     <>
       <span class="dtl" role="tablist" aria-label="チーム定義の編集">{tabs.map(([t, label, n, ch]) => <button class={'dtab' + (cur === t ? ' on' : '')} data-act="dtab" data-t={t} role="tab" aria-selected={cur === t} tabIndex={cur === t ? 0 : -1} onClick={() => pressDtab(r, t)}>{label}{n !== '' ? <span class="n">{n}</span> : null}{ch ? <i class="dot"></i> : null}</button>)}</span>
-      <span class="dacts"><Dacts r={r} /></span>
+      <span class="dacts">{!r.draftRow ? <Rename r={r} /> : null}<Dacts r={r} /></span>
     </>
   );
 }
@@ -479,31 +478,54 @@ function AgreePanel({ r }: { r: Rec }) {
   const places = [...new Set(Object.values(scanned).flat())];
   const shadowed = r.place.value === 'global' && (r.places || []).includes('project');
   const mode = pmodeOf(r);
-  const board = useRef<HTMLDivElement>(null);
+  const workspace = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    const node = board.current;
+   const frame = requestAnimationFrame(() => {
+    const node = workspace.current;
     if (!node) return;
-    const bar = document.querySelector<HTMLElement>('.bar');
-    const summary = node.closest('.tdef')?.querySelector<HTMLElement>(':scope > .sum');
-    const tools = node.previousElementSibling as HTMLElement;
-    const bandBottom = () => (bar?.offsetHeight || 0) + (summary?.offsetHeight || 0);
-    const fit = () => {
-      const top = bandBottom() + node.getBoundingClientRect().top - tools.getBoundingClientRect().top;
-      node.style.setProperty('--prose-height', `${Math.max(360, window.innerHeight - top - 8)}px`);
-    };
-    const frame = requestAnimationFrame(() => {
-      fit();
-      window.scrollBy({ top: tools.getBoundingClientRect().top - bandBottom(), behavior: 'instant' });
-    });
-    const observer = new ResizeObserver(fit);
-    if (bar) observer.observe(bar);
-    if (summary) observer.observe(summary);
-    observer.observe(tools);
-    window.addEventListener('resize', fit);
-    return () => { cancelAnimationFrame(frame); observer.disconnect(); window.removeEventListener('resize', fit); };
+    const band = document.querySelector<HTMLElement>('.bar')?.offsetHeight || 0;
+    const summary = node.closest('.tdef')?.querySelector<HTMLElement>(':scope > .sum')?.offsetHeight || 0;
+    window.scrollBy({ top: node.getBoundingClientRect().top - band - summary, behavior: 'instant' });
+   });
+   return () => cancelAnimationFrame(frame);
   }, []);
+  const names = [...new Set(r.draft.value.members.map(m => m.role).filter(Boolean))];
+  const available = ['agreement', ...names.map(name => 'role:' + name)];
+  const selected = selectedRules(r.uid).filter(name => available.includes(name));
+  const active = selected.length ? selected : ['agreement'];
+  useEffect(() => {
+   const node = workspace.current;
+   if (!node || active.length < 2) return;
+   const board = node.querySelector<HTMLElement>('.prose-board');
+   const tools = node.querySelector<HTMLElement>('.prose-tools');
+   const band = document.querySelector<HTMLElement>('.bar');
+   const summary = node.closest('.tdef')?.querySelector<HTMLElement>(':scope > .sum');
+   const fit = () => {
+    const top = (band?.offsetHeight || 0) + (summary?.offsetHeight || 0);
+    board?.style.setProperty('--prose-height', `${Math.max(360, window.innerHeight - top - (tools?.offsetHeight || 0) - 20)}px`);
+   };
+   const frame = requestAnimationFrame(() => {
+    fit();
+    if (tools) window.scrollBy({ top: tools.getBoundingClientRect().top - (band?.offsetHeight || 0) - (summary?.offsetHeight || 0) - 8, behavior: 'instant' });
+   });
+   const observer = new ResizeObserver(fit);
+   for (const element of [band, summary, tools]) if (element) observer.observe(element);
+   window.addEventListener('resize', fit);
+   return () => { cancelAnimationFrame(frame); observer.disconnect(); window.removeEventListener('resize', fit); };
+  }, [active.join('|')]);
+  const docs = [{key: 'agreement', label: `チームの規則 ${r.name.value}`, members: r.draft.value.members.map(m => m.name).join('、'), status: `${agreeDiff(r) ? '未保存' : '保存済み'}${agreeIssues(r).length ? ` · 問題・警告 ${agreeIssues(r).length}` : ''}`},
+   ...names.map(name => ({key: 'role:' + name, label: `ロール ${name}`, members: r.draft.value.members.filter(m => m.role === name).map(m => m.name).join('、'), status: roleSummary(r, name)}))];
   return (
-    <div class="prose-workspace"><div class="prose-tools"><EqualWidths /><span class="prose-drag-hint">見出しだけの表示で、行の左の ⠿ をつかんで別の列へ落とすと移します。{transferKeys()}</span>{places.length ? <span class="prose-scope"><span>確認できた範囲</span>{places.map((place) => <span class="scope-place">{place}</span>)}</span> : null}</div><div class="prose-board" ref={board}><section class={'prose-column panel agree-p' + (shadowed ? ' shadowed' : '')} data-uid={r.uid} data-l={r.place.value} data-key={dkey(r)} data-mode={mode}>
+    <div class="prose-workspace" ref={workspace} data-mode={active.length === 1 ? 'single' : active.length === 2 ? 'compare' : 'all'}>
+     <div class="prose-documents" aria-label="読む文書">
+      {docs.map(doc => <div class={'prose-choice' + (active.includes(doc.key) ? ' on' : '')}>
+       <button type="button" class="btn" aria-pressed={active.includes(doc.key)} onClick={() => selectRule(r.uid, doc.key)}>{doc.label}<small>{doc.members}</small><small>{doc.status}</small></button>
+       <label><input type="checkbox" aria-label={`${doc.label} を並べる`} checked={active.includes(doc.key)} onChange={() => selectRule(r.uid, doc.key, true)} />並べる</label>
+      </div>)}
+      <button class="btn" type="button" onClick={() => { ruleSelection.value = { ...ruleSelection.value, [r.uid]: available }; }}>すべて表示</button>
+     </div>
+     {active.length > 1 ? <p class="prose-compare-note">比較中 {active.length} 文書。{active.length > 2 ? '横に収まらない文書は、下のスクロールバーで表示できます。' : ''}文書名を押すと、その文書だけを読みます。</p> : null}
+     <div class="prose-tools"><EqualWidths /><span class="prose-drag-hint">見出しだけの表示で、行の左の ⠿ をつかんで別の列へ落とすと移します。{transferKeys()}</span>{places.length ? <span class="prose-scope"><span>確認できた範囲</span>{places.map((place) => <span class="scope-place">{place}</span>)}</span> : null}</div><div class="prose-board"><section hidden={!active.includes('agreement')} class={'prose-column panel agree-p' + (shadowed ? ' shadowed' : '')} data-uid={r.uid} data-l={r.place.value} data-key={dkey(r)} data-mode={mode}>
       <div class="pmain">
         <RuleDoc transfer={r.draftRow ? undefined : teamTransfer(r)} row={rowOfPanel(r)} issues={agreeIssues(r)} hasName={false} heading={{ id: `team-prose-${r.uid}`, kind: 'チーム定義', name: r.name.value, title: r.agreeDraft.value.title,
             path: `${placeName(r.place.value)} · teams/${r.name.value}/agreement.md`, members: r.draft.value.members.map((m) => m.name).join('、'),
@@ -513,7 +535,7 @@ function AgreePanel({ r }: { r: Rec }) {
           onURL={() => syncURL()} />
       </div>
       <Foot r={r} agree={true} />
-    </section>{[...new Set(r.draft.value.members.map((m) => m.role).filter(Boolean))].map((name) => <RoleColumn key={name} r={r} name={name} onScanned={onScanned} />)}</div></div>
+    </section>{names.map((name) => <RoleColumn key={name} r={r} name={name} visible={active.includes('role:' + name)} onScanned={onScanned} />)}</div></div>
   );
 }
 

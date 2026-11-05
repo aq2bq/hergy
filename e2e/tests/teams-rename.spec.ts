@@ -39,7 +39,7 @@ test('rename is blocked by unsaved edits and preserves a stale-file refusal', as
   await page.goto(`${app.base}/teams?open=core`);
   await ready(page);
   const row = page.locator('.tdef[data-name="core"]');
-  const description = row.getByRole('textbox', { name: /の説明/ });
+  const description = row.getByRole('textbox', { name: '説明', exact: true });
   const original = await description.inputValue();
   await description.fill('名前変更前の編集中');
   await expect(row.getByRole('button', { name: '名前を変更', exact: true })).toBeDisabled();
@@ -63,7 +63,7 @@ test.describe('registered projects', () => {
     const alpha = realpathSync(app.proj), beta = realpathSync(path.join(app.home, 'src/beta'));
     const other = page.locator(`.tdef[data-name="beta-dev|${beta}"]`);
     await other.getByRole('button', { name: /を開閉する/ }).click();
-    const draft = other.getByRole('textbox', { name: /の説明/ });
+    const draft = other.getByRole('textbox', { name: '説明', exact: true });
     await draft.fill('ほかのプロジェクトの下書き');
     const row = page.locator(`.tdef[data-name="alpha-dev|${alpha}"]`);
     await row.getByRole('button', { name: /を開閉する/ }).click();
