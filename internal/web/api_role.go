@@ -68,10 +68,7 @@ func (s *Server) r2ListOf(reading r2Reading) apiList {
 		} {
 			if place.problem != "" {
 				badPath := s.cat.RolePath(place.name, item.Name)
-				why, state := s.unreadable(badPath)
-				if why == "" {
-					why = place.problem
-				}
+				why, state := s.unreadable(badPath, place.problem)
 				item.Places[place.name] = apiPlace{
 					Doc: r2Doc{Name: item.Name}, Path: s.cat.Display(badPath),
 					Problems: apiCounts{Err: 1}, Problem: why, State: state,

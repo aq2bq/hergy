@@ -139,7 +139,10 @@ func (s *Server) docUnreadableRefusal(path string) *apiErr {
 // unreadable is the one place web names a file that cannot be read: the owner
 // says whether it reads, and this answers the API's two words for it (problem
 // and state, d-0d00). A file that is there and reads is ("", "").
-func (s *Server) unreadable(path string) (problem, state string) {
+func (s *Server) unreadable(path, ownerProblem string) (problem, state string) {
+	if ownerProblem != "" {
+		return ownerProblem, "unreadable"
+	}
 	if path == "" {
 		return "", ""
 	}

@@ -46,10 +46,7 @@ func (s *Server) p2List() apiList {
 			// The file cannot be read: the place stands with the reason, so the
 			// row is still drawn and counted (r-ea17, d-17ab).
 			path, _, _ := s.p2ProfilePath(place)
-			state := "unreadable"
-			if got, _ := s.unreadable(path); got != "" {
-				why = got
-			}
+			why, state := s.unreadable(path, why)
 			item.Places[place] = apiPlace{
 				Doc: p2Draft{Name: name}, Path: s.cat.Display(path),
 				Problems: apiCounts{Err: 1}, Problem: why, State: state,

@@ -75,6 +75,11 @@ func (s *Server) roleContext(name string, cat *catalog.Catalog, project string, 
 		out.Place = "global"
 	}
 	out.Path = cat.Display(doc.Path)
+	if _, ok, why := cat.FileState(doc.Path); !ok {
+		out.State = "unreadable"
+		out.Problem = why
+		return out
+	}
 	text, err := cat.Reader().Read(doc)
 	if err != nil {
 		out.State = "unreadable"
