@@ -8,11 +8,11 @@
 // tools/webvendor/package.json and bun.lock.
 
 import {
-  confirmLeave2
-} from "./nav-b2ph1bfx.js";
-import {
   u
 } from "./nav-wtffyt4p.js";
+import {
+  confirmLeave2
+} from "./nav-jwk8mf0g.js";
 
 // lib/copy.ts
 var copyGroupOf = (to, from, current) => {

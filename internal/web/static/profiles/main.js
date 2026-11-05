@@ -16,10 +16,11 @@ import {
   O,
   u
 } from "../chunk/nav-wtffyt4p.js";
+import"../chunk/nav-nn5mfhf3.js";
 import {
   takeDraft2,
   setDirty2
-} from "../chunk/nav-b2ph1bfx.js";
+} from "../chunk/nav-jwk8mf0g.js";
 import {
   check2,
   save2,
@@ -33,19 +34,19 @@ import {
   parseOpen2,
   askConfirm,
   ConfirmDialog
-} from "../chunk/nav-55eq49ew.js";
-import"../chunk/nav-vjrb6rnv.js";
+} from "../chunk/nav-gnn79rgd.js";
+import"../chunk/nav-a9smj0yt.js";
 import {
   conflictOf,
   ConflictNotice,
   YamlTab2
-} from "../chunk/nav-wrdvtvvy.js";
+} from "../chunk/nav-qmat2ryh.js";
 import {
   copyGroupOf,
   projectOfGroup,
   bringUnderBand,
   ProjectView
-} from "../chunk/nav-2krt94z2.js";
+} from "../chunk/nav-2999spzs.js";
 import {
   Field
 } from "../chunk/nav-hrc2s6sc.js";

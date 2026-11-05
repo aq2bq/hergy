@@ -22,10 +22,13 @@ import {
   u
 } from "../chunk/nav-wtffyt4p.js";
 import {
+  offerUndo
+} from "../chunk/nav-nn5mfhf3.js";
+import {
   carryTo2,
   takeDraft2,
   setDirty2
-} from "../chunk/nav-b2ph1bfx.js";
+} from "../chunk/nav-jwk8mf0g.js";
 import {
   call2,
   read2,
@@ -63,17 +66,15 @@ import {
   projectName2,
   askConfirm,
   ConfirmDialog
-} from "../chunk/nav-55eq49ew.js";
+} from "../chunk/nav-gnn79rgd.js";
 import {
   RunCell2
-} from "../chunk/nav-vjrb6rnv.js";
+} from "../chunk/nav-a9smj0yt.js";
 import {
-  offerUndo,
-  UndoNotice,
   conflictOf,
   ConflictNotice,
   YamlTab2
-} from "../chunk/nav-wrdvtvvy.js";
+} from "../chunk/nav-qmat2ryh.js";
 import {
   roleEditor,
   roleProblems
@@ -84,7 +85,7 @@ import {
   projectOfGroup,
   bringUnderBand,
   ProjectView
-} from "../chunk/nav-2krt94z2.js";
+} from "../chunk/nav-2999spzs.js";
 import {
   Field
 } from "../chunk/nav-hrc2s6sc.js";
@@ -5372,8 +5373,7 @@ function App() {
         ]
       }),
       /* @__PURE__ */ u(CanvasToast, {}),
-      /* @__PURE__ */ u(ConfirmDialog, {}),
-      /* @__PURE__ */ u(UndoNotice, {})
+      /* @__PURE__ */ u(ConfirmDialog, {})
     ]
   });
 }

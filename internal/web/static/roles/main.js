@@ -16,12 +16,8 @@ import {
   u
 } from "../chunk/nav-wtffyt4p.js";
 import {
-  offerUndo,
-  UndoNotice,
-  conflictOf,
-  ConflictNotice,
-  YamlTab2
-} from "../chunk/nav-wrdvtvvy.js";
+  offerUndo
+} from "../chunk/nav-nn5mfhf3.js";
 import {
   save2,
   del2,
@@ -34,14 +30,14 @@ import {
 import {
   takeDraft2,
   setDirty2
-} from "../chunk/nav-b2ph1bfx.js";
+} from "../chunk/nav-jwk8mf0g.js";
 import {
   token2,
   parseOpen2,
   askConfirm,
   ConfirmDialog
-} from "../chunk/nav-55eq49ew.js";
-import"../chunk/nav-vjrb6rnv.js";
+} from "../chunk/nav-gnn79rgd.js";
+import"../chunk/nav-a9smj0yt.js";
 import {
   Measure,
   renameCarries2,
@@ -53,6 +49,11 @@ import {
   RuleDoc2
 } from "../chunk/nav-6qg5snn7.js";
 import {
+  conflictOf,
+  ConflictNotice,
+  YamlTab2
+} from "../chunk/nav-qmat2ryh.js";
+import {
   roleEditor,
   roleProblems
 } from "../chunk/nav-j0bacxcx.js";
@@ -61,7 +62,7 @@ import {
   projectOfGroup,
   bringUnderBand,
   ProjectView
-} from "../chunk/nav-2krt94z2.js";
+} from "../chunk/nav-2999spzs.js";
 import {
   Field
 } from "../chunk/nav-hrc2s6sc.js";
@@ -1395,23 +1396,20 @@ function App() {
     return /* @__PURE__ */ u(S, {
       children: [
         /* @__PURE__ */ u(AssignPage, {}),
-        /* @__PURE__ */ u(ConfirmDialog, {}),
-        /* @__PURE__ */ u(UndoNotice, {})
+        /* @__PURE__ */ u(ConfirmDialog, {})
       ]
     });
   if (tab === "yaml")
     return /* @__PURE__ */ u(S, {
       children: [
         /* @__PURE__ */ u(YamlPage, {}),
-        /* @__PURE__ */ u(ConfirmDialog, {}),
-        /* @__PURE__ */ u(UndoNotice, {})
+        /* @__PURE__ */ u(ConfirmDialog, {})
       ]
     });
   return /* @__PURE__ */ u(S, {
     children: [
       /* @__PURE__ */ u(List, {}),
-      /* @__PURE__ */ u(ConfirmDialog, {}),
-      /* @__PURE__ */ u(UndoNotice, {})
+      /* @__PURE__ */ u(ConfirmDialog, {})
     ]
   });
 }

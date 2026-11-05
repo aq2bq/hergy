@@ -30,7 +30,7 @@ import {
 import {
   setCount2,
   setActivity2
-} from "./nav-b2ph1bfx.js";
+} from "./nav-jwk8mf0g.js";
 
 // lib/band-counts.ts
 function applyCounts(counts) {
