@@ -34,11 +34,11 @@ import {
   stopSheet2,
   teamCount,
   openSheet
-} from "../chunk/nav-ebbbd1zh.js";
+} from "../chunk/nav-9edc45pg.js";
 import {
   TeamFigure2,
   exports_hq
-} from "../chunk/nav-gp5akqyb.js";
+} from "../chunk/nav-bt3hv1je.js";
 import {
   resource
 } from "../chunk/nav-spnv3sy9.js";
@@ -74,7 +74,7 @@ function sheetOf(item, docs) {
   const doc = docs.get(item.name);
   const run = exports_hq ? runningTeam2(item.name) : null;
   const defName = item.summary.definition || item.name;
-  const def = exports_hq && definitionOf2(item.project, defName) || null;
+  const def = exports_hq && definitionOf2(item.project, defName, item.place) || null;
   const nodes = doc ? doc.nodes || [] : (run && run.members || []).map((m) => ({ name: m.name, herdr: m.herdr, state: m.state, at: "" }));
   const order = memberOrderOf(def, nodes);
   const byName = new Map(nodes.map((n) => [n.name, n]));
@@ -96,6 +96,7 @@ function sheetOf(item, docs) {
     projectName: item.project_name || (exports_hq ? projectName2(item.project) : ""),
     workspace: item.workspace && item.workspace.label || run && run.workspace && run.workspace.label || "",
     definition: defName,
+    place: item.place,
     state,
     since: item.summary.since || null,
     crew,
@@ -445,7 +446,7 @@ function Tile({ team: t }) {
     "data-role": "definition-error",
     children: t.error
   }) : "";
-  const defHref = `/teams?open=${encodeURIComponent(exports_hq ? token2(t.definition, t.project) : t.definition)}`;
+  const defHref = `/teams?open=${encodeURIComponent(token2(t.definition, t.place === "global" ? "global" : t.project))}`;
   const changed = teamCount(t.name);
   return /* @__PURE__ */ u("article", {
     class: "hq-tile " + t.state + (sel ? " sel" : ""),

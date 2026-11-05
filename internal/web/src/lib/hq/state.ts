@@ -124,9 +124,15 @@ export function lastWorkspaceOf(definition: string): string {
 }
 
 // definitionOf is one team definition's document, from the groups the search
-// reads: the activity's figure uses its turns (spec 6 章).
-export function definitionOf(project: string, definition: string): TeamDocument | null {
+// reads: the activity's figure uses its turns (spec 6 章). An explicit place
+// selects only that source; callers without a place keep the effective lookup.
+export function definitionOf(project: string, definition: string, place?: 'project' | 'global'): TeamDocument | null {
   const groups = groupOf('teams');
+  if (place) {
+    const group = groups.find((g) => place === 'global' ? g.global : !g.global && projectOfGroup(g) === project);
+    const item = group?.list?.items?.find((x) => x.name === definition);
+    return item ? teamDocumentAt(item, place) : null;
+  }
   for (const g of groups) {
     if (project && projectOfGroup(g) !== project && !g.global) continue;
     const item = ((g.list && g.list.items) || []).find((x) => x.name === definition);

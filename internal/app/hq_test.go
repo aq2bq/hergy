@@ -140,13 +140,18 @@ func TestActivityAndRunningAgreeAboutTheListedProjects(t *testing.T) {
 		t.Fatalf("activity has %d rows, running has %d teams", len(list.Items), len(running.Teams))
 	}
 	states := map[string]string{}
+	places := map[string]string{}
 	for _, item := range list.Items {
 		states[item.Name] = item.Summary.State
+		places[item.Name] = item.Place
 		if item.Project == "" || item.ProjectName == "" || item.Workspace.Label == "" {
 			t.Errorf("a row does not say its project and workspace: %+v", item)
 		}
 	}
 	for _, one := range running.Teams {
+		if places[one.Team] != one.Place || one.Place != "project" {
+			t.Errorf("%s: activity place %q and running place %q must both be project", one.Team, places[one.Team], one.Place)
+		}
 		if !stateMatches(states[one.Team], one.Members) {
 			t.Errorf("%s: running members %+v do not agree with the activity state %q", one.Team, one.Members, states[one.Team])
 		}
@@ -705,5 +710,62 @@ func TestAProjectListedByASubdirectoryIsTheRepository(t *testing.T) {
 	}
 	if _, err := read.ProjectCatalog(listed.Path); err != nil {
 		t.Errorf("the screen's read of the listed project was refused: %v", err)
+	}
+}
+
+// The activity keeps the recorded definition and its place even when a local
+// definition appears later, or the recorded global definition disappears.
+func TestActivityKeepsTheLaunchDefinitionPlace(t *testing.T) {
+	for _, state := range []string{"global", "shadowed", "missing"} {
+		t.Run(state, func(t *testing.T) {
+			f, env, _ := hqFixture(t)
+			global := filepath.Join(f.cfg, "hergy", "teams", "blueprint")
+			if err := os.MkdirAll(filepath.Dir(global), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Rename(filepath.Join(f.proj, ".hergy", "teams", "core"), global); err != nil {
+				t.Fatal(err)
+			}
+			log := launchlog.At(filepath.Join(f.state, "hergy", "launches"))
+			if err := log.Append(launchlog.Record{
+				Time: "2026-11-05T09:00:00+09:00", Command: launchlog.CommandUp,
+				Project: f.proj, Layer: "global", Definition: "blueprint", Team: "core",
+				TeamYAML: filepath.Join(global, "team.yaml"),
+			}); err != nil {
+				t.Fatal(err)
+			}
+			if state == "shadowed" {
+				mustRun(t, "new", "blueprint")
+			}
+			if state == "missing" {
+				if err := os.Remove(filepath.Join(global, "team.yaml")); err != nil {
+					t.Fatal(err)
+				}
+			}
+			// A recorded alias is matched to the named pane's project, rather
+			// than inferred from a same-named local definition.
+			f.herdr(t, strings.Replace(hqHerdr,
+				`"pane_id":"p1","label":"core-lead",`,
+				`"pane_id":"p1","label":"core-lead","cwd":"`+f.proj+`",`, 1))
+			read := newActivityRead(env)
+			read.now = func() time.Time { return activityNow }
+			list := read.List()
+			found := false
+			for _, item := range list.Items {
+				if item.Name != "core" {
+					continue
+				}
+				found = true
+				if item.Place != "global" || item.Summary.Definition != "blueprint" || item.Project != f.proj {
+					t.Errorf("launch definition and project were not kept: %+v", item)
+				}
+				if (item.Error != "") != (state == "missing") {
+					t.Errorf("definition error = %q for %s", item.Error, state)
+				}
+			}
+			if !found {
+				t.Fatalf("the running team is missing: %+v", list)
+			}
+		})
 	}
 }

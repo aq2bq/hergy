@@ -1,6 +1,9 @@
 // The action row on every tile opens the existing apply and stop sheets.
 import { expect, test } from './fixtures';
 import type { Page } from '@playwright/test';
+import { appendFileSync, mkdirSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import path from 'node:path';
+import { ready } from './helpers';
 
 test.use({ reads: 'activity' });
 
@@ -43,6 +46,7 @@ async function routeSheets(page: Page, project: string): Promise<void> {
 test('the tile action opens the apply sheet for that team', async ({ page, app }) => {
   await routeSheets(page, app.proj);
   await page.goto(`${app.base}/activity`);
+  await ready(page);
   const tile = page.locator('.hq-tile[data-team="core"]');
   const apply = tile.locator('[data-hq="apply"]');
   await expect(apply).toBeVisible();
@@ -56,6 +60,7 @@ test('the tile action opens the apply sheet for that team', async ({ page, app }
 test('the tile action opens the stop sheet for that team', async ({ page, app }) => {
   await routeSheets(page, app.proj);
   await page.goto(`${app.base}/activity`);
+  await ready(page);
   const tile = page.locator('.hq-tile[data-team="core"]');
   await tile.locator('[data-hq="stop"]').click();
   const sheet = page.locator('.hq-sheet');
@@ -63,4 +68,61 @@ test('the tile action opens the stop sheet for that team', async ({ page, app })
   await expect(sheet.locator('.hq-h b')).toHaveText('終了する');
   await expect(sheet.locator('.hq-h code')).toHaveText('core');
   await expect(sheet.locator('.hq-acts [data-hq="stopgo"]')).toHaveText('終了する');
+});
+
+function globalLaunch(app: { proj: string; cfg: string; state: string }): string {
+  const dir = path.join(app.cfg, 'hergy', 'teams', 'blueprint');
+  mkdirSync(path.dirname(dir), { recursive: true });
+  renameSync(path.join(app.proj, '.hergy', 'teams', 'core'), dir);
+  appendFileSync(path.join(app.state, 'hergy', 'launches', 'log.jsonl'), JSON.stringify({
+    time: '2026-10-21T00:29:00+09:00', command: 'up', project: realpathSync(app.proj),
+    layer: 'global', definition: 'blueprint', team: 'core-hotfix',
+    team_yaml: path.join(dir, 'team.yaml'), members: [],
+  }) + '\n');
+  return dir;
+}
+
+for (const theme of ['light', 'dark'] as const) {
+  test(`activity opens the launch definition in its place in ${theme}`, async ({ page, app }) => {
+    globalLaunch(app);
+    await page.emulateMedia({ colorScheme: theme });
+    for (const [team, definition, place] of [['core-hotfix', 'blueprint', 'global'], ['migrate', 'migrate', 'project']]) {
+      await page.goto(`${app.base}/activity`);
+      await ready(page);
+      await page.locator(`.hq-tile[data-team="${team}"]`).getByRole('link', { name: 'チーム定義を開く' }).click();
+      await ready(page);
+      const opened = page.locator(`.tdef.open[data-key$=".${place}"]`);
+      await expect(opened).toHaveCount(1);
+      await expect(opened.locator('.c-name .nm')).toHaveText(definition);
+      if (place === 'global') await expect(opened.locator('.c-place .pill.on')).toHaveText('グローバル');
+      await expect(page.getByText(/チーム定義 .* が見つかりません/)).toHaveCount(0);
+    }
+  });
+}
+
+test('a global launch keeps its figure and link when a same-named project definition appears', async ({ page, app }) => {
+  globalLaunch(app);
+  writeFileSync(path.join(app.cfg, 'hergy', 'config.yaml'), `version: 1\nlang: ja\nprojects:\n  - ${app.proj}\n`);
+  const local = path.join(app.proj, '.hergy', 'teams', 'blueprint');
+  mkdirSync(local, { recursive: true });
+  const text = readFileSync(path.join(app.proj, '.hergy', 'teams', 'migrate', 'team.yaml'), 'utf8');
+  writeFileSync(path.join(local, 'team.yaml'), text.replace('  - human -> lead\n', ''));
+  await page.goto(`${app.base}/activity`);
+  await ready(page);
+  const tile = page.locator('.hq-tile[data-team="core-hotfix"]');
+  await expect(tile.locator('.hq-e.turn[data-from="human"][data-to="lead"], .hq-e.turn[data-from="lead"][data-to="human"]')).toHaveCount(1);
+  await expect(tile.locator('.hq-e.turn[data-from="human"][data-to="tester"], .hq-e.turn[data-from="tester"][data-to="human"]')).toHaveCount(0);
+  await tile.getByRole('link', { name: 'チーム定義を開く' }).click();
+  await ready(page);
+  await expect(page.locator('.tdef.open[data-key="blueprint|global.global"] .c-name .nm')).toHaveText('blueprint');
+});
+
+test('a removed launch definition keeps the existing not-found wording', async ({ page, app }) => {
+  const dir = globalLaunch(app);
+  rmSync(dir, { recursive: true });
+  await page.goto(`${app.base}/activity`);
+  await ready(page);
+  await page.locator('.hq-tile[data-team="core-hotfix"]').getByRole('link', { name: 'チーム定義を開く' }).click();
+  await ready(page);
+  await expect(page.getByText('チーム定義 blueprint が見つかりません。')).toBeVisible();
 });

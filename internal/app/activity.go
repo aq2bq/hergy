@@ -519,6 +519,7 @@ func (a *activityRead) List() web.ActivityList {
 			broken:      one.Broken,
 			project:     one.Project,
 			projectName: one.ProjectName,
+			place:       one.Place,
 			workspace:   web.ActivitySpace{ID: one.WorkspaceID, Label: one.WorkspaceLabel},
 		})
 	}
@@ -534,6 +535,7 @@ type activityRow struct {
 	broken      string
 	project     string
 	projectName string
+	place       string
 	workspace   web.ActivitySpace
 }
 
@@ -676,6 +678,7 @@ func itemOf(row activityRow, now time.Time) web.ActivityItem {
 		Error:       row.broken,
 		Project:     row.project,
 		ProjectName: row.projectName,
+		Place:       apiPlaceOf(row.place),
 		Workspace:   row.workspace,
 	}
 	// いつから is left out for a working team and for one with no live agent

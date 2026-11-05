@@ -1018,6 +1018,11 @@ export interface components {
             project: string;
             /** @description プロジェクト名 */
             project_name: string;
+            /**
+             * @description 起動元のチーム定義の置き場所
+             * @enum {string}
+             */
+            place: "project" | "global";
             /** @description チームが動いているワークスペース */
             workspace: components["schemas"]["ActivitySpace"];
         };

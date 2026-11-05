@@ -44,6 +44,8 @@ type ActivityItem struct {
 	// Error is why this team's definition cannot be read, as hergy status
 	// writes it (2.2). Empty when it reads.
 	Error string `json:"error"`
+	// Place is where the team's launch definition was read: project or global.
+	Place string `json:"place"`
 	// Project is the listed project the team belongs to, and ProjectName is
 	// what a person reads beside it (d-73fc). Workspace is the herdr workspace
 	// its tab stands in.

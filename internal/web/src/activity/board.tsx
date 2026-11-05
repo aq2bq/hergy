@@ -86,7 +86,7 @@ function Tile({ team: t }: { team: ActivityTeam }): JSX.Element {
   // 定義を組み立てられないチームは、理由も直し方もこの行に出す: 本部の動きの欄と
   // 同じ文で、hergy status が書くもの（r-fc16）。
   const broken = t.error ? <p class="hq-why" data-role="definition-error">{t.error}</p> : '';
-  const defHref = `/teams?open=${encodeURIComponent(A ? A.token(t.definition, t.project) : t.definition)}`;
+  const defHref = `/teams?open=${encodeURIComponent(A.token(t.definition, t.place === 'global' ? 'global' : t.project))}`;
   const changed = teamCount(t.name);
   return <article class={'hq-tile ' + t.state + (sel ? ' sel' : '')} data-team={t.name}>
     <button type="button" class="hq-th" data-pick={t.name} aria-pressed={sel ? 'true' : 'false'} onClick={() => pick(t.name)}>

@@ -88,8 +88,13 @@ function lastWorkspaceOf(definition) {
   const ws = (st.workspaces.value || []).find((w) => w.last_team === definition);
   return ws ? ws.label : "";
 }
-function definitionOf2(project, definition) {
+function definitionOf2(project, definition, place) {
   const groups = groupOf("teams");
+  if (place) {
+    const group = groups.find((g) => place === "global" ? g.global : !g.global && projectOfGroup(g) === project);
+    const item = group?.list?.items?.find((x) => x.name === definition);
+    return item ? teamDocumentAt(item, place) : null;
+  }
   for (const g of groups) {
     if (project && projectOfGroup(g) !== project && !g.global)
       continue;

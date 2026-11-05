@@ -39,6 +39,7 @@ export type ActivityTeam = {
   projectName: string;
   workspace: string;
   definition: string;
+  place: ActivityItem['place'];
   state: string;
   since: components['schemas']['ActivitySince'] | null;
   crew: CrewMember[];
@@ -98,7 +99,7 @@ function sheetOf(item: ActivityItem, docs: Map<string, ActivityDocument>): Activ
   const doc = docs.get(item.name);
   const run = A ? A.runningTeam(item.name) : null;
   const defName = item.summary.definition || item.name;
-  const def = (A && A.definitionOf(item.project, defName)) || null;
+  const def = (A && A.definitionOf(item.project, defName, item.place)) || null;
   const nodes: ActivityNode[] = doc ? (doc.nodes || []) : ((run && run.members) || []).map((m: HQMember) => ({ name: m.name, herdr: m.herdr, state: m.state, at: '' }));
   const order = memberOrderOf(def, nodes);
   const byName = new Map(nodes.map((n): [string, ActivityNode] => [n.name, n]));
@@ -117,7 +118,7 @@ function sheetOf(item: ActivityItem, docs: Map<string, ActivityDocument>): Activ
   return {
     name: item.name, project: item.project, projectName: item.project_name || (A ? A.projectName(item.project) : ''),
     workspace: (item.workspace && item.workspace.label) || (run && run.workspace && run.workspace.label) || '',
-    definition: defName, state, since: item.summary.since || null,
+    definition: defName, place: item.place, state, since: item.summary.since || null,
     crew, workers, turns: turnsOf(def),
     starting: !!(run && run.starting),
     error: item.error || '',

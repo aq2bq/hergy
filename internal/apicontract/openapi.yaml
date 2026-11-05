@@ -2117,7 +2117,7 @@ components:
       description: アクティビティの一覧にあるチームの札 1 件
       type: object
       additionalProperties: false
-      required: [name, summary, error, project, project_name, workspace]
+      required: [name, summary, error, project, project_name, place, workspace]
       properties:
         name:
           type: string
@@ -2135,6 +2135,10 @@ components:
         project_name:
           type: string
           description: プロジェクト名
+        place:
+          type: string
+          enum: [project, global]
+          description: 起動元のチーム定義の置き場所
         workspace:
           allOf:
             - $ref: '#/components/schemas/ActivitySpace'
