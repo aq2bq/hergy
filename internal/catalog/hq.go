@@ -40,27 +40,48 @@ func (c *Catalog) Counts(layer string) (definitions, roles, profiles int) {
 }
 
 // ListedRoles is how many role rows one layer's list draws (r-929e): a row per
-// name the layer holds a document for, plus, on the project's side, the names
-// the list still shows without a document of their own — a legacy .yaml, and a
-// name only a team member names. A name standing in both layers is two rows,
-// one on each side.
+// name that layer holds a readable document for, plus, on the project's side,
+// the names the list still shows without a document of their own — a legacy
+// .yaml, and a name only a team member names. A document that cannot be read is
+// left out of the list, so it is left out here too. A name standing in both
+// layers is two rows, one on each side.
 func (c *Catalog) ListedRoles(layer string) int {
 	n := 0
 	for _, entry := range c.Roles() {
-		hasProject := entry.HasDocument && !entry.Outside
-		hasGlobal := entry.Outside || entry.UnusedPath != ""
 		switch layer {
 		case source.LayerLocal:
-			if hasProject || !entry.HasDocument {
+			if entry.HasDocument && !entry.Outside {
+				if c.roleReads(entry.Path) {
+					n++
+				}
+				continue
+			}
+			// No .md of its own: a legacy .yaml, or a name only a member names.
+			// The list draws a row for either way, so it is one row.
+			if !entry.HasDocument {
 				n++
 			}
 		case source.LayerGlobal:
-			if hasGlobal {
+			path := ""
+			switch {
+			case entry.Outside:
+				path = entry.Path
+			case entry.UnusedPath != "":
+				path = entry.UnusedPath
+			}
+			if path != "" && c.roleReads(path) {
 				n++
 			}
 		}
 	}
 	return n
+}
+
+// roleReads is whether one role document can be read: the list leaves a name out
+// when its document cannot be (r2ReadingOf drops the row).
+func (c *Catalog) roleReads(path string) bool {
+	_, ok, err := c.fileText(path)
+	return ok && err == nil
 }
 
 // HoldsDefinition reports whether one layer holds a team definition of this name.

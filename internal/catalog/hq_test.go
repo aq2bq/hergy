@@ -81,3 +81,24 @@ func TestListedRolesCountsTheRowsTheListDraws(t *testing.T) {
 		t.Fatalf("Counts(project).roles = %d, want 3: this test needs the old count to differ", counts)
 	}
 }
+
+// TestListedRolesLeavesOutUnreadableDocuments: the list drops a document it
+// cannot read, so the count drops it too (r-929e).
+func TestListedRolesLeavesOutUnreadableDocuments(t *testing.T) {
+	global := t.TempDir()
+	local := t.TempDir()
+	writeFile(t, filepath.Join(local, "roles", "good.md"), "# good\n")
+	bad := filepath.Join(local, "roles", "bad.md")
+	writeFile(t, bad, "# bad\n")
+	if err := os.Chmod(bad, 0o000); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(bad, 0o644) })
+	cat := New(global, local, local, source.Disk{}, func(p string) string { return p })
+	if got := cat.ListedRoles(source.LayerLocal); got != 1 {
+		t.Errorf("ListedRoles(project) = %d, want 1", got)
+	}
+	if _, counts, _ := cat.Counts(source.LayerLocal); counts != 2 {
+		t.Fatalf("Counts(project).roles = %d, want 2: this test needs the old count to differ", counts)
+	}
+}
