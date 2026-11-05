@@ -539,7 +539,7 @@ function defOf(item: DefItem, project?: string): Rec {
   const r = recOf({
     name: item.name || '', dom, project: group, place: eff, places: PLACES.filter((p) => places[p]),
     teamPath: place?.path || '', agreePath: agree.path || '',
-    hash: place?.hash || '', agreeHash: agree.hash || '', broken: !!doc?.broken, problem: place?.problem || '', mark: item.mark || '',
+    hash: place?.hash || '', agreeHash: agree.hash || '', broken: !!doc?.broken, problem: place?.problem || '', mark: item.mark || ((item.hidden || []).includes(eff) ? 'hidden' : (item.hidden || []).length ? 'in_effect' : ''),
     hidden, ops: [],
     saved: cloneTeam(doc),
     agreeSaved: saved,

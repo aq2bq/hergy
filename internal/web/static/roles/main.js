@@ -23,7 +23,7 @@ import {
   problemText2,
   roleModel2,
   teamModel2
-} from "../chunk/nav-b6ev05ma.js";
+} from "../chunk/nav-6mzp8cwt.js";
 import {
   takeDraft2,
   setDirty2
@@ -33,8 +33,8 @@ import {
   parseOpen2,
   askConfirm,
   ConfirmDialog
-} from "../chunk/nav-3e3qa83x.js";
-import"../chunk/nav-pym14z71.js";
+} from "../chunk/nav-gkhsyqbe.js";
+import"../chunk/nav-9jet2tba.js";
 import {
   Measure,
   renameCarries2,
@@ -45,16 +45,16 @@ import {
   Badge2,
   Vm2,
   RuleDoc2
-} from "../chunk/nav-c5bkvhy6.js";
+} from "../chunk/nav-7pn230er.js";
 import {
   conflictOf,
   ConflictNotice,
   YamlTab2
-} from "../chunk/nav-jr036za7.js";
+} from "../chunk/nav-744v0ch7.js";
 import {
   roleEditor,
   roleProblems
-} from "../chunk/nav-ywf06a1b.js";
+} from "../chunk/nav-wjmaydjz.js";
 import {
   copyGroupOf,
   projectOfGroup,

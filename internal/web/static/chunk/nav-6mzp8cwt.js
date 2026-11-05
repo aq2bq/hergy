@@ -178,7 +178,7 @@ function profileRow(item, isOpen) {
     name: item.name || "",
     kind: s.kind || "",
     kindClass: s.kindClass || "",
-    mark: item.mark || "",
+    mark: item.mark || (hidden.includes("global") ? "hidden" : hidden.length ? "in_effect" : ""),
     new: false,
     open: !!isOpen,
     places: names.map((file) => ({ label: PLACE_LABEL[file], state: hidden.indexOf(file) >= 0 ? "shadow" : "on" })),
@@ -213,8 +213,7 @@ function roleRow(item, i) {
     row.noDoc = true;
   if (s.isNew)
     row.isNew = true;
-  if (item.mark)
-    row.mark = item.mark;
+  row.mark = item.mark || ((item.hidden || []).includes("global") ? "hidden" : (item.hidden || []).length ? "in_effect" : "");
   return row;
 }
 function teamModel2(list) {

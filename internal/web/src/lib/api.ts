@@ -316,7 +316,7 @@ function profileRow(item: ListItem<'profile'>, isOpen: boolean): ProfileRow {
   });
   const c = countOf(item.problems);
   return {
-    name: item.name || '', kind: s.kind || '', kindClass: s.kindClass || '', mark: item.mark || '',
+    name: item.name || '', kind: s.kind || '', kindClass: s.kindClass || '', mark: item.mark || ((hidden).includes('global') ? 'hidden' : hidden.length ? 'in_effect' : ''),
     new: false, open: !!isOpen,
     places: names.map((file) => ({ label: PLACE_LABEL[file], state: hidden.indexOf(file) >= 0 ? 'shadow' : 'on' })),
     args: s.args || '', env: s.env || [], more: s.more || 0,
@@ -379,7 +379,7 @@ function roleRow(item: RoleListRow, i: number): RoleRow {
   });
   if (s.noDoc) row.noDoc = true;
   if (s.isNew) row.isNew = true;
-  if (item.mark) row.mark = item.mark;
+  row.mark = item.mark || ((item.hidden || []).includes('global') ? 'hidden' : (item.hidden || []).length ? 'in_effect' : '');
   return row;
 }
 

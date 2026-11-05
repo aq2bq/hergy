@@ -14,9 +14,9 @@ import {
   autosize2,
   insertTab2,
   YamlTab2
-} from "../chunk/nav-jr036za7.js";
+} from "../chunk/nav-744v0ch7.js";
 import"../chunk/nav-wtffyt4p.js";
-import"../chunk/nav-b6ev05ma.js";
+import"../chunk/nav-6mzp8cwt.js";
 export {
   YamlTab2 as YamlTab,
   autosize2 as autosize,

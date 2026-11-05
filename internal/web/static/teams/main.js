@@ -38,7 +38,7 @@ import {
   saved2,
   bases2,
   problemText2
-} from "../chunk/nav-b6ev05ma.js";
+} from "../chunk/nav-6mzp8cwt.js";
 import {
   num,
   documents,
@@ -56,7 +56,7 @@ import {
   Counts2,
   Vm2,
   RuleDoc2
-} from "../chunk/nav-c5bkvhy6.js";
+} from "../chunk/nav-7pn230er.js";
 import {
   st,
   token2,
@@ -64,19 +64,19 @@ import {
   projectName2,
   askConfirm,
   ConfirmDialog
-} from "../chunk/nav-3e3qa83x.js";
+} from "../chunk/nav-gkhsyqbe.js";
 import {
   RunCell2
-} from "../chunk/nav-pym14z71.js";
+} from "../chunk/nav-9jet2tba.js";
 import {
   conflictOf,
   ConflictNotice,
   YamlTab2
-} from "../chunk/nav-jr036za7.js";
+} from "../chunk/nav-744v0ch7.js";
 import {
   roleEditor,
   roleProblems
-} from "../chunk/nav-ywf06a1b.js";
+} from "../chunk/nav-wjmaydjz.js";
 import {
   copyGroupOf,
   groupPlace,
@@ -1055,7 +1055,7 @@ function defOf(item, project) {
     agreeHash: agree.hash || "",
     broken: !!doc?.broken,
     problem: place?.problem || "",
-    mark: item.mark || "",
+    mark: item.mark || ((item.hidden || []).includes(eff) ? "hidden" : (item.hidden || []).length ? "in_effect" : ""),
     hidden,
     ops: [],
     saved: cloneTeam(doc),
