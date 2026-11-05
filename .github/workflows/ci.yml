@@ -38,3 +38,17 @@ jobs:
       # them. CI holds no list of its own.
       - name: go run ./tools/check
         run: go run ./tools/check
+
+      # A walk that fails leaves what the browser saw in e2e/test-results, the
+      # directory Playwright writes to beside its config (e2e/playwright.config.ts).
+      # That run is the only place the record exists, so a failed gate keeps it
+      # for a week (#7); a gate that passes keeps nothing. A failed gate other
+      # than the walks leaves no such directory, and that is not an error here.
+      - name: Keep the walks' failures
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-test-results
+          path: e2e/test-results
+          if-no-files-found: ignore
+          retention-days: 7
