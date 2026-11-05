@@ -96,12 +96,16 @@ test('caret movement updates the block count, blur clears it, and outline keeps 
   await expect(column.locator('.prose-current')).toHaveText('入力位置: One（10 字）');
   await input.press('ArrowDown'); await input.press('ArrowDown'); await input.press('ArrowDown');
   await expect(column.locator('.prose-current')).toHaveText('入力位置: Two（10 字）');
-  // The tab no longer sends the page to the editor (r-e9a2), so the person
-  // scrolls the column under the band before pressing its header.
+  // The tab no longer sends the page to the editor (r-e9a2) and the columns
+  // keep the standard reading width, so the person scrolls the board to this
+  // column and the page under the band before pressing its header.
   await page.evaluate((node) => {
     const bar = document.querySelector<HTMLElement>('.bar')!;
     const sum = document.querySelector<HTMLElement>('.tdef > .sum')!;
     window.scrollBy(0, (node as HTMLElement).getBoundingClientRect().top - bar.offsetHeight - sum.offsetHeight - 8);
+  }, await column.elementHandle());
+  await page.locator('.prose-board').evaluate((node, column) => {
+    node.scrollLeft += (column as HTMLElement).getBoundingClientRect().left - node.getBoundingClientRect().left - 8;
   }, await column.elementHandle());
   const frame = await input.boundingBox();
   await column.getByRole('button', { name: '見出しだけ', exact: true }).click();
