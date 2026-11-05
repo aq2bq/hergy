@@ -53,3 +53,34 @@ func TestSpecsForKeepsSharedAndUnknownWalks(t *testing.T) {
 		}
 	}
 }
+
+// TestACommittedBranchWithNoUpstreamStillSelectsItsChange: a branch nobody
+// pushed has no @{upstream}; its committed change must still be compared with
+// main, or every gate is skipped after the first commit.
+func TestACommittedBranchWithNoUpstreamStillSelectsItsChange(t *testing.T) {
+	r := &runner{root: t.TempDir()}
+	git := func(args ...string) {
+		t.Helper()
+		if _, err := r.git(args...); err != nil {
+			t.Fatal(err)
+		}
+	}
+	git("init", "-q", "-b", "main")
+	git("config", "user.name", "Test")
+	git("config", "user.email", "test@example.com")
+	git("config", "commit.gpgsign", "false")
+	tree(t, r.root, map[string]string{"README.md": "base\n"})
+	git("add", ".")
+	git("commit", "-qm", "base")
+	git("switch", "-c", "wip/no-upstream")
+	tree(t, r.root, map[string]string{"internal/app/serve.go": "package app\n"})
+	git("add", ".")
+	git("commit", "-qm", "change")
+	paths, err := r.changedPaths()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Contains(paths, "internal/app/serve.go") {
+		t.Fatalf("changedPaths = %v, want the committed change", paths)
+	}
+}

@@ -16,6 +16,13 @@ import {
   u
 } from "../chunk/nav-wtffyt4p.js";
 import {
+  offerUndo,
+  UndoNotice,
+  conflictOf,
+  ConflictNotice,
+  YamlTab2
+} from "../chunk/nav-wrdvtvvy.js";
+import {
   save2,
   del2,
   saved2,
@@ -45,11 +52,6 @@ import {
   Vm2,
   RuleDoc2
 } from "../chunk/nav-6qg5snn7.js";
-import {
-  conflictOf,
-  ConflictNotice,
-  YamlTab2
-} from "../chunk/nav-07jxxgda.js";
 import {
   roleEditor,
   roleProblems
@@ -713,12 +715,20 @@ function setYfile(key) {
   patch({ yfile: key });
 }
 function pressYamlRevert(r, l) {
-  if (r && r[l])
+  if (r && r[l]) {
+    const before = r[l].ytext;
     withEntry(r.uid, l, (e) => {
       const next = { ...e };
       delete next.ytext;
       return next;
     });
+    tellDirty();
+    offerUndo({ said: "元に戻す", restore: () => {
+      if (r[l])
+        withEntry(r.uid, l, (e) => ({ ...e, ytext: before }));
+      tellDirty();
+    } });
+  }
 }
 function rebase(answer, group) {
   const files = bases2(answer);
@@ -1385,20 +1395,23 @@ function App() {
     return /* @__PURE__ */ u(S, {
       children: [
         /* @__PURE__ */ u(AssignPage, {}),
-        /* @__PURE__ */ u(ConfirmDialog, {})
+        /* @__PURE__ */ u(ConfirmDialog, {}),
+        /* @__PURE__ */ u(UndoNotice, {})
       ]
     });
   if (tab === "yaml")
     return /* @__PURE__ */ u(S, {
       children: [
         /* @__PURE__ */ u(YamlPage, {}),
-        /* @__PURE__ */ u(ConfirmDialog, {})
+        /* @__PURE__ */ u(ConfirmDialog, {}),
+        /* @__PURE__ */ u(UndoNotice, {})
       ]
     });
   return /* @__PURE__ */ u(S, {
     children: [
       /* @__PURE__ */ u(List, {}),
-      /* @__PURE__ */ u(ConfirmDialog, {})
+      /* @__PURE__ */ u(ConfirmDialog, {}),
+      /* @__PURE__ */ u(UndoNotice, {})
     ]
   });
 }

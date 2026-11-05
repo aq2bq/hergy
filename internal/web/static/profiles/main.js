@@ -39,7 +39,7 @@ import {
   conflictOf,
   ConflictNotice,
   YamlTab2
-} from "../chunk/nav-07jxxgda.js";
+} from "../chunk/nav-wrdvtvvy.js";
 import {
   copyGroupOf,
   projectOfGroup,
@@ -58,6 +58,7 @@ import {
   dirty,
   PROFILE,
   assignDirty,
+  yamlDirty,
   profileFlags
 } from "../chunk/nav-ray0sjn8.js";
 
@@ -728,7 +729,7 @@ var chips = O(() => {
 });
 function dirty2() {
   const panels = allPanels().some(({ panel }) => profileDirty(panel));
-  const ytexts = yamlTexts().some((one) => one.text !== one.base);
+  const ytexts = yamlTexts().some((one) => yamlDirty(one.base, one.text));
   const picks = assignTeams().some((team) => (team.rows || []).some((row) => pickChanged(row)));
   return panels || ytexts || picks;
 }

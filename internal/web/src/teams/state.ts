@@ -33,7 +33,9 @@ import { TEAM as CHANGED_TEAM, TEAM_AGREEMENT as CHANGED_AGREEMENT, YAML_TEXT as
 import type { Shape } from '../lib/changed.js';
 import type { TeamWritten } from '../lib/changed.js';
 import { copyGroupOf, groupPlace, projectOfGroup } from '../lib/copy';
-import { roleDraftsDirty } from './role-modal.js';
+import { roleEntries } from './role-modal.js';
+import { offerUndo } from '../lib/undo.js';
+import { roleDirty } from '../lib/changed.js';
 import { takeDraft, setDirty } from '../lib/nav.js';
 import { place } from './place';
 import type { Positions } from './place';
@@ -1552,7 +1554,7 @@ export const rowOfPanel = (r: Rec) => {
 // 1.5), the same way it asks the other screens. main.js keeps the band's dot on
 // it.
 export function dirty() {
-  if (roleDraftsDirty()) return true;
+  if (roleEntries().some((e) => roleDirty(e))) return true;
   for (const r of recs.value) if (dirtyDef(r)) return true;
   for (const f of yfiles.value) if (yamlChanged(f.file)) return true;
   return false;
@@ -1779,11 +1781,15 @@ export function pressUndoConflict(r: Rec, which: string) {
   if (which === 'a') checkAgree(r); else checkTeam(r);
 }
 export function pressTRevert(r: Rec) {
+  // 元に戻す goes at once and leaves its 取り消す in place (d-79e3 の A).
+  const ops = changedSnapshot(r.ops.value) as typeof r.ops.value;
   setOps(r, []);
   resetCanvas(r);
   forgetUndo(r);
   put({ confirm: {} });
   syncTeam(r);
+  tellDirty();
+  offerUndo({ said: '元に戻す', restore: () => { r.ops.value = ops; syncTeam(r); tellDirty(); } });
 }
 export function pressSave(r: Rec) { saveAgree(r); }
 export function pressRevert(r: Rec): void {
@@ -1791,8 +1797,11 @@ export function pressRevert(r: Rec): void {
   // agreement, or, for a team that has none, the empty document it started from
   // (n-e3de).
   const saved = r.agreeSaved.value;
+  const before = changedSnapshot(r.agreeDraft.value) as typeof r.agreeDraft.value;
   r.agreeDraft.value = saved ? clone(saved) : emptyAgreement(r.name.value);
   checkAgree(r);
+  tellDirty();
+  offerUndo({ said: '元に戻す', restore: () => { r.agreeDraft.value = before; checkAgree(r); tellDirty(); } });
 }
 export function pressToastUndo() { canvasUndoFromToast(); }
 // pressVpick puts the cursor in a finding's own field, or picks what it names on

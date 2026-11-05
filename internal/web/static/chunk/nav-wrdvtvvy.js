@@ -12,6 +12,7 @@ import {
   d,
   h,
   A,
+  y,
   u
 } from "./nav-wtffyt4p.js";
 import {
@@ -23,6 +24,41 @@ import {
 import {
   yamlDirty
 } from "./nav-ray0sjn8.js";
+
+// lib/undo.tsx
+var undo = y(null);
+function offerUndo(one) {
+  undo.value = one;
+}
+function takeUndo() {
+  const one = undo.value;
+  undo.value = null;
+  if (one)
+    one.restore();
+}
+function UndoNotice() {
+  const one = undo.value;
+  if (!one)
+    return null;
+  return /* @__PURE__ */ u("div", {
+    class: "undo",
+    role: "status",
+    children: [
+      /* @__PURE__ */ u("span", {
+        children: [
+          one.said,
+          " を取り消す"
+        ]
+      }),
+      /* @__PURE__ */ u("button", {
+        type: "button",
+        class: "btn sm",
+        onClick: takeUndo,
+        children: "取り消す"
+      })
+    ]
+  });
+}
 
 // lib/conflict.tsx
 var str = (v) => typeof v === "string" ? v : "";
@@ -388,12 +424,20 @@ function YamlTab2(props) {
     const el = ta.current;
     if (!el)
       return;
+    const was = now.text;
     if (onRevert)
       onRevert();
     el.value = base.current;
     setRefusal("");
     layout(now.problems);
     check();
+    offerUndo({ said: "元に戻す", restore: () => {
+      if (el)
+        el.value = was;
+      setNow((one) => ({ ...one, text: was }));
+      onState?.({ text: was });
+      check();
+    } });
   }
   function jump(line) {
     const el = ta.current;
@@ -613,4 +657,4 @@ function YamlTab2(props) {
   });
 }
 
-export { conflictOf, ConflictNotice, checkText2, saveText2, tellDirty2, autosize2, insertTab2, YamlTab2 };
+export { offerUndo, UndoNotice, conflictOf, ConflictNotice, checkText2, saveText2, tellDirty2, autosize2, insertTab2, YamlTab2 };

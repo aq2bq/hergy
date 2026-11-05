@@ -1,3 +1,4 @@
+import { UndoNotice } from '../lib/undo.js';
 import { ProjectView } from '../lib/project-view';
 // teams/view.tsx — チーム定義の画面の一覧とパネル（webui-preact-design 4 章）。
 //
@@ -73,7 +74,7 @@ export function Tabs() {
 export function App() {
   // The 動き column and the group heads are the headquarters' reading: each
   // reads it, so a re-reading draws it without the screen asking (5 章 2).
-  return <>{state.value.tab === 'list' ? <List /> : <><ProjectView projects={HQ?.projects} /><YamlPage /></>}<CanvasToast /><ConfirmDialog /></>;
+  return <>{state.value.tab === 'list' ? <List /> : <><ProjectView projects={HQ?.projects} /><YamlPage /></>}<CanvasToast /><ConfirmDialog /><UndoNotice /></>;
 }
 
 // ---- 一覧 --------------------------------------------------------------

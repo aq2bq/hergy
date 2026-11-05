@@ -55,12 +55,17 @@ const models = new Map<string, ReturnType<typeof newModel>>();
 function roleEntryDirty(e: { draft: { name: string; title: string; text: string }; saved: { name: string; title: string; text: string } }): boolean {
   return roleDirty(e);
 }
-export function roleDraftsDirty(): boolean {
-  return [...models.values()].some((model) => {
+// roleEntries is the entries the role column holds open: the band asks them
+// through the owner's change test (r-1e9a).
+export function roleEntries(): { draft: { name: string; title: string; text: string }; saved: { name: string; title: string; text: string } }[] {
+  const out: { draft: { name: string; title: string; text: string }; saved: { name: string; title: string; text: string } }[] = [];
+  for (const model of models.values()) {
     const e = model.entry.value;
-    return !!e && roleEntryDirty(e);
-  });
+    if (e && e.saved) out.push({ draft: e.draft, saved: e.saved });
+  }
+  return out;
 }
+export const roleEntryChanged = roleEntryDirty;
 
 export function roleSummary(r: Rec, name: string): string {
  const model = models.get(`${r.uid}:${r.place.value}:${name}`);

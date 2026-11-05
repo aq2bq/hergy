@@ -19,7 +19,8 @@ import { ConflictNotice } from '../lib/conflict.js';
 import { askConfirm, ConfirmDialog } from '../lib/confirm.js';
 import { bringUnderBand } from '../lib/band.js';
 import { RuleDoc, Counts, Badge } from '../lib/ruledoc.js';
-import { dirty as changedDirty, roleDirty, ROLE_DOC } from '../lib/changed.js';
+import { dirty as changedDirty, roleDirty , ROLE_DOC } from '../lib/changed.js';
+import { UndoNotice } from '../lib/undo.js';
 import type { RuleIssue } from '../lib/ruledoc.js';
 import type { Place, RoleGroup, RoleRow } from './state.js';
 import { AssignPage } from './assign.js';
@@ -38,9 +39,9 @@ export function Tabs() {
 
 export function App() {
   const tab = state.value.tab;
-  if (tab === 'assign') return <><AssignPage /><ConfirmDialog /></>;
-  if (tab === 'yaml') return <><YamlPage /><ConfirmDialog /></>;
-  return <><List /><ConfirmDialog /></>;
+  if (tab === 'assign') return <><AssignPage /><ConfirmDialog /><UndoNotice /></>;
+  if (tab === 'yaml') return <><YamlPage /><ConfirmDialog /><UndoNotice /></>;
+  return <><List /><ConfirmDialog /><UndoNotice /></>;
 }
 
 // List is the roles list: the filters and the search, the column names, and the

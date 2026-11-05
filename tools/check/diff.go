@@ -18,9 +18,19 @@ import (
 // not yet committed, and untracked files. A branch with no upstream is
 // compared with HEAD.
 func (r *runner) changedPaths() ([]string, error) {
-	base := "HEAD"
-	if out, err := r.git("merge-base", "HEAD", "@{upstream}"); err == nil {
-		base = strings.TrimSpace(out)
+	base := ""
+	// A branch with no upstream has nothing pushed: compare with origin/main (or
+	// main) so a committed change is still selected. Without this, a branch
+	// that was never pushed answered "no change from the upstream" after its
+	// first commit and every gate was skipped.
+	for _, against := range []string{"@{upstream}", "origin/main", "main"} {
+		if out, err := r.git("merge-base", "HEAD", against); err == nil {
+			base = strings.TrimSpace(out)
+			break
+		}
+	}
+	if base == "" {
+		base = "HEAD"
 	}
 	changed, err := r.git("diff", "--no-renames", "--name-only", base)
 	if err != nil {

@@ -68,10 +68,12 @@ import {
   RunCell2
 } from "../chunk/nav-vjrb6rnv.js";
 import {
+  offerUndo,
+  UndoNotice,
   conflictOf,
   ConflictNotice,
   YamlTab2
-} from "../chunk/nav-07jxxgda.js";
+} from "../chunk/nav-wrdvtvvy.js";
 import {
   roleEditor,
   roleProblems
@@ -231,11 +233,14 @@ var models = new Map;
 function roleEntryDirty(e) {
   return roleDirty(e);
 }
-function roleDraftsDirty() {
-  return [...models.values()].some((model) => {
+function roleEntries() {
+  const out = [];
+  for (const model of models.values()) {
     const e = model.entry.value;
-    return !!e && roleEntryDirty(e);
-  });
+    if (e && e.saved)
+      out.push({ draft: e.draft, saved: e.saved });
+  }
+  return out;
 }
 function roleSummary(r, name) {
   const model = models.get(`${r.uid}:${r.place.value}:${name}`);
@@ -1980,7 +1985,7 @@ var rowOfPanel = (r) => {
   };
 };
 function dirty2() {
-  if (roleDraftsDirty())
+  if (roleEntries().some((e) => roleDirty(e)))
     return true;
   for (const r of recs.value)
     if (dirtyDef(r))
@@ -2158,19 +2163,33 @@ function pressUndoConflict(r, which) {
     checkTeam(r);
 }
 function pressTRevert(r) {
+  const ops = snapshot(r.ops.value);
   setOps(r, []);
   resetCanvas(r);
   forgetUndo(r);
   put({ confirm: {} });
   syncTeam(r);
+  tellDirty();
+  offerUndo({ said: "元に戻す", restore: () => {
+    r.ops.value = ops;
+    syncTeam(r);
+    tellDirty();
+  } });
 }
 function pressSave(r) {
   saveAgree(r);
 }
 function pressRevert(r) {
   const saved = r.agreeSaved.value;
+  const before = snapshot(r.agreeDraft.value);
   r.agreeDraft.value = saved ? clone2(saved) : emptyAgreement(r.name.value);
   checkAgree(r);
+  tellDirty();
+  offerUndo({ said: "元に戻す", restore: () => {
+    r.agreeDraft.value = before;
+    checkAgree(r);
+    tellDirty();
+  } });
 }
 function pressToastUndo() {
   canvasUndoFromToast();
@@ -5353,7 +5372,8 @@ function App() {
         ]
       }),
       /* @__PURE__ */ u(CanvasToast, {}),
-      /* @__PURE__ */ u(ConfirmDialog, {})
+      /* @__PURE__ */ u(ConfirmDialog, {}),
+      /* @__PURE__ */ u(UndoNotice, {})
     ]
   });
 }

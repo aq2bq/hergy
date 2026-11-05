@@ -7,6 +7,7 @@
 // たびに onChange で知らせるので、画面はそのたびに新しい行（新しい下書きの写し）を
 // signal に入れる。
 import { assignDirty, roleDirty, yamlDirty, snapshot as changedSnapshot } from '../lib/changed.js';
+import { offerUndo } from '../lib/undo.js';
 import { signal } from '../lib/preact.js';
 import { roleEditor, roleProblems } from '../lib/role-editor.js';
 import { takeDraft, setDirty } from '../lib/nav.js';
@@ -845,7 +846,12 @@ export function setYfile(key: string | null): void {
 export function pressYamlRevert(r: RoleRow | null | undefined, l: Place): void {
   // The text goes back to the saved one, and the shared part checks the text it
   // now shows: a result for the thrown-away text must not stay.
-  if (r && r[l]) withEntry(r.uid, l, (e) => { const next = { ...e }; delete next.ytext; return next; });
+  if (r && r[l]) {
+    const before = r[l]!.ytext;
+    withEntry(r.uid, l, (e) => { const next = { ...e }; delete next.ytext; return next; });
+    tellDirty();
+    offerUndo({ said: '元に戻す', restore: () => { if (r[l]) withEntry(r.uid, l, (e) => ({ ...e, ytext: before })); tellDirty(); } });
+  }
 }
 
 // ---- writes ----------------------------------------------------------

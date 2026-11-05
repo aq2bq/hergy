@@ -10,7 +10,7 @@ import { profileModel, check as apiCheck, save as apiSave, del as apiDel, list a
 import { conflictOf } from '../lib/conflict.js';
 import { parseOpen, token as hqToken } from '../lib/hq.js';
 import { copyGroupOf, projectOfGroup } from '../lib/copy';
-import { PROFILE, assignDirty, diff as changedDiff, dirty as changedDirty, profileFlags, snapshot as changedSnapshot } from '../lib/changed.js';
+import { PROFILE, assignDirty, yamlDirty, diff as changedDiff, dirty as changedDirty, profileFlags, snapshot as changedSnapshot } from '../lib/changed.js';
 import { setDirty } from '../lib/nav.js';
 import type {
   Assign, AssignRow, Carried, Draft, EnvPair, FocusAsk, Island,
@@ -735,7 +735,7 @@ export const chips = computed(() => {
 // dirty is whether the screen holds something no save wrote yet (spec-nav 1.5).
 export function dirty(): boolean {
   const panels = allPanels().some(({ panel }) => profileDirty(panel));
-  const ytexts = yamlTexts().some((one) => one.text !== one.base);
+  const ytexts = yamlTexts().some((one) => yamlDirty(one.base, one.text));
   const picks = assignTeams().some((team) => (team.rows || []).some((row) => pickChanged(row)));
   return panels || ytexts || picks;
 }
