@@ -1894,7 +1894,6 @@ var fileKeys = () => PLACES.flatMap((p) => yfiles.value.filter((f) => f.place ==
 var fileText = (file) => state.value.ytext[file] !== undefined ? state.value.ytext[file] : (fileOf(file) || {}).text || "";
 var fileDirty = (file) => state.value.ytext[file] !== undefined && state.value.ytext[file] !== ((fileOf(file) || {}).text || "");
 var yIssues = (file) => state.value.yc[file] || (fileOf(file) || {}).problems || [];
-var recForFile = (f) => recs.value.find((x) => x.name.value === f.name && x.place.value === f.place && (x.project === CURRENT || x.project === "")) || null;
 function pickFile() {
   const keys = fileKeys();
   if (!state.value.yfile || !keys.includes(state.value.yfile))
@@ -6568,8 +6567,7 @@ function YamlPage() {
                 ]
               }),
               fs.map((f) => {
-                const r = recForFile(f);
-                const n = f.kind === "agreement" && r ? Array.from((r.agreeSaved.value || r.agreeDraft.value).text).length : "";
+                const n = "";
                 const on = chosen === f.file;
                 return /* @__PURE__ */ u("button", {
                   class: ["file", on ? "on" : ""].filter(Boolean).join(" "),
@@ -6618,8 +6616,7 @@ function YamlPage() {
   });
 }
 function YamlFile({ f }) {
-  const r = recForFile(f);
-  const mark = (r ? r.mark.value : "") || f.mark || "";
+  const mark = f.mark || "";
   const both = !!mark;
   return /* @__PURE__ */ u("section", {
     class: "yed",

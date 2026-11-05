@@ -33,8 +33,10 @@ test.describe('one project', () => {
     // The YAML tab's badge is the file row's mark, not the file's layer.
     await page.goto(`${app.base}/teams/yaml`); await ready(page);
     const yaml = page.locator('.yed .ph .state');
-    await expect(yaml.filter({ hasText: '効いている' })).toHaveCount(1);
-    await expect(yaml.filter({ hasText: '隠れている' })).toHaveCount(1);
+    await page.locator('.file[data-file="docs.project.team"]').click();
+    await expect(yaml).toHaveText('効いている');
+    await page.locator('.file[data-file="docs.global.team"]').click();
+    await expect(yaml).toHaveText('隠れている');
   });
 });
 

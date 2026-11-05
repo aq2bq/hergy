@@ -221,14 +221,13 @@ func (s *Server) t2ItemAt(name, place, ver string) apiItem {
 // fileMark is the row's mark for one of its files: the owner's answer, so the
 // YAML tab's badge is not the file's layer (r-ea17).
 func (s *Server) fileMark(name, place string) string {
-	effective, hidden := s.effectiveOf(catalog.KindTeam, name)
-	if len(hidden) == 0 {
-		return ""
+	layer := catalog.Layer(place)
+	for _, row := range s.cat.ShownRows(catalog.KindTeam, layer) {
+		if row.Name == name {
+			return markWord(row)
+		}
 	}
-	if place == effective {
-		return "in_effect"
-	}
-	return "hidden"
+	return ""
 }
 
 func (s *Server) t2FilesAt(name, place string) []apiFile {
@@ -409,7 +408,7 @@ func (s *Server) buildCountsOf(name, layer string) apiCounts {
 // key it names travels beside it (spec-teams 1.8).
 func (s *Server) t2FileOf(place, kind, name, path string) apiFile {
 	text, _ := s.cat.Reader().Read(source.Doc{Path: path})
-	key := "team.file|" + s.cat.Base() + "|" + place + "|" + kind + "|" + name + "|" + path + "|" + source.Hash(text)
+	key := "team.file|" + s.cat.Base() + "|" + place + "|" + kind + "|" + name + "|" + path + "|" + source.Hash(text) + "|" + s.fileMark(name, place)
 	return s.cached(key, func() any { return s.buildFileOf(place, kind, name, path, text) }).(apiFile)
 }
 

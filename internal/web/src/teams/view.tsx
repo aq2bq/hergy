@@ -30,7 +30,7 @@ import {
   dkey, currentProjectName, teamLabel, dtabOf, isOpen, missingOpen,
   rowIssues, dirtyDef, teamIssues, agreeIssues, agreeDiff, changeCount, vlistParts,
   rowOfPanel, okOf, refusalOf, pmodeOf, yfiles, fileOf, fileDirty, yIssues,
-  recForFile, chosenFile, scheduleAgree, syncURL, focusAsk, groupOfRecord,
+  chosenFile, scheduleAgree, syncURL, focusAsk, groupOfRecord,
   pressTab, pressToggle, pressNew, pressDup, pressCopy, pressDiscard,
   pressStarterRoles, pressStarterProfile, pressCarry,
   pressDelYes, pressName, pressDtab, pressPmode, bornOf,
@@ -608,8 +608,7 @@ export function YamlPage() {
       if (!fs.length) return null;
       return (
         <div class="fgroup"><div class="gh"><b>{PLACE[p]}</b><code>{DIR[p] || ''}</code></div>{fs.map((f) => {
-          const r = recForFile(f);
-          const n = f.kind === 'agreement' && r ? Array.from((r.agreeSaved.value || r.agreeDraft.value).text).length : '';
+                  const n = '';
           const on = chosen === f.file;
           return (
             <button class={['file', on ? 'on' : ''].filter(Boolean).join(' ')} data-act="yfile" data-file={f.file} aria-pressed={on} onClick={() => pressYfile(f.file)}><code>{f.name}/{f.kind === 'agreement' ? 'agreement.md' : 'team.yaml'}</code><span class="fs">{fileDirty(f.file) ? <span class="dirty">●</span> : null}{(yIssues(f.file) || []).length ? <Counts list={messagesOf(yIssues(f.file))} /> : (n || '')}</span><span class="ft">{f.path}</span></button>
@@ -625,8 +624,9 @@ export function YamlPage() {
 // carries the key the presses read and the hash the save carries); the part
 // draws what stands inside it and reads the file and the hash as props.
 function YamlFile({ f }: { f: YFile }) {
-  const r = recForFile(f);
-  const mark = (r ? r.mark.value : '') || f.mark || '';
+  // The file's own mark is the server's answer; the section does not look for
+  // its row (r-ea17).
+  const mark = f.mark || '';
   const both = !!mark;
   return (
     <section class="yed" data-key={keyOfFile(f)} data-hash={f.hash}>
