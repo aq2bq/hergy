@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"html/template"
 	"io/fs"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 
@@ -267,14 +269,21 @@ func (s *Server) p2Read() (p2File, p2File, []p2Def) {
 // file carries.
 func (s *Server) p2ReadFile(file, path string) p2File {
 	out := p2File{file: file, label: p2Label(file), path: path, display: s.cat.Display(path), hash: source.Hash("")}
+	if _, err := os.Stat(path); err != nil {
+		// A file that is not there is the empty file a save would make.
+		if errors.Is(err, fs.ErrNotExist) {
+			return out
+		}
+	}
+	// Whether the file reads is the owner's answer, not this file's own: the YAML
+	// tab asks the same rule the list does (r-ea17, d-0bf1).
+	if ok, why := s.cat.ReadableOf(catalog.ListedRow{Kind: catalog.KindProfile, Name: filepath.Base(path), Place: placeOfFile(file), Path: path}); !ok {
+		out.problem = why
+		return out
+	}
 	text, err := s.cat.Reader().Read(source.Doc{Path: path})
 	if err != nil {
-		// A file that is not there is the empty file a save would make; one that
-		// is there and cannot be read keeps its reason, and the YAML tab offers
-		// no save over it (r-ea17, d-0bf1).
-		if !errors.Is(err, fs.ErrNotExist) {
-			out.problem = err.Error()
-		}
+		out.problem = err.Error()
 		return out
 	}
 	out.ok = true
@@ -282,6 +291,14 @@ func (s *Server) p2ReadFile(file, path string) p2File {
 	out.hash = source.Hash(text)
 	out.entries, out.problems = profile.ReadAll(text, out.display)
 	return out
+}
+
+// placeOfFile is the layer a profile file stands in, in the list's words.
+func placeOfFile(file string) string {
+	if file == p2Shared {
+		return catalog.PlaceGlobal
+	}
+	return catalog.PlaceProject
 }
 
 // p2Label is the word the screen uses for one file's place.
