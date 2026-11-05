@@ -1,6 +1,9 @@
 package catalog
 
 import (
+	"errors"
+	"io/fs"
+	"os"
 	"path/filepath"
 
 	"github.com/aq2bq/hergy/internal/profile"
@@ -71,6 +74,26 @@ func (c *Catalog) ShownRows(kind, layer string) []ListedRow {
 // rowShown is the one place the unreadable-row decision lives: every row stands
 // and is counted, whether or not its document reads (d-17ab).
 func (c *Catalog) rowShown(_ ListedRow) bool { return true }
+
+// FileState is whether a file is there, and whether it can be read, with the
+// reason it cannot: the one place a screen asks before it writes (r-ea17,
+// d-0bf1). A file that is not there is the empty file a save would make.
+func (c *Catalog) FileState(path string) (there, readable bool, why string) {
+	if _, err := os.Stat(path); err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return false, true, ""
+		}
+		return true, false, err.Error()
+	}
+	_, ok, err := c.fileText(path)
+	if err == nil && ok {
+		return true, true, ""
+	}
+	if err != nil {
+		return true, false, err.Error()
+	}
+	return true, false, ""
+}
 
 // ReadableOf is whether the row's document can be read, with the sentence a
 // list shows beside a row that cannot (d-17ab: the row stands and is counted).

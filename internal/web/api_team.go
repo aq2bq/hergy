@@ -372,6 +372,16 @@ func (s *Server) t2FilesOf(listing catalog.Listing) []apiFile {
 			return
 		}
 		if _, err := s.cat.Reader().Read(source.Doc{Path: path}); err != nil {
+			// The file is there and cannot be read: the YAML tab stands with the
+			// reason and no save over it (r-ea17, d-0bf1).
+			if ok, why := s.cat.ReadableOf(catalog.ListedRow{Kind: catalog.KindTeam, Name: listing.Name, Place: place, Path: path}); !ok {
+				out = append(out, apiFile{
+					Place: place, Name: listing.Name, Kind: kind, Label: t2PlaceWord(place),
+					Path: s.cat.Display(path), Problem: why,
+					Problems: []apiProblem{{Sev: "err", At: "line", Line: 1, Text: why}},
+				})
+				return
+			}
 			return
 		}
 		out = append(out, s.t2FileOf(place, kind, listing.Name, path, hidden))
@@ -910,6 +920,9 @@ func (k apiTeam) saveFigure(name string, in apiIn) (any, *apiErr) {
 	layer := catalog.Layer(in.Place)
 	path := s.cat.TeamYAML(name, layer)
 	display := s.cat.Display(path)
+	if bad := s.docUnreadableRefusal(catalog.KindTeam, in.Place, path); bad != nil {
+		return nil, bad
+	}
 	text, readErr := s.cat.Reader().Read(source.Doc{Path: path})
 	hash := source.Hash("")
 	if readErr == nil {
@@ -998,6 +1011,9 @@ func (k apiTeam) saveYAML(name string, in apiIn) (any, *apiErr) {
 		path = s.t2AgreeFile(name, layer)
 	}
 	display := s.cat.Display(path)
+	if bad := s.docUnreadableRefusal(catalog.KindTeam, place, path); bad != nil {
+		return nil, bad
+	}
 	text, err := s.cat.Reader().Read(source.Doc{Path: path})
 	hash := source.Hash("")
 	if err == nil {

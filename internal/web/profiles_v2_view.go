@@ -2,12 +2,8 @@ package web
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"html/template"
-	"io/fs"
-	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 
@@ -269,16 +265,15 @@ func (s *Server) p2Read() (p2File, p2File, []p2Def) {
 // file carries.
 func (s *Server) p2ReadFile(file, path string) p2File {
 	out := p2File{file: file, label: p2Label(file), path: path, display: s.cat.Display(path), hash: source.Hash("")}
-	if _, err := os.Stat(path); err != nil {
-		// A file that is not there is the empty file a save would make.
-		if errors.Is(err, fs.ErrNotExist) {
-			return out
-		}
-	}
-	// Whether the file reads is the owner's answer, not this file's own: the YAML
-	// tab asks the same rule the list does (r-ea17, d-0bf1).
-	if ok, why := s.cat.ReadableOf(catalog.ListedRow{Kind: catalog.KindProfile, Name: filepath.Base(path), Place: placeOfFile(file), Path: path}); !ok {
+	// Whether the file is there and reads is the owner's answer, not this file's
+	// own: the YAML tab asks the same rule the list does (r-ea17, d-0bf1).
+	there, ok, why := s.cat.FileState(path)
+	if !ok {
 		out.problem = why
+		return out
+	}
+	if !there {
+		// Not there is the empty file a save would make.
 		return out
 	}
 	text, err := s.cat.Reader().Read(source.Doc{Path: path})
