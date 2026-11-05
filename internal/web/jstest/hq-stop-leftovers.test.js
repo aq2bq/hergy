@@ -34,11 +34,17 @@ test('the stop result lists the worktrees and stashes the team left in git', asy
   await hq.readCore();
   await settle();
   const { stopSheet } = await import('../src/lib/hq/sheets.js');
+  const { ConfirmDialog } = await import('../src/lib/confirm.js');
+  const { render, h } = await import('../src/lib/preact.js');
+  const confirmHost = document.createElement('div');
+  document.body.appendChild(confirmHost);
+  render(h(ConfirmDialog, {}), confirmHost);
   stopSheet('draft');
   await settle();
 
-  document.querySelector('[data-hq=stopgo]').click();
-  await settle();
+  expect(document.querySelector('.confirm')).not.toBe(null);
+  document.querySelector('.confirm .btn.danger.solid').click();
+  await settle(); await settle();
   const sheet = document.querySelector('.hq-sheet');
   expect(sheet.querySelector('.hq-h b').textContent).toBe('終了しました');
   const left = sheet.querySelector('[data-role=leftovers]');

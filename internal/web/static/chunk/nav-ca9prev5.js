@@ -39,7 +39,7 @@ import {
   searchHook,
   teamCount,
   openSheet
-} from "./nav-9edc45pg.js";
+} from "./nav-x6k86cmx.js";
 var __defProp = Object.defineProperty;
 var __returnValue = (v) => v;
 function __exportSetter(name, newValue) {
@@ -675,7 +675,7 @@ document.querySelectorAll('[data-hq="projects"]').forEach((b) => {
 document.addEventListener("click", (e) => {
   if (!(e.target instanceof Element))
     return;
-  if (sheetOpen() && !e.target.closest(".hq-sheet") && !e.target.closest("[data-hq]"))
+  if (sheetOpen() && !e.target.closest(".hq-sheet") && !e.target.closest("[data-hq]") && !e.target.closest(".confirm"))
     closeSheet2();
   if (searchBoxOpen() && !e.target.closest(".hq-sr, .hq-search"))
     closeBox();
@@ -683,7 +683,7 @@ document.addEventListener("click", (e) => {
 document.addEventListener("keydown", (e) => {
   if (!(e.target instanceof Element))
     return;
-  if (e.key === "Escape" && sheetOpen()) {
+  if (e.key === "Escape" && sheetOpen() && !document.querySelector(".confirm")) {
     closeSheet2();
     return;
   }

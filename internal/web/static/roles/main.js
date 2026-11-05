@@ -30,9 +30,11 @@ import {
 } from "../chunk/nav-b2ph1bfx.js";
 import {
   token2,
-  parseOpen2
-} from "../chunk/nav-9edc45pg.js";
-import"../chunk/nav-bt3hv1je.js";
+  parseOpen2,
+  askConfirm,
+  ConfirmDialog
+} from "../chunk/nav-x6k86cmx.js";
+import"../chunk/nav-ca9prev5.js";
 import {
   Measure,
   renameCarries2,
@@ -642,17 +644,6 @@ function canCopy(r, l) {
     return false;
   const group = copyGroupOf(to, groupOfRow(r), CURRENT);
   return !roles.value.some((x) => groupOfRow(x) === group && x[to] && x[to].draft.name === e.saved.name);
-}
-function pressDel(id, l) {
-  patch({ confirm: { ...state.value.confirm, [id + l]: 1 } });
-  askFocus(id, "[data-act=del-yes]");
-  touch();
-}
-function pressDelNo(id, l) {
-  const next = { ...state.value.confirm };
-  delete next[id + l];
-  patch({ confirm: next });
-  touch();
 }
 function pressDiscard(id, l) {
   const next = { ...state.value.confirm };
@@ -1388,10 +1379,25 @@ function Tabs() {
 function App() {
   const tab = state.value.tab;
   if (tab === "assign")
-    return /* @__PURE__ */ u(AssignPage, {});
+    return /* @__PURE__ */ u(S, {
+      children: [
+        /* @__PURE__ */ u(AssignPage, {}),
+        /* @__PURE__ */ u(ConfirmDialog, {})
+      ]
+    });
   if (tab === "yaml")
-    return /* @__PURE__ */ u(YamlPage, {});
-  return /* @__PURE__ */ u(List, {});
+    return /* @__PURE__ */ u(S, {
+      children: [
+        /* @__PURE__ */ u(YamlPage, {}),
+        /* @__PURE__ */ u(ConfirmDialog, {})
+      ]
+    });
+  return /* @__PURE__ */ u(S, {
+    children: [
+      /* @__PURE__ */ u(List, {}),
+      /* @__PURE__ */ u(ConfirmDialog, {})
+    ]
+  });
 }
 function List() {
   const s = state.value;
@@ -1946,30 +1952,44 @@ function Panel({ r, l }) {
               !e.saved ? /* @__PURE__ */ u("button", {
                 class: "btn danger",
                 "data-act": "discard",
-                onClick: () => pressDiscard(r.uid, l),
-                children: "取り消し"
-              }) : state.value.confirm[key] ? /* @__PURE__ */ u(S, {
-                children: [
-                  /* @__PURE__ */ u("button", {
-                    class: "btn danger solid",
-                    "data-act": "del-yes",
-                    onClick: () => doDelete(r.uid, l),
+                onClick: () => {
+                  if (n === 0) {
+                    pressDiscard(r.uid, l);
+                    return;
+                  }
+                  askConfirm({ title: "入力した内容を捨てますか", body: /* @__PURE__ */ u("p", {
                     children: [
-                      "削除する",
-                      nread ? `（${nread} 人が読んでいる）` : ""
+                      "保存していない入力があります。",
+                      /* @__PURE__ */ u("b", {
+                        children: "取り消せません。"
+                      })
                     ]
-                  }),
-                  /* @__PURE__ */ u("button", {
-                    class: "btn",
-                    "data-act": "del-no",
-                    onClick: () => pressDelNo(r.uid, l),
-                    children: "やめる"
-                  })
-                ]
+                  }), label: "破棄する", run: () => pressDiscard(r.uid, l) });
+                },
+                children: "取り消し"
               }) : /* @__PURE__ */ u("button", {
                 class: "btn danger",
                 "data-act": "del",
-                onClick: () => pressDel(r.uid, l),
+                onClick: () => askConfirm({
+                  title: `ロール ${d.name} を削除しますか`,
+                  body: /* @__PURE__ */ u(S, {
+                    children: [
+                      /* @__PURE__ */ u("p", {
+                        children: [
+                          `${placeLabel} の roles/${d.name}.md を消します。`,
+                          nread ? `${nread} 人が読んでいます。` : ""
+                        ]
+                      }),
+                      /* @__PURE__ */ u("p", {
+                        children: /* @__PURE__ */ u("b", {
+                          children: "取り消せません。"
+                        })
+                      })
+                    ]
+                  }),
+                  label: `削除する${nread ? `（${nread} 人が読んでいる）` : ""}`,
+                  run: () => doDelete(r.uid, l)
+                }),
                 children: "削除"
               })
             ]

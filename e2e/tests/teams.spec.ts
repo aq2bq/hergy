@@ -71,9 +71,14 @@ test('the team definition action opens the end sheet', async ({ page, app }) => 
   const end = page.locator('.tdef .hq-runc [data-hq="stop"]');
   await expect(end).toHaveText('終了する');
   await end.click();
-  const sheet = page.locator('.hq-sheet');
-  await expect(sheet.locator('.hq-h b')).toHaveText('終了する');
-  await expect(sheet.locator('.hq-acts [data-hq="stopgo"]')).toHaveText('終了する');
+  // The stop is asked for in the shared dialog (r-d480): the panes it closes
+  // stand in its body, and the run button is there, not where the trigger was.
+  const ask = page.locator('.confirm');
+  await expect(ask.locator('h2')).toHaveText('チーム core を終了しますか');
+  await expect(ask.locator('.hq-kv')).toContainText('閉じるペイン');
+  await expect(ask.locator('.btn.danger.solid')).toHaveText('終了する');
+  await ask.getByRole('button', { name: 'やめる', exact: true }).click();
+  await expect(ask).toHaveCount(0);
 });
 
 // tRow is one list row, by the definition's name (e2eTeamsRowJS).
@@ -324,6 +329,8 @@ test('TEAMS-N1 add, the shared place and delete', async ({ page, app }) => {
   await press(page, q('#view .list .hq-gh[data-place=project] [data-act=new]'));
   await wait(page, there2(draft, '.in-name'));
   await press(page, `${draft}.querySelector('[data-act=discard]')`);
+  await wait(page, `!!document.querySelector('.confirm')`);
+  await press(page, `document.querySelector('.confirm .btn.danger.solid')`);
   await wait(page, `!document.querySelector('.tdef[data-name^="~new"]')`);
   expect(
     readdirSync(path.join(app.proj, '.hergy', 'teams')).sort(),
@@ -336,8 +343,9 @@ test('TEAMS-N1 add, the shared place and delete', async ({ page, app }) => {
   await press(page, `${tRow('migrate')}.querySelector('.sum')`);
   await wait(page, `${tRow('migrate')}.classList.contains('open')`);
   await press(page, `${tRow('migrate')}.querySelector('.dacts [data-act=del]')`);
-  await wait(page, there2(tRow('migrate'), '[data-act=del-yes]'));
-  await press(page, `${tRow('migrate')}.querySelector('[data-act=del-yes]')`);
+  // The delete is asked for in the shared dialog, away from the button (r-d480).
+  await wait(page, `!!document.querySelector('.confirm')`);
+  await press(page, `document.querySelector('.confirm .btn.danger.solid')`);
   await wait(page, `!document.querySelector('.tdef[data-name="migrate"]')`);
   await readTo<string>(
     page,

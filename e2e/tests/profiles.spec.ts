@@ -89,7 +89,7 @@ test('PROFILES-ADB6 a profile is deleted from a file hergy could not rewrite', a
     const panel = `${row(one.name)} .panel[data-file=project]`;
     await page.locator(`${panel} [data-act=del]`).click();
     const answer = page.waitForResponse((r) => r.request().method() === 'DELETE' && r.url().includes(`/api/profile/${one.name}`));
-    await page.locator(`${panel} [data-act=del-yes]`).click();
+    await page.locator('.confirm .btn.danger.solid').click();
     const res = await answer;
     if (res.status() !== 200) {
       throw new Error(`the delete of ${one.name} was refused (${res.status()}): ${await res.text()}`);

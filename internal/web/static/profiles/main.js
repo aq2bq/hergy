@@ -30,9 +30,11 @@ import {
 } from "../chunk/nav-59pgz9xy.js";
 import {
   token2,
-  parseOpen2
-} from "../chunk/nav-9edc45pg.js";
-import"../chunk/nav-bt3hv1je.js";
+  parseOpen2,
+  askConfirm,
+  ConfirmDialog
+} from "../chunk/nav-x6k86cmx.js";
+import"../chunk/nav-ca9prev5.js";
 import {
   conflictOf,
   ConflictNotice,
@@ -1021,13 +1023,6 @@ function reorderArgs(key, order) {
   scheduleCheck(key);
   tellDirty();
 }
-function pressDel(key) {
-  patchPanel(key, { confirming: true });
-  askFocus(key, "del-yes", 0, false);
-}
-function pressDelNo(key) {
-  patchPanel(key, { confirming: false });
-}
 function pressDelYes(key) {
   return deletePanel(key);
 }
@@ -1392,7 +1387,6 @@ function Panel({ panel }) {
   say(panel.refusal);
   (panel.problems || []).filter((p) => p.sev === "err").forEach((p) => say(p.text));
   const nameInput = A(null);
-  const confirmButton = A(null);
   const hints = panel.rename_targets > 0 && panel.saved && panel.draft.name && panel.draft.name !== panel.saved.name;
   h(() => {
     const ask = focusAsk.value;
@@ -1406,8 +1400,6 @@ function Panel({ panel }) {
       if (row instanceof HTMLElement)
         bringUnderBand(row);
     }
-    if (ask.field === "del-yes" && confirmButton.current)
-      confirmButton.current.focus();
   }, [focusAsk.value]);
   const saved = panel.saved;
   const acts = /* @__PURE__ */ u(S, {
@@ -1430,12 +1422,44 @@ function Panel({ panel }) {
       saved ? /* @__PURE__ */ u("button", {
         class: "btn danger",
         "data-act": "del",
-        onClick: () => pressDel(panel.key),
+        onClick: () => askConfirm({
+          title: `プロファイル ${panel.draft.name || panel.saved?.name || ""} を削除しますか`,
+          body: /* @__PURE__ */ u(S, {
+            children: [
+              /* @__PURE__ */ u("p", {
+                children: [
+                  `${panel.path} を消します。`,
+                  panel.users ? `${panel.users} 人が使っています。` : ""
+                ]
+              }),
+              /* @__PURE__ */ u("p", {
+                children: /* @__PURE__ */ u("b", {
+                  children: "取り消せません。"
+                })
+              })
+            ]
+          }),
+          label: `削除する${panel.users ? `（${panel.users} 人が使っている）` : ""}`,
+          run: () => pressDelYes(panel.key)
+        }),
         children: "削除"
       }) : /* @__PURE__ */ u("button", {
-        class: "btn",
+        class: "btn" + (changedOf(panel).count > 0 ? " danger" : ""),
         "data-act": "discard",
-        onClick: () => pressDiscard(panel.key),
+        onClick: () => {
+          if (changedOf(panel).count === 0) {
+            pressDiscard(panel.key);
+            return;
+          }
+          askConfirm({ title: "入力した内容を捨てますか", body: /* @__PURE__ */ u("p", {
+            children: [
+              "保存していない入力があります。",
+              /* @__PURE__ */ u("b", {
+                children: "取り消せません。"
+              })
+            ]
+          }), label: "破棄する", run: () => pressDiscard(panel.key) });
+        },
         children: "取り消し"
       })
     ]
@@ -1467,26 +1491,7 @@ function Panel({ panel }) {
           }) : "",
           /* @__PURE__ */ u("span", {
             class: "acts",
-            children: panel.confirming ? /* @__PURE__ */ u(S, {
-              children: [
-                /* @__PURE__ */ u("button", {
-                  class: "btn danger solid",
-                  "data-act": "del-yes",
-                  ref: confirmButton,
-                  onClick: () => pressDelYes(panel.key),
-                  children: [
-                    "削除する",
-                    panel.users ? `（${panel.users} 人が使っている）` : ""
-                  ]
-                }),
-                /* @__PURE__ */ u("button", {
-                  class: "btn",
-                  "data-act": "del-no",
-                  onClick: () => pressDelNo(panel.key),
-                  children: "やめる"
-                })
-              ]
-            }) : acts
+            children: acts
           })
         ]
       }),
@@ -2331,10 +2336,25 @@ function YamlPage() {
 // profiles/main.tsx
 function App() {
   if (TAB === "assign")
-    return /* @__PURE__ */ u(AssignPage, {});
+    return /* @__PURE__ */ u(S, {
+      children: [
+        /* @__PURE__ */ u(AssignPage, {}),
+        /* @__PURE__ */ u(ConfirmDialog, {})
+      ]
+    });
   if (TAB === "yaml")
-    return /* @__PURE__ */ u(YamlPage, {});
-  return /* @__PURE__ */ u(List, {});
+    return /* @__PURE__ */ u(S, {
+      children: [
+        /* @__PURE__ */ u(YamlPage, {}),
+        /* @__PURE__ */ u(ConfirmDialog, {})
+      ]
+    });
+  return /* @__PURE__ */ u(S, {
+    children: [
+      /* @__PURE__ */ u(List, {}),
+      /* @__PURE__ */ u(ConfirmDialog, {})
+    ]
+  });
 }
 var page = { screen: "profiles", dirty, take, tellDirty, settled: true };
 Object.assign(window, { hergyPage: page });

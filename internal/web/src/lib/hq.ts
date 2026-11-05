@@ -43,7 +43,9 @@ document.querySelectorAll('[data-hq="projects"]').forEach((b) => {
 // same way (spec 3 章).
 document.addEventListener('click', (e) => {
   if (!(e.target instanceof Element)) return;
-  if (sheetOpen() && !e.target.closest('.hq-sheet') && !e.target.closest('[data-hq]')) closeSheet();
+  // The shared confirmation is a dialog of its own: a press in it is not a
+  // press outside the sheet behind it (r-d480).
+  if (sheetOpen() && !e.target.closest('.hq-sheet') && !e.target.closest('[data-hq]') && !e.target.closest('.confirm')) closeSheet();
   if (searchBoxOpen() && !e.target.closest('.hq-sr, .hq-search')) closeBox();
 });
 
@@ -51,7 +53,7 @@ document.addEventListener('click', (e) => {
 // the arrows walk the rows, Enter goes to the chosen one.
 document.addEventListener('keydown', (e) => {
   if (!(e.target instanceof Element)) return;
-  if (e.key === 'Escape' && sheetOpen()) { closeSheet(); return; }
+  if (e.key === 'Escape' && sheetOpen() && !document.querySelector('.confirm')) { closeSheet(); return; }
   if (e.key === 'Escape' && searchBoxOpen()) { resetSearch(); return; }
   if (e.key === '/' && !e.target.closest('input, textarea, select, [contenteditable]')) {
     const q = document.getElementById('hq-q');

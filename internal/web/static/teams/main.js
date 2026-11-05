@@ -62,11 +62,13 @@ import {
   st,
   token2,
   parseOpen2,
-  projectName2
-} from "../chunk/nav-9edc45pg.js";
+  projectName2,
+  askConfirm,
+  ConfirmDialog
+} from "../chunk/nav-x6k86cmx.js";
 import {
   RunCell2
-} from "../chunk/nav-bt3hv1je.js";
+} from "../chunk/nav-ca9prev5.js";
 import {
   conflictOf,
   ConflictNotice,
@@ -2099,12 +2101,6 @@ async function pressCopy(r) {
 function pressDiscard(r) {
   if (r)
     dropDraft(r);
-}
-function pressDel(r) {
-  setConfirm("del" + dkey(r), true);
-}
-function pressDelNo(r) {
-  setConfirm("del" + dkey(r), false);
 }
 async function pressDelYes(r) {
   if (r)
@@ -5389,7 +5385,8 @@ function App() {
           /* @__PURE__ */ u(YamlPage, {})
         ]
       }),
-      /* @__PURE__ */ u(CanvasToast, {})
+      /* @__PURE__ */ u(CanvasToast, {}),
+      /* @__PURE__ */ u(ConfirmDialog, {})
     ]
   });
 }
@@ -5864,17 +5861,48 @@ function DtabsNav({ r }) {
   });
 }
 function Dacts({ r }) {
+  const del = () => askConfirm({
+    title: `${teamLabel(r)} を削除しますか`,
+    body: /* @__PURE__ */ u(S, {
+      children: [
+        /* @__PURE__ */ u("p", {
+          children: `${placeName(r.place.value)} の ${r.name.value}/ から team.yaml と agreement.md を消します。`
+        }),
+        /* @__PURE__ */ u("p", {
+          children: /* @__PURE__ */ u("b", {
+            children: "取り消せません。"
+          })
+        })
+      ]
+    }),
+    label: "削除する（team.yaml と agreement.md）",
+    run: () => pressDelYes(r)
+  });
+  const discard = () => {
+    askConfirm({
+      title: "入力した内容を捨てますか",
+      body: /* @__PURE__ */ u("p", {
+        children: [
+          "保存していない入力があります。",
+          /* @__PURE__ */ u("b", {
+            children: "取り消せません。"
+          })
+        ]
+      }),
+      label: "破棄する",
+      run: () => pressDiscard(r)
+    });
+  };
   if (r.draftRow)
     return /* @__PURE__ */ u("button", {
       class: "btn danger",
       "data-act": "discard",
-      onClick: () => pressDiscard(r),
+      onClick: discard,
       children: "取り消し"
     });
   const o = other2(r.place.value);
   const group = copyGroupOf(o, groupOfRecord(r), GROUPED ? CURRENT : "");
   const copying = allRecs().some((x) => x.name.value === r.name.value && x.place.value === o && (!GROUPED || groupOfRecord(x) === group));
-  const ck = "del" + dkey(r);
   return /* @__PURE__ */ u(S, {
     children: [
       /* @__PURE__ */ u("button", {
@@ -5892,25 +5920,10 @@ function Dacts({ r }) {
           "にコピー"
         ]
       }) : null,
-      state.value.confirm[ck] ? /* @__PURE__ */ u(S, {
-        children: [
-          /* @__PURE__ */ u("button", {
-            class: "btn danger solid",
-            "data-act": "del-yes",
-            onClick: () => pressDelYes(r),
-            children: "削除する（team.yaml と agreement.md）"
-          }),
-          /* @__PURE__ */ u("button", {
-            class: "btn",
-            "data-act": "del-no",
-            onClick: () => pressDelNo(r),
-            children: "やめる"
-          })
-        ]
-      }) : /* @__PURE__ */ u("button", {
+      /* @__PURE__ */ u("button", {
         class: "btn danger",
         "data-act": "del",
-        onClick: () => pressDel(r),
+        onClick: del,
         children: "削除"
       })
     ]

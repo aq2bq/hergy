@@ -63,11 +63,14 @@ test('the tile action opens the stop sheet for that team', async ({ page, app })
   await ready(page);
   const tile = page.locator('.hq-tile[data-team="core"]');
   await tile.locator('[data-hq="stop"]').click();
-  const sheet = page.locator('.hq-sheet');
-  await expect(sheet).toBeVisible();
-  await expect(sheet.locator('.hq-h b')).toHaveText('終了する');
-  await expect(sheet.locator('.hq-h code')).toHaveText('core');
-  await expect(sheet.locator('.hq-acts [data-hq="stopgo"]')).toHaveText('終了する');
+  // The stop is asked for in the shared dialog (r-d480): the panes it closes and
+  // the irreversible words stand there, and the run button is 終了する.
+  const ask = page.locator('.confirm');
+  await expect(ask).toBeVisible();
+  await expect(ask.locator('h2')).toHaveText('チーム core を終了しますか');
+  await expect(ask.locator('.hq-kv')).toContainText('閉じるペイン');
+  await expect(ask).toContainText('会話は残りません。この操作は取り消せません。');
+  await expect(ask.locator('.btn.danger.solid')).toHaveText('終了する');
 });
 
 function globalLaunch(app: { proj: string; cfg: string; state: string }): string {

@@ -12,10 +12,11 @@ import {
   live, eff, cur, curName, whoReads, projectNameOf, pathOfRow, issuesOf, rowIssues, checks,
   rowOfPanel, filtering, ruleShown, filterCount, FILTERS, okOf, refusalOf, touch, scheduleCheck,
   focusAsk, withEntry, clone, pressToggle, pressFilter, pressNew, pressPmode,
-  pressDup, pressCopy, pressDel, pressDelNo, pressDiscard, pressSearch, pressTab, pressGoto, canCopy,
+  pressDup, pressCopy, pressDiscard, pressSearch, pressTab, pressGoto, canCopy,
   doSave, doDelete, syncURL, conflictAt, pressOverwrite, pressRevertConflict, pressUndoConflict,
 } from './state.js';
 import { ConflictNotice } from '../lib/conflict.js';
+import { askConfirm, ConfirmDialog } from '../lib/confirm.js';
 import { bringUnderBand } from '../lib/band.js';
 import { RuleDoc, Counts, Badge, diffCount } from '../lib/ruledoc.js';
 import type { RuleIssue } from '../lib/ruledoc.js';
@@ -36,9 +37,9 @@ export function Tabs() {
 
 export function App() {
   const tab = state.value.tab;
-  if (tab === 'assign') return <AssignPage />;
-  if (tab === 'yaml') return <YamlPage />;
-  return <List />;
+  if (tab === 'assign') return <><AssignPage /><ConfirmDialog /></>;
+  if (tab === 'yaml') return <><YamlPage /><ConfirmDialog /></>;
+  return <><List /><ConfirmDialog /></>;
 }
 
 // List is the roles list: the filters and the search, the column names, and the
@@ -245,9 +246,16 @@ function Panel({ r, l }: { r: RoleRow; l: Place }) {
       <header class="edit-actions"><b>ロール {d.name}</b>        <span class="acts">
           {e.saved ? <button class="btn" data-act="dup" onClick={() => pressDup(r.uid, l)}>複製</button> : ''}
           {canCopy(r, l) ? <button class="btn" data-act="copy" onClick={() => pressCopy(r.uid, l)}>{LNAME[other(l)]}にコピー</button> : ''}
-          {!e.saved ? <button class="btn danger" data-act="discard" onClick={() => pressDiscard(r.uid, l)}>取り消し</button>
-            : state.value.confirm[key] ? <><button class="btn danger solid" data-act="del-yes" onClick={() => doDelete(r.uid, l)}>削除する{nread ? `（${nread} 人が読んでいる）` : ''}</button><button class="btn" data-act="del-no" onClick={() => pressDelNo(r.uid, l)}>やめる</button></>
-            : <button class="btn danger" data-act="del" onClick={() => pressDel(r.uid, l)}>削除</button>}
+          {!e.saved ? <button class="btn danger" data-act="discard" onClick={() => {
+            if (n === 0) { pressDiscard(r.uid, l); return; }
+            askConfirm({ title: '入力した内容を捨てますか', body: <p>保存していない入力があります。<b>取り消せません。</b></p>, label: '破棄する', run: () => pressDiscard(r.uid, l) });
+          }}>取り消し</button>
+            : <button class="btn danger" data-act="del" onClick={() => askConfirm({
+              title: `ロール ${d.name} を削除しますか`,
+              body: <><p>{`${placeLabel} の roles/${d.name}.md を消します。`}{nread ? `${nread} 人が読んでいます。` : ''}</p><p><b>取り消せません。</b></p></>,
+              label: `削除する${nread ? `（${nread} 人が読んでいる）` : ''}`,
+              run: () => doDelete(r.uid, l),
+            })}>削除</button>}
         </span></header>
       <div class="pmain"><RuleDoc row={row} issues={issues} nameError={nameError} heading={{ kind: 'ロール', name: row.draft.name || '新しいロール', title: row.draft.title,
           id: `role-${r.uid}-${l}`, compact: true, path: `${placeLabel} · roles/${d.name}.md`, fullPath: pathOfRow(r, l, d), state: (n ? '未保存' : '保存済み') + (shadowed ? '（隠れている）' : ''), members: whoReads(row.draft.name, r.group).map((u) => `${u.t.id}: ${u.m.name}`).join('、') }}

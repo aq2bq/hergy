@@ -21,9 +21,6 @@ import {
   problemText2
 } from "../chunk/nav-59pgz9xy.js";
 import {
-  setActivity2
-} from "../chunk/nav-b2ph1bfx.js";
-import {
   setRunning2,
   token2,
   parseOpen2,
@@ -31,14 +28,18 @@ import {
   runningTeam2,
   definitionOf2,
   readGroups2,
+  ConfirmDialog,
   stopSheet2,
   teamCount,
   openSheet
-} from "../chunk/nav-9edc45pg.js";
+} from "../chunk/nav-x6k86cmx.js";
+import {
+  setActivity2
+} from "../chunk/nav-b2ph1bfx.js";
 import {
   TeamFigure2,
   exports_hq
-} from "../chunk/nav-bt3hv1je.js";
+} from "../chunk/nav-ca9prev5.js";
 import {
   resource
 } from "../chunk/nav-spnv3sy9.js";
@@ -527,6 +528,14 @@ function Tile({ team: t }) {
   });
 }
 function Board() {
+  return /* @__PURE__ */ u(S, {
+    children: [
+      /* @__PURE__ */ u(BoardRows, {}),
+      /* @__PURE__ */ u(ConfirmDialog, {})
+    ]
+  });
+}
+function BoardRows() {
   const rows = teams.value;
   const n = note.value;
   if (!rows.length)

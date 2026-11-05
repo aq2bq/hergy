@@ -24,6 +24,7 @@ import { RunCell } from '../lib/hq/run.js';
 import { state as hq, projectName as hqProjectName } from '../lib/hq.js';
 import { copyGroupOf } from '../lib/copy.js';
 import { bringUnderBand } from '../lib/band.js';
+import { askConfirm, ConfirmDialog } from '../lib/confirm.js';
 import {
   PLACES, PLACE, DIR, HQ, GROUPED, GROUPS, CURRENT, state, allRecs, rowsOfGroup, placeGroups,
   dkey, currentProjectName, teamLabel, dtabOf, isOpen, missingOpen,
@@ -32,7 +33,7 @@ import {
   recForFile, chosenFile, scheduleAgree, syncURL, focusAsk, groupOfRecord,
   pressTab, pressToggle, pressNew, pressDup, pressCopy, pressDiscard,
   pressStarterRoles, pressStarterProfile, pressCarry,
-  pressDel, pressDelNo, pressDelYes, pressName, pressDtab, pressPmode,
+  pressDelYes, pressName, pressDtab, pressPmode,
   pressToYaml, pressTSave, pressTRevert, pressSave, pressRevert, pressVpick,
   pressToastUndo, pressYfile, yamlState, yamlProblems, yamlRevert, yamlSaved, fileText,
   conflictAt, pressOverwrite, pressRevertConflict, pressUndoConflict,
@@ -72,7 +73,7 @@ export function Tabs() {
 export function App() {
   // The 動き column and the group heads are the headquarters' reading: each
   // reads it, so a re-reading draws it without the screen asking (5 章 2).
-  return <>{state.value.tab === 'list' ? <List /> : <><ProjectView projects={HQ?.projects} /><YamlPage /></>}<CanvasToast /></>;
+  return <>{state.value.tab === 'list' ? <List /> : <><ProjectView projects={HQ?.projects} /><YamlPage /></>}<CanvasToast /><ConfirmDialog /></>;
 }
 
 // ---- 一覧 --------------------------------------------------------------
@@ -279,7 +280,26 @@ function DtabsNav({ r }: { r: Rec }) {
 // other place, and 削除 with its own confirm. A definition that is not there
 // yet is only taken back (spec-teams B3, B4, B5).
 function Dacts({ r }: { r: Rec }) {
-  if (r.draftRow) return <button class="btn danger" data-act="discard" onClick={() => pressDiscard(r)}>取り消し</button>;
+  // Deleting cannot be taken back: it is asked for in the shared dialog, away
+  // from this button, so the same place pressed twice never deletes (r-d480).
+  const del = () => askConfirm({
+    title: `${teamLabel(r)} を削除しますか`,
+    body: <><p>{`${placeName(r.place.value)} の ${r.name.value}/ から team.yaml と agreement.md を消します。`}</p><p><b>取り消せません。</b></p></>,
+    label: '削除する（team.yaml と agreement.md）',
+    run: () => pressDelYes(r),
+  });
+  // A row that is not there yet can hold the starter's words before the person
+  // typed anything, so throwing it away is asked for like any other loss
+  // (r-d480).
+  const discard = () => {
+    askConfirm({
+      title: '入力した内容を捨てますか',
+      body: <p>保存していない入力があります。<b>取り消せません。</b></p>,
+      label: '破棄する',
+      run: () => pressDiscard(r),
+    });
+  };
+  if (r.draftRow) return <button class="btn danger" data-act="discard" onClick={discard}>取り消し</button>;
   const o = other(r.place.value);
   const group = copyGroupOf(o, groupOfRecord(r), GROUPED ? CURRENT : '');
   // A name the side the copy would go to already holds is not offered again:
@@ -287,14 +307,11 @@ function Dacts({ r }: { r: Rec }) {
   // there counts as much as one that is not saved yet (r-f781).
   const copying = allRecs().some((x) => x.name.value === r.name.value && x.place.value === o
     && (!GROUPED || groupOfRecord(x) === group));
-  const ck = 'del' + dkey(r);
   return (
     <>
       <button class="btn" data-act="dup" onClick={() => pressDup(r)}>複製</button>
       {!(r.places || []).includes(o) && !copying ? <button class="btn" data-act="copy" onClick={() => pressCopy(r)}>{PLACE[o]}にコピー</button> : null}
-      {state.value.confirm[ck]
-        ? <><button class="btn danger solid" data-act="del-yes" onClick={() => pressDelYes(r)}>削除する（team.yaml と agreement.md）</button><button class="btn" data-act="del-no" onClick={() => pressDelNo(r)}>やめる</button></>
-        : <button class="btn danger" data-act="del" onClick={() => pressDel(r)}>削除</button>}
+      <button class="btn danger" data-act="del" onClick={del}>削除</button>
     </>
   );
 }

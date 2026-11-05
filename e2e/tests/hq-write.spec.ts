@@ -117,7 +117,7 @@ test('HQ-WRITE-P1 a listed project’s profile is deleted and saved with its own
   await press(page, `${rowIn(ROWS, PROFILES, alpha, 'alpha-fast')}.querySelector('.sum')`);
   await wait(page, drawn(`${rowIn(ROWS, PROFILES, alpha, 'alpha-fast')}.querySelector('.panel[data-file=project] [data-act=del]')`));
   await press(page, `${rowIn(ROWS, PROFILES, alpha, 'alpha-fast')}.querySelector('.panel[data-file=project] [data-act=del]')`);
-  await press(page, `${rowIn(ROWS, PROFILES, alpha, 'alpha-fast')}.querySelector('.panel[data-file=project] [data-act=del-yes]')`);
+  await press(page, `document.querySelector('.confirm .btn.danger.solid')`);
   await wait(page, `!${rowIn(ROWS, PROFILES, alpha, 'alpha-fast')}`);
   const before = { profiles: read(served.profiles), role: read(served.role), team: read(served.team) };
 
@@ -126,7 +126,7 @@ test('HQ-WRITE-P1 a listed project’s profile is deleted and saved with its own
   await press(page, `${rowIn(ROWS, PROFILES, betaDir, 'beta-fast')}.querySelector('.sum')`);
   await wait(page, drawn(`${rowIn(ROWS, PROFILES, betaDir, 'beta-fast')}.querySelector('.panel[data-file=project] [data-act=del]')`));
   await press(page, `${rowIn(ROWS, PROFILES, betaDir, 'beta-fast')}.querySelector('.panel[data-file=project] [data-act=del]')`);
-  await press(page, `${rowIn(ROWS, PROFILES, betaDir, 'beta-fast')}.querySelector('.panel[data-file=project] [data-act=del-yes]')`);
+  await press(page, `document.querySelector('.confirm .btn.danger.solid')`);
   await wait(page, `!${rowIn(ROWS, PROFILES, betaDir, 'beta-fast')}`);
   expect(read(beta.profiles), 'the listed project’s file still holds the deleted profile').not.toContain('beta-fast:');
 
@@ -154,7 +154,7 @@ test('HQ-WRITE-P1 a listed project’s profile is deleted and saved with its own
   // the hash it read, and the answer names the file as it is now.
   writeFileSync(beta.profiles, `${written}  beta-outside:\n    kind: codex\n`);
   await press(page, `${rowIn(ROWS, PROFILES, betaDir, 'beta-new')}.querySelector('.panel[data-file=project] [data-act=del]')`);
-  await press(page, `${rowIn(ROWS, PROFILES, betaDir, 'beta-new')}.querySelector('.panel[data-file=project] [data-act=del-yes]')`);
+  await press(page, `document.querySelector('.confirm .btn.danger.solid')`);
   await readTo<string>(
     page,
     refusalIn(rowIn(ROWS, PROFILES, betaDir, 'beta-new')),
@@ -175,7 +175,7 @@ test('HQ-WRITE-P1 a listed project’s role uses its own hash and leaves the ser
   await panel.getByRole('textbox', { name: '規則の全文' }).fill('# listed の本文。\n');
   await panel.locator('[data-act=save]').click(); await expect(panel.locator('.ok')).toBeVisible();
   expect(read(beta.role)).toBe('# listed の本文。\n');
-  await panel.locator('[data-act=del]').click(); await panel.locator('[data-act=del-yes]').click();
+  await panel.locator('[data-act=del]').click(); await page.locator('.confirm .btn.danger.solid').click();
   await expect(panel).toHaveCount(0); expect(existsSync(beta.role)).toBe(false);
   expect({ profiles: read(served.profiles), role: read(served.role), team: read(served.team) }).toEqual(before);
 });
@@ -208,7 +208,7 @@ test('HQ-WRITE-P1 a listed project’s team definition is saved and deleted with
   await expect(listed.locator('.panel.team-p .ok')).toBeVisible();
   expect(read(shared)).toContain('listed の説明。');
   await listed.locator('nav.dtabs .dacts [data-act=del]').click();
-  await listed.locator('nav.dtabs .dacts [data-act=del-yes]').click();
+  await page.locator('.confirm .btn.danger.solid').click();
   await expect(listed).toHaveCount(0);
   expect(existsSync(shared), 'the listed project’s team.yaml is still there after the delete').toBe(false);
 

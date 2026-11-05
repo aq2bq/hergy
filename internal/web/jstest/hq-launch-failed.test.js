@@ -60,13 +60,21 @@ test('a start that failed says who, why and what is left, and opens the stop she
   expect(error).toContain('残っているもの: タブ draft、ペイン 3 個');
   expect(error).not.toContain('{"error"');
 
-  // The way to put the remains away is the stop sheet for the same team.
+  // The way to put the remains away is the stop sheet for the same team: the
+  // shared dialog asks first (r-d480).
+  const { ConfirmDialog } = await import('../src/lib/confirm.js');
+  const { render, h } = await import('../src/lib/preact.js');
+  const confirmHost = document.createElement('div');
+  document.body.appendChild(confirmHost);
+  render(h(ConfirmDialog, {}), confirmHost);
   const stop = sheet.querySelector('[data-hq=stop]');
   expect(stop.textContent).toBe('チームを終了する…');
   stop.click();
   await settle();
-  const second = document.querySelector('.hq-sheet');
-  expect(second.querySelector('.hq-h b').textContent).toBe('終了する');
-  expect(second.querySelector('.hq-h code').textContent).toBe('draft');
-  expect(second.querySelector('[data-hq=stopgo]')).not.toBe(null);
+  const ask = document.querySelector('.confirm');
+  expect(ask).not.toBe(null);
+  expect(ask.querySelector('h2').textContent).toBe('チーム draft を終了しますか');
+  expect(ask.textContent).toContain('会話は残りません');
+  ask.querySelector('.btn.danger.solid').click();
+  await settle();
 });

@@ -210,3 +210,13 @@ button.chev.disclosure[aria-expanded="true"]::before { transform:rotate(45deg); 
 
 
 .sum .meter { display: none; }
+
+/* 確認のダイアログ（r-d480）: 取り消せない操作は、元のボタンから離れたこの
+   ダイアログで確かめる。「やめる」に最初のフォーカスを置き、Esc でも閉じる。 */
+.confirm { border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); width: min(560px, 90vw); padding: 20px 22px; }
+.confirm::backdrop { background: rgb(0 0 0 / .45); }
+.confirm h2 { margin: 0 0 10px; font: 600 16px var(--f-body); }
+.confirm-body { font-size: 13px; line-height: 1.7; }
+.confirm-body p { margin: 6px 0; }
+.confirm-body dl { margin: 6px 0; }
+.confirm footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }

@@ -18,11 +18,12 @@ import {
 import {
   pressNew, pressFilter, pressQuery, pressToggle, pressSetKind, pressKindOther,
   pressArgAdd, pressArgDel, pressEnvAdd, pressEnvDel, pressSave, pressDup, pressCopy,
-  pressDiscard, pressDel, pressDelNo, pressDelYes, pressRename, inputField,
+  pressDiscard, pressDelYes, pressRename, inputField,
   reorderArgs, scheduleCheck,
 } from './actions.js';
 import type { ChangeSet, Panel as PanelState, Problem, ProfileChip, Row } from './types.js';
 import type { PlaceGroup } from './state.js';
+import { askConfirm } from '../lib/confirm.js';
 
 // inputValue is what a field holds after a person typed in it. A field is an
 // input, a textarea or a select; anything else has no value to read.
@@ -170,7 +171,6 @@ function Panel({ panel }: { panel: PanelState }) {
   say(panel.refusal);
   (panel.problems || []).filter((p) => p.sev === 'err').forEach((p) => say(p.text));
   const nameInput = useRef<HTMLInputElement>(null);
-  const confirmButton = useRef<HTMLButtonElement>(null);
   const hints = panel.rename_targets > 0 && panel.saved && panel.draft.name && panel.draft.name !== panel.saved.name;
 
   // Focus goes where a person just pressed (5 章 5): a new row's name, the
@@ -186,7 +186,6 @@ function Panel({ panel }: { panel: PanelState }) {
       const row = ask.scroll ? nameInput.current.closest('.row') : null;
       if (row instanceof HTMLElement) bringUnderBand(row);
     }
-    if (ask.field === 'del-yes' && confirmButton.current) confirmButton.current.focus();
   }, [focusAsk.value]);
 
   const saved = panel.saved;
@@ -194,7 +193,15 @@ function Panel({ panel }: { panel: PanelState }) {
     <>
       {saved ? <button class="btn" data-act="dup" onClick={() => pressDup(panel.key)}>複製</button> : ''}
       {saved && canCopy(panel) ? <button class="btn" data-act="copy" onClick={() => pressCopy(panel.key)}>{panel.otherLabel}にコピー</button> : ''}
-      {saved ? <button class="btn danger" data-act="del" onClick={() => pressDel(panel.key)}>削除</button> : <button class="btn" data-act="discard" onClick={() => pressDiscard(panel.key)}>取り消し</button>}
+      {saved ? <button class="btn danger" data-act="del" onClick={() => askConfirm({
+        title: `プロファイル ${panel.draft.name || panel.saved?.name || ''} を削除しますか`,
+        body: <><p>{`${panel.path} を消します。`}{panel.users ? `${panel.users} 人が使っています。` : ''}</p><p><b>取り消せません。</b></p></>,
+        label: `削除する${panel.users ? `（${panel.users} 人が使っている）` : ''}`,
+        run: () => pressDelYes(panel.key),
+      })}>削除</button> : <button class={'btn' + (changedOf(panel).count > 0 ? ' danger' : '')} data-act="discard" onClick={() => {
+        if (changedOf(panel).count === 0) { pressDiscard(panel.key); return; }
+        askConfirm({ title: '入力した内容を捨てますか', body: <p>保存していない入力があります。<b>取り消せません。</b></p>, label: '破棄する', run: () => pressDiscard(panel.key) });
+      }}>取り消し</button>}
     </>
   );
   return (
@@ -203,12 +210,7 @@ function Panel({ panel }: { panel: PanelState }) {
         <span class="ln">{groupName(panel.group)}</span>
         <code class="path">{panel.path}</code>
         {panel.both ? <span class={'state ' + (panel.shadowed ? 'off' : 'on')}>{panel.shadowed ? '隠れている' : '効いている'}</span> : ''}
-        <span class="acts">{panel.confirming
-          ? <>
-            <button class="btn danger solid" data-act="del-yes" ref={confirmButton} onClick={() => pressDelYes(panel.key)}>削除する{panel.users ? `（${panel.users} 人が使っている）` : ''}</button>
-            <button class="btn" data-act="del-no" onClick={() => pressDelNo(panel.key)}>やめる</button>
-          </>
-          : acts}</span>
+        <span class="acts">{acts}</span>
       </header>
       <div class="field"><label>プロファイル名</label><div>
         <Field aria-label="プロファイル名" class={'in-name' + (changed.name ? ' changed' : '') + (bad.name ? ' bad' : '')} data-f="name" value={panel.draft.name} spellcheck={false} autocomplete="off" fieldRef={nameInput} onInput={(e: Event) => inputField(panel.key, 'name', 0, inputValue(e))} />

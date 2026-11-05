@@ -51,22 +51,27 @@ test('an empty workspace has no trailing separator or stop-sheet row, and a name
   const namedHeading = document.querySelector('.hq-tile[data-team="named"] .hq-pw');
   expect(namedHeading.textContent).toBe('注文 API · 本体');
 
+  const { ConfirmDialog } = await import('../src/lib/confirm.js');
+  const { render, h } = await import('../src/lib/preact.js');
+  const confirmHost = document.createElement('div');
+  document.body.appendChild(confirmHost);
+  render(h(ConfirmDialog, {}), confirmHost);
   document.querySelector('.hq-tile[data-team="empty"] [data-hq="stop"]').click();
   await settle();
-  let sheet = document.querySelector('.hq-sheet');
-  expect([...sheet.querySelectorAll('.hq-kv dt')].map((row) => row.textContent)).toEqual(['プロジェクト', '閉じるペイン']);
-  expect(sheet.querySelector('.hq-kv').textContent).not.toContain('ワークスペース');
-  expect(sheet.querySelector('.hq-sub').textContent).not.toContain('ワークスペース');
+  let ask = document.querySelector('.confirm');
+  expect([...ask.querySelectorAll('.hq-kv dt')].map((row) => row.textContent)).toEqual(['プロジェクト', '閉じるペイン']);
+  expect(ask.querySelector('.hq-kv').textContent).not.toContain('ワークスペース');
+  expect(ask.querySelector('.hq-sub').textContent).not.toContain('ワークスペース');
 
-  sheet.querySelector('[data-hqx="close"]').click();
+  ask.querySelector('.confirm footer .btn').click();
   await settle();
   document.querySelector('.hq-tile[data-team="named"] [data-hq="stop"]').click();
   await settle();
-  sheet = document.querySelector('.hq-sheet');
-  const workspaceRow = [...sheet.querySelectorAll('.hq-kv dt')].find((row) => row.textContent === 'ワークスペース');
+  ask = document.querySelector('.confirm');
+  const workspaceRow = [...ask.querySelectorAll('.hq-kv dt')].find((row) => row.textContent === 'ワークスペース');
   expect(workspaceRow).not.toBe(undefined);
   expect(workspaceRow.nextElementSibling.textContent).toBe('本体');
-  expect(sheet.querySelector('.hq-sub').textContent).toContain('ワークスペース 本体 は閉じません。');
+  expect(ask.querySelector('.hq-sub').textContent).toContain('ワークスペース 本体 は閉じません。');
 });
 
 test('the headquarters movement field has no dangling separator when the workspace is unnamed', async () => {

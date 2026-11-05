@@ -268,6 +268,71 @@ function startReads() {
   });
 }
 
+// lib/confirm.tsx
+var confirmAsk = y(null);
+var askConfirm = (ask) => {
+  confirmAsk.value = ask;
+};
+var closeConfirm = () => {
+  confirmAsk.value = null;
+};
+function ConfirmDialog() {
+  const ask = confirmAsk.value;
+  const dialog = A(null);
+  const cancel = A(null);
+  h(() => {
+    const node = dialog.current;
+    if (!ask || !node)
+      return;
+    if (!node.open)
+      node.showModal();
+    cancel.current?.focus();
+    return;
+  }, [ask]);
+  if (!ask)
+    return null;
+  return /* @__PURE__ */ u("dialog", {
+    class: "confirm",
+    ref: dialog,
+    "aria-labelledby": "confirm-title",
+    onCancel: (event) => {
+      event.preventDefault();
+      closeConfirm();
+    },
+    children: [
+      /* @__PURE__ */ u("h2", {
+        id: "confirm-title",
+        children: ask.title
+      }),
+      /* @__PURE__ */ u("div", {
+        class: "confirm-body",
+        children: ask.body
+      }),
+      /* @__PURE__ */ u("footer", {
+        children: [
+          /* @__PURE__ */ u("button", {
+            class: "btn",
+            type: "button",
+            ref: cancel,
+            onClick: closeConfirm,
+            children: "やめる"
+          }),
+          /* @__PURE__ */ u("button", {
+            class: "btn danger solid",
+            type: "button",
+            onClick: () => {
+              const run = ask.run;
+              closeConfirm();
+              run();
+            },
+            children: ask.label
+          })
+        ]
+      })
+    ]
+  });
+}
+
 // lib/hq/sheets.tsx
 var sheetHost = null;
 var sheetOpen = () => !!sheetHost;
@@ -1277,15 +1342,29 @@ function runStart(launch) {
 }
 function StopSheet({ team }) {
   const [error, setError] = d("");
-  const [busy, setBusy] = d(false);
   const [result, setResult] = d(null);
+  const running = runningTeam2(team);
+  const stop = async () => {
+    try {
+      const request = { team };
+      const answer = await call2("POST", "/api/hq/stop", request);
+      setResult(answer.json || null);
+    } catch (e) {
+      setError(problemText2(e, "終了できませんでした"));
+      return;
+    }
+    await readCore2();
+  };
+  h(() => {
+    if (running)
+      stop();
+  }, []);
   if (result)
     return /* @__PURE__ */ u(StopResult, {
       result,
       team
     });
-  const t = runningTeam2(team);
-  if (!t) {
+  if (!running) {
     readRunning2();
     return /* @__PURE__ */ u(S, {
       children: [
@@ -1300,111 +1379,30 @@ function StopSheet({ team }) {
       ]
     });
   }
-  const members = (t.members || []).filter((m) => m.live !== false).map((m) => m.name);
-  const workers = (t.workers || []).length;
-  const workspace = t.workspace.label || t.workspace.id || "";
-  const project = t.project_name || projectName2(t.project);
-  const place = [
-    workspace ? `ワークスペース ${workspace} は閉じません。` : "",
-    project ? `${project} で` : ""
-  ].filter(Boolean).join("");
-  const stop = async () => {
-    setBusy(true);
-    try {
-      const request = { team };
-      const answer = await call2("POST", "/api/hq/stop", request);
-      setResult(answer.json || null);
-    } catch (e) {
-      setBusy(false);
-      setError(problemText2(e, "終了できませんでした"));
-      return;
-    }
-    setBusy(false);
-    await readCore2();
-  };
   return /* @__PURE__ */ u(S, {
     children: [
       /* @__PURE__ */ u(Head, {
         title: "終了する",
         label: team
       }),
-      /* @__PURE__ */ u("dl", {
-        class: "hq-kv",
-        children: [
-          /* @__PURE__ */ u("dt", {
-            children: "プロジェクト"
-          }),
-          /* @__PURE__ */ u("dd", {
-            children: /* @__PURE__ */ u("code", {
-              children: project
-            })
-          }),
-          workspace ? /* @__PURE__ */ u(S, {
-            children: [
-              /* @__PURE__ */ u("dt", {
-                children: "ワークスペース"
-              }),
-              /* @__PURE__ */ u("dd", {
-                children: /* @__PURE__ */ u("code", {
-                  children: workspace
-                })
-              })
-            ]
-          }) : "",
-          /* @__PURE__ */ u("dt", {
-            children: "閉じるペイン"
-          }),
-          /* @__PURE__ */ u("dd", {
-            children: [
-              `メンバー ${members.length} 人（`,
-              spaced(members.map((m) => /* @__PURE__ */ u("code", {
-                children: m
-              }))),
-              `）${workers ? `と、${team} が追加したワーカー ${workers} 人のタブ` : ""}`
-            ]
-          })
-        ]
-      }),
       /* @__PURE__ */ u("p", {
         class: "hq-sub",
-        children: [
-          `エージェントを終了してペインを閉じます。${place ? `${place} ` : ""}`,
-          /* @__PURE__ */ u("code", {
-            children: `hergy down ${team}`
-          }),
-          " を打つのと同じです。"
-        ]
+        role: "status",
+        children: "エージェントを終了してペインを閉じています。"
       }),
       /* @__PURE__ */ u(Err, {
         text: error
       }),
-      /* @__PURE__ */ u("p", {
-        class: "hq-err",
-        children: /* @__PURE__ */ u("strong", {
-          children: "会話は残りません。この操作は取り消せません。"
-        })
-      }),
-      /* @__PURE__ */ u("div", {
+      error ? /* @__PURE__ */ u("div", {
         class: "hq-acts",
-        children: [
-          /* @__PURE__ */ u("button", {
-            type: "button",
-            class: "hq-btn danger solid",
-            "data-hq": "stopgo",
-            "data-team": team,
-            disabled: busy,
-            onClick: stop,
-            children: "終了する"
-          }),
-          /* @__PURE__ */ u("button", {
-            type: "button",
-            class: "hq-btn",
-            "data-hqx": "close",
-            onClick: closeSheet2,
-            children: "やめる"
-          })
-        ]
-      })
+        children: /* @__PURE__ */ u("button", {
+          type: "button",
+          class: "hq-btn",
+          "data-hqx": "close",
+          onClick: closeSheet2,
+          children: "閉じる"
+        })
+      }) : null
     ]
   });
 }
@@ -1519,9 +1517,81 @@ function startSheet2(definition, place, project) {
   }));
 }
 function stopSheet2(team) {
-  openSheet2(/* @__PURE__ */ u(StopSheet, {
-    team
-  }));
+  const t = runningTeam2(team);
+  const members = (t?.members || []).filter((m) => m.live !== false).map((m) => m.name);
+  const workers = (t?.workers || []).length;
+  const workspace = t?.workspace.label || t?.workspace.id || "";
+  const project = t && (t.project_name || projectName2(t.project)) || "";
+  const place = [
+    workspace ? `ワークスペース ${workspace} は閉じません。` : "",
+    project ? `${project} で` : ""
+  ].filter(Boolean).join("");
+  askConfirm({
+    title: `チーム ${team} を終了しますか`,
+    body: /* @__PURE__ */ u(S, {
+      children: [
+        t ? /* @__PURE__ */ u("dl", {
+          class: "hq-kv",
+          children: [
+            /* @__PURE__ */ u("dt", {
+              children: "プロジェクト"
+            }),
+            /* @__PURE__ */ u("dd", {
+              children: /* @__PURE__ */ u("code", {
+                children: project
+              })
+            }),
+            workspace ? /* @__PURE__ */ u(S, {
+              children: [
+                /* @__PURE__ */ u("dt", {
+                  children: "ワークスペース"
+                }),
+                /* @__PURE__ */ u("dd", {
+                  children: /* @__PURE__ */ u("code", {
+                    children: workspace
+                  })
+                })
+              ]
+            }) : "",
+            /* @__PURE__ */ u("dt", {
+              children: "閉じるペイン"
+            }),
+            /* @__PURE__ */ u("dd", {
+              children: [
+                `メンバー ${members.length} 人（`,
+                spaced(members.map((m) => /* @__PURE__ */ u("code", {
+                  children: m
+                }))),
+                `）${workers ? `と、${team} が追加したワーカー ${workers} 人のタブ` : ""}`
+              ]
+            })
+          ]
+        }) : null,
+        /* @__PURE__ */ u("p", {
+          class: "hq-sub",
+          children: [
+            `エージェントを終了してペインを閉じます。${place ? `${place} ` : ""}`,
+            /* @__PURE__ */ u("code", {
+              children: `hergy down ${team}`
+            }),
+            " を打つのと同じです。"
+          ]
+        }),
+        /* @__PURE__ */ u("p", {
+          class: "hq-err",
+          children: /* @__PURE__ */ u("strong", {
+            children: "会話は残りません。この操作は取り消せません。"
+          })
+        })
+      ]
+    }),
+    label: "終了する",
+    run: () => {
+      openSheet2(/* @__PURE__ */ u(StopSheet, {
+        team
+      }));
+    }
+  });
 }
 function projectsSheet() {
   openSheet2(/* @__PURE__ */ u(ProjectsSheet, {}), "left");
@@ -1928,4 +1998,4 @@ async function send() {
   }
 }
 
-export { st, setRunning2, token2, parseOpen2, projectName2, runningFor, runningTeam2, lastWorkspaceOf, definitionOf2, readCore2, readGroups2, readAll2, readRunning2, startReads, sheetOpen, closeSheet2, startSheet2, stopSheet2, projectsSheet, searchBoxOpen, closeBox, moveSel, mountSearch, resetSearch, searchHook, POLL, count, opened, answer, note, scope, chosen, teams, canApply, applyLabel, teamCount, toggle, readCount, readTeams, openSheet, close, send };
+export { st, setRunning2, token2, parseOpen2, projectName2, runningFor, runningTeam2, lastWorkspaceOf, definitionOf2, readCore2, readGroups2, readAll2, readRunning2, startReads, askConfirm, ConfirmDialog, sheetOpen, closeSheet2, startSheet2, stopSheet2, projectsSheet, searchBoxOpen, closeBox, moveSel, mountSearch, resetSearch, searchHook, POLL, count, opened, answer, note, scope, chosen, teams, canApply, applyLabel, teamCount, toggle, readCount, readTeams, openSheet, close, send };

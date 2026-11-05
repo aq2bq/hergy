@@ -10,6 +10,7 @@
 import { render as draw, signal, computed, useEffect, useLayoutEffect, useRef, useState } from '../preact.js';
 import type { JSX } from 'preact';
 import { call, problemText } from '../api.js';
+import { askConfirm } from '../confirm.js';
 import type { components, operations } from '../../../../apicontract/api-types';
 import {
   st, token, projectName, readJSONOr, readGroups, readCore, readRunning,
@@ -454,47 +455,37 @@ export function runStart(launch: HQLaunch): void {
 }
 
 // ---- 終了する欄（spec 5 章） ---------------------------------------------
+// StopSheet is the stop once it was asked for in the shared dialog (r-d480): it
+// runs it, and shows what the stop left behind. The asking itself stands in
+// stopSheet below, so the dialog is the same one the other screens use.
 function StopSheet({ team }: { team: string }): JSX.Element {
   const [error, setError] = useState('');
-  const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<HQStopped | null>(null);
-  if (result) return <StopResult result={result} team={team} />;
-  const t: RunningTeam | null = runningTeam(team);
-  if (!t) {
-    readRunning();
-    return <><Head title="終了する" label={team} /><p class="hq-sub">このチームは動いていません。読み直してから、もう一度お試しください。</p></>;
-  }
-  const members = (t.members || []).filter((m) => m.live !== false).map((m) => m.name);
-  const workers = (t.workers || []).length;
-  const workspace = t.workspace.label || t.workspace.id || '';
-  const project = t.project_name || projectName(t.project);
-  const place = [
-    workspace ? `ワークスペース ${workspace} は閉じません。` : '',
-    project ? `${project} で` : '',
-  ].filter(Boolean).join('');
+  const running = runningTeam(team);
   const stop = async (): Promise<void> => {
-    setBusy(true);
     try {
       const request = { team } satisfies HQStopRequest;
       const answer = await call<HQStopped>('POST', '/api/hq/stop', request);
       setResult(answer.json || null);
     } catch (e) {
-      setBusy(false);
       setError(problemText(e, '終了できませんでした'));
       return;
     }
-    setBusy(false);
     // The row goes at once, rather than waiting for the ten-second reading
     // (r-5b96 audit R5).
     await readCore();
   };
+  useEffect(() => { if (running) void stop(); }, []);
+  if (result) return <StopResult result={result} team={team} />;
+  if (!running) {
+    readRunning();
+    return <><Head title="終了する" label={team} /><p class="hq-sub">このチームは動いていません。読み直してから、もう一度お試しください。</p></>;
+  }
   return <>
       <Head title="終了する" label={team} />
-      <dl class="hq-kv"><dt>プロジェクト</dt><dd><code>{project}</code></dd>{workspace ? <><dt>ワークスペース</dt><dd><code>{workspace}</code></dd></> : ''}
-      <dt>閉じるペイン</dt><dd>{`メンバー ${members.length} 人（`}{spaced(members.map((m) => <code>{m}</code>))}{`）${workers ? `と、${team} が追加したワーカー ${workers} 人のタブ` : ''}`}</dd></dl>
-      <p class="hq-sub">{`エージェントを終了してペインを閉じます。${place ? `${place} ` : ''}`}<code>{`hergy down ${team}`}</code>{' を打つのと同じです。'}</p>
+      <p class="hq-sub" role="status">エージェントを終了してペインを閉じています。</p>
       <Err text={error} />
-      <p class="hq-err"><strong>会話は残りません。この操作は取り消せません。</strong></p><div class="hq-acts"><button type="button" class="hq-btn danger solid" data-hq="stopgo" data-team={team} disabled={busy} onClick={stop}>終了する</button><button type="button" class="hq-btn" data-hqx="close" onClick={closeSheet}>やめる</button></div>
+      {error ? <div class="hq-acts"><button type="button" class="hq-btn" data-hqx="close" onClick={closeSheet}>閉じる</button></div> : null}
     </>;
 }
 
@@ -529,8 +520,29 @@ export function startSheet(definition: string, place: string, project: string): 
   openSheet(<StartSheet definition={definition} place={place || 'project'} project={project || ''} />);
 }
 
+// stopSheet asks in the shared dialog, listing the panes it will close, and runs
+// the stop only after the person chose 終了する (r-d480, d-021e).
 export function stopSheet(team: string): void {
-  openSheet(<StopSheet team={team} />);
+  const t: RunningTeam | null = runningTeam(team);
+  const members = (t?.members || []).filter((m) => m.live !== false).map((m) => m.name);
+  const workers = (t?.workers || []).length;
+  const workspace = t?.workspace.label || t?.workspace.id || '';
+  const project = (t && (t.project_name || projectName(t.project))) || '';
+  const place = [
+    workspace ? `ワークスペース ${workspace} は閉じません。` : '',
+    project ? `${project} で` : '',
+  ].filter(Boolean).join('');
+  askConfirm({
+    title: `チーム ${team} を終了しますか`,
+    body: <>
+      {t ? <dl class="hq-kv"><dt>プロジェクト</dt><dd><code>{project}</code></dd>{workspace ? <><dt>ワークスペース</dt><dd><code>{workspace}</code></dd></> : ''}
+        <dt>閉じるペイン</dt><dd>{`メンバー ${members.length} 人（`}{spaced(members.map((m) => <code>{m}</code>))}{`）${workers ? `と、${team} が追加したワーカー ${workers} 人のタブ` : ''}`}</dd></dl> : null}
+      <p class="hq-sub">{`エージェントを終了してペインを閉じます。${place ? `${place} ` : ''}`}<code>{`hergy down ${team}`}</code>{' を打つのと同じです。'}</p>
+      <p class="hq-err"><strong>会話は残りません。この操作は取り消せません。</strong></p>
+    </>,
+    label: '終了する',
+    run: () => { openSheet(<StopSheet team={team} />); },
+  });
 }
 
 export function projectsSheet(): void {
