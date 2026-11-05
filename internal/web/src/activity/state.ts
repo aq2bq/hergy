@@ -9,7 +9,6 @@ import { signal, computed } from '../lib/preact.js';
 import { resource } from '../lib/resource';
 import { read } from '../lib/api.js';
 import * as A from '../lib/hq.js';
-import { applyActivity } from '../lib/band-counts.js';
 import type { components } from '../../../apicontract/api-types';
 
 type ActivityList = components['schemas']['ActivityList'];
@@ -140,12 +139,11 @@ async function readBoard(stop: AbortSignal): Promise<ActivityBoard> {
   const answer = await read<ActivityList>('/api/activity', { signal: stop });
   const items = answer.items || [];
   const note = answer.herdr || { ok: true, text: '' };
-  applyActivity(answer.running || 0, answer.waiting || 0, !!(answer.herdr && answer.herdr.ok) && (answer.running || 0) > 0);
-
-  // The headquarters reading is the same one the list's 動き column uses, so a
-  // team's state cannot read two ways (api.md 3.5).
+  // The band's activity numbers come from the headquarters reading alone (r-ea17,
+  // d-4d88): the same reading the list's 動き column uses, so the band and the
+  // cards cannot count two ways (api.md 3.5).
   const running = await read<HQRunning>('/api/hq/running', { signal: stop }).catch(() => null);
-  if (running && A) A.setRunning(running);
+  if (running && A) { A.setRunning(running); A.bandActivity(); }
 
   // A sheet that could not be read keeps the one the screen already had: the
   // figure of that team stays as it was instead of falling back to the run's

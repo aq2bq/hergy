@@ -134,7 +134,7 @@ function definitionDoc(definition, project) {
   }
   return globalDefinition(definition) || definitionOf2("", definition);
 }
-function bandActivity() {
+function bandActivity2() {
   const teams = st.running.value.teams || [];
   const waiting = teams.reduce((n, t) => n + (t.waiting || []).length, 0);
   applyActivity(teams.length, waiting, !!st.running.value.herdr.ok && teams.length > 0);
@@ -191,7 +191,7 @@ async function readCore2() {
   if (workspaces)
     st.workspaces.value = workspaces.workspaces || [];
   st.loaded.value = true;
-  bandActivity();
+  bandActivity2();
   bandCounts();
   say();
 }
@@ -224,7 +224,7 @@ async function readRunning2() {
     st.running.value = mergeRunning(running);
   if (workspaces)
     st.workspaces.value = workspaces.workspaces || [];
-  bandActivity();
+  bandActivity2();
   say();
 }
 var sameTeam = (t) => t.team + "\x00" + (t.project || "");
@@ -252,7 +252,7 @@ function noteStarting(launch) {
     provisional: true
   });
   st.running.value = { ...st.running.value, teams };
-  bandActivity();
+  bandActivity2();
   say();
   [600, 1500, 3000, 6000].forEach((ms) => setTimeout(readRunning2, ms));
 }
@@ -2025,4 +2025,4 @@ async function send() {
   }
 }
 
-export { applyActivity, st, setRunning2, token2, parseOpen2, projectName2, runningFor, runningTeam2, lastWorkspaceOf, definitionOf2, readCore2, readGroups2, readAll2, readRunning2, startReads, askConfirm, ConfirmDialog, sheetOpen, closeSheet2, startSheet2, stopSheet2, projectsSheet, searchBoxOpen, closeBox, moveSel, mountSearch, resetSearch, searchHook, POLL, count, opened, answer, note, scope, chosen, teams, canApply, applyLabel, teamCount, toggle, readCount, readTeams, openSheet, close, send };
+export { st, setRunning2, token2, parseOpen2, projectName2, runningFor, runningTeam2, lastWorkspaceOf, definitionOf2, bandActivity2, readCore2, readGroups2, readAll2, readRunning2, startReads, askConfirm, ConfirmDialog, sheetOpen, closeSheet2, startSheet2, stopSheet2, projectsSheet, searchBoxOpen, closeBox, moveSel, mountSearch, resetSearch, searchHook, POLL, count, opened, answer, note, scope, chosen, teams, canApply, applyLabel, teamCount, toggle, readCount, readTeams, openSheet, close, send };

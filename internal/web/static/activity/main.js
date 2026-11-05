@@ -21,24 +21,24 @@ import {
   problemText2
 } from "../chunk/nav-fy1k69g7.js";
 import {
-  applyActivity,
   setRunning2,
   token2,
   parseOpen2,
   projectName2,
   runningTeam2,
   definitionOf2,
+  bandActivity2,
   readGroups2,
   ConfirmDialog,
   stopSheet2,
   teamCount,
   openSheet
-} from "../chunk/nav-7h17bh7m.js";
+} from "../chunk/nav-75h44pf3.js";
 import"../chunk/nav-b2ph1bfx.js";
 import {
   TeamFigure2,
   exports_hq
-} from "../chunk/nav-h14gxn76.js";
+} from "../chunk/nav-yw4r063q.js";
 import {
   installWheel,
   resource
@@ -117,10 +117,11 @@ async function readBoard(stop) {
   const answer = await read2("/api/activity", { signal: stop });
   const items = answer.items || [];
   const note = answer.herdr || { ok: true, text: "" };
-  applyActivity(answer.running || 0, answer.waiting || 0, !!(answer.herdr && answer.herdr.ok) && (answer.running || 0) > 0);
   const running = await read2("/api/hq/running", { signal: stop }).catch(() => null);
-  if (running && exports_hq)
+  if (running && exports_hq) {
     setRunning2(running);
+    bandActivity2();
+  }
   const before = reading.value.value;
   const docs = new Map(before ? before.docs : []);
   const wanted = items.map((t) => t.name);

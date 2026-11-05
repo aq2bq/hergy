@@ -10,7 +10,7 @@
 import {
   RunCell2,
   TeamFigure2
-} from "../chunk/nav-h14gxn76.js";
+} from "../chunk/nav-yw4r063q.js";
 import {
   st,
   setRunning2,
@@ -19,6 +19,7 @@ import {
   projectName2,
   runningTeam2,
   definitionOf2,
+  bandActivity2,
   readCore2,
   readGroups2,
   readAll2,
@@ -26,13 +27,14 @@ import {
   closeSheet2,
   startSheet2,
   stopSheet2
-} from "../chunk/nav-7h17bh7m.js";
+} from "../chunk/nav-75h44pf3.js";
 import"../chunk/nav-b2ph1bfx.js";
 import"../chunk/nav-wtffyt4p.js";
 import"../chunk/nav-fy1k69g7.js";
 export {
   RunCell2 as RunCell,
   TeamFigure2 as TeamFigure,
+  bandActivity2 as bandActivity,
   closeSheet2 as closeSheet,
   definitionOf2 as definitionOf,
   parseOpen2 as parseOpen,

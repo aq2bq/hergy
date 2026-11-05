@@ -21,6 +21,7 @@ import {
   runningTeam2,
   lastWorkspaceOf,
   definitionOf2,
+  bandActivity2,
   readCore2,
   readGroups2,
   readAll2,
@@ -39,7 +40,7 @@ import {
   searchHook,
   teamCount,
   openSheet
-} from "./nav-7h17bh7m.js";
+} from "./nav-75h44pf3.js";
 var __defProp = Object.defineProperty;
 var __returnValue = (v) => v;
 function __exportSetter(name, newValue) {
@@ -60,6 +61,7 @@ var exports_hq = {};
 __export(exports_hq, {
   RunCell: () => RunCell2,
   TeamFigure: () => TeamFigure2,
+  bandActivity: () => bandActivity2,
   closeSheet: () => closeSheet2,
   definitionOf: () => definitionOf2,
   parseOpen: () => parseOpen2,
