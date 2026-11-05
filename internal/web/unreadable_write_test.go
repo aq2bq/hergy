@@ -94,3 +94,41 @@ func TestTheDeleteOfAnUnreadableRoleIsRefused(t *testing.T) {
 		t.Errorf("the refusal does not say why: %s", body)
 	}
 }
+
+// TestTheSavesOfAnUnreadableDocumentAreRefused: every save entry of the three
+// kinds refuses a file that is there and cannot be read (r-ea17, d-0bf1).
+func TestTheSavesOfAnUnreadableDocumentAreRefused(t *testing.T) {
+	f := newFixture(t)
+	server := f.server(t)
+	teamPath := f.teamYAML()
+	rolePath := filepath.Join(f.proj, ".hergy", "roles", "builder.md")
+	if err := os.MkdirAll(filepath.Dir(rolePath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(rolePath, []byte("# builder\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(teamPath, 0o000); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(rolePath, 0o000); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(teamPath, 0o644); _ = os.Chmod(rolePath, 0o644) })
+	cases := []struct {
+		name, target string
+		body         map[string]any
+	}{
+		{"team figure", "/api/team/demo", map[string]any{"place": "project", "hash": "x", "doc": map[string]any{"ops": []any{}}}},
+		{"team yaml", "/api/team/demo", map[string]any{"place": "project", "part": "team", "hash": "x", "text": "version: 1\n"}},
+		{"team agreement", "/api/team/demo", map[string]any{"place": "project", "part": "agreement", "hash": "x", "doc": map[string]any{"text": "# a\n"}}},
+		{"role doc", "/api/role/builder", map[string]any{"place": "project", "hash": "x", "original": "builder", "doc": map[string]any{"name": "builder", "title": "t", "text": "# b\n"}}},
+		{"role yaml", "/api/role/builder", map[string]any{"place": "project", "name": "builder", "hash": "x", "text": "# b\n"}},
+	}
+	for _, one := range cases {
+		resp, body := f.api(t, server, http.MethodPut, one.target, one.body)
+		if resp.StatusCode != http.StatusUnprocessableEntity {
+			t.Errorf("%s answers %d, want 422: %s", one.name, resp.StatusCode, body)
+		}
+	}
+}
