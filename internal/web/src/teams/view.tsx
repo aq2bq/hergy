@@ -331,7 +331,7 @@ function TeamPanel({ r }: { r: Rec }) {
   const both = !!r.mark.value;
   const head = (
     <header class="ph"><code class="path">{r.teamPath.value}</code>
-      <span class="phr">{both ? <span class={'state ' + (r.place.value === 'global' ? 'off' : 'on')}>{r.place.value === 'global' ? '隠れている' : '効いている'}</span> : null}</span></header>
+      <span class="phr">{both ? <span class={'state ' + (r.mark.value === 'hidden' ? 'off' : 'on')}>{r.mark.value === 'hidden' ? '隠れている' : '効いている'}</span> : null}</span></header>
   );
   // A team.yaml that does not read draws no figure, and a saved one offers no
   // shape save: the check column alone says what stopped it, and the YAML tab is

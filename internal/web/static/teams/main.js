@@ -1031,8 +1031,10 @@ function defOf(item, project) {
   const sum = item.summary;
   const dom = domOf(item.name || "", group);
   const had = byKey(dom + "." + eff);
-  if (had)
+  if (had) {
+    had.mark.value = item.mark || "";
     return had;
+  }
   let saved = null;
   if (agree.doc) {
     saved = fromJSON2(agree.doc);
@@ -1055,7 +1057,7 @@ function defOf(item, project) {
     agreeHash: agree.hash || "",
     broken: !!doc?.broken,
     problem: place?.problem || "",
-    mark: item.mark || ((item.hidden || []).includes(eff) ? "hidden" : (item.hidden || []).length ? "in_effect" : ""),
+    mark: item.mark || "",
     hidden,
     ops: [],
     saved: cloneTeam(doc),
@@ -5963,8 +5965,8 @@ function TeamPanel({ r }) {
       /* @__PURE__ */ u("span", {
         class: "phr",
         children: both ? /* @__PURE__ */ u("span", {
-          class: "state " + (r.place.value === "global" ? "off" : "on"),
-          children: r.place.value === "global" ? "隠れている" : "効いている"
+          class: "state " + (r.mark.value === "hidden" ? "off" : "on"),
+          children: r.mark.value === "hidden" ? "隠れている" : "効いている"
         }) : null
       })
     ]
