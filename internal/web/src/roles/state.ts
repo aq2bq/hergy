@@ -56,6 +56,8 @@ export type RoleRow = {
   group: string;
   project: RoleEntry | null;
   global: RoleEntry | null;
+  // hidden is the owner's mark for a name both layers hold (r-ea17).
+  hidden?: string[];
   paths?: Partial<Record<Place, string>>;
   markdown?: string;
   name?: string;
@@ -194,6 +196,7 @@ function rowsOf(model: RoleModel, group: string): RoleRow[] {
         if (r[l].path) row.paths[l] = r[l].path;
       } else { row[l] = null; }
     }
+    if (r.hidden && r.hidden.length) row.hidden = r.hidden;
     if (!row.project && !row.global) continue;
     if (r.noDoc) row.noDoc = true;
     if (r.isNew) row.isNew = true;

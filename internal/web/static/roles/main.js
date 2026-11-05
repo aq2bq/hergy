@@ -23,7 +23,7 @@ import {
   problemText2,
   roleModel2,
   teamModel2
-} from "../chunk/nav-nqz7cxqv.js";
+} from "../chunk/nav-kf3902zg.js";
 import {
   takeDraft2,
   setDirty2
@@ -33,8 +33,8 @@ import {
   parseOpen2,
   askConfirm,
   ConfirmDialog
-} from "../chunk/nav-bn4ntjqt.js";
-import"../chunk/nav-xy5a0f4v.js";
+} from "../chunk/nav-9tvgkqmy.js";
+import"../chunk/nav-4vxnzpw3.js";
 import {
   Measure,
   renameCarries2,
@@ -45,16 +45,16 @@ import {
   Badge2,
   Vm2,
   RuleDoc2
-} from "../chunk/nav-mzp18d2b.js";
+} from "../chunk/nav-rdc11v9h.js";
 import {
   conflictOf,
   ConflictNotice,
   YamlTab2
-} from "../chunk/nav-x2g7eqvj.js";
+} from "../chunk/nav-t48ak8pe.js";
 import {
   roleEditor,
   roleProblems
-} from "../chunk/nav-m7pfsvzy.js";
+} from "../chunk/nav-hddy6c18.js";
 import {
   copyGroupOf,
   projectOfGroup,
@@ -140,6 +140,8 @@ function rowsOf(model, group) {
         row[l] = null;
       }
     }
+    if (r.hidden && r.hidden.length)
+      row.hidden = r.hidden;
     if (!row.project && !row.global)
       continue;
     if (r.noDoc)
@@ -1654,7 +1656,7 @@ function placePills(r) {
   const label = r.group === "global" ? LNAME.global : r.group ? projectNameOf(r.group) : currentProjectName();
   const globalGroup = (HQ && HQ.roles || []).find((g) => g.global);
   const over = globalGroup && globalGroup.overridden_by || {};
-  const shadow = r.group && r.group !== "global" && (over[curName(r)] || []).includes(r.group);
+  const shadow = !!r.hidden && r.hidden.length > 0;
   const overriding = r.group === "global" ? over[curName(r)] || [] : [];
   return /* @__PURE__ */ u(S, {
     children: [
@@ -1748,6 +1750,10 @@ function sumInner(r) {
               children: "—"
             })
           }),
+          r.hidden && r.hidden.length ? /* @__PURE__ */ u("span", {
+            class: "state " + (r.group === "global" ? "off" : "on"),
+            children: r.group === "global" ? "隠れている" : "効いている"
+          }) : "",
           /* @__PURE__ */ u("span", {
             class: "ttl",
             children: d.title
@@ -1908,7 +1914,7 @@ function Panel({ r, l }) {
   if (!e)
     return "";
   const d = e.draft, key = r.uid + l;
-  const shadowed = l === "global" && live(r, "project");
+  const shadowed = !!r.hidden && r.hidden.includes(l);
   const row = rowOfPanel(r, l);
   if (!row)
     return "";

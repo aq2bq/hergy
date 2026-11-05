@@ -368,8 +368,6 @@ func p2Chips(defs []p2Def) map[string][]p2UserChip {
 	return out
 }
 
-// p2Names is every profile name the two files hold, the project's order first.
-
 // p2Find is one name's entry in one file, and whether the file holds it.
 func p2Find(file p2File, name string) (profile.Entry, bool) {
 	for _, entry := range file.entries {

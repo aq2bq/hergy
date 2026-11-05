@@ -38,7 +38,7 @@ import {
   saved2,
   bases2,
   problemText2
-} from "../chunk/nav-nqz7cxqv.js";
+} from "../chunk/nav-kf3902zg.js";
 import {
   num,
   documents,
@@ -56,7 +56,7 @@ import {
   Counts2,
   Vm2,
   RuleDoc2
-} from "../chunk/nav-mzp18d2b.js";
+} from "../chunk/nav-rdc11v9h.js";
 import {
   st,
   token2,
@@ -64,19 +64,19 @@ import {
   projectName2,
   askConfirm,
   ConfirmDialog
-} from "../chunk/nav-bn4ntjqt.js";
+} from "../chunk/nav-9tvgkqmy.js";
 import {
   RunCell2
-} from "../chunk/nav-xy5a0f4v.js";
+} from "../chunk/nav-4vxnzpw3.js";
 import {
   conflictOf,
   ConflictNotice,
   YamlTab2
-} from "../chunk/nav-x2g7eqvj.js";
+} from "../chunk/nav-t48ak8pe.js";
 import {
   roleEditor,
   roleProblems
-} from "../chunk/nav-m7pfsvzy.js";
+} from "../chunk/nav-hddy6c18.js";
 import {
   copyGroupOf,
   groupPlace,
@@ -1037,7 +1037,7 @@ function defOf(item, project) {
     saved = fromJSON2(agree.doc);
     saved.__path = agree.path;
   }
-  const hidden = (item.hidden || []).filter((p) => places[p]).map((p) => ({
+  const hidden = (item.hidden || []).map((p) => ({
     place: p,
     path: places[p]?.path,
     hash: places[p]?.hash
@@ -5945,7 +5945,7 @@ function Dacts({ r }) {
 }
 function TeamPanel({ r }) {
   const k = dkey(r);
-  const both = (r.places || []).length > 1;
+  const both = r.hidden.value.length > 0;
   const head = /* @__PURE__ */ u("header", {
     class: "ph",
     children: [
@@ -6649,7 +6649,7 @@ function YamlPage() {
 }
 function YamlFile({ f }) {
   const r = recForFile(f);
-  const both = r ? (r.places || []).length > 1 : false;
+  const both = r ? r.hidden.value.length > 0 : false;
   return /* @__PURE__ */ u("section", {
     class: "yed",
     "data-key": keyOfFile(f),

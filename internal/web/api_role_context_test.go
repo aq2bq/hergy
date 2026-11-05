@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/aq2bq/hergy/internal/catalog"
+	"github.com/aq2bq/hergy/internal/source"
 )
 
 func TestRoleContextResolutionAndReadStates(t *testing.T) {
@@ -45,7 +46,10 @@ func TestRoleContextResolutionAndReadStates(t *testing.T) {
 	if err := os.WriteFile(globalPath, []byte("- global role\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	global := f.catalog().LayerOnly("global")
+	// A catalog whose project layer holds nothing: the global document is the
+	// one that reads, without a layer-only catalog (r-ea17).
+	empty := t.TempDir()
+	global := catalog.New(f.global, empty, empty, source.Disk{}, func(p string) string { return p })
 	hq := fakeHQ{global: global, cats: map[string]*catalog.Catalog{f.proj: f.catalog()}, projects: HQProjects{Mode: "current", Current: HQProject{Path: f.proj, Name: "sample"}}}
 	s.hq = hq
 	s.projects = hq

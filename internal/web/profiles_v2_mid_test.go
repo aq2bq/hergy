@@ -156,8 +156,11 @@ func TestPROFILES_S3_TheListDrawsOneRowPerPlace(t *testing.T) {
 		if len(row.Places) != 1 {
 			t.Errorf("a row carries %d places, want 1: %+v", len(row.Places), row.Places)
 		}
-		if len(row.Hidden) != 0 {
-			t.Errorf("a row hides %v, want none", row.Hidden)
+		// Both rows of a name the two files hold carry the marker: their own
+		// place is hidden when it is the global one, and the project's row is in
+		// effect (r-ea17).
+		if len(row.Hidden) != 1 || row.Hidden[0] != p2Shared {
+			t.Errorf("a row's hidden places = %v, want the global one", row.Hidden)
 		}
 		if _, ok := row.Places[row.Effective]; !ok {
 			t.Errorf("the effective place %q is not the row's place", row.Effective)

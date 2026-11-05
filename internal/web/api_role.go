@@ -62,6 +62,10 @@ func (s *Server) r2ListOf(reading r2Reading, layers []string) apiList {
 		if layer == source.LayerGlobal {
 			place = catalog.PlaceGlobal
 		}
+		marks := map[string]catalog.ListedRow{}
+		for _, one := range s.cat.ShownRows(catalog.KindRole, layer) {
+			marks[one.Name] = one
+		}
 		for _, row := range rows {
 			doc := r2PlaceDoc(row, place)
 			problem := row.ProjectProblem
@@ -83,6 +87,10 @@ func (s *Server) r2ListOf(reading r2Reading, layers []string) apiList {
 			summary := r2SummaryOf(row, apiRoleSummary{Markdown: row.Markdown, NoDoc: row.NoDoc, IsNew: row.IsNew})
 			item := apiItem{
 				Name: r2RowName(row), Places: map[string]apiPlace{}, Effective: place, Summary: summary,
+			}
+			if mark, ok := marks[item.Name]; ok && (mark.InEffect || mark.Hidden) {
+				// The owner says which of two same-named rows is in effect.
+				item.Hidden = []string{catalog.PlaceGlobal}
 			}
 			if problem != "" {
 				badPath := s.cat.RolePath(place, item.Name)

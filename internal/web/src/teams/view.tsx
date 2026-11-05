@@ -326,7 +326,9 @@ function Dacts({ r }: { r: Rec }) {
 // (spec-teams B7). The column's 属性 / YAML tabs pick what stands on the right.
 function TeamPanel({ r }: { r: Rec }) {
   const k = dkey(r);
-  const both = (r.places || []).length > 1;
+  // The owner marks a name both places hold: its rows say 効いている / 隠れている
+  // (r-ea17).
+  const both = r.hidden.value.length > 0;
   const head = (
     <header class="ph"><code class="path">{r.teamPath.value}</code>
       <span class="phr">{both ? <span class={'state ' + (r.place.value === 'global' ? 'off' : 'on')}>{r.place.value === 'global' ? '隠れている' : '効いている'}</span> : null}</span></header>
@@ -626,7 +628,7 @@ export function YamlPage() {
 // draws what stands inside it and reads the file and the hash as props.
 function YamlFile({ f }: { f: YFile }) {
   const r = recForFile(f);
-  const both = r ? (r.places || []).length > 1 : false;
+  const both = r ? r.hidden.value.length > 0 : false;
   return (
     <section class="yed" data-key={keyOfFile(f)} data-hash={f.hash}>
       <YamlTab label={f.label} path={f.path}

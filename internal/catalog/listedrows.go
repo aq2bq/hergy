@@ -31,6 +31,11 @@ type ListedRow struct {
 	Path   string // the document the row stands on, empty for a name without one
 	Legacy bool   // role: only a legacy .yaml stands behind the name
 	NoDoc  bool   // role: no layer holds a document; a member names it
+	// InEffect and Hidden are the place's answer for a name both layers hold:
+	// the project's row is in effect and the global one is hidden. A name only
+	// one layer holds carries neither (r-ea17, the same rule as before).
+	InEffect bool
+	Hidden   bool
 	// Problem is why a row that stands for a whole file (a profiles.yaml that
 	// cannot be read) cannot be read. The row is drawn and counted anyway
 	// (r-ea17, d-17ab).
@@ -47,6 +52,29 @@ const (
 // ListedRows is every row one layer draws, for one kind, without reading a
 // document: the row set is decided by names and the files that hold them.
 func (c *Catalog) ListedRows(kind, layer string) []ListedRow {
+	rows := c.rowsOf(kind, layer)
+	other := source.LayerLocal
+	if layer == source.LayerLocal {
+		other = source.LayerGlobal
+	}
+	both := map[string]bool{}
+	for _, one := range c.rowsOf(kind, other) {
+		if one.Problem == "" {
+			both[one.Name] = true
+		}
+	}
+	for i := range rows {
+		if rows[i].Problem != "" || !both[rows[i].Name] {
+			continue
+		}
+		rows[i].InEffect = layer == source.LayerLocal
+		rows[i].Hidden = layer == source.LayerGlobal
+	}
+	return rows
+}
+
+// rowsOf is the kind's rows in one layer, before the two layers are compared.
+func (c *Catalog) rowsOf(kind, layer string) []ListedRow {
 	switch kind {
 	case KindTeam:
 		return c.teamRows(layer)

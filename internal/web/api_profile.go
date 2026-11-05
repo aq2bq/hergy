@@ -62,6 +62,10 @@ func (s *Server) p2ListLayers(layers []string) apiList {
 		if !slices.Contains(layers, one.layer) {
 			continue
 		}
+		marks := map[string]catalog.ListedRow{}
+		for _, listed := range s.cat.ShownRows(catalog.KindProfile, one.layer) {
+			marks[listed.Name] = listed
+		}
 		for _, listed := range s.cat.ShownRows(catalog.KindProfile, one.layer) {
 			if listed.Problem != "" || listed.Path == "" {
 				why, state := s.unreadable(listed.Path, listed.Problem)
@@ -83,6 +87,9 @@ func (s *Server) p2ListLayers(layers []string) apiList {
 			}
 			item.Places = map[string]apiPlace{one.place: place}
 			item.Hidden = nil
+			if mark, ok := marks[item.Name]; ok && (mark.InEffect || mark.Hidden) {
+				item.Hidden = []string{p2Shared}
+			}
 			item.Effective = one.place
 			item.Problems = place.Problems
 			out.Items = append(out.Items, item)

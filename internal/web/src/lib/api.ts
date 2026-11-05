@@ -294,7 +294,9 @@ function profileRow(item: ListItem<'profile'>, isOpen: boolean): ProfileRow {
   const hidden = item.hidden || [];
   const s = item.summary;
   const names = PLACES.filter((f) => places[f]);
-  const both = names.length > 1;
+  // The owner marks a name both files hold: its rows say 効いている / 隠れている
+  // (r-ea17).
+  const both = hidden.length > 0;
   const panels = names.map((file): ProfilePanel => {
     const place = places[file] || {}, doc = place.doc || {};
     const other: Place = file === 'project' ? 'global' : 'project';
@@ -343,6 +345,8 @@ export type RoleRow = {
   uid: number;
   project: RolePlaceDoc | null;
   global: RolePlaceDoc | null;
+  // hidden is the owner's mark for a name both layers hold (r-ea17).
+  hidden?: string[];
   markdown?: string;
   name?: string;
   noDoc?: boolean;
@@ -375,6 +379,7 @@ function roleRow(item: RoleListRow, i: number): RoleRow {
   });
   if (s.noDoc) row.noDoc = true;
   if (s.isNew) row.isNew = true;
+  if (item.hidden && item.hidden.length) row.hidden = item.hidden;
   return row;
 }
 

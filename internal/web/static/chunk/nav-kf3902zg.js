@@ -140,7 +140,7 @@ function profileRow(item, isOpen) {
   const hidden = item.hidden || [];
   const s = item.summary;
   const names = PLACES.filter((f) => places[f]);
-  const both = names.length > 1;
+  const both = hidden.length > 0;
   const panels = names.map((file) => {
     const place = places[file] || {}, doc = place.doc || {};
     const other = file === "project" ? "global" : "project";
@@ -212,6 +212,8 @@ function roleRow(item, i) {
     row.noDoc = true;
   if (s.isNew)
     row.isNew = true;
+  if (item.hidden && item.hidden.length)
+    row.hidden = item.hidden;
   return row;
 }
 function teamModel2(list) {

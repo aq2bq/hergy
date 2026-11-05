@@ -531,7 +531,7 @@ function defOf(item: DefItem, project?: string): Rec {
     saved = fromJSON(agree.doc);
     saved.__path = agree.path;
   }
-  const hidden = (item.hidden || []).filter((p) => places[p]).map((p) => ({
+  const hidden = (item.hidden || []).map((p) => ({
     place: p, path: places[p]?.path, hash: places[p]?.hash,
   }));
   const r = recOf({

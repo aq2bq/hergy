@@ -42,21 +42,6 @@ func TestCountsAreOneLayersOwn(t *testing.T) {
 	}
 }
 
-// TestLayerOnlyReadsOneLayer: the headquarters shows the global rows once, not
-// once more through every project's catalog (d-73fc).
-func TestLayerOnlyReadsOneLayer(t *testing.T) {
-	global := t.TempDir()
-	local := t.TempDir()
-	writeFile(t, filepath.Join(global, "teams", "docs", "team.yaml"), "version: 1\n")
-	writeFile(t, filepath.Join(local, "teams", "core", "team.yaml"), "version: 1\n")
-	cat := New(global, local, local, source.Disk{}, func(p string) string { return p })
-	only := cat.LayerOnly(source.LayerGlobal)
-	rows := only.Definitions()
-	if len(rows) != 1 || rows[0].Name != "docs" || rows[0].Local {
-		t.Errorf("LayerOnly(global).Definitions = %+v", rows)
-	}
-}
-
 // TestListedRolesCountsTheRowsTheListDraws: the band's number is the list's
 // rows (r-929e): a legacy .yaml row and a name only a member names stand on the
 // project's side, and a name in both layers is one row on each side.

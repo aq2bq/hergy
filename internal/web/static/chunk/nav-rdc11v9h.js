@@ -18,7 +18,7 @@ import {
 } from "./nav-wtffyt4p.js";
 import {
   problemText2
-} from "./nav-nqz7cxqv.js";
+} from "./nav-kf3902zg.js";
 import {
   Field
 } from "./nav-hrc2s6sc.js";
