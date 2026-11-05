@@ -5,10 +5,10 @@
 //
 // Two describes: one on the one-project fixtures (no projects: listed), one on
 // the headquarters (testdata/hq, three projects and the global layer).
-import { test, expect, type Page } from './fixtures';
+import { test, expect } from './fixtures';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
-import { press, read, readTo, set, there, wait } from './helpers';
+import { read, readTo, there, wait } from './helpers';
 
 const ROLES = '#rows .role';
 const PROFILES = '#rows .row';
@@ -32,25 +32,6 @@ const rowsIn = (sel: string, place: string) => `(() => {
   return out;
 })()`;
 const countIn = (sel: string, place: string) => `${rowsIn(sel, place)}.length`;
-const firstIn = (sel: string, place: string) => `(${rowsIn(sel, place)}[0] || null)`;
-const byName = (sel: string, place: string, name: string) => `(${rowsIn(sel, place)}.find((el) => {
-  const n = el.querySelector('.c-name .nm');
-  return !!n && n.textContent.trim() === ${JSON.stringify(name)};
-}) || null)`;
-
-// addUnder presses one place's head button and answers the row it put at the
-// top of that head.
-async function addUnder(page: Page, sel: string, place: string): Promise<string> {
-  await press(page, `${headOf(place, rootOf(sel))}.querySelector('[data-act=new]')`);
-  const row = firstIn(sel, place);
-  await wait(page, `!!${row}`);
-  return row;
-}
-
-// noPlaceSwitch holds that one row carries no way to move it to the other place.
-async function noPlaceSwitch(page: Page, row: string): Promise<void> {
-  await readTo<boolean>(page, `!(${row}).querySelector('[data-act=pick-place], [data-act=pick-layer]')`, 'the new row carries no place switch').toBe(true);
-}
 
 test.describe('the one project', () => {
   test.use({ reads: 'roles' });
@@ -78,6 +59,9 @@ test.describe('the one project', () => {
     await expect(added, 'the head added one row').toHaveCount(1);
     await expect(added.locator('[data-act=pick-place], [data-act=pick-layer]'), 'the new row carries no place switch').toHaveCount(0);
     await expect(added.locator('.c-place .pill'), 'the new row says the project').toHaveText(said);
+    // The screen puts the cursor in the name once the check has answered; typing
+    // before that would land in the name when the cursor moves under it.
+    await expect(added.locator('[data-f=name]'), 'the new row offers its name').toBeFocused();
     await added.locator('[data-f=name]').fill('place-p1');
     const row = page.locator('#rows .role').filter({ has: page.locator('.c-name .nm', { hasText: 'place-p1' }) });
     await row.getByRole('textbox', { name: '規則の全文' }).fill('置き場所の見出しから足したロール。');
@@ -104,12 +88,19 @@ test.describe('the one project', () => {
     await readTo<string>(page, `${headOf('global')}.querySelector('[data-act=new]').textContent`, 'the global button says the place').toContain('グローバル');
     expect(existsSync(file), 'the global layer holds no place-g1 before the add').toBe(false);
 
-    const row = await addUnder(page, ROLES, 'global');
-    await noPlaceSwitch(page, row);
-    await set(page, `${row}.querySelector('[data-f=name]')`, 'place-g1');
-    await page.locator('.role.open .panel').last().getByRole('textbox', { name: '規則の全文' }).fill('グローバルの見出しから足したロール。');
-    await press(page, `${row}.querySelector('.panel [data-act=save]')`);
-    await wait(page, `!!(${byName(ROLES, 'global', 'place-g1')}).querySelector('.ok')`);
+    // The row is found by the 新規 mark it carries until its save (PLACE-R1).
+    const head = page.locator('#rows .hq-gh[data-place="global"]');
+    await head.getByRole('button', { name: 'にロールを追加' }).click();
+    const added = page.locator('#rows .role').filter({ has: page.locator('.tag') });
+    await expect(added, 'the head added one row').toHaveCount(1);
+    await expect(added.locator('[data-act=pick-place], [data-act=pick-layer]'), 'the new row carries no place switch').toHaveCount(0);
+    // The screen puts the cursor in the name once the check has answered.
+    await expect(added.locator('[data-f=name]'), 'the new row offers its name').toBeFocused();
+    await added.locator('[data-f=name]').fill('place-g1');
+    const row = page.locator('#rows .role').filter({ has: page.locator('.c-name .nm', { hasText: 'place-g1' }) });
+    await row.getByRole('textbox', { name: '規則の全文' }).fill('グローバルの見出しから足したロール。');
+    await row.locator('.panel [data-act=save]').click();
+    await expect(row.locator('.ok'), 'the save answered').toBeVisible();
 
     await readTo<number>(page, countIn(ROLES, 'global'), 'the global head holds the added role').toBe(beforeGlobal + 1);
     await readTo<number>(page, countIn(ROLES, 'project'), 'the project head keeps its roles').toBe(beforeProject);
@@ -137,12 +128,19 @@ test.describe('the one project, profiles', () => {
     await readTo<string>(page, `${headOf('project')}.querySelector('[data-act=new]').textContent`, 'the project button says the place').toContain(said);
     expect(before, 'the project holds no place-p1 before the add').not.toContain('place-p1');
 
-    const row = await addUnder(page, PROFILES, 'project');
-    await noPlaceSwitch(page, row);
-    await readTo<string>(page, `${row}.querySelector('.pill.pending').textContent`, 'the new row says the project').toBe(said);
-    await set(page, `${row}.querySelector('.in-name')`, 'place-p1');
-    await press(page, `${row}.querySelector('.panel [data-act=save]')`);
-    await wait(page, `!!(${byName(PROFILES, 'project', 'place-p1')}).querySelector('.ok')`);
+    // The row is found by the 新規 mark it carries until its save (PLACE-R1).
+    const head = page.locator('#rows .hq-gh[data-place="project"]');
+    await head.getByRole('button', { name: 'にプロファイルを追加' }).click();
+    const added = page.locator('#rows .row').filter({ has: page.locator('.tag') });
+    await expect(added, 'the head added one row').toHaveCount(1);
+    await expect(added.locator('[data-act=pick-place], [data-act=pick-layer]'), 'the new row carries no place switch').toHaveCount(0);
+    await expect(added.locator('.pill.pending'), 'the new row says the project').toHaveText(said);
+    // The screen puts the cursor in the name once the check has answered.
+    await expect(added.locator('.in-name'), 'the new row offers its name').toBeFocused();
+    await added.locator('.in-name').fill('place-p1');
+    const row = page.locator('#rows .row').filter({ has: page.locator('.c-name .nm', { hasText: 'place-p1' }) });
+    await row.locator('.panel [data-act=save]').click();
+    await expect(row.locator('.ok'), 'the save answered').toBeVisible();
 
     await readTo<number>(page, countIn(PROFILES, 'project'), 'the project head holds the added profile').toBe(beforeProject + 1);
     await readTo<number>(page, countIn(PROFILES, 'global'), 'the global head keeps its profiles').toBe(beforeGlobal);
@@ -165,11 +163,18 @@ test.describe('the one project, profiles', () => {
     await readTo<string>(page, `${headOf('global')}.querySelector('[data-act=new]').textContent`, 'the global button says the place').toContain('グローバル');
     expect(before, 'the global layer holds no place-g1 before the add').not.toContain('place-g1');
 
-    const row = await addUnder(page, PROFILES, 'global');
-    await noPlaceSwitch(page, row);
-    await set(page, `${row}.querySelector('.in-name')`, 'place-g1');
-    await press(page, `${row}.querySelector('.panel [data-act=save]')`);
-    await wait(page, `!!(${byName(PROFILES, 'global', 'place-g1')}).querySelector('.ok')`);
+    // The row is found by the 新規 mark it carries until its save (PLACE-R1).
+    const head = page.locator('#rows .hq-gh[data-place="global"]');
+    await head.getByRole('button', { name: 'にプロファイルを追加' }).click();
+    const added = page.locator('#rows .row').filter({ has: page.locator('.tag') });
+    await expect(added, 'the head added one row').toHaveCount(1);
+    await expect(added.locator('[data-act=pick-place], [data-act=pick-layer]'), 'the new row carries no place switch').toHaveCount(0);
+    // The screen puts the cursor in the name once the check has answered.
+    await expect(added.locator('.in-name'), 'the new row offers its name').toBeFocused();
+    await added.locator('.in-name').fill('place-g1');
+    const row = page.locator('#rows .row').filter({ has: page.locator('.c-name .nm', { hasText: 'place-g1' }) });
+    await row.locator('.panel [data-act=save]').click();
+    await expect(row.locator('.ok'), 'the save answered').toBeVisible();
 
     await readTo<number>(page, countIn(PROFILES, 'global'), 'the global head holds the added profile').toBe(beforeGlobal + 1);
     await readTo<number>(page, countIn(PROFILES, 'project'), 'the project head keeps its profiles').toBe(beforeProject);
@@ -196,12 +201,20 @@ test.describe('the headquarters', () => {
     const said = await read<string>(page, `${headOf('project')}.querySelector('.hq-gn').textContent`, 'the first project head name');
     await readTo<string>(page, `${headOf('project')}.querySelector('[data-act=new]').textContent`, 'the project button says the place').toContain(said);
 
-    const row = await addUnder(page, ROLES, 'project');
-    await noPlaceSwitch(page, row);
-    await set(page, `${row}.querySelector('[data-f=name]')`, 'place-p3');
-    await page.locator('.role.open .panel').last().getByRole('textbox', { name: '規則の全文' }).fill('本部のプロジェクトの見出しから足したロール。');
-    await press(page, `${row}.querySelector('.panel [data-act=save]')`);
-    await wait(page, `!!(${byName(ROLES, 'project', 'place-p3')}).querySelector('.ok')`);
+    // The row is found by the 新規 mark it carries until its save (PLACE-R1).
+    const head = page.locator('#rows .hq-gh[data-place="project"]').first();
+    await head.getByRole('button', { name: 'にロールを追加' }).click();
+    const added = page.locator('#rows .role').filter({ has: page.locator('.tag') });
+    await expect(added, 'the head added one row').toHaveCount(1);
+    await expect(added.locator('[data-act=pick-place], [data-act=pick-layer]'), 'the new row carries no place switch').toHaveCount(0);
+    // The screen puts the cursor in the name once the check has answered; typing
+    // before that would go into the name when the cursor moves under it.
+    await expect(added.locator('[data-f=name]'), 'the new row offers its name').toBeFocused();
+    await added.locator('[data-f=name]').fill('place-p3');
+    const row = page.locator('#rows .role').filter({ has: page.locator('.c-name .nm', { hasText: 'place-p3' }) });
+    await row.getByRole('textbox', { name: '規則の全文' }).fill('本部のプロジェクトの見出しから足したロール。');
+    await row.locator('.panel [data-act=save]').click();
+    await expect(row.locator('.ok'), 'the save answered').toBeVisible();
 
     await readTo<number>(page, countIn(ROLES, 'project'), 'the project head holds the added role').toBe(beforeProject + 1);
     await readTo<number>(page, countIn(ROLES, 'global'), 'the global head keeps its roles').toBe(beforeGlobal);
@@ -221,12 +234,19 @@ test.describe('the headquarters', () => {
     const beforeGlobal = await read<number>(page, countIn(ROLES, 'global'));
     await readTo<string>(page, `${headOf('global')}.querySelector('[data-act=new]').textContent`, 'the global button says the place').toContain('グローバル');
 
-    const row = await addUnder(page, ROLES, 'global');
-    await noPlaceSwitch(page, row);
-    await set(page, `${row}.querySelector('[data-f=name]')`, 'place-g4');
-    await page.locator('.role.open .panel').last().getByRole('textbox', { name: '規則の全文' }).fill('本部のグローバルの見出しから足したロール。');
-    await press(page, `${row}.querySelector('.panel [data-act=save]')`);
-    await wait(page, `!!(${byName(ROLES, 'global', 'place-g4')}).querySelector('.ok')`);
+    // The row is found by the 新規 mark it carries until its save (PLACE-R1).
+    const head = page.locator('#rows .hq-gh[data-place="global"]');
+    await head.getByRole('button', { name: 'にロールを追加' }).click();
+    const added = page.locator('#rows .role').filter({ has: page.locator('.tag') });
+    await expect(added, 'the head added one row').toHaveCount(1);
+    await expect(added.locator('[data-act=pick-place], [data-act=pick-layer]'), 'the new row carries no place switch').toHaveCount(0);
+    // The screen puts the cursor in the name once the check has answered.
+    await expect(added.locator('[data-f=name]'), 'the new row offers its name').toBeFocused();
+    await added.locator('[data-f=name]').fill('place-g4');
+    const row = page.locator('#rows .role').filter({ has: page.locator('.c-name .nm', { hasText: 'place-g4' }) });
+    await row.getByRole('textbox', { name: '規則の全文' }).fill('本部のグローバルの見出しから足したロール。');
+    await row.locator('.panel [data-act=save]').click();
+    await expect(row.locator('.ok'), 'the save answered').toBeVisible();
 
     await readTo<number>(page, countIn(ROLES, 'global'), 'the global head holds the added role').toBe(beforeGlobal + 1);
     await readTo<number>(page, countIn(ROLES, 'project'), 'the project head keeps its roles').toBe(beforeProject);
@@ -249,11 +269,18 @@ test.describe('the headquarters', () => {
     await readTo<number>(page, headCount(), 'the list draws a head for every listed project and the global layer').toBe(4);
     expect(before, 'the project holds no place-p3 before the add').not.toContain('place-p3');
 
-    const row = await addUnder(page, PROFILES, 'project');
-    await noPlaceSwitch(page, row);
-    await set(page, `${row}.querySelector('.in-name')`, 'place-p3');
-    await press(page, `${row}.querySelector('.panel [data-act=save]')`);
-    await wait(page, `!!(${byName(PROFILES, 'project', 'place-p3')}).querySelector('.ok')`);
+    // The row is found by the 新規 mark it carries until its save (PLACE-R1).
+    const head = page.locator('#rows .hq-gh[data-place="project"]').first();
+    await head.getByRole('button', { name: 'にプロファイルを追加' }).click();
+    const added = page.locator('#rows .row').filter({ has: page.locator('.tag') });
+    await expect(added, 'the head added one row').toHaveCount(1);
+    await expect(added.locator('[data-act=pick-place], [data-act=pick-layer]'), 'the new row carries no place switch').toHaveCount(0);
+    // The screen puts the cursor in the name once the check has answered.
+    await expect(added.locator('.in-name'), 'the new row offers its name').toBeFocused();
+    await added.locator('.in-name').fill('place-p3');
+    const row = page.locator('#rows .row').filter({ has: page.locator('.c-name .nm', { hasText: 'place-p3' }) });
+    await row.locator('.panel [data-act=save]').click();
+    await expect(row.locator('.ok'), 'the save answered').toBeVisible();
 
     await readTo<number>(page, countIn(PROFILES, 'project'), 'the project head holds the added profile').toBe(beforeProject + 1);
     await readTo<number>(page, countIn(PROFILES, 'global'), 'the global head keeps its profiles').toBe(beforeGlobal);
@@ -275,11 +302,18 @@ test.describe('the headquarters', () => {
     await readTo<string>(page, `${headOf('global')}.querySelector('[data-act=new]').textContent`, 'the global button says the place').toContain('グローバル');
     expect(before, 'the global layer holds no place-g4 before the add').not.toContain('place-g4');
 
-    const row = await addUnder(page, PROFILES, 'global');
-    await noPlaceSwitch(page, row);
-    await set(page, `${row}.querySelector('.in-name')`, 'place-g4');
-    await press(page, `${row}.querySelector('.panel [data-act=save]')`);
-    await wait(page, `!!(${byName(PROFILES, 'global', 'place-g4')}).querySelector('.ok')`);
+    // The row is found by the 新規 mark it carries until its save (PLACE-R1).
+    const head = page.locator('#rows .hq-gh[data-place="global"]');
+    await head.getByRole('button', { name: 'にプロファイルを追加' }).click();
+    const added = page.locator('#rows .row').filter({ has: page.locator('.tag') });
+    await expect(added, 'the head added one row').toHaveCount(1);
+    await expect(added.locator('[data-act=pick-place], [data-act=pick-layer]'), 'the new row carries no place switch').toHaveCount(0);
+    // The screen puts the cursor in the name once the check has answered.
+    await expect(added.locator('.in-name'), 'the new row offers its name').toBeFocused();
+    await added.locator('.in-name').fill('place-g4');
+    const row = page.locator('#rows .row').filter({ has: page.locator('.c-name .nm', { hasText: 'place-g4' }) });
+    await row.locator('.panel [data-act=save]').click();
+    await expect(row.locator('.ok'), 'the save answered').toBeVisible();
 
     await readTo<number>(page, countIn(PROFILES, 'global'), 'the global head holds the added profile').toBe(beforeGlobal + 1);
     await readTo<number>(page, countIn(PROFILES, 'project'), 'the project head keeps its profiles').toBe(beforeProject);
@@ -307,12 +341,21 @@ test.describe('the one project, teams', () => {
     await readTo<string>(page, `${headOf('project', rootOf(TEAMS))}.querySelector('[data-act=new]').textContent`, 'the project button says the place').toContain(said);
     expect(existsSync(file), 'the project holds no place-t1 before the add').toBe(false);
 
-    const row = await addUnder(page, TEAMS, 'project');
-    await noPlaceSwitch(page, row);
-    await readTo<string>(page, `${row}.querySelector('.pill.pending').textContent`, 'the new row says the project').toBe(said);
-    await set(page, `${row}.querySelector('.in-name')`, 'place-t1');
-    await press(page, `${row}.querySelector('.detail [data-act=t-save]')`);
-    await wait(page, `!!(${byName(TEAMS, 'project', 'place-t1')}).querySelector('.ok')`);
+    // The row is found by the 新規 mark it carries until its save (PLACE-R1).
+    const head = page.locator('#view .list .hq-gh[data-place="project"]');
+    await head.getByRole('button', { name: 'にチーム定義を追加' }).click();
+    const added = page.locator('#view .list .tdef').filter({ has: page.locator('.tag') });
+    await expect(added, 'the head added one row').toHaveCount(1);
+    await expect(added.locator('[data-act=pick-place], [data-act=pick-layer]'), 'the new row carries no place switch').toHaveCount(0);
+    await expect(added.locator('.pill.pending'), 'the new row says the project').toHaveText(said);
+    // The screen puts the cursor in the name once the check has answered.
+    await expect(added.locator('.in-name'), 'the new row offers its name').toBeFocused();
+    await added.locator('.in-name').fill('place-t1');
+    await added.locator('.detail [data-act=t-save]').click();
+    // A definition being named shows its name in the field, not in .nm, so the
+    // row is found by its name once the save has drawn it.
+    const row = page.locator('#view .list .tdef').filter({ has: page.locator('.c-name .nm', { hasText: 'place-t1' }) });
+    await expect(row.locator('.ok'), 'the save answered').toBeVisible();
 
     await readTo<number>(page, countIn(TEAMS, 'project'), 'the project head holds the added definition').toBe(beforeProject + 1);
     await readTo<number>(page, countIn(TEAMS, 'global'), 'the global head keeps its definitions').toBe(beforeGlobal);
@@ -334,11 +377,18 @@ test.describe('the one project, teams', () => {
     await readTo<string>(page, `${headOf('global', rootOf(TEAMS))}.querySelector('[data-act=new]').textContent`, 'the global button says the place').toContain('グローバル');
     expect(existsSync(file), 'the global layer holds no place-t2 before the add').toBe(false);
 
-    const row = await addUnder(page, TEAMS, 'global');
-    await noPlaceSwitch(page, row);
-    await set(page, `${row}.querySelector('.in-name')`, 'place-t2');
-    await press(page, `${row}.querySelector('.detail [data-act=t-save]')`);
-    await wait(page, `!!(${byName(TEAMS, 'global', 'place-t2')}).querySelector('.ok')`);
+    // The row is found by the 新規 mark it carries until its save (PLACE-R1).
+    const head = page.locator('#view .list .hq-gh[data-place="global"]');
+    await head.getByRole('button', { name: 'にチーム定義を追加' }).click();
+    const added = page.locator('#view .list .tdef').filter({ has: page.locator('.tag') });
+    await expect(added, 'the head added one row').toHaveCount(1);
+    await expect(added.locator('[data-act=pick-place], [data-act=pick-layer]'), 'the new row carries no place switch').toHaveCount(0);
+    // The screen puts the cursor in the name once the check has answered.
+    await expect(added.locator('.in-name'), 'the new row offers its name').toBeFocused();
+    await added.locator('.in-name').fill('place-t2');
+    await added.locator('.detail [data-act=t-save]').click();
+    const row = page.locator('#view .list .tdef').filter({ has: page.locator('.c-name .nm', { hasText: 'place-t2' }) });
+    await expect(row.locator('.ok'), 'the save answered').toBeVisible();
 
     await readTo<number>(page, countIn(TEAMS, 'global'), 'the global head holds the added definition').toBe(beforeGlobal + 1);
     await readTo<number>(page, countIn(TEAMS, 'project'), 'the project head keeps its definitions').toBe(beforeProject);
@@ -365,11 +415,18 @@ test.describe('the headquarters, teams', () => {
     const said = await read<string>(page, `${headOf('project', rootOf(TEAMS))}.querySelector('.hq-gn').textContent`, 'the first project head name');
     await readTo<string>(page, `${headOf('project', rootOf(TEAMS))}.querySelector('[data-act=new]').textContent`, 'the project button says the place').toContain(said);
 
-    const row = await addUnder(page, TEAMS, 'project');
-    await noPlaceSwitch(page, row);
-    await set(page, `${row}.querySelector('.in-name')`, 'place-t3');
-    await press(page, `${row}.querySelector('.detail [data-act=t-save]')`);
-    await wait(page, `!!(${byName(TEAMS, 'project', 'place-t3')}).querySelector('.ok')`);
+    // The row is found by the 新規 mark it carries until its save (PLACE-R1).
+    const head = page.locator('#view .list .hq-gh[data-place="project"]').first();
+    await head.getByRole('button', { name: 'にチーム定義を追加' }).click();
+    const added = page.locator('#view .list .tdef').filter({ has: page.locator('.tag') });
+    await expect(added, 'the head added one row').toHaveCount(1);
+    await expect(added.locator('[data-act=pick-place], [data-act=pick-layer]'), 'the new row carries no place switch').toHaveCount(0);
+    // The screen puts the cursor in the name once the check has answered.
+    await expect(added.locator('.in-name'), 'the new row offers its name').toBeFocused();
+    await added.locator('.in-name').fill('place-t3');
+    await added.locator('.detail [data-act=t-save]').click();
+    const row = page.locator('#view .list .tdef').filter({ has: page.locator('.c-name .nm', { hasText: 'place-t3' }) });
+    await expect(row.locator('.ok'), 'the save answered').toBeVisible();
 
     await readTo<number>(page, countIn(TEAMS, 'project'), 'the project head holds the added definition').toBe(beforeProject + 1);
     await readTo<number>(page, countIn(TEAMS, 'global'), 'the global head keeps its definitions').toBe(beforeGlobal);
@@ -389,11 +446,18 @@ test.describe('the headquarters, teams', () => {
     const beforeGlobal = await read<number>(page, countIn(TEAMS, 'global'));
     await readTo<string>(page, `${headOf('global', rootOf(TEAMS))}.querySelector('[data-act=new]').textContent`, 'the global button says the place').toContain('グローバル');
 
-    const row = await addUnder(page, TEAMS, 'global');
-    await noPlaceSwitch(page, row);
-    await set(page, `${row}.querySelector('.in-name')`, 'place-t4');
-    await press(page, `${row}.querySelector('.detail [data-act=t-save]')`);
-    await wait(page, `!!(${byName(TEAMS, 'global', 'place-t4')}).querySelector('.ok')`);
+    // The row is found by the 新規 mark it carries until its save (PLACE-R1).
+    const head = page.locator('#view .list .hq-gh[data-place="global"]');
+    await head.getByRole('button', { name: 'にチーム定義を追加' }).click();
+    const added = page.locator('#view .list .tdef').filter({ has: page.locator('.tag') });
+    await expect(added, 'the head added one row').toHaveCount(1);
+    await expect(added.locator('[data-act=pick-place], [data-act=pick-layer]'), 'the new row carries no place switch').toHaveCount(0);
+    // The screen puts the cursor in the name once the check has answered.
+    await expect(added.locator('.in-name'), 'the new row offers its name').toBeFocused();
+    await added.locator('.in-name').fill('place-t4');
+    await added.locator('.detail [data-act=t-save]').click();
+    const row = page.locator('#view .list .tdef').filter({ has: page.locator('.c-name .nm', { hasText: 'place-t4' }) });
+    await expect(row.locator('.ok'), 'the save answered').toBeVisible();
 
     await readTo<number>(page, countIn(TEAMS, 'global'), 'the global head holds the added definition').toBe(beforeGlobal + 1);
     await readTo<number>(page, countIn(TEAMS, 'project'), 'the project head keeps its definitions').toBe(beforeProject);
