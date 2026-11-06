@@ -74,8 +74,7 @@ export const selected = signal<string | null>(null);
 
 function openTeam(): { name: string; group: string } {
   if (!A) return { name: '', group: '' };
-  const raw = (new URLSearchParams(location.search).get('open') || '');
-  const one = A.parseOpen(raw)[0];
+  const one = A.readOpen(new URLSearchParams(location.search))[0];
   return one || { name: '', group: '' };
 }
 

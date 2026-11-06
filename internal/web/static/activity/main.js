@@ -43,7 +43,7 @@ import {
 } from "../chunk/nav-47tvawmc.js";
 import {
   token2,
-  parseOpen2,
+  readOpen2,
   writeOpen2,
   placeGroup
 } from "../chunk/nav-1wefkymt.js";
@@ -59,8 +59,7 @@ var selected = y(null);
 function openTeam() {
   if (!exports_hq)
     return { name: "", group: "" };
-  const raw = new URLSearchParams(location.search).get("open") || "";
-  const one = parseOpen2(raw)[0];
+  const one = readOpen2(new URLSearchParams(location.search))[0];
   return one || { name: "", group: "" };
 }
 function turnsOf(def) {

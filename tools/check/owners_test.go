@@ -418,3 +418,56 @@ func TestOwnersSelectionSectionIsHard(t *testing.T) {
 		t.Fatal("an enforced selection section passed with a writer outside its owner")
 	}
 }
+
+// TestAddressFindingsFlagsTheOpenValueWrittenByAScreen: a screen that spells the
+// open value itself is the copy ⑥-2 removed, in either quote and on any receiver.
+func TestAddressFindingsFlagsTheOpenValueWrittenByAScreen(t *testing.T) {
+	root := t.TempDir()
+	writeTree(t, root, "internal/web/src/roles/state.ts",
+		"const q = new URLSearchParams();\n"+
+			"q.set('open', 'builder|global');\n"+
+			"const one = new URLSearchParams(location.search).get(\"open\");\n")
+	r := &runner{root: root}
+	findings, err := r.addressFindings(ownersFile{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(findings) != 2 || !strings.Contains(strings.Join(findings, "\n"), "address.ts") {
+		t.Fatalf("findings = %v, want the set and the get", findings)
+	}
+}
+
+// TestAddressFindingsLetsTheOwnerThrough: the owner spells it, and a screen that
+// asks the owner passes.
+func TestAddressFindingsLetsTheOwnerThrough(t *testing.T) {
+	root := t.TempDir()
+	writeTree(t, root, addressOwner,
+		"export function readOpen(p) { return parseOpen(p.get('open')); }\n"+
+			"export function writeOpen(p, refs) { if (refs.length) p.set('open', ''); }\n")
+	writeTree(t, root, "internal/web/src/roles/state.ts",
+		"import { readOpen, writeOpen } from '../lib/address.js';\nconst one = readOpen(qs);\nwriteOpen(q, one);\n")
+	r := &runner{root: root}
+	findings, err := r.addressFindings(ownersFile{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(findings) != 0 {
+		t.Fatalf("read %d findings, want none:\n%s", len(findings), strings.Join(findings, "\n"))
+	}
+}
+
+// TestOwnersAddressSectionIsHard: the address section reports while its flag is
+// false and fails once address_enforce is true.
+func TestOwnersAddressSectionIsHard(t *testing.T) {
+	root := t.TempDir()
+	writeTree(t, root, "internal/web/src/profiles/state.ts", "const one = q.get('open');\n")
+	writeTree(t, root, ownersPath, "address_enforce: false\nallow: []\n")
+	r := &runner{root: root}
+	if err := r.ownersGate(); err != nil {
+		t.Fatalf("a report run failed: %v", err)
+	}
+	writeTree(t, root, ownersPath, "address_enforce: true\nallow: []\n")
+	if err := r.ownersGate(); err == nil {
+		t.Fatal("an enforced address section passed with a screen spelling the open value")
+	}
+}

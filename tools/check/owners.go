@@ -164,6 +164,15 @@ var selectionWrite = regexp.MustCompile(`\.(sel|side)\.value\s*=(?:[^=]|$)`)
 // screens may call it, the definition stands in the owner.
 var sideOfDefinition = regexp.MustCompile(`\b(function\s+sideOf|const\s+sideOf\s*[=:])`)
 
+// The address section (⑥-2, d-a143): the rows a screen has open are written and
+// read by lib/address.ts alone. A screen asks it for the open rows; it does not
+// spell the address itself.
+const addressOwner = "internal/web/src/lib/address.ts"
+
+// addressKey is the two spellings a screen would write by itself: the open value
+// set and read. Both quote kinds; the receiver's name does not matter.
+var addressKey = regexp.MustCompile(`\.(set|get)\(\s*['"]open['"]`)
+
 // changedOwner is the one module that decides 「変えたか」 (r-1e9a).
 const changedOwner = "internal/web/src/lib/changed.ts"
 
@@ -190,6 +199,7 @@ type ownersFile struct {
 	DangerEnforce    bool         `yaml:"danger_enforce"`
 	PromptEnforce    bool         `yaml:"prompt_enforce"`
 	SelectionEnforce bool         `yaml:"selection_enforce"`
+	AddressEnforce   bool         `yaml:"address_enforce"`
 	Allow            []ownerAllow `yaml:"allow"`
 }
 
@@ -227,14 +237,18 @@ func (r *runner) ownersGate() error {
 	if err != nil {
 		return err
 	}
-	return ownersVerdict(conf, append(findings, changed...), danger, prompt, selection)
+	address, err := r.addressFindings(conf)
+	if err != nil {
+		return err
+	}
+	return ownersVerdict(conf, append(findings, changed...), danger, prompt, selection, address)
 }
 
 // ownersVerdict prints what the sections found and fails the enforced ones.
 // Each section turns Hard on its own: a section still reporting prints its
 // findings and passes, and an enforced one fails (owners.yml).
-func ownersVerdict(conf ownersFile, findings, danger, prompt, selection []string) error {
-	all := append(append(append(append([]string{}, findings...), danger...), prompt...), selection...)
+func ownersVerdict(conf ownersFile, findings, danger, prompt, selection, address []string) error {
+	all := append(append(append(append(append([]string{}, findings...), danger...), prompt...), selection...), address...)
 	if len(all) == 0 {
 		return nil
 	}
@@ -242,7 +256,8 @@ func ownersVerdict(conf ownersFile, findings, danger, prompt, selection []string
 		fmt.Println(finding)
 	}
 	failed := len(findings) > 0 && conf.Enforce || len(danger) > 0 && conf.DangerEnforce ||
-		len(prompt) > 0 && conf.PromptEnforce || len(selection) > 0 && conf.SelectionEnforce
+		len(prompt) > 0 && conf.PromptEnforce || len(selection) > 0 && conf.SelectionEnforce ||
+		len(address) > 0 && conf.AddressEnforce
 	if !failed {
 		which := ""
 		if len(findings) > 0 && !conf.Enforce {
@@ -257,10 +272,13 @@ func ownersVerdict(conf ownersFile, findings, danger, prompt, selection []string
 		if len(selection) > 0 && !conf.SelectionEnforce {
 			which += " selection_enforce"
 		}
+		if len(address) > 0 && !conf.AddressEnforce {
+			which += " address_enforce"
+		}
 		fmt.Printf("owners: %d 件（報告のみ。tools/check/owners.yml の%s を true にする前に、持ち主へ寄せるか許可リストに理由と決定を添えてください）\n", len(all), which)
 		return nil
 	}
-	return fmt.Errorf("持ち主の外で帯の件数を書く・一覧の行を決める・危ない操作の確認や取り消しを書く・渡る文を組み立てる・選んだものと右の列を書く場所が %d 件", len(all))
+	return fmt.Errorf("持ち主の外で帯の件数を書く・一覧の行を決める・危ない操作の確認や取り消しを書く・渡る文を組み立てる・選んだものと右の列を書く・開いている行の住所を書く場所が %d 件", len(all))
 }
 
 func (r *runner) ownersConf() (ownersFile, error) {
@@ -574,6 +592,44 @@ func selectionFileFindings(rel, code string, conf ownersFile) []string {
 		}
 	}
 	return out
+}
+
+// addressFindings is the address section: a screen that spells the open value
+// itself instead of asking lib/address.ts.
+func (r *runner) addressFindings(conf ownersFile) ([]string, error) {
+	files, err := r.sourceFiles()
+	if err != nil {
+		return nil, err
+	}
+	var out []string
+	for _, path := range files {
+		rel, err := filepath.Rel(r.root, path)
+		if err != nil {
+			return nil, err
+		}
+		rel = filepath.ToSlash(rel)
+		if rel == addressOwner {
+			continue
+		}
+		if !strings.HasSuffix(rel, ".ts") && !strings.HasSuffix(rel, ".tsx") {
+			continue
+		}
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			return nil, err
+		}
+		// The open value is a string, which maskSpec blanks: the rule reads the
+		// text, the way the prompt section reads its addresses.
+		for i, line := range strings.Split(string(raw), "\n") {
+			if !addressKey.MatchString(line) || allowedBy(rel, conf.Allow, "open") {
+				continue
+			}
+			out = append(out, fmt.Sprintf("%s:%d: open を自分で書いたり読んだりせず、持ち主（%s）の writeOpen・readOpen を通してください。寄せられない場合は %s の allow に理由と決定を添えてください",
+				rel, i+1, addressOwner, ownersPath))
+		}
+	}
+	sort.Strings(out)
+	return out, nil
 }
 
 // dangerFindings is the danger section's four rules: the old confirmation names

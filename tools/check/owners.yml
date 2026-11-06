@@ -17,6 +17,10 @@ prompt_enforce: true
 # teams/selection.ts alone, the table is selection-table.ts, and the old writer
 # and reads (selectPick, livePick, selOf) stand nowhere (⑥ r-3d54).
 selection_enforce: true
+# The address section: the rows a screen has open are written and read by
+# lib/address.ts alone; a screen that spells .set('open')/.get('open') itself
+# fails (⑥-2, d-a143).
+address_enforce: true
 enforce: true
 #
 # Every entry needs the path, the name, why the owner is not the place for it,
