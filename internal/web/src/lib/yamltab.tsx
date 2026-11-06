@@ -365,11 +365,16 @@ export function YamlTab(props: YamlTabProps) {
   }, []);
 
   // A text the band carried here is the field's, not the file's: it is put in
-  // once, and the part checks it as if it had been typed (spec-nav 1.5).
+  // once when the part opens, and the part checks it as if it had been typed
+  // (spec-nav 1.5). What this part reports comes back as carried (the screen
+  // keeps it as its ytext), and that is not put in again: a re-render that
+  // lands after a key would write the key's text back into the field (r-1e9a).
+  const carriedIn = useRef(false);
   useEffect(() => {
-    if (carried == null) return;
+    if (carriedIn.current) return;
+    carriedIn.current = true;
     const el = ta.current;
-    if (!el || el.value === carried) return;
+    if (carried == null || !el || el.value === carried) return;
     el.value = carried;
     autosize(el);
     layout(now.problems);

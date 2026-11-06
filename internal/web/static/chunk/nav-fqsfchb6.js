@@ -445,11 +445,13 @@ function YamlTab2(props) {
       clearTimeout(timer.current);
     };
   }, []);
+  const carriedIn = A(false);
   h(() => {
-    if (carried == null)
+    if (carriedIn.current)
       return;
+    carriedIn.current = true;
     const el = ta.current;
-    if (!el || el.value === carried)
+    if (carried == null || !el || el.value === carried)
       return;
     el.value = carried;
     autosize2(el);
