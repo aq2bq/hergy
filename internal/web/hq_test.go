@@ -27,12 +27,12 @@ type fakeHQ struct {
 }
 
 func (f fakeHQ) Projects() (HQProjects, error) { return f.projects, nil }
-func (f fakeHQ) AddProject(path string) (HQProjects, error) {
+func (f fakeHQ) AddProject(path string, at int) (HQProjects, error) {
 	next := f.projects
 	next.Projects = append(next.Projects, HQProject{Path: path, Listed: true})
 	return next, nil
 }
-func (f fakeHQ) RemoveProject(string) (HQProjects, error) { return f.projects, nil }
+func (f fakeHQ) RemoveProject(string) (HQProjects, int, error) { return f.projects, 0, nil }
 func (f fakeHQ) Running() HQRunning {
 	if f.running.Teams != nil {
 		return f.running
@@ -246,10 +246,13 @@ type removalHQ struct {
 	path string
 }
 
-func (r *removalHQ) RemoveProject(path string) (HQProjects, error) {
+func (r *removalHQ) RemoveProject(path string) (HQProjects, int, error) {
 	r.path = path
-	return r.Projects()
+	projects, err := r.Projects()
+	return projects, 0, err
 }
+
+func (r *removalHQ) AddProject(string, int) (HQProjects, error) { return r.Projects() }
 
 // TestHQRemoveProjectReadsPath: DELETE /api/hq/projects carries the directory in// ?path=, as api.md writes it, and answers the project list (r-b7e1).
 func TestHQRemoveProjectReadsPath(t *testing.T) {

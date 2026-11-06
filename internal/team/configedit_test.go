@@ -127,7 +127,7 @@ func TestRemoveProjectLeavesAnEmptyList(t *testing.T) {
 	t.Setenv("HOME", home)
 	env := Env{GlobalDir: filepath.Join(t.TempDir(), "hergy")}
 	write(t, env.ConfigPath(), "version: 1\n# before\nprojects:\n  - ~/src/shop\n  - ~/src/ledger\n# after\nlang: ja\n")
-	if err := env.RemoveProject(filepath.Join(home, "src", "shop")); err != nil {
+	if _, err := env.RemoveProject(filepath.Join(home, "src", "shop")); err != nil {
 		t.Fatal(err)
 	}
 	text, err := os.ReadFile(env.ConfigPath())
@@ -137,14 +137,14 @@ func TestRemoveProjectLeavesAnEmptyList(t *testing.T) {
 	if !strings.Contains(string(text), "projects:\n  - ~/src/ledger\n") || !strings.Contains(string(text), "# after") {
 		t.Fatalf("remove changed more than the one item:\n%s", text)
 	}
-	if err := env.RemoveProject(filepath.Join(home, "src", "ledger")); err != nil {
+	if _, err := env.RemoveProject(filepath.Join(home, "src", "ledger")); err != nil {
 		t.Fatal(err)
 	}
 	text, _ = os.ReadFile(env.ConfigPath())
 	if !strings.Contains(string(text), "projects: []\n") {
 		t.Fatalf("the last item did not leave an empty list:\n%s", text)
 	}
-	if err := env.RemoveProject(filepath.Join(home, "src", "ledger")); err == nil {
+	if _, err := env.RemoveProject(filepath.Join(home, "src", "ledger")); err == nil {
 		t.Error("removing a path that is not listed did not stop")
 	}
 }
@@ -196,3 +196,4 @@ func TestAddProjectKeepsAFlowList(t *testing.T) {
 		t.Fatalf("paths = %v, %v\n%s", paths, err, text)
 	}
 }
+

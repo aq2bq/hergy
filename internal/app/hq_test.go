@@ -622,12 +622,12 @@ func TestAScreenPathSaysWhatToWrite(t *testing.T) {
 	}
 	read := newActivityRead(env)
 	initLocales(t)
-	if _, err := read.AddProject("rel/x"); err == nil {
+	if _, err := read.AddProject("rel/x", -1); err == nil {
 		t.Fatal("a relative path was accepted")
 	} else if want := i18n.Tf("web.hq.path_relative", "rel/x"); !strings.Contains(err.Error(), want) {
 		t.Errorf("the refusal = %v, want %q", err, want)
 	}
-	if _, err := read.AddProject("  "); err == nil {
+	if _, err := read.AddProject("  ", -1); err == nil {
 		t.Fatal("an empty path was accepted")
 	} else if want := i18n.T("web.hq.path_empty"); !strings.Contains(err.Error(), want) {
 		t.Errorf("the refusal = %v, want %q", err, want)

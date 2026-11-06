@@ -55,10 +55,10 @@ func newHQRead(act *activityRead) *hqRead {
 // The activityRead answers the headquarters interface itself, so the server that
 // was handed the activity reading finds the headquarters too (web.New).
 func (a *activityRead) Projects() (web.HQProjects, error) { return a.hq.Projects() }
-func (a *activityRead) AddProject(path string) (web.HQProjects, error) {
-	return a.hq.AddProject(path)
+func (a *activityRead) AddProject(path string, at int) (web.HQProjects, error) {
+	return a.hq.AddProject(path, at)
 }
-func (a *activityRead) RemoveProject(path string) (web.HQProjects, error) {
+func (a *activityRead) RemoveProject(path string) (web.HQProjects, int, error) {
 	return a.hq.RemoveProject(path)
 }
 func (a *activityRead) Running() web.HQRunning       { return a.hq.Running() }
@@ -223,11 +223,11 @@ func (h *hqRead) Projects() (web.HQProjects, error) {
 
 // AddProject is POST /api/hq/projects: list one directory. The written entry is
 // ~/… when it is under the home directory (lead's addition 3).
-func (h *hqRead) AddProject(path string) (web.HQProjects, error) {
+func (h *hqRead) AddProject(path string, at int) (web.HQProjects, error) {
 	if err := screenPath(path); err != nil {
 		return web.HQProjects{}, err
 	}
-	if _, err := h.act.env.AddProject(path); err != nil {
+	if _, err := h.act.env.AddProjectAt(path, at); err != nil {
 		return web.HQProjects{}, hqRefuse(http.StatusUnprocessableEntity, err.Error())
 	}
 	return h.Projects()
@@ -235,14 +235,16 @@ func (h *hqRead) AddProject(path string) (web.HQProjects, error) {
 
 // RemoveProject is DELETE /api/hq/projects: unlist one directory, leaving its
 // files as they are.
-func (h *hqRead) RemoveProject(path string) (web.HQProjects, error) {
+func (h *hqRead) RemoveProject(path string) (web.HQProjects, int, error) {
 	if err := screenPath(path); err != nil {
-		return web.HQProjects{}, err
+		return web.HQProjects{}, -1, err
 	}
-	if err := h.act.env.RemoveProject(path); err != nil {
-		return web.HQProjects{}, hqRefuse(http.StatusNotFound, err.Error())
+	at, err := h.act.env.RemoveProject(path)
+	if err != nil {
+		return web.HQProjects{}, -1, hqRefuse(http.StatusNotFound, err.Error())
 	}
-	return h.Projects()
+	projects, err := h.Projects()
+	return projects, at, err
 }
 
 // screenPath is a path a person typed in a screen, held to the same two promises

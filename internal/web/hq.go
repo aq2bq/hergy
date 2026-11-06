@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 
 	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/source"
@@ -23,8 +24,8 @@ import (
 // HQ is how the headquarters reads and acts.
 type HQ interface {
 	Projects() (HQProjects, error)
-	AddProject(path string) (HQProjects, error)
-	RemoveProject(path string) (HQProjects, error)
+	AddProject(path string, at int) (HQProjects, error)
+	RemoveProject(path string) (HQProjects, int, error)
 	Running() HQRunning
 	Workspaces() HQWorkspaces
 	LaunchOptions(project, definition, place string) (HQLaunchOptions, error)
@@ -49,7 +50,9 @@ func (e *HQError) Error() string { return e.Text }
 // HQProjects is GET /api/hq/projects: the current project, the listed ones, the
 // launch record's candidates, and the global layer's counts.
 type HQProjects struct {
-	Config string `json:"config"`
+	// RemovedAt is where a delete took the project out (d-2cce).
+	RemovedAt int    `json:"removed_at,omitempty"`
+	Config    string `json:"config"`
 	// Mode is "listed" (config.yaml names projects:) or "current" (it does not,
 	// and serve shows the project it was started in, as it always did).
 	Mode     string      `json:"mode"`
@@ -627,7 +630,8 @@ func (s *Server) hqAddProject(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	projects, err := s.hq.AddProject(in.Path)
+	at, _ := strconv.Atoi(r.URL.Query().Get("at"))
+	projects, err := s.hq.AddProject(in.Path, at)
 	answerHQ(w, projects, err)
 }
 
@@ -637,7 +641,10 @@ func (s *Server) hqRemoveProject(w http.ResponseWriter, r *http.Request) {
 	if !s.hqOrFail(w) || !s.apiGuard(w, r) {
 		return
 	}
-	projects, err := s.hq.RemoveProject(r.URL.Query().Get("path"))
+	projects, at, err := s.hq.RemoveProject(r.URL.Query().Get("path"))
+	if err == nil {
+		projects.RemovedAt = at
+	}
 	answerHQ(w, projects, err)
 }
 

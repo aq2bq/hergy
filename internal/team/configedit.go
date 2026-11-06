@@ -22,6 +22,13 @@ import (
 // the home directory, the absolute path otherwise (lead's addition 3: the person
 // reads the file by hand). A directory already listed is not written twice.
 func (e Env) AddProject(dir string) (string, error) {
+	return e.AddProjectAt(dir, -1)
+}
+
+// AddProjectAt adds one directory at a position in the projects: list (a
+// position outside it means the end), so a project taken out can go back where
+// it stood (d-2cce).
+func (e Env) AddProjectAt(dir string, at int) (string, error) {
 	path, err := ExpandProjectPath(dir)
 	if err != nil {
 		return "", err
@@ -50,24 +57,44 @@ func (e Env) AddProject(dir string) (string, error) {
 
 // RemoveProject takes one directory out of the global config.yaml's projects:
 // list. A path that is not listed is an error naming the file.
-func (e Env) RemoveProject(dir string) error {
+func (e Env) RemoveProject(dir string) (int, error) {
 	path, err := ExpandProjectPath(dir)
 	if err != nil {
-		return err
+		return -1, err
 	}
 	pathFile := e.ConfigPath()
 	text, err := os.ReadFile(pathFile)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return i18n.Errorf("error.project_not_listed", dir)
+			return -1, i18n.Errorf("error.project_not_listed", dir)
 		}
-		return err
+		return -1, err
 	}
+	at := projectIndex(text, path)
 	out, err := EditProjects(text, e.Display(pathFile), removeProject{path: path})
 	if err != nil {
-		return err
+		return -1, err
 	}
-	return source.WriteBeside(pathFile, string(out))
+	return at, source.WriteBeside(pathFile, string(out))
+}
+
+// projectIndex is where one expanded path stands in the projects: list, or -1.
+func projectIndex(text []byte, path string) int {
+	var doc yaml.Node
+	if yaml.Unmarshal(text, &doc) != nil || len(doc.Content) == 0 {
+		return -1
+	}
+	projects := yamledit.MappingValue(doc.Content[0], "projects")
+	if projects == nil {
+		return -1
+	}
+	for i, item := range projects.Content {
+		expanded, err := ExpandProjectPath(item.Value)
+		if err == nil && expanded == path {
+			return i
+		}
+	}
+	return -1
 }
 
 // ConfigProjectPath is how one project path is written into config.yaml: ~/…
@@ -117,6 +144,7 @@ type projectEdit interface {
 type addProject struct {
 	path    string // the expanded directory
 	written string // how the entry is written (~/… or absolute)
+	at      int    // where the entry goes; outside the list means the end
 }
 
 func (a addProject) apply(src *yamledit.Source, root, projects *yaml.Node) ([]string, error) {
@@ -152,8 +180,18 @@ func (a addProject) apply(src *yamledit.Source, root, projects *yaml.Node) ([]st
 	if err != nil {
 		return nil, err
 	}
-	src.Insert(place.AfterLast, yamledit.Spaces(place.DashCol)+"- "+yamledit.ScalarLiteral(a.written, 0))
-	return append(items, a.written), nil
+	line := place.AfterLast
+	if a.at >= 0 && a.at < len(projects.Content) && projects.Content[a.at].Line > 0 {
+		line = projects.Content[a.at].Line - 1
+	}
+	src.Insert(line, yamledit.Spaces(place.DashCol)+"- "+yamledit.ScalarLiteral(a.written, 0))
+	all := append([]string{}, items...)
+	at := a.at
+	if at < 0 || at > len(all) {
+		at = len(all)
+	}
+	all = append(all[:at], append([]string{a.written}, all[at:]...)...)
+	return all, nil
 }
 
 type removeProject struct{ path string }
