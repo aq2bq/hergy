@@ -65,8 +65,8 @@ function addMember(r: Rec, at: Spot | null): void {
   if (at) putPlace(r, name, at);
   selectPick(r, { type: 'node', id: name }, 'attr');
   canvasAct(r, [{ kind: 'addMember', member: name, role, profile }], {
-    message: `メンバー ${name} を足した。メンバー名・ロール・プロファイルを右で決める`,
-    undo: `メンバー ${name} を足したのを取り消した`, focus: '[data-cv-f="m-name"]',
+    message: `メンバー ${name} を足しました。メンバー名・ロール・プロファイルを右で決める`,
+    undo: `メンバー ${name} を足したのを取り消しました`, focus: '[data-cv-f="m-name"]',
   });
 }
 // copyName is the free name a copy of one member takes: the member's own name with
@@ -105,8 +105,8 @@ function copyMember(r: Rec): void {
   });
   selectPick(r, { type: 'node', id: name }, 'attr');
   canvasAct(r, ops, {
-    message: `メンバー ${m.name} を複製した（${name}）`,
-    undo: `メンバー ${m.name} の複製を取り消した`,
+    message: `メンバー ${m.name} を複製しました（${name}）`,
+    undo: `メンバー ${m.name} の複製を取り消しました`,
     focus: '[data-cv-f="m-name"]',
   });
 }
@@ -116,7 +116,7 @@ function addWorker(r: Rec, from: string, at: Spot | null): void {
   const ops: Op[] = [{ kind: 'addWorker', from, purpose: '', profile }];
   if (at) putPlace(r, 'w' + idx, at);
   selectPick(r, { type: 'worker', i: idx }, 'attr');
-  canvasAct(r, ops, { message: `${from} のワーカーを足した。目的を右で決める`, undo: 'ワーカーを足したのを取り消した', focus: '[data-cv-f="w-purpose"]' });
+  canvasAct(r, ops, { message: `${from} のワーカーを足しました。目的を右で決める`, undo: 'ワーカーを足したのを取り消しました', focus: '[data-cv-f="w-purpose"]' });
 }
 // panelOf is the field the figure stands in: the removal's 取り消す is put there,
 // in the place the person pressed (d-aeeb).
@@ -154,7 +154,7 @@ function del(r: Rec): void {
   if (sel.type === 'node' && sel.id !== 'human') {
     const id = sel.id, nt = t.turns.filter(([a, b]) => a === id || b === id).length, nw = t.workers.filter((w) => w.from === id).length;
     selectPick(r, null);
-    remove(r, 'removeMember', [{ kind: 'removeMember', member: id }], { said: `${id} を外しました（ターン ${nt} 本・ワーカー ${nw} 件も）`, undo: `${id} を外したのを取り消した` });
+    remove(r, 'removeMember', [{ kind: 'removeMember', member: id }], { said: `${id} を外しました（ターン ${nt} 本・ワーカー ${nw} 件も）`, undo: `${id} を外したのを取り消しました` });
   } else if (sel.type === 'edge') {
     const [a, b] = sel.k.split('|'), ops: Op[] = [];
     if (hasTurn(t, a, b)) ops.push({ kind: 'removeTurn', from: a, to: b });
@@ -162,13 +162,13 @@ function del(r: Rec): void {
     selectPick(r, null);
     if (ops.length) {
       const direction = turnDirection(ops);
-      remove(r, 'removeTurn', ops, { said: `${direction} のターンを外しました`, undo: `${direction} のターンを外したのを取り消した` });
+      remove(r, 'removeTurn', ops, { said: `${direction} のターンを外しました`, undo: `${direction} のターンを外したのを取り消しました` });
     }
   } else if (sel.type === 'worker') {
     const w = t.workers[sel.i];
     if (!w) return;
     selectPick(r, null);
-    remove(r, 'removeWorker', [{ kind: 'removeWorker', from: w.from, purpose: w.purpose }], { said: `ワーカー ${w.purpose || '（目的）'} を外しました`, undo: 'ワーカーを外したのを取り消した' });
+    remove(r, 'removeWorker', [{ kind: 'removeWorker', from: w.from, purpose: w.purpose }], { said: `ワーカー ${w.purpose || '（目的）'} を外しました`, undo: 'ワーカーを外したのを取り消しました' });
   }
 }
 
@@ -282,7 +282,7 @@ function onPointerUp(e: PointerEvent): void {
     return;
   }
   const k = pair(d.from, to);
-  canvasAct(r, [{ kind: 'addTurn', from: d.from, to }], { message: `${nodeName(d.from)} → ${nodeName(to)} のターンを足した`, undo: `${nodeName(d.from)} → ${nodeName(to)} のターンを足したのを取り消した` });
+  canvasAct(r, [{ kind: 'addTurn', from: d.from, to }], { message: `${nodeName(d.from)} → ${nodeName(to)} のターンを足しました`, undo: `${nodeName(d.from)} → ${nodeName(to)} のターンを足しましたのを取り消しました` });
   selectPick(r, { type: 'edge', k }, 'attr');
   r.flash.value = k;
   setTimeout(() => {
@@ -336,21 +336,21 @@ export function onClick(r: Rec, e: MouseEvent): void {
     selectPick(r, null);
     if (ops.length) {
       const direction = turnDirection(ops);
-      remove(r, 'removeTurn', ops, { said: `${direction} のターンを外しました`, undo: `${direction} のターンを外したのを取り消した` });
+      remove(r, 'removeTurn', ops, { said: `${direction} のターンを外しました`, undo: `${direction} のターンを外したのを取り消しました` });
     }
     return;
   }
   if (a === 'turn-del') {
-    remove(r, 'removeTurn', [{ kind: 'removeTurn', from: b.dataset.a || '', to: b.dataset.b || '' }], { said: `${nodeName(b.dataset.a || '')} → ${nodeName(b.dataset.b || '')} のターンを外しました`, undo: `${nodeName(b.dataset.a || '')} → ${nodeName(b.dataset.b || '')} のターンを外したのを取り消した` });
+    remove(r, 'removeTurn', [{ kind: 'removeTurn', from: b.dataset.a || '', to: b.dataset.b || '' }], { said: `${nodeName(b.dataset.a || '')} → ${nodeName(b.dataset.b || '')} のターンを外しました`, undo: `${nodeName(b.dataset.a || '')} → ${nodeName(b.dataset.b || '')} のターンを外したのを取り消しました` });
     return;
   }
   if (a === 'turn-add') {
-    canvasAct(r, [{ kind: 'addTurn', from: b.dataset.a || '', to: b.dataset.b || '' }], { message: `${nodeName(b.dataset.a || '')} → ${nodeName(b.dataset.b || '')} のターンを足した`, undo: `${nodeName(b.dataset.a || '')} → ${nodeName(b.dataset.b || '')} のターンを足したのを取り消した` });
+    canvasAct(r, [{ kind: 'addTurn', from: b.dataset.a || '', to: b.dataset.b || '' }], { message: `${nodeName(b.dataset.a || '')} → ${nodeName(b.dataset.b || '')} のターンを足しました`, undo: `${nodeName(b.dataset.a || '')} → ${nodeName(b.dataset.b || '')} のターンを足しましたのを取り消しました` });
     return;
   }
   if (a === 'w-del') {
     const w = t.workers[Number(b.dataset.i)]; if (!w) return;
-    remove(r, 'removeWorker', [{ kind: 'removeWorker', from: w.from, purpose: w.purpose }], { said: `ワーカー ${w.purpose || '（目的）'} を外しました`, undo: 'ワーカーを外したのを取り消した' });
+    remove(r, 'removeWorker', [{ kind: 'removeWorker', from: w.from, purpose: w.purpose }], { said: `ワーカー ${w.purpose || '（目的）'} を外しました`, undo: 'ワーカーを外したのを取り消しました' });
     return;
   }
   if (a === 'pick-w') selectPick(r, { type: 'worker', i: Number(b.dataset.i) }, 'attr');
@@ -362,7 +362,7 @@ export function onInput(r: Rec, e: Event): void {
   const t = r.draft.value, sel = selOf(r), v = el.value;
   if (f === 'turn-add') {
     if (v && sel && sel.type === 'node') {
-      canvasAct(r, [{ kind: 'addTurn', from: sel.id, to: v }], { message: `${nodeName(sel.id)} → ${nodeName(v)} のターンを足した`, undo: `${nodeName(sel.id)} → ${nodeName(v)} のターンを足したのを取り消した` });
+      canvasAct(r, [{ kind: 'addTurn', from: sel.id, to: v }], { message: `${nodeName(sel.id)} → ${nodeName(v)} のターンを足しました`, undo: `${nodeName(sel.id)} → ${nodeName(v)} のターンを足しましたのを取り消しました` });
       el.value = '';
     }
     return;
@@ -393,14 +393,14 @@ export function onInput(r: Rec, e: Event): void {
   }
   if (f === 'm-role' || f === 'm-profile') {
     if (!sel || sel.type !== 'node') return;
-    canvasAct(r, [{ kind: f === 'm-role' ? 'memberRole' : 'memberProfile', member: sel.id, [f === 'm-role' ? 'role' : 'profile']: v }], { message: `メンバー ${sel.id} の${f === 'm-role' ? 'ロール' : 'プロファイル'}を変えた`, undo: `メンバー ${sel.id} の${f === 'm-role' ? 'ロール' : 'プロファイル'}を変えたのを取り消した` });
+    canvasAct(r, [{ kind: f === 'm-role' ? 'memberRole' : 'memberProfile', member: sel.id, [f === 'm-role' ? 'role' : 'profile']: v }], { message: `メンバー ${sel.id} の${f === 'm-role' ? 'ロール' : 'プロファイル'}を変えました`, undo: `メンバー ${sel.id} の${f === 'm-role' ? 'ロール' : 'プロファイル'}を変えたのを取り消しました` });
     return;
   }
   if (f === 'w-purpose' || f === 'w-from' || f === 'w-profile') {
     const w: Worker | null = sel && sel.type === 'worker' ? t.workers[sel.i] : null; if (!w) return;
     if (f === 'w-purpose') { canvasTyping(r, { kind: 'workerPurpose', from: w.from, old: w.purpose, new: v }, 'w-purpose'); return; }
-    if (f === 'w-from') { canvasAct(r, [{ kind: 'moveWorker', from: w.from, purpose: w.purpose, to: v }], { message: `ワーカー ${w.purpose || '（目的）'} を ${v} の下へ移した`, undo: `ワーカー ${w.purpose || '（目的）'} を移したのを取り消した` }); return; }
-    canvasAct(r, [{ kind: 'workerProfile', from: w.from, purpose: w.purpose, profile: v }], { message: `ワーカー ${w.purpose || '（目的）'} のプロファイルを変えた`, undo: 'ワーカーのプロファイルを変えたのを取り消した' });
+    if (f === 'w-from') { canvasAct(r, [{ kind: 'moveWorker', from: w.from, purpose: w.purpose, to: v }], { message: `ワーカー ${w.purpose || '（目的）'} を ${v} の下へ移しました`, undo: `ワーカー ${w.purpose || '（目的）'} を移したのを取り消しました` }); return; }
+    canvasAct(r, [{ kind: 'workerProfile', from: w.from, purpose: w.purpose, profile: v }], { message: `ワーカー ${w.purpose || '（目的）'} のプロファイルを変えました`, undo: 'ワーカーのプロファイルを変えたのを取り消しました' });
   }
 }
 // nameTaken is whether another member already holds a name: the draft cannot

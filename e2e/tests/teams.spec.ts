@@ -514,7 +514,7 @@ test('TEAMS-C2 undo after letting go, a line from the keyboard, and no two point
   await page.locator(`${css} .cv-canvas`).click({ position: { x: 8, y: 8 } });
   await page.keyboard.press('Meta+z');
   await wait(page, `${nodes}===${before}`);
-  await readTo<string>(page, `document.querySelector('.cv-toast').textContent`, 'the undo notice reads').toContain('を取り消した');
+  await readTo<string>(page, `document.querySelector('.cv-toast').textContent`, 'the undo notice reads').toContain('を取り消しました');
 
   // (2) a line picked with the keyboard: Enter opens its 属性, Delete takes both
   // directions away.

@@ -1289,7 +1289,7 @@ export function canvasTyping(r: Rec, op: Op, field: string) {
   r.lastAct.value = ++actSeq;
   clearOk(r);
   if (ctyping.key !== k || ctyping.field !== field) {
-    const label = { description: '説明を戻した', 'm-name': 'メンバー名を戻した', 'w-purpose': '目的を戻した' }[field] || '元に戻した';
+    const label = { description: '説明を戻しました', 'm-name': 'メンバー名を戻しました', 'w-purpose': '目的を戻しました' }[field] || '元に戻しました';
     canvasUndoPoint(r, label);
     ctyping = { key: k, field };
   }
@@ -1312,7 +1312,7 @@ export function canvasUndo(r: Rec): void {
   // The notice offered this operation; it has now been taken back (⌘Z and the
   // notice's 取り消す are the same restore), so it closes (d-aeeb).
   dropUndo();
-  canvasToast(r, point.label || '元に戻した', false);
+  canvasToast(r, point.label || '元に戻しました', false);
 }
 // The row the newest operation stands on: ⌘Z acts on it even when nothing is
 // picked (監査 1-1).
