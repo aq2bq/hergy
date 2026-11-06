@@ -471,3 +471,80 @@ func TestOwnersAddressSectionIsHard(t *testing.T) {
 		t.Fatal("an enforced address section passed with a screen spelling the open value")
 	}
 }
+
+// TestPagePositionFindingsFlagsThePageMovedOutsideItsOwner: the calls that move
+// the page, a panel field written outside an allowed panel, a focus without
+// preventScroll, and the old name all fail (⑦ r-6ff8, d-c5ce).
+func TestPagePositionFindingsFlagsThePageMovedOutsideItsOwner(t *testing.T) {
+	root := t.TempDir()
+	writeTree(t, root, "internal/web/src/roles/view.tsx",
+		"const a = () => window.scrollBy(0, 10);\n"+
+			"const b = () => el.scrollIntoView({ block: 'center' });\n"+
+			"const c = () => { el.scrollTop = 3; };\n"+
+			"const d = () => { el.focus(); };\n"+
+			"const e = () => bringUnderBand(el);\n"+
+			"const ok = () => { if (el.scrollTop === 0) el.focus({ preventScroll: true }); };\n")
+	r := &runner{root: root}
+	findings, err := r.pagePositionFindings(ownersFile{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(findings) != 5 {
+		t.Fatalf("read %d findings, want 5:\n%s", len(findings), strings.Join(findings, "\n"))
+	}
+	joined := strings.Join(findings, "\n")
+	for _, want := range []string{".scrollBy(", ".scrollIntoView(", "scrollTop", "focus()", "bringUnderBand"} {
+		if !strings.Contains(joined, want) {
+			t.Errorf("findings = %v, want %s named", findings, want)
+		}
+	}
+}
+
+// TestPagePositionFindingsLetsTheOwnerAndTheAllowedPanelThrough: the owner moves
+// the page, an allowlisted panel scrolls inside itself, and a comparison is not
+// a write. The old name stands nowhere, the owner included.
+func TestPagePositionFindingsLetsTheOwnerAndTheAllowedPanelThrough(t *testing.T) {
+	root := t.TempDir()
+	writeTree(t, root, "internal/web/src/lib/page-position.ts",
+		"export function movePage(): void { window.scrollBy({ top: 1 }); el.scrollIntoView({ block: 'nearest' }); host.scrollTop += 2; }\n")
+	writeTree(t, root, "internal/web/src/lib/yamltab.tsx",
+		"const jump = () => { el.focus({ preventScroll: true }); el.scrollTop = 4; el.scrollLeft = 0; };\n"+
+			"const same = () => el.scrollTop === 0;\n")
+	conf := ownersFile{Allow: []ownerAllow{
+		{Path: "internal/web/src/lib/yamltab.tsx", Name: "scrollTop", Why: "the panel", Decision: "d-a504"},
+		{Path: "internal/web/src/lib/yamltab.tsx", Name: "scrollLeft", Why: "the panel", Decision: "d-a504"},
+	}}
+	r := &runner{root: root}
+	findings, err := r.pagePositionFindings(conf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(findings) != 0 {
+		t.Fatalf("read %d findings, want none:\n%s", len(findings), strings.Join(findings, "\n"))
+	}
+	writeTree(t, root, "internal/web/src/lib/page-position.ts",
+		"export function bringUnderBand(): void { window.scrollBy({ top: 1 }); }\n")
+	findings, err = r.pagePositionFindings(conf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(findings) != 1 || !strings.Contains(findings[0], "bringUnderBand") {
+		t.Fatalf("findings = %v, want one for the old name", findings)
+	}
+}
+
+// TestOwnersPagePositionSectionIsHard: the section reports while its flag is
+// false and fails once page_position_enforce is true.
+func TestOwnersPagePositionSectionIsHard(t *testing.T) {
+	root := t.TempDir()
+	writeTree(t, root, "internal/web/src/x.ts", "export function f(): void { window.scrollBy(0, 1); }\n")
+	writeTree(t, root, ownersPath, "page_position_enforce: false\nallow: []\n")
+	r := &runner{root: root}
+	if err := r.ownersGate(); err != nil {
+		t.Fatalf("a report run failed: %v", err)
+	}
+	writeTree(t, root, ownersPath, "page_position_enforce: true\nallow: []\n")
+	if err := r.ownersGate(); err == nil {
+		t.Fatal("an enforced page-position section passed with a page moved outside its owner")
+	}
+}
