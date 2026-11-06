@@ -16,6 +16,8 @@ import { saved as apiSaved, list as apiList, check as apiCheck, save as apiSave,
 import type { Answer, ApiAnswer, Request, Schemas } from '../lib/api';
 import { conflictOf } from '../lib/conflict.js';
 import type { Conflict } from '../lib/conflict.js';
+import { select, startSelection } from './selection.js';
+import type { Side } from './selection-table.js';
 
 // CheckAnswer is what POST /api/team/check answers with, read from the operation
 // (the saved definition's answer, or the one for a definition not there yet).
@@ -317,7 +319,7 @@ export type Rec = {
   starterRoles: Sig<boolean>; starterProfile: Sig<boolean>;
   carry: Sig<Carry | null>;
   preview: Sig<TeamPreview>; baseFindings: Sig<Finding[]>;
-  sel: Sig<CanvasPick | null>; side: Sig<string>; menu: Sig<CanvasMenu | null>; typed: Sig<CanvasTyped | null>; flash: Sig<string | null>;
+  sel: Sig<CanvasPick | null>; side: Sig<Side>; menu: Sig<CanvasMenu | null>; typed: Sig<CanvasTyped | null>; flash: Sig<string | null>;
   lastAct: Sig<number>;
   renameNotes: Sig<string[]>;
   placed: Sig<Positions>; layout: Sig<Positions>;
@@ -441,7 +443,7 @@ type RecInit = {
   hasRoles: boolean; hasProfiles: boolean; starterRoles: boolean; starterProfile: boolean;
   carry: Carry | null;
   preview: TeamPreview; baseFindings: Finding[];
-  sel: CanvasPick | null; side: string; menu: CanvasMenu | null; typed: CanvasTyped | null; flash: string | null;
+  sel: CanvasPick | null; side: Side; menu: CanvasMenu | null; typed: CanvasTyped | null; flash: string | null;
   lastAct: number;
 };
 // recOf puts one record together: every field is written where it stands, so a
@@ -564,7 +566,7 @@ function defOf(item: DefItem, project?: string): Rec {
     // The canvas's own picks for this row (webui-components 3 章): what is
     // picked, which column stands on the right, the blank space's menu, the
     // member name being typed, and the line that just lit up.
-    sel: null, side: 'attr', menu: null, typed: null, flash: null,
+    ...startSelection(), menu: null, typed: null, flash: null,
     lastAct: 0,
   });
   r.uid = ++uids;
@@ -644,7 +646,7 @@ function draftRecord(how: string, place: Place, name: string, base: TeamBase | n
     drawMark: 0, seeded: false, writes: [], nameIssues: [],
     hasRoles: false, hasProfiles: false, starterRoles: false, starterProfile: false, carry: null,
     preview: { lines: [], diff: { added: [], removedBefore: [], removedAtEnd: false } }, baseFindings: [],
-    sel: null, side: 'attr', menu: null, typed: null, flash: null,
+    ...startSelection(), menu: null, typed: null, flash: null,
     lastAct: 0,
   });
   seedPlaces(r);
@@ -1324,10 +1326,8 @@ export function undoRow() {
 // delete: the figure lays out afresh, d-a575).
 export function resetCanvas(r: Rec): void {
   if (!r) return;
-  r.sel.value = null;
-  r.side.value = 'attr';
+  select(r, { how: 'reset' });
   r.menu.value = null;
-  r.typed.value = null;
   r.flash.value = null;
   r.placed.value = {};
   r.moved.clear();
@@ -1790,8 +1790,8 @@ export function pressToastUndo() { canvasUndoFromToast(); }
 // the figure.
 export function pressVpick(r: Rec, m: Finding & { nameField?: boolean }) {
   if (m.nameField) { focusAsk.value = { dom: r.dom, sel: '.in-name' }; return; }
-  if (m.node) selectPick(r, { type: 'node', id: m.node }, 'attr');
-  else if (m.worker != null) selectPick(r, { type: 'worker', i: m.worker }, 'attr');
+  if (m.node) select(r, { how: 'field', what: { type: 'node', id: m.node } });
+  else if (m.worker != null) select(r, { how: 'field', what: { type: 'worker', i: m.worker } });
 }
 // pressLine is a press on one line of the topology tab's YAML preview: it picks
 // what the line stands for, the way a press on the canvas's own point does
@@ -1799,21 +1799,14 @@ export function pressVpick(r: Rec, m: Finding & { nameField?: boolean }) {
 export type LinePress = { f?: string; node?: string; worker?: number; a?: string; b?: string };
 export function pressLine(r: Rec, p: LinePress) {
   if (p.f === 'description') {
-    selectPick(r, null, 'attr');
+    select(r, { how: 'field', what: null });
     focusAsk.value = { dom: r.dom, sel: '[data-cv-f="description"]' };
     return;
   }
-  if (p.node) selectPick(r, { type: 'node', id: p.node }, 'attr');
-  else if (p.worker != null) selectPick(r, { type: 'worker', i: p.worker }, 'attr');
-  else if (p.a) selectPick(r, { type: 'edge', k: [p.a, p.b].sort().join('|') }, 'attr');
-  else selectPick(r, null, 'attr');
-}
-// selectPick is the canvas's own pick, for a part that picks without a press on
-// the figure (canvas.js keeps the drawing of it).
-export function selectPick(r: Rec, sel: CanvasPick | null, side?: string) {
-  r.typed.value = null;
-  r.sel.value = sel;
-  if (side) r.side.value = side;
+  if (p.node) select(r, { how: 'field', what: { type: 'node', id: p.node } });
+  else if (p.worker != null) select(r, { how: 'field', what: { type: 'worker', i: p.worker } });
+  else if (p.a) select(r, { how: 'field', what: { type: 'edge', k: [p.a, p.b].sort().join('|') } });
+  else select(r, { how: 'field', what: null });
 }
 
 // ---- 立ち上げ ----------------------------------------------------------

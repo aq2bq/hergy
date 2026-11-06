@@ -10,7 +10,7 @@ import { PromptComparison } from './prompt-comparison.js';
 import { topologySections } from './prompt-origins.js';
 import { memberOf } from '../state.js';
 import type { Member, PromptSegment, Rec, Worker } from '../state.js';
-import { selOf } from './shared.js';
+import { pickOf } from '../selection.js';
 import { usePrompt, useWorkerPrompt } from '../prompt-source.js';
 
 // lineAtMaker reads which line an offset of the whole prompt stands on.
@@ -168,7 +168,7 @@ export function WorkerPromptSection({ r, w, i }: { r: Rec; w: Worker; i: number 
 // the person picked, and nothing when the pick is not something a prompt is
 // built for. The attribute tab no longer carries these.
 export function PromptView({ r }: { r: Rec }): JSX.Element {
-  const sel = selOf(r);
+  const sel = pickOf(r);
   const m = sel && sel.type === 'node' && sel.id !== 'human' ? memberOf(r.draft.value, sel.id) : undefined;
   if (m) return <MemberPrompt r={r} m={m} />;
   if (sel && sel.type === 'worker') {

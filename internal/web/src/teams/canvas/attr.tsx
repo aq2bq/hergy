@@ -5,7 +5,8 @@
 import type { ComponentChildren, JSX } from 'preact';
 import { hasTurn, memberOf, nodeName, profilesFor, rolesFor, teamIssues } from '../state.js';
 import type { Finding, Member, Rec, RoleName, Team, Worker } from '../state.js';
-import { NAME, selOf, typedOf } from './shared.js';
+import { NAME, typedOf } from './shared.js';
+import { pickOf } from '../selection.js';
 import { Field } from '../../lib/field.js';
 import { RoleButton } from '../role-modal.js';
 
@@ -88,7 +89,7 @@ function memberMsgs(r: Rec, t: Team, m: Member): string[] {
 }
 
 export function SideAttr({ r }: { r: Rec }): JSX.Element | null {
-  const t = r.draft.value, s = r.saved.value, sel = selOf(r), team = r.name.value;
+  const t = r.draft.value, s = r.saved.value, sel = pickOf(r), team = r.name.value;
   if (!sel) {
     const d = diffList(r), humanIn = t.turns.some(([, b]) => b === 'human');
     return (

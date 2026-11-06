@@ -24,6 +24,7 @@ const EVENTS = [
   { how: 'press', what: 'human', event: { how: 'press', what: { type: 'node', id: 'human' } } },
   { how: 'press', what: 'edge', event: { how: 'press', what: { type: 'edge', k: 'lead|impl' } } },
   { how: 'let', event: { how: 'let' } },
+  { how: 'reset', event: { how: 'reset' } },
   { how: 'field', event: { how: 'field', what: ONE } },
   { how: 'side', event: { how: 'side', side: 'prompt' } },
   { how: 'yaml', event: { how: 'yaml' } },
@@ -42,10 +43,10 @@ describe('the table', () => {
         select(r, one.event);
         const wantSide = rule.side === 'keep' ? from : rule.side === 'pressed' ? 'prompt' : rule.side;
         expect(r.side.value).toBe(wantSide);
-        const wantPick = one.how === 'press' ? one.event.what : one.how === 'let' ? null : one.how === 'field' ? ONE : BEFORE;
+        const wantPick = one.how === 'press' ? one.event.what : one.how === 'field' ? ONE : one.how === 'side' || one.how === 'yaml' ? BEFORE : null;
         expect(r.sel.value).toEqual(wantPick);
         // A pick that changes drops the half-typed name; a column does not.
-        const picked = one.how === 'press' || one.how === 'let' || one.how === 'field';
+        const picked = one.how === 'press' || one.how === 'let' || one.how === 'reset' || one.how === 'field';
         expect(r.typed.value).toEqual(picked ? null : TYPED);
       });
     }

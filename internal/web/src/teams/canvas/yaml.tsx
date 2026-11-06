@@ -9,7 +9,8 @@ import type { JSX } from 'preact';
 import { Counts } from '../../lib/ruledoc.js';
 import { dkey, pressLine, teamIssues } from '../state.js';
 import type { CanvasPick, Finding, Rec, TeamPreview } from '../state.js';
-import { pair, selOf } from './shared.js';
+import { pair } from './shared.js';
+import { pickOf } from '../selection.js';
 
 // GLOW is the preview's own bookkeeping: the lines drawn last, the lines one
 // edit just moved, and when they lit up (spec-teams B7).
@@ -35,7 +36,7 @@ export function TPrev({ r }: { r: Rec }): JSX.Element {
   }
   GLOW.last[key] = lines;
   const step = new Set(GLOW.step[key] || []);
-  const marks = lineMarks(r), cur = selOf(r), n = at.length;
+  const marks = lineMarks(r), cur = pickOf(r), n = at.length;
   const nadd = added.length, ndel = removed.length + (lastDel ? 1 : 0);
   const issues = teamIssues(r);
   return (
@@ -169,7 +170,7 @@ export function afterTPrev(r: Rec): void {
   [...step, ...(df.added || []), ...(df.removedBefore || []), ...(df.removedAtEnd ? [at.length - 1] : [])]
     .forEach((i) => { if (i > want && i < at.length) want = i; });
   if (want < 0) {
-    const cur = selOf(r);
+    const cur = pickOf(r);
     if (cur) { for (let i = 0; i < at.length; i++) if (isCurLine(at[i], cur)) { want = i; break; } }
   }
   if (want >= 0 && box.children[want]) {

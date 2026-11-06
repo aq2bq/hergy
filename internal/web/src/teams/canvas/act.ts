@@ -9,10 +9,11 @@ import type { Spot } from '../place.js';
 import {
   byKey, canvasAct, canvasEndTyping, canvasToast, canvasTyping, canvasUndo, dkey,
   hasTurn, memberOf, nodeName, openAgree, profilesFor, recs, rolesFor,
-  selectPick, undoRow,
+  undoRow,
 } from '../state.js';
 import type { CanvasPick, Member, Op, Rec, Team, Worker } from '../state.js';
-import { NAME, layoutOf, menuOf, pair, putPlace, renamePlace, selOf, setMenu, setTyped } from './shared.js';
+import { isSide, pickOf, samePick, select } from '../selection.js';
+import { NAME, layoutOf, menuOf, pair, putPlace, renamePlace, setMenu, setTyped } from './shared.js';
 import { runDanger } from '../../lib/danger.js';
 
 // ---- 操作 ------------------------------------------------------------
@@ -63,7 +64,7 @@ function addMember(r: Rec, at: Spot | null): void {
   while (t.members.some((m) => m.name === `${base}-${n}`)) n++;
   const name = `${base}-${n}`;
   if (at) putPlace(r, name, at);
-  selectPick(r, { type: 'node', id: name }, 'attr');
+  select(r, { how: 'field', what: { type: 'node', id: name } });
   canvasAct(r, [{ kind: 'addMember', member: name, role, profile }], {
     message: `メンバー ${name} を足しました。メンバー名・ロール・プロファイルを右で決める`,
     undo: `メンバー ${name} を足したのを取り消しました`, focus: '[data-cv-f="m-name"]',
@@ -86,7 +87,7 @@ function copyName(r: Rec, t: Team, m: Member): string {
 // by hand, so no new kind of op — and the copy stands picked, its name field
 // waiting.
 function copyMember(r: Rec): void {
-  const t = r.draft.value, sel = selOf(r);
+  const t = r.draft.value, sel = pickOf(r);
   const m = sel && sel.type === 'node' ? memberOf(t, sel.id) : null;
   if (!m) return;
   const name = copyName(r, t, m);
@@ -103,7 +104,7 @@ function copyMember(r: Rec): void {
   t.workers.forEach((w) => {
     if (w.from === m.name) ops.push({ kind: 'addWorker', from: name, purpose: w.purpose, profile: w.profile });
   });
-  selectPick(r, { type: 'node', id: name }, 'attr');
+  select(r, { how: 'field', what: { type: 'node', id: name } });
   canvasAct(r, ops, {
     message: `メンバー ${m.name} を複製しました（${name}）`,
     undo: `メンバー ${m.name} の複製を取り消しました`,
@@ -115,7 +116,7 @@ function addWorker(r: Rec, from: string, at: Spot | null): void {
   const t = r.draft.value, idx = t.workers.length, profile = firstProfile(true, r);
   const ops: Op[] = [{ kind: 'addWorker', from, purpose: '', profile }];
   if (at) putPlace(r, 'w' + idx, at);
-  selectPick(r, { type: 'worker', i: idx }, 'attr');
+  select(r, { how: 'field', what: { type: 'worker', i: idx } });
   canvasAct(r, ops, { message: `${from} のワーカーを足しました。目的を右で決める`, undo: 'ワーカーを足したのを取り消しました', focus: '[data-cv-f="w-purpose"]' });
 }
 // panelOf is the field the figure stands in: the removal's 取り消す is put there,
@@ -149,17 +150,17 @@ function turnDirection(ops: Op[]): string {
 }
 
 function del(r: Rec): void {
-  const t = r.draft.value, sel = selOf(r);
+  const t = r.draft.value, sel = pickOf(r);
   if (!sel) return;
   if (sel.type === 'node' && sel.id !== 'human') {
     const id = sel.id, nt = t.turns.filter(([a, b]) => a === id || b === id).length, nw = t.workers.filter((w) => w.from === id).length;
-    selectPick(r, null);
+    select(r, { how: 'let' });
     remove(r, 'removeMember', [{ kind: 'removeMember', member: id }], { said: `${id} を外しました（ターン ${nt} 本・ワーカー ${nw} 件も）`, undo: `${id} を外したのを取り消しました` });
   } else if (sel.type === 'edge') {
     const [a, b] = sel.k.split('|'), ops: Op[] = [];
     if (hasTurn(t, a, b)) ops.push({ kind: 'removeTurn', from: a, to: b });
     if (hasTurn(t, b, a)) ops.push({ kind: 'removeTurn', from: b, to: a });
-    selectPick(r, null);
+    select(r, { how: 'let' });
     if (ops.length) {
       const direction = turnDirection(ops);
       remove(r, 'removeTurn', ops, { said: `${direction} のターンを外しました`, undo: `${direction} のターンを外したのを取り消しました` });
@@ -167,7 +168,7 @@ function del(r: Rec): void {
   } else if (sel.type === 'worker') {
     const w = t.workers[sel.i];
     if (!w) return;
-    selectPick(r, null);
+    select(r, { how: 'let' });
     remove(r, 'removeWorker', [{ kind: 'removeWorker', from: w.from, purpose: w.purpose }], { said: `ワーカー ${w.purpose || '（目的）'} を外しました`, undo: 'ワーカーを外したのを取り消しました' });
   }
 }
@@ -203,14 +204,14 @@ export function onPointerDown(r: Rec, e: PointerEvent): void {
     svg.setPointerCapture(e.pointerId); return;
   }
   const ed = target.closest<HTMLElement>('[data-cv-e]');
-  if (ed) { selectPick(r, { type: 'edge', k: ed.dataset.cvE || '' }, 'attr'); return; }
+  if (ed) { select(r, { how: 'press', what: { type: 'edge', k: ed.dataset.cvE || '' } }); return; }
   const now = Date.now(), pt = svgPt(svg, e);
   if (lastPress && now - lastPress.t < 400 && Math.hypot(pt.x - lastPress.x, pt.y - lastPress.y) < 8 && lastPress.r === r) {
     lastPress = null; openMenu(r, [pt.x, pt.y], e); return;
   }
   lastPress = { t: now, x: pt.x, y: pt.y, r };
   menuClose(r);
-  if (selOf(r)) selectPick(r, null);
+  if (pickOf(r)) select(r, { how: 'let' });
 }
 function onPointerMove(e: PointerEvent): void {
   const d = DRAG; if (!d) return;
@@ -266,10 +267,10 @@ function onPointerUp(e: PointerEvent): void {
   const d = endDrag(e); if (!d) return;
   const r = d.r;
   if (d.what === 'move') {
-    if (d.moved) { selectPick(r, null); return; }
+    if (d.moved) { select(r, { how: 'let' }); return; }
     // A press that did not move the point picks it and leaves the column where
     // the person put it (r-f0be).
-    selectPick(r, d.wi != null ? { type: 'worker', i: d.wi } : { type: 'node', id: d.id });
+    select(r, { how: 'press', what: d.wi != null ? { type: 'worker', i: d.wi } : { type: 'node', id: d.id } });
     return;
   }
   const over = document.elementFromPoint(e.clientX, e.clientY), g = over && over.closest<HTMLElement>('[data-cv-n]');
@@ -277,13 +278,13 @@ function onPointerUp(e: PointerEvent): void {
   if (!to || to === d.from) return;
   const t = r.draft.value;
   if (hasTurn(t, d.from, to)) {
-    selectPick(r, { type: 'edge', k: pair(d.from, to) }, 'attr');
+    select(r, { how: 'press', what: { type: 'edge', k: pair(d.from, to) } });
     canvasToast(r, `${nodeName(d.from)} → ${nodeName(to)} はもうある`, false);
     return;
   }
   const k = pair(d.from, to);
   canvasAct(r, [{ kind: 'addTurn', from: d.from, to }], { message: `${nodeName(d.from)} → ${nodeName(to)} のターンを足しました`, undo: `${nodeName(d.from)} → ${nodeName(to)} のターンを足しましたのを取り消しました` });
-  selectPick(r, { type: 'edge', k }, 'attr');
+  select(r, { how: 'press', what: { type: 'edge', k } });
   r.flash.value = k;
   setTimeout(() => {
     if (r.flash.value !== k) return;
@@ -301,19 +302,20 @@ export function onClick(r: Rec, e: MouseEvent): void {
     const sel: CanvasPick = hit.dataset.cvN ? { type: 'node', id: hit.dataset.cvN }
       : hit.dataset.cvW != null ? { type: 'worker', i: Number(hit.dataset.cvW) }
         : { type: 'edge', k: hit.dataset.cvE || '' };
-    if (JSON.stringify(selOf(r)) === JSON.stringify(sel)) return;
+    if (samePick(pickOf(r), sel)) return;
     // The tab stays where the person put it: picking another point changes what
     // stands there, not which of 属性・YAML・プロンプト is open (r-f0be).
-    selectPick(r, sel);
+    select(r, { how: 'press', what: sel });
     return;
   }
   const b = target.closest<HTMLElement>('[data-cv-act], [data-cv-side]');
   if (!b) return;
   const t = r.draft.value, a = b.dataset.cvAct;
-  if (b.dataset.cvSide) { r.side.value = b.dataset.cvSide; return; }
+  const side = b.dataset.cvSide;
+  if (side) { if (isSide(side)) select(r, { how: 'side', side }); return; }
   if (a === 'm-add') { addMember(r, null); return; }
   if (a === 'w-add') {
-    const sel = selOf(r), from = sel && sel.type === 'node' && sel.id !== 'human' ? sel.id : null;
+    const sel = pickOf(r), from = sel && sel.type === 'node' && sel.id !== 'human' ? sel.id : null;
     if (!from) { openMenu(r, null, null, true); return; }
     addWorker(r, from, null); return;
   }
@@ -325,7 +327,7 @@ export function onClick(r: Rec, e: MouseEvent): void {
     else addWorker(r, b.dataset.from || '', at);
     return;
   }
-  if (a === 'to-yaml') { r.side.value = 'yaml'; return; }
+  if (a === 'to-yaml') { select(r, { how: 'yaml' }); return; }
   if (a === 'to-agree') { openAgree(r); return; }
   if (a === 'del') { del(r); return; }
   if (a === 'm-copy') { copyMember(r); return; }
@@ -333,7 +335,7 @@ export function onClick(r: Rec, e: MouseEvent): void {
     const [p, q] = (b.dataset.k || '').split('|'), ops: Op[] = [];
     if (hasTurn(t, p, q)) ops.push({ kind: 'removeTurn', from: p, to: q });
     if (hasTurn(t, q, p)) ops.push({ kind: 'removeTurn', from: q, to: p });
-    selectPick(r, null);
+    select(r, { how: 'let' });
     if (ops.length) {
       const direction = turnDirection(ops);
       remove(r, 'removeTurn', ops, { said: `${direction} のターンを外しました`, undo: `${direction} のターンを外したのを取り消しました` });
@@ -353,13 +355,13 @@ export function onClick(r: Rec, e: MouseEvent): void {
     remove(r, 'removeWorker', [{ kind: 'removeWorker', from: w.from, purpose: w.purpose }], { said: `ワーカー ${w.purpose || '（目的）'} を外しました`, undo: 'ワーカーを外したのを取り消しました' });
     return;
   }
-  if (a === 'pick-w') selectPick(r, { type: 'worker', i: Number(b.dataset.i) }, 'attr');
+  if (a === 'pick-w') select(r, { how: 'field', what: { type: 'worker', i: Number(b.dataset.i) } });
 }
 export function onInput(r: Rec, e: Event): void {
   const el = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement ? e.target : null;
   if (!el) return;
   const f = el.dataset.cvF; if (!f) return;
-  const t = r.draft.value, sel = selOf(r), v = el.value;
+  const t = r.draft.value, sel = pickOf(r), v = el.value;
   if (f === 'turn-add') {
     if (v && sel && sel.type === 'node') {
       canvasAct(r, [{ kind: 'addTurn', from: sel.id, to: v }], { message: `${nodeName(sel.id)} → ${nodeName(v)} のターンを足しました`, undo: `${nodeName(sel.id)} → ${nodeName(v)} のターンを足しましたのを取り消しました` });
@@ -383,7 +385,7 @@ export function onInput(r: Rec, e: Event): void {
       renamePlace(r, m.name, v);
       setTyped(r, null);
       canvasTyping(r, { kind: 'renameMember', member: m.name, new: v }, 'm-name');
-      selectPick(r, { type: 'node', id: v }, 'attr');
+      select(r, { how: 'field', what: { type: 'node', id: v } });
       return;
     }
     // The messages stand beside the field as it is typed, so a name the server
@@ -424,7 +426,7 @@ function onKey(e: KeyboardEvent): void {
   // still meant for it (the mock of 2026-10-23).
   const inside = target ? target.closest('.panel.team-p') : null;
   const panels = Array.from(document.querySelectorAll<HTMLElement>('.panel.team-p')).filter((el) => rowOf(el));
-  const picked = (el: HTMLElement): boolean => { const row = rowOf(el); return !!row && !!selOf(row); };
+  const picked = (el: HTMLElement): boolean => { const row = rowOf(el); return !!row && !!pickOf(row); };
   const panelEl = (inside && rowOf(inside)) ? inside : panels.find(picked);
   const r = panelEl ? rowOf(panelEl) : null;
   // ⌘Z stands for the newest operation even after the pick was let go (the
@@ -443,18 +445,18 @@ function onKey(e: KeyboardEvent): void {
   const openMenuRow = menuRow();
   if (e.key === 'Escape' && openMenuRow) { e.preventDefault(); menuClose(openMenuRow); return; }
   if (!r) return;
-  const sel = selOf(r);
+  const sel = pickOf(r);
   if (e.key === 'Delete' || e.key === 'Backspace') { if (sel) { e.preventDefault(); del(r); } return; }
-  if (e.key === 'Escape') { menuClose(r); if (sel) { e.preventDefault(); selectPick(r, null); } return; }
+  if (e.key === 'Escape') { menuClose(r); if (sel) { e.preventDefault(); select(r, { how: 'let' }); } return; }
   if ((e.key === 'Enter' || e.key === ' ') && (target instanceof HTMLElement || target instanceof SVGElement) && target.matches('.cv-n, .cv-hit, .cv-ex')) {
     e.preventDefault();
-    if (target.matches('.cv-hit')) selectPick(r, { type: 'edge', k: target.dataset.cvE || '' }, 'attr');
+    if (target.matches('.cv-hit')) select(r, { how: 'press', what: { type: 'edge', k: target.dataset.cvE || '' } });
     else if (target.matches('.cv-ex')) target.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     else {
       // Enter and Space pick a point the way a press does, and leave the column
       // where the person put it (r-f0be).
       const id = target.dataset.cvN || ('w' + target.dataset.cvW);
-      selectPick(r, target.dataset.cvN ? { type: 'node', id } : { type: 'worker', i: Number(target.dataset.cvW) });
+      select(r, { how: 'press', what: target.dataset.cvN ? { type: 'node', id } : { type: 'worker', i: Number(target.dataset.cvW) } });
     }
   }
 }

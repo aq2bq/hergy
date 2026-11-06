@@ -104,6 +104,78 @@ import {
   roleDirty
 } from "../chunk/nav-36f6dmhj.js";
 
+// teams/selection-table.ts
+var SIDE_RULES = [
+  { how: "press", what: ["member", "worker", "human"], side: "keep" },
+  { how: "press", what: ["edge"], side: "attr" },
+  { how: "let", side: "keep" },
+  { how: "reset", side: "attr" },
+  { how: "field", side: "attr" },
+  { how: "side", side: "pressed" },
+  { how: "yaml", side: "yaml" }
+];
+function nextSide(how, what, from) {
+  const rule = SIDE_RULES.find((one) => one.how === how && (!one.what || one.what.includes(what)));
+  const side = rule ? rule.side : "keep";
+  return side === "keep" ? from : side;
+}
+
+// teams/selection.ts
+function select(r, e) {
+  if (e.how === "side") {
+    if (isSide(e.side))
+      r.side.value = e.side;
+    return;
+  }
+  if (e.how === "yaml") {
+    r.side.value = "yaml";
+    return;
+  }
+  const pick = e.how === "press" || e.how === "field" ? e.what : null;
+  r.sel.value = pick;
+  r.typed.value = null;
+  const next = nextSide(e.how, whatOf(pick), sideOf(r));
+  if (next !== "pressed")
+    r.side.value = next;
+}
+var isSide = (value) => value === "attr" || value === "yaml" || value === "prompt";
+function whatOf(pick) {
+  if (!pick)
+    return null;
+  if (pick.type === "edge")
+    return "edge";
+  if (pick.type === "worker")
+    return "worker";
+  return pick.id === "human" ? "human" : "member";
+}
+function pickOf(r) {
+  const pick = r.sel.value;
+  if (!pick)
+    return null;
+  const t = r.draft.value;
+  const hasMember = (name) => (t.members || []).some((m) => m.name === name);
+  if (pick.type === "node" && pick.id !== "human" && !hasMember(pick.id))
+    return null;
+  if (pick.type === "worker" && !(t.workers || [])[pick.i])
+    return null;
+  if (pick.type === "edge" && !pick.k.split("|").every((x) => x === "human" || hasMember(x)))
+    return null;
+  return pick;
+}
+function sideOf(r) {
+  return isSide(r.side.value) ? r.side.value : "attr";
+}
+function samePick(a, b) {
+  if (!a || !b)
+    return a === b;
+  if (a.type === "node")
+    return b.type === "node" && a.id === b.id;
+  if (a.type === "worker")
+    return b.type === "worker" && a.i === b.i;
+  return b.type === "edge" && a.k === b.k;
+}
+var startSelection = () => ({ sel: null, side: "attr" });
+
 // teams/rule-selection.ts
 var ruleSelection = y({});
 var selectedRules = (uid, available) => {
@@ -1117,8 +1189,7 @@ function defOf(item, project) {
     carry: null,
     preview: { lines: [], diff: { added: [], removedBefore: [], removedAtEnd: false } },
     baseFindings: [],
-    sel: null,
-    side: "attr",
+    ...startSelection(),
     menu: null,
     typed: null,
     flash: null,
@@ -1200,8 +1271,7 @@ function draftRecord(how, place, name, base, project) {
     carry: null,
     preview: { lines: [], diff: { added: [], removedBefore: [], removedAtEnd: false } },
     baseFindings: [],
-    sel: null,
-    side: "attr",
+    ...startSelection(),
     menu: null,
     typed: null,
     flash: null,
@@ -1785,10 +1855,8 @@ function undoRow() {
 function resetCanvas(r) {
   if (!r)
     return;
-  r.sel.value = null;
-  r.side.value = "attr";
+  select(r, { how: "reset" });
   r.menu.value = null;
-  r.typed.value = null;
   r.flash.value = null;
   r.placed.value = {};
   r.moved.clear();
@@ -2212,30 +2280,24 @@ function pressVpick(r, m) {
     return;
   }
   if (m.node)
-    selectPick(r, { type: "node", id: m.node }, "attr");
+    select(r, { how: "field", what: { type: "node", id: m.node } });
   else if (m.worker != null)
-    selectPick(r, { type: "worker", i: m.worker }, "attr");
+    select(r, { how: "field", what: { type: "worker", i: m.worker } });
 }
 function pressLine(r, p) {
   if (p.f === "description") {
-    selectPick(r, null, "attr");
+    select(r, { how: "field", what: null });
     focusAsk.value = { dom: r.dom, sel: '[data-cv-f="description"]' };
     return;
   }
   if (p.node)
-    selectPick(r, { type: "node", id: p.node }, "attr");
+    select(r, { how: "field", what: { type: "node", id: p.node } });
   else if (p.worker != null)
-    selectPick(r, { type: "worker", i: p.worker }, "attr");
+    select(r, { how: "field", what: { type: "worker", i: p.worker } });
   else if (p.a)
-    selectPick(r, { type: "edge", k: [p.a, p.b].sort().join("|") }, "attr");
+    select(r, { how: "field", what: { type: "edge", k: [p.a, p.b].sort().join("|") } });
   else
-    selectPick(r, null, "attr");
-}
-function selectPick(r, sel, side) {
-  r.typed.value = null;
-  r.sel.value = sel;
-  if (side)
-    r.side.value = side;
+    select(r, { how: "field", what: null });
 }
 function boot() {
   if (HQ && HQ.teams && HQ.teams.length) {
@@ -2334,20 +2396,6 @@ var typedOf = (r) => r.typed.value;
 var setTyped = (r, typed) => {
   r.typed.value = typed;
 };
-function livePick(r, sel) {
-  if (!sel)
-    return null;
-  const t = r.draft.value;
-  if (sel.type === "node" && sel.id !== "human" && !memberOf(t, sel.id))
-    return null;
-  if (sel.type === "worker" && !t.workers[sel.i])
-    return null;
-  if (sel.type === "edge" && !sel.k.split("|").every((x) => x === "human" || memberOf(t, x)))
-    return null;
-  return sel;
-}
-var selOf = (r) => livePick(r, r.sel.value);
-var sideOf = (r) => r.side.value || "attr";
 var layoutOf = (r) => r.layout.value;
 function putPlace(r, id, at) {
   r.moved.add(id);
@@ -2385,7 +2433,7 @@ function TPrev({ r }) {
   }
   GLOW.last[key] = lines;
   const step = new Set(GLOW.step[key] || []);
-  const marks = lineMarks(r), cur = selOf(r), n = at.length;
+  const marks = lineMarks(r), cur = pickOf(r), n = at.length;
   const nadd = added.length, ndel = removed.length + (lastDel ? 1 : 0);
   const issues = teamIssues(r);
   return /* @__PURE__ */ u("aside", {
@@ -2591,7 +2639,7 @@ function afterTPrev(r) {
       want = i;
   });
   if (want < 0) {
-    const cur = selOf(r);
+    const cur = pickOf(r);
     if (cur) {
       for (let i = 0;i < at.length; i++)
         if (isCurLine(at[i], cur)) {
@@ -2712,7 +2760,7 @@ function frameOf(r) {
   return { boxes, vx, vy, vw, vh };
 }
 function Figure({ r }) {
-  const t = r.draft.value, s = r.saved.value, p = layoutOf(r), sel = selOf(r), issues = teamIssues(r) || [];
+  const t = r.draft.value, s = r.saved.value, p = layoutOf(r), sel = pickOf(r), issues = teamIssues(r) || [];
   const { boxes, vx, vy, vw, vh } = frameOf(r);
   const ids = ["human", ...t.members.map((m) => m.name)];
   const mi = dkey(r).replace(/[^A-Za-z0-9_-]/g, "_");
@@ -3141,7 +3189,7 @@ function memberMsgs(r, t, m) {
   return msgs;
 }
 function SideAttr({ r }) {
-  const t = r.draft.value, s = r.saved.value, sel = selOf(r), team = r.name.value;
+  const t = r.draft.value, s = r.saved.value, sel = pickOf(r), team = r.name.value;
   if (!sel) {
     const d = diffList(r), humanIn = t.turns.some(([, b]) => b === "human");
     return /* @__PURE__ */ u(S, {
@@ -4675,7 +4723,7 @@ function WorkerPromptSection({ r, w, i }) {
   });
 }
 function PromptView({ r }) {
-  const sel = selOf(r);
+  const sel = pickOf(r);
   const m = sel && sel.type === "node" && sel.id !== "human" ? memberOf(r.draft.value, sel.id) : undefined;
   if (m)
     return /* @__PURE__ */ u(MemberPrompt, {
@@ -4747,7 +4795,7 @@ function addMember(r, at) {
   const name = `${base}-${n}`;
   if (at)
     putPlace(r, name, at);
-  selectPick(r, { type: "node", id: name }, "attr");
+  select(r, { how: "field", what: { type: "node", id: name } });
   canvasAct(r, [{ kind: "addMember", member: name, role, profile }], {
     message: `メンバー ${name} を足しました。メンバー名・ロール・プロファイルを右で決める`,
     undo: `メンバー ${name} を足したのを取り消しました`,
@@ -4764,7 +4812,7 @@ function copyName(r, t, m) {
   }
 }
 function copyMember(r) {
-  const t = r.draft.value, sel = selOf(r);
+  const t = r.draft.value, sel = pickOf(r);
   const m = sel && sel.type === "node" ? memberOf(t, sel.id) : null;
   if (!m)
     return;
@@ -4784,7 +4832,7 @@ function copyMember(r) {
     if (w.from === m.name)
       ops.push({ kind: "addWorker", from: name, purpose: w.purpose, profile: w.profile });
   });
-  selectPick(r, { type: "node", id: name }, "attr");
+  select(r, { how: "field", what: { type: "node", id: name } });
   canvasAct(r, ops, {
     message: `メンバー ${m.name} を複製しました（${name}）`,
     undo: `メンバー ${m.name} の複製を取り消しました`,
@@ -4796,7 +4844,7 @@ function addWorker(r, from, at) {
   const ops = [{ kind: "addWorker", from, purpose: "", profile }];
   if (at)
     putPlace(r, "w" + idx, at);
-  selectPick(r, { type: "worker", i: idx }, "attr");
+  select(r, { how: "field", what: { type: "worker", i: idx } });
   canvasAct(r, ops, { message: `${from} のワーカーを足しました。目的を右で決める`, undo: "ワーカーを足したのを取り消しました", focus: '[data-cv-f="w-purpose"]' });
 }
 function panelOf(r) {
@@ -4818,12 +4866,12 @@ function turnDirection(ops) {
   return `${nodeName(turns[0].from)} → ${nodeName(turns[0].to)}`;
 }
 function del(r) {
-  const t = r.draft.value, sel = selOf(r);
+  const t = r.draft.value, sel = pickOf(r);
   if (!sel)
     return;
   if (sel.type === "node" && sel.id !== "human") {
     const id = sel.id, nt = t.turns.filter(([a, b]) => a === id || b === id).length, nw = t.workers.filter((w) => w.from === id).length;
-    selectPick(r, null);
+    select(r, { how: "let" });
     remove(r, "removeMember", [{ kind: "removeMember", member: id }], { said: `${id} を外しました（ターン ${nt} 本・ワーカー ${nw} 件も）`, undo: `${id} を外したのを取り消しました` });
   } else if (sel.type === "edge") {
     const [a, b] = sel.k.split("|"), ops = [];
@@ -4831,7 +4879,7 @@ function del(r) {
       ops.push({ kind: "removeTurn", from: a, to: b });
     if (hasTurn(t, b, a))
       ops.push({ kind: "removeTurn", from: b, to: a });
-    selectPick(r, null);
+    select(r, { how: "let" });
     if (ops.length) {
       const direction = turnDirection(ops);
       remove(r, "removeTurn", ops, { said: `${direction} のターンを外しました`, undo: `${direction} のターンを外したのを取り消しました` });
@@ -4840,7 +4888,7 @@ function del(r) {
     const w = t.workers[sel.i];
     if (!w)
       return;
-    selectPick(r, null);
+    select(r, { how: "let" });
     remove(r, "removeWorker", [{ kind: "removeWorker", from: w.from, purpose: w.purpose }], { said: `ワーカー ${w.purpose || "（目的）"} を外しました`, undo: "ワーカーを外したのを取り消しました" });
   }
 }
@@ -4874,7 +4922,7 @@ function onPointerDown(r, e) {
   }
   const ed = target.closest("[data-cv-e]");
   if (ed) {
-    selectPick(r, { type: "edge", k: ed.dataset.cvE || "" }, "attr");
+    select(r, { how: "press", what: { type: "edge", k: ed.dataset.cvE || "" } });
     return;
   }
   const now = Date.now(), pt = svgPt(svg, e);
@@ -4885,8 +4933,8 @@ function onPointerDown(r, e) {
   }
   lastPress = { t: now, x: pt.x, y: pt.y, r };
   menuClose(r);
-  if (selOf(r))
-    selectPick(r, null);
+  if (pickOf(r))
+    select(r, { how: "let" });
 }
 function onPointerMove(e) {
   const d = DRAG;
@@ -4946,10 +4994,10 @@ function onPointerUp(e) {
   const r = d.r;
   if (d.what === "move") {
     if (d.moved) {
-      selectPick(r, null);
+      select(r, { how: "let" });
       return;
     }
-    selectPick(r, d.wi != null ? { type: "worker", i: d.wi } : { type: "node", id: d.id });
+    select(r, { how: "press", what: d.wi != null ? { type: "worker", i: d.wi } : { type: "node", id: d.id } });
     return;
   }
   const over = document.elementFromPoint(e.clientX, e.clientY), g = over && over.closest("[data-cv-n]");
@@ -4958,13 +5006,13 @@ function onPointerUp(e) {
     return;
   const t = r.draft.value;
   if (hasTurn(t, d.from, to)) {
-    selectPick(r, { type: "edge", k: pair(d.from, to) }, "attr");
+    select(r, { how: "press", what: { type: "edge", k: pair(d.from, to) } });
     canvasToast(r, `${nodeName(d.from)} → ${nodeName(to)} はもうある`, false);
     return;
   }
   const k = pair(d.from, to);
   canvasAct(r, [{ kind: "addTurn", from: d.from, to }], { message: `${nodeName(d.from)} → ${nodeName(to)} のターンを足しました`, undo: `${nodeName(d.from)} → ${nodeName(to)} のターンを足しましたのを取り消しました` });
-  selectPick(r, { type: "edge", k }, "attr");
+  select(r, { how: "press", what: { type: "edge", k } });
   r.flash.value = k;
   setTimeout(() => {
     if (r.flash.value !== k)
@@ -4981,17 +5029,19 @@ function onClick(r, e) {
   const hit = target.closest("[data-cv-n], [data-cv-w], [data-cv-e]");
   if (hit) {
     const sel = hit.dataset.cvN ? { type: "node", id: hit.dataset.cvN } : hit.dataset.cvW != null ? { type: "worker", i: Number(hit.dataset.cvW) } : { type: "edge", k: hit.dataset.cvE || "" };
-    if (JSON.stringify(selOf(r)) === JSON.stringify(sel))
+    if (samePick(pickOf(r), sel))
       return;
-    selectPick(r, sel);
+    select(r, { how: "press", what: sel });
     return;
   }
   const b = target.closest("[data-cv-act], [data-cv-side]");
   if (!b)
     return;
   const t = r.draft.value, a = b.dataset.cvAct;
-  if (b.dataset.cvSide) {
-    r.side.value = b.dataset.cvSide;
+  const side = b.dataset.cvSide;
+  if (side) {
+    if (isSide(side))
+      select(r, { how: "side", side });
     return;
   }
   if (a === "m-add") {
@@ -4999,7 +5049,7 @@ function onClick(r, e) {
     return;
   }
   if (a === "w-add") {
-    const sel = selOf(r), from = sel && sel.type === "node" && sel.id !== "human" ? sel.id : null;
+    const sel = pickOf(r), from = sel && sel.type === "node" && sel.id !== "human" ? sel.id : null;
     if (!from) {
       openMenu(r, null, null, true);
       return;
@@ -5018,7 +5068,7 @@ function onClick(r, e) {
     return;
   }
   if (a === "to-yaml") {
-    r.side.value = "yaml";
+    select(r, { how: "yaml" });
     return;
   }
   if (a === "to-agree") {
@@ -5039,7 +5089,7 @@ function onClick(r, e) {
       ops.push({ kind: "removeTurn", from: p, to: q });
     if (hasTurn(t, q, p))
       ops.push({ kind: "removeTurn", from: q, to: p });
-    selectPick(r, null);
+    select(r, { how: "let" });
     if (ops.length) {
       const direction = turnDirection(ops);
       remove(r, "removeTurn", ops, { said: `${direction} のターンを外しました`, undo: `${direction} のターンを外したのを取り消しました` });
@@ -5062,7 +5112,7 @@ function onClick(r, e) {
     return;
   }
   if (a === "pick-w")
-    selectPick(r, { type: "worker", i: Number(b.dataset.i) }, "attr");
+    select(r, { how: "field", what: { type: "worker", i: Number(b.dataset.i) } });
 }
 function onInput(r, e) {
   const el = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement ? e.target : null;
@@ -5071,7 +5121,7 @@ function onInput(r, e) {
   const f = el.dataset.cvF;
   if (!f)
     return;
-  const t = r.draft.value, sel = selOf(r), v = el.value;
+  const t = r.draft.value, sel = pickOf(r), v = el.value;
   if (f === "turn-add") {
     if (v && sel && sel.type === "node") {
       canvasAct(r, [{ kind: "addTurn", from: sel.id, to: v }], { message: `${nodeName(sel.id)} → ${nodeName(v)} のターンを足しました`, undo: `${nodeName(sel.id)} → ${nodeName(v)} のターンを足しましたのを取り消しました` });
@@ -5097,7 +5147,7 @@ function onInput(r, e) {
       renamePlace(r, m.name, v);
       setTyped(r, null);
       canvasTyping(r, { kind: "renameMember", member: m.name, new: v }, "m-name");
-      selectPick(r, { type: "node", id: v }, "attr");
+      select(r, { how: "field", what: { type: "node", id: v } });
       return;
     }
     setTyped(r, { id: node.id, value: v, msgs: nameMsgs(r, t, m, v) });
@@ -5143,7 +5193,7 @@ function onKey(e) {
   const panels = Array.from(document.querySelectorAll(".panel.team-p")).filter((el) => rowOf(el));
   const picked = (el) => {
     const row = rowOf(el);
-    return !!row && !!selOf(row);
+    return !!row && !!pickOf(row);
   };
   const panelEl = inside && rowOf(inside) ? inside : panels.find(picked);
   const r = panelEl ? rowOf(panelEl) : null;
@@ -5171,7 +5221,7 @@ function onKey(e) {
   }
   if (!r)
     return;
-  const sel = selOf(r);
+  const sel = pickOf(r);
   if (e.key === "Delete" || e.key === "Backspace") {
     if (sel) {
       e.preventDefault();
@@ -5183,19 +5233,19 @@ function onKey(e) {
     menuClose(r);
     if (sel) {
       e.preventDefault();
-      selectPick(r, null);
+      select(r, { how: "let" });
     }
     return;
   }
   if ((e.key === "Enter" || e.key === " ") && (target instanceof HTMLElement || target instanceof SVGElement) && target.matches(".cv-n, .cv-hit, .cv-ex")) {
     e.preventDefault();
     if (target.matches(".cv-hit"))
-      selectPick(r, { type: "edge", k: target.dataset.cvE || "" }, "attr");
+      select(r, { how: "press", what: { type: "edge", k: target.dataset.cvE || "" } });
     else if (target.matches(".cv-ex"))
       target.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     else {
       const id = target.dataset.cvN || "w" + target.dataset.cvW;
-      selectPick(r, target.dataset.cvN ? { type: "node", id } : { type: "worker", i: Number(target.dataset.cvW) });
+      select(r, { how: "press", what: target.dataset.cvN ? { type: "node", id } : { type: "worker", i: Number(target.dataset.cvW) } });
     }
   }
 }
@@ -5269,7 +5319,7 @@ function Canvas({ r, vlist }) {
     if (el)
       fitFigure(el, r, frame);
   });
-  const sel = selOf(r);
+  const sel = pickOf(r);
   const cur = sel, side = sideOf(r);
   const picked = cur && cur.type === "node" && cur.id !== "human" ? cur.id : "";
   const hint = picked ? `${picked} を選んでいる。縁の丸から引くとターン、Delete で外す` : "点や線を押すと属性が出る。余白をダブルクリックすると、そこに足せる";
@@ -5305,7 +5355,7 @@ function Canvas({ r, vlist }) {
                 type: "button",
                 onClick: (event) => {
                   event.stopPropagation();
-                  selectPick(r, null, "attr");
+                  select(r, { how: "field", what: null });
                 },
                 children: "チームの説明を編集"
               }),

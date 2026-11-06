@@ -12,7 +12,7 @@
 // canvas/menu.tsx、押し込みとキーとドラッグは canvas/act.ts が持つ。
 import { useLayoutEffect, useRef } from '../lib/preact.js';
 import type { JSX } from 'preact';
-import { dkey, recs, rolesIn, selectPick, setWide } from './state.js';
+import { dkey, recs, rolesIn, setWide } from './state.js';
 import type { Rec } from './state.js';
 import { afterTPrev, fitYbox, TPrev } from './canvas/yaml.js';
 import { Figure, frameOf } from './canvas/figure.js';
@@ -20,7 +20,7 @@ import { Menu } from './canvas/menu.js';
 import { SideAttr } from './canvas/attr.js';
 import { PromptView } from './canvas/prompt.js';
 import { onClick, onInput, onPointerDown } from './canvas/act.js';
-import { selOf, sideOf } from './canvas/shared.js';
+import { pickOf, select, sideOf } from './selection.js';
 
 export { fitYboxes } from './canvas/yaml.js';
 export { mountCanvas } from './canvas/act.js';
@@ -83,7 +83,7 @@ export function Canvas({ r, vlist }: { r: Rec; vlist: JSX.Element }): JSX.Elemen
     afterTPrev(r);
     if (el) fitFigure(el, r, frame);
   });
-  const sel = selOf(r);
+  const sel = pickOf(r);
   const cur = sel, side = sideOf(r);
   const picked = cur && cur.type === 'node' && cur.id !== 'human' ? cur.id : '';
   const hint = picked ? `${picked} を選んでいる。縁の丸から引くとターン、Delete で外す` : '点や線を押すと属性が出る。余白をダブルクリックすると、そこに足せる';
@@ -93,7 +93,7 @@ export function Canvas({ r, vlist }: { r: Rec; vlist: JSX.Element }): JSX.Elemen
         <div class="cv-tools">
           <button class="btn sm" type="button" data-cv-act="m-add" disabled={!rolesIn()}>＋ メンバー</button>
           <button class="btn sm" type="button" data-cv-act="w-add">＋ ワーカー</button>
-          <button class="btn sm" type="button" onClick={(event) => { event.stopPropagation(); selectPick(r, null, 'attr'); }}>チームの説明を編集</button>
+          <button class="btn sm" type="button" onClick={(event) => { event.stopPropagation(); select(r, { how: 'field', what: null }); }}>チームの説明を編集</button>
           <span class="cv-hint">{hint}</span>
           {cur ? <button class="btn sm cv-edit-selection" type="button" onClick={(event) => { event.stopPropagation(); const panel = box.current?.querySelector<HTMLElement>('.cv-side'); if (!panel) return; const band = document.querySelector<HTMLElement>('.bar')?.offsetHeight || 0; const summary = box.current?.closest('.tdef')?.querySelector<HTMLElement>(':scope > .sum')?.offsetHeight || 0; panel.style.scrollMarginTop = `${band + summary + 12}px`; panel.scrollIntoView({ block: 'start', behavior: 'smooth' }); (panel.querySelector<HTMLElement>('input, select') || panel.querySelector<HTMLElement>('button'))?.focus({ preventScroll: true }); }}>選択した属性を編集</button> : null}
         </div>

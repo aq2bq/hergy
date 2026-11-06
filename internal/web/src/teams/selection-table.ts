@@ -7,7 +7,7 @@ export type Side = 'attr' | 'yaml' | 'prompt';
 // PickWhat is the kind of thing a pick names. human is the one node the draft
 // always has.
 export type PickWhat = 'member' | 'worker' | 'edge' | 'human' | null;
-export type PickHow = 'press' | 'let' | 'field' | 'side' | 'yaml';
+export type PickHow = 'press' | 'let' | 'reset' | 'field' | 'side' | 'yaml';
 // SideRule is one row of the table: an event (and, when it matters, the thing it
 // picked) and where the right column goes from here. 'keep' keeps the column the
 // row started at; 'pressed' takes the column of the heading the person pressed.
@@ -16,6 +16,7 @@ export const SIDE_RULES: ReadonlyArray<SideRule> = [
   { how: 'press', what: ['member', 'worker', 'human'], side: 'keep' },
   { how: 'press', what: ['edge'], side: 'attr' },
   { how: 'let', side: 'keep' },
+  { how: 'reset', side: 'attr' },
   { how: 'field', side: 'attr' },
   { how: 'side', side: 'pressed' },
   { how: 'yaml', side: 'yaml' },

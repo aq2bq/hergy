@@ -9,7 +9,8 @@ import { boxOf } from '../place.js';
 import type { Box, Spot } from '../place.js';
 import { dkey, hasTurn, memberOf, nodeName, teamIssues } from '../state.js';
 import type { Finding, Rec, Worker } from '../state.js';
-import { edgePt, layoutOf, pair, selOf } from './shared.js';
+import { edgePt, layoutOf, pair } from './shared.js';
+import { pickOf } from '../selection.js';
 
 // Bdg is the 問題 / 警告 mark a point carries (監査 R9).
 function Bdg({ m, b }: { m: Finding; b: Box }) {
@@ -42,7 +43,7 @@ export function frameOf(r: Rec): Frame {
 }
 
 export function Figure({ r }: { r: Rec }) {
-  const t = r.draft.value, s = r.saved.value, p = layoutOf(r), sel = selOf(r), issues = teamIssues(r) || [];
+  const t = r.draft.value, s = r.saved.value, p = layoutOf(r), sel = pickOf(r), issues = teamIssues(r) || [];
   const { boxes, vx, vy, vw, vh } = frameOf(r);
   const ids = ['human', ...t.members.map((m) => m.name)];
   const mi = dkey(r).replace(/[^A-Za-z0-9_-]/g, '_');

@@ -35,7 +35,8 @@ import type { PickWhat, Side } from './selection-table.js';
 // column to show: the table here does.
 export type PickEvent =
   | { how: 'press'; what: CanvasPick }         // 点・線を押す／キー／離す／線を引いて離す
-  | { how: 'let' }                             // 空白・Esc・ドラッグ・外す・保存/削除/元に戻すのあと
+  | { how: 'let' }                             // 空白・Esc・ドラッグ・外す
+  | { how: 'reset' }                           // 保存・削除・元に戻すのあと（図を引き直す）
   | { how: 'field'; what: CanvasPick | null }  // 足す・複製・名前の変更・検査の行・YAML の行・説明を編集
   | { how: 'side'; side: Side }                // 右の列の見出し
   | { how: 'yaml' };                           // YAML へ
@@ -49,7 +50,7 @@ export function select(r: Rec, e: PickEvent): void {
     return;
   }
   if (e.how === 'yaml') { r.side.value = 'yaml'; return; }
-  const pick = e.how === 'let' ? null : e.what;
+  const pick = e.how === 'press' || e.how === 'field' ? e.what : null;
   r.sel.value = pick;
   r.typed.value = null;
   const next = nextSide(e.how, whatOf(pick), sideOf(r));

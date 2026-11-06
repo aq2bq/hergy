@@ -2,8 +2,7 @@
 //
 // 図・属性の列・YAML のプレビュー・ドラッグは、同じ「選んだもの」「点の場所」
 // 「点の箱」を読む。その読みをここに 1 つずつ置き、部品は描くことだけを持つ。
-import type { CanvasPick, Rec } from '../state.js';
-import { memberOf } from '../state.js';
+import type { Rec } from '../state.js';
 import type { Box, Positions, Spot } from '../place.js';
 
 // NAME is the pattern a member's name has to match: the field beside the figure
@@ -24,19 +23,6 @@ export const menuOf = (r: Rec): CanvasMenu | null => r.menu.value;
 export const setMenu = (r: Rec, menu: CanvasMenu | null): void => { r.menu.value = menu; };
 export const typedOf = (r: Rec): CanvasTyped | null => r.typed.value;
 export const setTyped = (r: Rec, typed: CanvasTyped | null): void => { r.typed.value = typed; };
-
-// livePick is the pick the draft still holds: a point the draft no longer has
-// is no pick, and the panel would show an attribute of nothing.
-export function livePick(r: Rec, sel: CanvasPick | null): CanvasPick | null {
-  if (!sel) return null;
-  const t = r.draft.value;
-  if (sel.type === 'node' && sel.id !== 'human' && !memberOf(t, sel.id)) return null;
-  if (sel.type === 'worker' && !t.workers[sel.i]) return null;
-  if (sel.type === 'edge' && !sel.k.split('|').every((x) => x === 'human' || memberOf(t, x))) return null;
-  return sel;
-}
-export const selOf = (r: Rec): CanvasPick | null => livePick(r, r.sel.value);
-export const sideOf = (r: Rec): string => r.side.value || 'attr';
 
 // layoutOf is every point's place as this row's drawing has it: the places a
 // person put points down at, and an automatic place for the rest. It is a

@@ -27,10 +27,6 @@ allow:
     name: Counts
     why: 動いているチームの人数と作業者を数える、一覧の行とは別の数え上げ（上の呼び出しの定義）
     decision: d-4d88
-  - path: internal/web/src/teams/canvas/act.ts
-    name: JSON.stringify
-    why: 図の選択（点・線）の比較で、「変えたか」ではなく ⑥ の遷移の概念（r-3d54）
-    decision: d-f14b
   - path: internal/web/src/lib/prose-transfer.ts
     name: JSON.stringify
     why: 転送する文の下書きの比較で、「変えたか」の概念ではない（r-0b69）
