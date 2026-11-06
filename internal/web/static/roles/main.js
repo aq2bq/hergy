@@ -26,11 +26,11 @@ import {
 } from "../chunk/nav-sk3m5qf3.js";
 import {
   runDanger
-} from "../chunk/nav-gs311eny.js";
+} from "../chunk/nav-42b5x58f.js";
 import {
   takeDraft2,
   setDirty2
-} from "../chunk/nav-k13q4569.js";
+} from "../chunk/nav-ag8t5wv9.js";
 import {
   Measure,
   renameCarries2,
@@ -40,28 +40,28 @@ import {
   Badge2,
   Vm2,
   RuleDoc2
-} from "../chunk/nav-mx44ftta.js";
+} from "../chunk/nav-v1b6zxwf.js";
 import {
   conflictOf,
   ConflictNotice,
   YamlTab2
-} from "../chunk/nav-spr6q0xs.js";
+} from "../chunk/nav-w38d9r9j.js";
 import {
   roleEditor,
   roleProblems
-} from "../chunk/nav-g1kfx462.js";
+} from "../chunk/nav-d94s040z.js";
 import {
   copyGroupOf,
   projectOfGroup,
-  bringUnderBand,
   ProjectView
-} from "../chunk/nav-x0p9h60z.js";
+} from "../chunk/nav-x8mye5ra.js";
 import {
   Field
 } from "../chunk/nav-9htrbyn7.js";
 import {
+  movePage,
   installWheel
-} from "../chunk/nav-47tvawmc.js";
+} from "../chunk/nav-kj98ksd1.js";
 import {
   readOpen2,
   writeOpen2,
@@ -1075,7 +1075,7 @@ function Team({ t }) {
     const row = el.current.querySelector(`.arow[data-m="${CSS.escape(ask.member)}"]`);
     if (!row)
       return;
-    row.scrollIntoView({ block: "center" });
+    movePage("assignPerson", row);
     row.classList.add("flash");
     const select = row.querySelector("select");
     if (select)
@@ -1573,19 +1573,6 @@ function groupHeader(g) {
 function Role({ r }) {
   const open = filtering() || state.value.open.has(r.uid);
   const el = A(null);
-  const wasOpen = A(false);
-  h(() => {
-    if (open && !wasOpen.current && !filtering()) {
-      const frame = requestAnimationFrame(() => {
-        const top = document.querySelector(".bar")?.offsetHeight || 0;
-        if (el.current)
-          window.scrollBy({ top: el.current.getBoundingClientRect().top - top, behavior: "instant" });
-      });
-      wasOpen.current = open;
-      return () => cancelAnimationFrame(frame);
-    }
-    wasOpen.current = open;
-  }, [open]);
   h(() => {
     const ask = focusAsk.value;
     if (!ask || ask.uid !== r.uid || !el.current)
@@ -1597,7 +1584,7 @@ function Role({ r }) {
     if (ask.select && (one instanceof HTMLInputElement || one instanceof HTMLTextAreaElement))
       one.select();
     if (ask.scroll)
-      bringUnderBand(el.current);
+      movePage("copyRow", el.current);
   }, [focusAsk.value]);
   return /* @__PURE__ */ u("div", {
     class: "role" + (open ? " open" : "") + (unsaved(r) ? " unsaved" : ""),
@@ -2098,6 +2085,9 @@ if (view) {
   R(/* @__PURE__ */ u(Tabs, {}), tabsEl);
   R(/* @__PURE__ */ u(App, {}), view);
   boot().catch(() => {}).finally(() => {
+    const opened = view?.querySelector(".role.open");
+    if (opened)
+      movePage("openByURL", opened, { instant: true });
     page.settled = true;
   });
 }

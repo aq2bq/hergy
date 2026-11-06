@@ -11,6 +11,8 @@ import {
   S,
   R,
   d,
+  h,
+  A,
   y,
   O,
   u
@@ -20,8 +22,8 @@ import {
   read2,
   problemText2
 } from "../chunk/nav-sk3m5qf3.js";
-import"../chunk/nav-gs311eny.js";
-import"../chunk/nav-k13q4569.js";
+import"../chunk/nav-42b5x58f.js";
+import"../chunk/nav-ag8t5wv9.js";
 import {
   setRunning2,
   projectName2,
@@ -32,15 +34,16 @@ import {
   stopSheet2,
   teamCount,
   openSheet
-} from "../chunk/nav-ezsfmbrd.js";
+} from "../chunk/nav-1da86991.js";
 import {
   TeamFigure2,
   exports_hq
-} from "../chunk/nav-c4wtdkjx.js";
+} from "../chunk/nav-y3sytsqb.js";
 import {
+  movePage,
   installWheel,
   resource
-} from "../chunk/nav-47tvawmc.js";
+} from "../chunk/nav-kj98ksd1.js";
 import {
   token2,
   readOpen2,
@@ -56,7 +59,7 @@ var RANK = { answer: 0, turn: 1, stalled: 2, working: 3 };
 var words = JSON.parse((document.getElementById("activity-words") || {}).textContent || "{}");
 var enc = (s) => encodeURIComponent(String(s == null ? "" : s));
 var selected = y(null);
-function openTeam() {
+function openedTeam() {
   if (!exports_hq)
     return { name: "", group: "" };
   const one = readOpen2(new URLSearchParams(location.search))[0];
@@ -138,7 +141,7 @@ async function readBoard(stop) {
       docs.delete(name);
   const teams = sortTeams(items.map((t) => sheetOf(t, docs)));
   if (!selected.value || !teams.some((t) => t.name === selected.value)) {
-    const pick = openTeam();
+    const pick = openedTeam();
     const found = pick.name ? teams.find((t) => t.name === pick.name && (!pick.group || t.project === pick.group)) : null;
     selected.value = found ? found.name : teams[0] ? teams[0].name : null;
   }
@@ -220,8 +223,8 @@ var tabWhere = (t) => [t.workspace ? `ワークスペース ${t.workspace}` : ""
 function pickTile(name) {
   pick(name);
   const tile = Array.from(document.querySelectorAll(".hq-tile[data-team]")).find((el) => el.dataset.team === name);
-  if (tile && typeof tile.scrollIntoView === "function")
-    tile.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  if (tile)
+    movePage("waitingRow", tile);
 }
 function Attention({ rows }) {
   const [error, setError] = d("");
@@ -539,6 +542,16 @@ function Board() {
 function BoardRows() {
   const rows = teams.value;
   const n = note.value;
+  const fromAddress = A(openedTeam().name);
+  h(() => {
+    if (!fromAddress.current)
+      return;
+    const tile = Array.from(document.querySelectorAll(".hq-tile[data-team]")).find((el) => el.dataset.team === fromAddress.current);
+    if (!tile)
+      return;
+    fromAddress.current = "";
+    movePage("openByURL", tile, { instant: true });
+  }, [rows]);
   if (!rows.length)
     return /* @__PURE__ */ u("p", {
       class: "gone",

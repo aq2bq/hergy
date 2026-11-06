@@ -53,7 +53,7 @@ function ConfirmDialog() {
       return;
     if (!node.open)
       node.showModal();
-    cancel.current?.focus();
+    cancel.current?.focus({ preventScroll: true });
     return;
   }, [ask]);
   if (!ask)

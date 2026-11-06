@@ -38,7 +38,7 @@ import {
   searchHook,
   teamCount,
   openSheet
-} from "./nav-ezsfmbrd.js";
+} from "./nav-1da86991.js";
 import {
   token2,
   parseOpen2,
@@ -743,7 +743,7 @@ function showSearch(open) {
     band.dataset.searchOpen = String(open);
   document.querySelector('[data-hq="search-toggle"]')?.setAttribute("aria-expanded", String(open));
   if (open)
-    document.getElementById("hq-q")?.focus();
+    document.getElementById("hq-q")?.focus({ preventScroll: true });
 }
 document.addEventListener("click", (event) => {
   if (!(event.target instanceof Element))

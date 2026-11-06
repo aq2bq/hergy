@@ -18,7 +18,7 @@ import {
 } from "../chunk/nav-zn7g81kr.js";
 import {
   runDanger
-} from "../chunk/nav-gs311eny.js";
+} from "../chunk/nav-42b5x58f.js";
 import {
   check2,
   save2,
@@ -30,25 +30,25 @@ import {
 import {
   takeDraft2,
   setDirty2
-} from "../chunk/nav-k13q4569.js";
+} from "../chunk/nav-ag8t5wv9.js";
 import {
   conflictOf,
   ConflictNotice,
   YamlTab2
-} from "../chunk/nav-spr6q0xs.js";
+} from "../chunk/nav-w38d9r9j.js";
 import {
   copyGroupOf,
   projectOfGroup,
-  bringUnderBand,
   ProjectView
-} from "../chunk/nav-x0p9h60z.js";
+} from "../chunk/nav-x8mye5ra.js";
 import {
   Field
 } from "../chunk/nav-9htrbyn7.js";
 import {
+  movePage,
   installWheel,
   resource
-} from "../chunk/nav-47tvawmc.js";
+} from "../chunk/nav-kj98ksd1.js";
 import {
   readOpen2,
   writeOpen2,
@@ -300,10 +300,6 @@ var saveBlocked = (panel) => panel.errors > 0 || (panel.saved ? !profileDirty(pa
 var focusAsk = y(null);
 function askFocus(key, field, index, select, scroll) {
   focusAsk.value = { key, field, index: index || 0, select: !!select, scroll: !!scroll, seq: (focusAsk.value && focusAsk.value.seq || 0) + 1 };
-}
-var scrollAsk = y(null);
-function askScroll(rowKey) {
-  scrollAsk.value = { key: rowKey, seq: (scrollAsk.value && scrollAsk.value.seq || 0) + 1 };
 }
 function updateRow(fn) {
   rows.value = rows.value.map(fn);
@@ -948,9 +944,6 @@ function clearFilter() {
 }
 function pressToggle(key) {
   toggleRow(key);
-  const row = rows.value.find((r) => r.key === key);
-  if (row && row.open)
-    askScroll(key);
   syncURL();
   tellDirty();
 }
@@ -1207,15 +1200,6 @@ function PlacePills({ row }) {
 function Row({ row }) {
   const detail = A(null);
   const sum = A(null);
-  h(() => {
-    const ask = scrollAsk.value;
-    if (!ask || ask.key !== row.key || !row.open)
-      return;
-    if (detail.current)
-      detail.current.scrollIntoView({ block: "nearest" });
-    if (sum.current)
-      sum.current.focus({ preventScroll: true });
-  }, [scrollAsk.value]);
   const first = row.panels[0];
   const name = row.isNew && first ? first.draft.name : row.name;
   const kind = row.isNew && first ? first.draft.kind : row.kind;
@@ -1410,12 +1394,12 @@ function Panel({ panel }) {
     if (!ask || ask.key !== panel.key)
       return;
     if (ask.field === "name" && nameInput.current) {
-      nameInput.current.focus();
+      nameInput.current.focus({ preventScroll: true });
       if (ask.select)
         nameInput.current.select();
       const row = ask.scroll ? nameInput.current.closest(".row") : null;
       if (row instanceof HTMLElement)
-        bringUnderBand(row);
+        movePage("copyRow", row);
     }
   }, [focusAsk.value]);
   const saved = panel.saved;
@@ -1827,7 +1811,7 @@ function ArgChip({ index, arg, changed, bad, panelKey }) {
   h(() => {
     const ask = focusAsk.value;
     if (ask && ask.key === panelKey && ask.field === "arg" && ask.index === index && input.current)
-      input.current.focus();
+      input.current.focus({ preventScroll: true });
   }, [focusAsk.value]);
   const size = Math.max(String(arg).length, 3);
   return /* @__PURE__ */ u("span", {
@@ -1880,7 +1864,7 @@ function EnvRow({ index, pair, changed, bad, panelKey }) {
   h(() => {
     const ask = focusAsk.value;
     if (ask && ask.key === panelKey && ask.field === "ek" && ask.index === index && key.current)
-      key.current.focus();
+      key.current.focus({ preventScroll: true });
   }, [focusAsk.value]);
   h(() => {
     if (!val.current)
@@ -2388,6 +2372,9 @@ var page = { screen: "profiles", dirty: dirty2, lost: lost2, take, tellDirty, se
 Object.assign(window, { hergyPage: page });
 view.replaceChildren();
 R(/* @__PURE__ */ u(App, {}), view);
+var openedRow = view.querySelector(".row.open");
+if (openedRow)
+  movePage("openByURL", openedRow, { instant: true });
 if (TAB === "assign") {
   initAssign();
   syncAssignURL();
@@ -2409,7 +2396,7 @@ function flashFromHash() {
     const row = view.querySelector(`.team[data-g="${CSS.escape(team)}"] .arow[data-k="${CSS.escape(key)}"]`);
     if (!(row instanceof HTMLElement))
       return;
-    row.scrollIntoView({ block: "center" });
+    movePage("personFromURL", row);
     row.classList.add("flash");
     const select = row.querySelector("select");
     if (select instanceof HTMLElement)

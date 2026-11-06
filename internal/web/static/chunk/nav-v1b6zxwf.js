@@ -795,7 +795,7 @@ function ProseEditor({ text, heading, onChange, transfer }) {
                     if (heading.id)
                       widths.value = { ...widths.value, [heading.id]: "" };
                     requestAnimationFrame(() => {
-                      input.current?.focus();
+                      input.current?.focus({ preventScroll: true });
                       input.current?.setSelectionRange(part.start, part.start);
                     });
                   },

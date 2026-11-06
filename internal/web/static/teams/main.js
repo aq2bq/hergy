@@ -24,7 +24,7 @@ import {
 import {
   dropUndo,
   runDanger
-} from "../chunk/nav-gs311eny.js";
+} from "../chunk/nav-42b5x58f.js";
 import {
   call2,
   read2,
@@ -42,7 +42,7 @@ import {
   carryTo2,
   takeDraft2,
   setDirty2
-} from "../chunk/nav-k13q4569.js";
+} from "../chunk/nav-ag8t5wv9.js";
 import {
   num,
   documents,
@@ -59,37 +59,37 @@ import {
   Counts2,
   Vm2,
   RuleDoc2
-} from "../chunk/nav-mx44ftta.js";
+} from "../chunk/nav-v1b6zxwf.js";
 import {
   conflictOf,
   ConflictNotice,
   YamlTab2
-} from "../chunk/nav-spr6q0xs.js";
+} from "../chunk/nav-w38d9r9j.js";
 import {
   st,
   projectName2
-} from "../chunk/nav-ezsfmbrd.js";
+} from "../chunk/nav-1da86991.js";
 import {
   RunCell2
-} from "../chunk/nav-c4wtdkjx.js";
+} from "../chunk/nav-y3sytsqb.js";
 import {
   roleEditor,
   roleProblems
-} from "../chunk/nav-g1kfx462.js";
+} from "../chunk/nav-d94s040z.js";
 import {
   copyGroupOf,
   groupPlace,
   projectOfGroup,
-  bringUnderBand,
   ProjectView
-} from "../chunk/nav-x0p9h60z.js";
+} from "../chunk/nav-x8mye5ra.js";
 import {
   Field
 } from "../chunk/nav-9htrbyn7.js";
 import {
+  movePage,
   installWheel,
   resource
-} from "../chunk/nav-47tvawmc.js";
+} from "../chunk/nav-kj98ksd1.js";
 import {
   token2,
   parseOpen2,
@@ -446,7 +446,7 @@ function Editor({ session, onScanned, visible }) {
       return;
     const input = dialog.current?.querySelector("textarea");
     if (input) {
-      input.focus();
+      input.focus({ preventScroll: true });
       input.scrollIntoView({ block: "nearest", inline: "nearest" });
       focusTarget.value = "";
     }
@@ -3033,7 +3033,7 @@ function Menu({ r }) {
     el.style.top = `${Math.max(6, Math.min(m.y, cr.height - h - 6))}px`;
     const first = el.querySelector("button");
     if (first)
-      first.focus();
+      first.focus({ preventScroll: true });
   });
   if (!m)
     return null;
@@ -4086,7 +4086,7 @@ function PromptComparison({ r, member, close }) {
     dialog.current?.showModal();
     return () => {
       dialog.current?.close();
-      trigger?.focus();
+      trigger?.focus({ preventScroll: true });
     };
   }, []);
   h(() => {
@@ -5375,10 +5375,8 @@ function Canvas({ r, vlist }) {
                   const panel = box.current?.querySelector(".cv-side");
                   if (!panel)
                     return;
-                  const band = document.querySelector(".bar")?.offsetHeight || 0;
                   const summary = box.current?.closest(".tdef")?.querySelector(":scope > .sum")?.offsetHeight || 0;
-                  panel.style.scrollMarginTop = `${band + summary + 12}px`;
-                  panel.scrollIntoView({ block: "start", behavior: "smooth" });
+                  movePage("editSelection", panel, { extra: summary + 12 });
                   (panel.querySelector("input, select") || panel.querySelector("button"))?.focus({ preventScroll: true });
                 },
                 children: "選択した属性を編集"
@@ -5741,12 +5739,6 @@ function PlaceHead({ g }) {
 function Row({ r }) {
   const open = isOpenRow(r);
   const el = A(null);
-  const wasOpen = A(false);
-  h(() => {
-    if (open && !wasOpen.current && dtabOf(r) !== "agree")
-      bringUnderBand(el.current);
-    wasOpen.current = open;
-  }, [open]);
   h(() => {
     const ask = focusAsk.value;
     if (!ask || ask.dom !== r.dom || !el.current)
@@ -5758,7 +5750,7 @@ function Row({ r }) {
     if (one instanceof HTMLInputElement)
       one.select();
     if (ask.scroll)
-      bringUnderBand(el.current);
+      movePage("copyRow", el.current);
   }, [focusAsk.value]);
   return /* @__PURE__ */ u("div", {
     class: "tdef" + (open ? " open" : "") + (dirtyDef(r) ? " unsaved" : ""),
@@ -6898,6 +6890,9 @@ if (view) {
     readAddress();
   });
   boot().catch(() => {}).finally(() => {
+    const opened = view?.querySelector(".tdef.open");
+    if (opened)
+      movePage("openByURL", opened, { instant: true });
     page.settled = true;
   });
 }

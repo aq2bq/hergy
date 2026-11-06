@@ -10,7 +10,7 @@
 import {
   mountDialogs,
   runDanger
-} from "./nav-gs311eny.js";
+} from "./nav-42b5x58f.js";
 
 // lib/nav.ts
 mountDialogs();
@@ -198,7 +198,7 @@ document.addEventListener("click", (e) => {
     location.assign(url.href);
   };
   const tabs = link.closest("#tabs");
-  if (tabs && confirmLeave2(follow, () => tabs.querySelector('[aria-selected="true"]')?.focus())) {
+  if (tabs && confirmLeave2(follow, () => tabs.querySelector('[aria-selected="true"]')?.focus({ preventScroll: true }))) {
     e.preventDefault();
     e.stopImmediatePropagation();
     return;
@@ -226,7 +226,7 @@ document.addEventListener("keydown", (e) => {
     return;
   e.preventDefault();
   const index = e.key === "Home" ? 0 : e.key === "End" ? tabs.length - 1 : (at + (e.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length;
-  tabs[index].focus();
+  tabs[index].focus({ preventScroll: true });
   tabs[index].click();
 });
 var header = document.querySelector(".bar");

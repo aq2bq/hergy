@@ -20,7 +20,7 @@ import {
 } from "./nav-zn7g81kr.js";
 import {
   runDanger
-} from "./nav-gs311eny.js";
+} from "./nav-42b5x58f.js";
 import {
   Refusal2,
   call2,
@@ -33,7 +33,7 @@ import {
 import {
   setCount2,
   setActivity2
-} from "./nav-k13q4569.js";
+} from "./nav-ag8t5wv9.js";
 import {
   token2
 } from "./nav-1wefkymt.js";
@@ -355,7 +355,7 @@ function openSheet2(vnode, side) {
     sheetHost.style.top = `${Math.max(72, Math.min(anchor.bottom + 8, innerHeight - 420))}px`;
     sheetHost.style.maxHeight = `${innerHeight - Math.max(72, Math.min(anchor.bottom + 8, innerHeight - 420)) - 16}px`;
   }
-  sheetHost.focus();
+  sheetHost.focus({ preventScroll: true });
   R(vnode, sheetHost);
   return sheetHost;
 }

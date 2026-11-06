@@ -17,7 +17,7 @@ import {
 } from "./nav-sk3m5qf3.js";
 import {
   resource
-} from "./nav-47tvawmc.js";
+} from "./nav-kj98ksd1.js";
 
 // lib/role-editor.ts
 function record(value) {

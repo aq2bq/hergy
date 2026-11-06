@@ -12,7 +12,7 @@ import {
 } from "./nav-zn7g81kr.js";
 import {
   confirmLeave2
-} from "./nav-k13q4569.js";
+} from "./nav-ag8t5wv9.js";
 
 // lib/copy.ts
 var copyGroupOf = (to, from, current) => {
@@ -22,18 +22,6 @@ var copyGroupOf = (to, from, current) => {
 };
 var groupPlace = (group) => group === "global" ? "global" : "project";
 var projectOfGroup = (group) => !group || group === "global" ? undefined : group;
-
-// lib/band.ts
-function bringUnderBand(row) {
-  if (!row || !row.querySelector(":scope > .sum"))
-    return;
-  const stick = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--stick")) || 62;
-  const delta = row.getBoundingClientRect().top - stick;
-  if (Math.abs(delta) < 2)
-    return;
-  const quiet = typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  window.scrollBy({ top: delta, behavior: quiet ? "auto" : "smooth" });
-}
 
 // lib/project-view.tsx
 function ProjectView({ projects }) {
@@ -82,4 +70,4 @@ function ProjectView({ projects }) {
   });
 }
 
-export { copyGroupOf, groupPlace, projectOfGroup, bringUnderBand, ProjectView };
+export { copyGroupOf, groupPlace, projectOfGroup, ProjectView };

@@ -37,12 +37,12 @@ function mount() {
     opened = false;
     update();
     if (returnFocus)
-      trigger.focus();
+      trigger.focus({ preventScroll: true });
   }
   function open() {
     opened = true;
     update();
-    items.find((item) => item.dataset.mode === theme.state.mode)?.focus();
+    items.find((item) => item.dataset.mode === theme.state.mode)?.focus({ preventScroll: true });
   }
   trigger.addEventListener("click", () => {
     if (opened)
@@ -78,7 +78,7 @@ function mount() {
     else if (["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
       event.preventDefault();
       const index = event.key === "Home" ? 0 : event.key === "End" ? items.length - 1 : (at + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length;
-      items[index].focus();
+      items[index].focus({ preventScroll: true });
     }
   });
   document.addEventListener("click", (event) => {
