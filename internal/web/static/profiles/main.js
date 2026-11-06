@@ -17,9 +17,10 @@ import {
   u
 } from "../chunk/nav-wtffyt4p.js";
 import {
+  askConfirm,
   takeDraft2,
   setDirty2
-} from "../chunk/nav-b2ph1bfx.js";
+} from "../chunk/nav-tsc4shg2.js";
 import {
   check2,
   save2,
@@ -30,11 +31,9 @@ import {
 } from "../chunk/nav-sk3m5qf3.js";
 import {
   token2,
-  parseOpen2,
-  askConfirm,
-  ConfirmDialog
-} from "../chunk/nav-55eq49ew.js";
-import"../chunk/nav-vjrb6rnv.js";
+  parseOpen2
+} from "../chunk/nav-etg511c3.js";
+import"../chunk/nav-7hv17xqh.js";
 import {
   conflictOf,
   ConflictNotice,
@@ -45,7 +44,7 @@ import {
   projectOfGroup,
   bringUnderBand,
   ProjectView
-} from "../chunk/nav-2krt94z2.js";
+} from "../chunk/nav-3chtstze.js";
 import {
   Field
 } from "../chunk/nav-hrc2s6sc.js";
@@ -2368,23 +2367,14 @@ function YamlPage() {
 function App() {
   if (TAB === "assign")
     return /* @__PURE__ */ u(S, {
-      children: [
-        /* @__PURE__ */ u(AssignPage, {}),
-        /* @__PURE__ */ u(ConfirmDialog, {})
-      ]
+      children: /* @__PURE__ */ u(AssignPage, {})
     });
   if (TAB === "yaml")
     return /* @__PURE__ */ u(S, {
-      children: [
-        /* @__PURE__ */ u(YamlPage, {}),
-        /* @__PURE__ */ u(ConfirmDialog, {})
-      ]
+      children: /* @__PURE__ */ u(YamlPage, {})
     });
   return /* @__PURE__ */ u(S, {
-    children: [
-      /* @__PURE__ */ u(List, {}),
-      /* @__PURE__ */ u(ConfirmDialog, {})
-    ]
+    children: /* @__PURE__ */ u(List, {})
   });
 }
 var page = { screen: "profiles", dirty: dirty2, take, tellDirty, settled: true };

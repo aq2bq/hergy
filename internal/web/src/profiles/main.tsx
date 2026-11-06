@@ -11,14 +11,13 @@ import {
 } from './state.js';
 import { initPanel } from './actions.js';
 import { List } from './view.js';
-import { ConfirmDialog } from '../lib/confirm.js';
 import { AssignPage } from './assign.js';
 import { YamlPage } from './yaml.js';
 
 function App() {
-  if (TAB === 'assign') return <><AssignPage /><ConfirmDialog /></>;
-  if (TAB === 'yaml') return <><YamlPage /><ConfirmDialog /></>;
-  return <><List /><ConfirmDialog /></>;
+  if (TAB === 'assign') return <><AssignPage /></>;
+  if (TAB === 'yaml') return <><YamlPage /></>;
+  return <><List /></>;
 }
 
 // The page says what it is through window.hergyPage (nav.js reads it, 5 章 7).

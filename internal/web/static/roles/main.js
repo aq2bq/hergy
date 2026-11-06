@@ -25,16 +25,15 @@ import {
   teamModel2
 } from "../chunk/nav-sk3m5qf3.js";
 import {
+  askConfirm,
   takeDraft2,
   setDirty2
-} from "../chunk/nav-b2ph1bfx.js";
+} from "../chunk/nav-tsc4shg2.js";
 import {
   token2,
-  parseOpen2,
-  askConfirm,
-  ConfirmDialog
-} from "../chunk/nav-55eq49ew.js";
-import"../chunk/nav-vjrb6rnv.js";
+  parseOpen2
+} from "../chunk/nav-etg511c3.js";
+import"../chunk/nav-7hv17xqh.js";
 import {
   Measure,
   renameCarries2,
@@ -59,7 +58,7 @@ import {
   projectOfGroup,
   bringUnderBand,
   ProjectView
-} from "../chunk/nav-2krt94z2.js";
+} from "../chunk/nav-3chtstze.js";
 import {
   Field
 } from "../chunk/nav-hrc2s6sc.js";
@@ -1391,23 +1390,14 @@ function App() {
   const tab = state.value.tab;
   if (tab === "assign")
     return /* @__PURE__ */ u(S, {
-      children: [
-        /* @__PURE__ */ u(AssignPage, {}),
-        /* @__PURE__ */ u(ConfirmDialog, {})
-      ]
+      children: /* @__PURE__ */ u(AssignPage, {})
     });
   if (tab === "yaml")
     return /* @__PURE__ */ u(S, {
-      children: [
-        /* @__PURE__ */ u(YamlPage, {}),
-        /* @__PURE__ */ u(ConfirmDialog, {})
-      ]
+      children: /* @__PURE__ */ u(YamlPage, {})
     });
   return /* @__PURE__ */ u(S, {
-    children: [
-      /* @__PURE__ */ u(List, {}),
-      /* @__PURE__ */ u(ConfirmDialog, {})
-    ]
+    children: /* @__PURE__ */ u(List, {})
   });
 }
 function List() {

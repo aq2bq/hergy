@@ -1,3 +1,4 @@
+import { askConfirm } from '../lib/confirm.js';
 import { ProjectView } from '../lib/project-view';
 // teams/view.tsx — チーム定義の画面の一覧とパネル（webui-preact-design 4 章）。
 //
@@ -24,7 +25,6 @@ import { RunCell } from '../lib/hq/run.js';
 import { state as hq, projectName as hqProjectName } from '../lib/hq.js';
 import { copyGroupOf } from '../lib/copy.js';
 import { bringUnderBand } from '../lib/band.js';
-import { askConfirm, ConfirmDialog } from '../lib/confirm.js';
 import {
   PLACES, PLACE, DIR, HQ, GROUPED, GROUPS, CURRENT, state, allRecs, groupRecs, rowsInGroup, placeGroups,
   dkey, currentProjectName, teamLabel, dtabOf, isOpen, missingOpen,
@@ -73,7 +73,7 @@ export function Tabs() {
 export function App() {
   // The 動き column and the group heads are the headquarters' reading: each
   // reads it, so a re-reading draws it without the screen asking (5 章 2).
-  return <>{state.value.tab === 'list' ? <List /> : <><ProjectView projects={HQ?.projects} /><YamlPage /></>}<CanvasToast /><ConfirmDialog /></>;
+  return <>{state.value.tab === 'list' ? <List /> : <><ProjectView projects={HQ?.projects} /><YamlPage /></>}<CanvasToast /></>;
 }
 
 // ---- 一覧 --------------------------------------------------------------

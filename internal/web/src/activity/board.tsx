@@ -1,5 +1,4 @@
 import { call, problemText } from '../lib/api';
-import { ConfirmDialog } from '../lib/confirm.js';
 import { useState } from '../lib/preact';
 // activity/board.tsx — アクティビティの画面（spec 6 章、r-8a67、d-8a45）。
 //
@@ -112,7 +111,7 @@ function Tile({ team: t }: { team: ActivityTeam }): JSX.Element {
 export function Board(): JSX.Element {
   // The confirmation every screen shares (r-d480): /activity stops a team
   // through it too, so the shape is the same on all four screens.
-  return <><BoardRows /><ConfirmDialog /></>;
+  return <><BoardRows /></>;
 }
 
 function BoardRows(): JSX.Element {

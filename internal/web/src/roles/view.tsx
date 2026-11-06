@@ -4,6 +4,7 @@
 // も変えずに移した構成を基に、編集操作を上部へそろえる。状態は state.js の signal を読み、押し込みは自分の
 // onClick / onInput / onKeyDown から state.js の関数を直接呼ぶ（5 章 1）。規則の
 // 文書の中は共有部品（lib/ruledoc.js）が描き、その押し込みも部品のもの。
+import { askConfirm } from '../lib/confirm.js';
 import { useEffect, useRef } from '../lib/preact.js';
 import { Measure } from '../lib/measure.js';
 import { Field } from '../lib/field.js';
@@ -16,7 +17,6 @@ import {
   doSave, doDelete, syncURL, conflictAt, pressOverwrite, pressRevertConflict, pressUndoConflict,
 } from './state.js';
 import { ConflictNotice } from '../lib/conflict.js';
-import { askConfirm, ConfirmDialog } from '../lib/confirm.js';
 import { bringUnderBand } from '../lib/band.js';
 import { RuleDoc, Counts, Badge } from '../lib/ruledoc.js';
 import { dirty as changedDirty, roleDirty , ROLE_DOC } from '../lib/changed.js';
@@ -38,9 +38,9 @@ export function Tabs() {
 
 export function App() {
   const tab = state.value.tab;
-  if (tab === 'assign') return <><AssignPage /><ConfirmDialog /></>;
-  if (tab === 'yaml') return <><YamlPage /><ConfirmDialog /></>;
-  return <><List /><ConfirmDialog /></>;
+  if (tab === 'assign') return <><AssignPage /></>;
+  if (tab === 'yaml') return <><YamlPage /></>;
+  return <><List /></>;
 }
 
 // List is the roles list: the filters and the search, the column names, and the

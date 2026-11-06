@@ -20,6 +20,7 @@ import {
   read2,
   problemText2
 } from "../chunk/nav-sk3m5qf3.js";
+import"../chunk/nav-tsc4shg2.js";
 import {
   setRunning2,
   token2,
@@ -29,16 +30,14 @@ import {
   definitionOf2,
   bandActivity2,
   readGroups2,
-  ConfirmDialog,
   stopSheet2,
   teamCount,
   openSheet
-} from "../chunk/nav-55eq49ew.js";
-import"../chunk/nav-b2ph1bfx.js";
+} from "../chunk/nav-etg511c3.js";
 import {
   TeamFigure2,
   exports_hq
-} from "../chunk/nav-vjrb6rnv.js";
+} from "../chunk/nav-7hv17xqh.js";
 import {
   installWheel,
   resource
@@ -530,10 +529,7 @@ function Tile({ team: t }) {
 }
 function Board() {
   return /* @__PURE__ */ u(S, {
-    children: [
-      /* @__PURE__ */ u(BoardRows, {}),
-      /* @__PURE__ */ u(ConfirmDialog, {})
-    ]
+    children: /* @__PURE__ */ u(BoardRows, {})
   });
 }
 function BoardRows() {

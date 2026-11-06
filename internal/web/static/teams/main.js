@@ -22,10 +22,11 @@ import {
   u
 } from "../chunk/nav-wtffyt4p.js";
 import {
+  askConfirm,
   carryTo2,
   takeDraft2,
   setDirty2
-} from "../chunk/nav-b2ph1bfx.js";
+} from "../chunk/nav-tsc4shg2.js";
 import {
   call2,
   read2,
@@ -60,13 +61,11 @@ import {
   st,
   token2,
   parseOpen2,
-  projectName2,
-  askConfirm,
-  ConfirmDialog
-} from "../chunk/nav-55eq49ew.js";
+  projectName2
+} from "../chunk/nav-etg511c3.js";
 import {
   RunCell2
-} from "../chunk/nav-vjrb6rnv.js";
+} from "../chunk/nav-7hv17xqh.js";
 import {
   offerUndo,
   conflictOf,
@@ -83,7 +82,7 @@ import {
   projectOfGroup,
   bringUnderBand,
   ProjectView
-} from "../chunk/nav-2krt94z2.js";
+} from "../chunk/nav-3chtstze.js";
 import {
   Field
 } from "../chunk/nav-hrc2s6sc.js";
@@ -5369,8 +5368,7 @@ function App() {
           /* @__PURE__ */ u(YamlPage, {})
         ]
       }),
-      /* @__PURE__ */ u(CanvasToast, {}),
-      /* @__PURE__ */ u(ConfirmDialog, {})
+      /* @__PURE__ */ u(CanvasToast, {})
     ]
   });
 }

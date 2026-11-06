@@ -28,9 +28,10 @@ import {
   problemText2
 } from "./nav-sk3m5qf3.js";
 import {
+  askConfirm,
   setCount2,
   setActivity2
-} from "./nav-b2ph1bfx.js";
+} from "./nav-tsc4shg2.js";
 
 // lib/band-counts.ts
 function applyCounts(counts) {
@@ -292,71 +293,6 @@ function startReads() {
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible")
       readRunning2();
-  });
-}
-
-// lib/confirm.tsx
-var confirmAsk = y(null);
-var askConfirm = (ask) => {
-  confirmAsk.value = ask;
-};
-var closeConfirm = () => {
-  confirmAsk.value = null;
-};
-function ConfirmDialog() {
-  const ask = confirmAsk.value;
-  const dialog = A(null);
-  const cancel = A(null);
-  h(() => {
-    const node = dialog.current;
-    if (!ask || !node)
-      return;
-    if (!node.open)
-      node.showModal();
-    cancel.current?.focus();
-    return;
-  }, [ask]);
-  if (!ask)
-    return null;
-  return /* @__PURE__ */ u("dialog", {
-    class: "confirm",
-    ref: dialog,
-    "aria-labelledby": "confirm-title",
-    onCancel: (event) => {
-      event.preventDefault();
-      closeConfirm();
-    },
-    children: [
-      /* @__PURE__ */ u("h2", {
-        id: "confirm-title",
-        children: ask.title
-      }),
-      /* @__PURE__ */ u("div", {
-        class: "confirm-body",
-        children: ask.body
-      }),
-      /* @__PURE__ */ u("footer", {
-        children: [
-          /* @__PURE__ */ u("button", {
-            class: "btn",
-            type: "button",
-            ref: cancel,
-            onClick: closeConfirm,
-            children: "やめる"
-          }),
-          /* @__PURE__ */ u("button", {
-            class: "btn danger solid",
-            type: "button",
-            onClick: () => {
-              const run = ask.run;
-              closeConfirm();
-              run();
-            },
-            children: ask.label
-          })
-        ]
-      })
-    ]
   });
 }
 
@@ -2025,4 +1961,4 @@ async function send() {
   }
 }
 
-export { st, setRunning2, token2, parseOpen2, projectName2, runningFor, runningTeam2, lastWorkspaceOf, definitionOf2, bandActivity2, readCore2, readGroups2, readAll2, readRunning2, startReads, askConfirm, ConfirmDialog, sheetOpen, closeSheet2, startSheet2, stopSheet2, projectsSheet, searchBoxOpen, closeBox, moveSel, mountSearch, resetSearch, searchHook, POLL, count, opened, answer, note, scope, chosen, teams, canApply, applyLabel, teamCount, toggle, readCount, readTeams, openSheet, close, send };
+export { st, setRunning2, token2, parseOpen2, projectName2, runningFor, runningTeam2, lastWorkspaceOf, definitionOf2, bandActivity2, readCore2, readGroups2, readAll2, readRunning2, startReads, sheetOpen, closeSheet2, startSheet2, stopSheet2, projectsSheet, searchBoxOpen, closeBox, moveSel, mountSearch, resetSearch, searchHook, POLL, count, opened, answer, note, scope, chosen, teams, canApply, applyLabel, teamCount, toggle, readCount, readTeams, openSheet, close, send };
