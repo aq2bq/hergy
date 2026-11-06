@@ -186,10 +186,12 @@ The default template is provisional.
 
 ## Contributing
 
-Before you send a change, run `go run ./tools/check diff` once. It selects
-checks for the changes since the upstream; CI runs every quality gate.
-After fixing a failed gate, rerun that gate only, unless the fix affects other
-gates. `go run ./tools/check -h` lists the checks.
+Before you send a change, run `go run ./tools/check diff` once. It runs the
+quick checks for the changes since the upstream, in about a minute, and names
+the browser walks the change selects (`go run ./tools/check e2e tests/<name>.spec.ts`
+runs those alone). CI runs every quality gate on every push, the browser walks
+and the race detector among them. After fixing a failed gate, rerun that gate
+only, unless the fix affects other gates. `go run ./tools/check -h` lists the checks.
 
 ## License
 

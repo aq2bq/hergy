@@ -9,9 +9,23 @@ import (
 )
 
 // The diff run: the gates a change can fail, picked from the files that
-// differ from what was pushed. Every gate still runs in CI on every push, so
-// the diff run is what "done" means for one change, and CI is what catches the
-// rest.
+// differ from what was pushed, minus the gates that are CI's alone. Every gate
+// still runs in CI on every push, so the diff run is what "done" means for one
+// change on a laptop, and CI is what catches the rest.
+//
+// What stays out of the diff run, and why (measured 2026-11-06 on an 8-core
+// laptop, every gate alone on a clean main):
+//
+//   - e2e: 148s for the whole suite, and a change under internal/web/src/lib or
+//     to any Go file the screens use selects the whole suite. The browser walks
+//     were 2.5 hours of one developer's 29-hour task, run 116 times. CI runs
+//     them on every push; a laptop runs them on demand (go run ./tools/check e2e
+//     tests/<spec>...), and diff prints which walks the change selects.
+//   - coverage, vuln: a ratchet over the whole profile, and a network call.
+//   - test's -race and -coverprofile: internal/app's 259 serial tests take 75s
+//     under -race and 54s without; both flags are CI's. The diff run tests only
+//     the packages that changed, with go test's cache; the packages that depend
+//     on them (internal/app depends on nearly everything) are CI's.
 
 // changedPaths returns the paths, from the module root, that differ from the
 // commit the branch shares with its upstream: commits not yet pushed, changes
@@ -142,23 +156,103 @@ func (r *runner) diff() error {
 	if err != nil {
 		return err
 	}
-	selected := gatesFor(paths)
-	if len(selected) == 0 {
+	selected, later := localGates(gatesFor(paths))
+	if len(selected) == 0 && len(later) == 0 {
 		fmt.Println("no change from the upstream: no gate to run")
 		return nil
 	}
-	names := make([]string, len(selected))
-	for i, g := range selected {
-		names[i] = g.name
+	fmt.Printf("%d changed paths; the gates they can fail here: %s\n", len(paths), gateNames(selected))
+	if len(later) > 0 {
+		fmt.Printf("left to CI (every push runs them): %s\n", gateNames(later))
 	}
-	fmt.Printf("%d changed paths; the gates they can fail: %s\n", len(paths), strings.Join(names, " "))
-	r.cachedTests = true
+	r.local = true
+	r.write = true // webbuild and apitypes write their files here; CI compares
+	r.testPackages = testPackagesFor(paths)
 	specs, err := filepath.Glob(filepath.Join(r.root, browserGlob))
 	if err != nil {
 		return err
 	}
-	r.e2eSpecs = specsFor(paths, specs)
+	if slices.ContainsFunc(later, func(g gate) bool { return g.name == "e2e" }) {
+		walks := specsFor(paths, specs)
+		if walks == nil {
+			fmt.Println("the browser walks this change selects: every spec (go run ./tools/check e2e)")
+		} else {
+			fmt.Printf("the browser walks this change selects: go run ./tools/check e2e %s\n", strings.Join(walks, " "))
+		}
+	}
+	if len(selected) == 0 {
+		return nil
+	}
 	return r.runGates(selected)
+}
+
+// ciOnly are the gates the diff run leaves to CI: the ones whose cost is the
+// whole repository's, not the change's (see the top of this file).
+var ciOnly = map[string]bool{"e2e": true, "coverage": true, "vuln": true}
+
+// localGates splits the gates a change can fail into the ones the diff run runs
+// here and the ones it leaves to CI, both in the table's order.
+func localGates(selected []gate) (here, later []gate) {
+	for _, g := range selected {
+		if ciOnly[g.name] {
+			later = append(later, g)
+		} else {
+			here = append(here, g)
+		}
+	}
+	return here, later
+}
+
+func gateNames(gs []gate) string {
+	names := make([]string, len(gs))
+	for i, g := range gs {
+		names[i] = g.name
+	}
+	return strings.Join(names, " ")
+}
+
+// testPackagesFor is what the diff run's test gate tests: the packages whose Go
+// files changed, by their directory, and for a file that is not Go, the package
+// that embeds or reads it (the locales, the templates, the API's promise, the
+// documents terms_test.go holds to the glossary). A file nothing here names
+// keeps ./..., which go test's cache makes cheap when it holds. The packages
+// that import a changed one (internal/app imports nearly everything, and its
+// 259 tests take a minute) are CI's. A deleted directory is left out, so go
+// test does not refuse the run.
+func testPackagesFor(paths []string) []string {
+	seen := map[string]bool{}
+	var pkgs []string
+	add := func(pkg string) {
+		if !seen[pkg] {
+			seen[pkg] = true
+			pkgs = append(pkgs, pkg)
+		}
+	}
+	for _, p := range paths {
+		switch {
+		case strings.HasSuffix(p, ".go"):
+			add("./" + filepath.ToSlash(filepath.Dir(p)))
+		case strings.HasPrefix(p, "internal/i18n/locales/"):
+			add("./internal/i18n")
+			add("./.") // terms_test.go reads the locales too
+		case strings.HasPrefix(p, "internal/web/templates/") || strings.HasPrefix(p, "internal/web/static/"):
+			add("./internal/web")
+		case strings.HasPrefix(p, "internal/web/src/"):
+			add("./.") // terms_test.go reads the screens' words
+		case strings.HasPrefix(p, "internal/apicontract/"):
+			add("./internal/apicontract")
+		case strings.HasPrefix(p, "tools/check/"):
+			add("./tools/check")
+		case strings.HasSuffix(p, ".md") || strings.HasPrefix(p, "skills/") || strings.HasPrefix(p, "internal/cheat/"):
+			add("./.") // the documents terms_test.go holds to the glossary
+		case p == ".gitignore" || p == ".golangci.yml" || p == ".testcoverage.yml" || strings.HasPrefix(p, ".github/") || strings.HasPrefix(p, "e2e/") || strings.HasPrefix(p, "tools/webtools/") || strings.HasPrefix(p, "tools/webvendor/"):
+			// Nothing a Go test reads.
+		default:
+			return []string{"./..."}
+		}
+	}
+	slices.Sort(pkgs)
+	return pkgs
 }
 
 // Only these CLI presentation files are known not to run in the browser

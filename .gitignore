@@ -14,3 +14,6 @@ tools/webvendor/node_modules/
 # not this project's settings (ignored above).
 !testdata/**/.hergy/
 !testdata/**/.hergy/**
+
+# A binary go build ./tools/check leaves at the root by accident (never commit it)
+/check

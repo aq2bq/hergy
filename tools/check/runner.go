@@ -44,9 +44,13 @@ type runner struct {
 	root   string // the module root, where go.mod is
 	bin    string // root/.bin
 	stdout io.Writer
-	// cachedTests keeps go test's cache in the test gate (the diff run).
-	cachedTests bool
-	// e2eSpecs is set only by diff; nil keeps every browser spec.
+	// local is the diff run: the test gate keeps go test's cache and leaves
+	// -race and the coverage profile to CI, and tests testPackages.
+	local bool
+	// testPackages is what the diff run's test gate tests (testPackagesFor).
+	testPackages []string
+	// e2eSpecs is the browser walks to run; nil keeps every spec. diff prints
+	// its selection, `go run ./tools/check e2e tests/<spec>...` sets it.
 	e2eSpecs []string
 	// write is whether the gates that write (webbuild, apitypes) may write their
 	// files (go run ./tools/check webbuild -write).

@@ -40,7 +40,17 @@ func (r *runner) webbuildGate() error {
 		return err
 	}
 	if r.write {
-		return writeWebTree(r.root, built)
+		if err := writeWebTree(r.root, built); err != nil {
+			return err
+		}
+		if r.local {
+			// The diff run wrote the build's files; say which, so they are committed
+			// with the change (CI compares and fails on a file left behind).
+			if out, err := r.git("status", "--short", "--", webStatic); err == nil && strings.TrimSpace(out) != "" {
+				fmt.Fprintf(r.stdout, "-- wrote internal/web/static; commit these with the change:\n%s", out)
+			}
+		}
+		return nil
 	}
 	return compareWebTree(r.root, built)
 }

@@ -91,3 +91,16 @@ func TestGatesForPicksWhatAChangeCanFail(t *testing.T) {
 		}
 	}
 }
+
+func TestSplitSpecsTakesTheWalksOutOfTheGateNames(t *testing.T) {
+	args, specs := splitSpecs([]string{"e2e", "tests/profiles.spec.ts", "tests/nav.spec.ts"})
+	if len(args) != 1 || args[0] != "e2e" || len(specs) != 2 || specs[1] != "tests/nav.spec.ts" {
+		t.Fatalf("splitSpecs = %v, %v", args, specs)
+	}
+	if _, specs := splitSpecs([]string{"lint", "test"}); specs != nil {
+		t.Fatalf("no spec named must keep every walk (nil), got %v", specs)
+	}
+	if err := run([]string{"lint", "tests/nav.spec.ts"}); err == nil {
+		t.Fatal("a spec with a gate other than e2e must be refused")
+	}
+}

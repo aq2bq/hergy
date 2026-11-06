@@ -84,3 +84,46 @@ func TestACommittedBranchWithNoUpstreamStillSelectsItsChange(t *testing.T) {
 		t.Fatalf("changedPaths = %v, want the committed change", paths)
 	}
 }
+
+// TestLocalGatesLeaveTheRepositorysCostToCI: the diff run keeps the gates whose
+// cost is the change's and leaves e2e, coverage and vuln to CI, in the table's order.
+func TestLocalGatesLeaveTheRepositorysCostToCI(t *testing.T) {
+	here, later := localGates(gatesFor([]string{"internal/app/serve.go"}))
+	if got := gateNames(here); got != "fmt tidy fix lint arch test owners deadcode" {
+		t.Errorf("here = %q", got)
+	}
+	if got := gateNames(later); got != "e2e coverage" {
+		t.Errorf("later = %q", got)
+	}
+	here, later = localGates(gatesFor([]string{"go.sum"}))
+	if got := gateNames(here); got != "tidy lint test deadcode" {
+		t.Errorf("here = %q", got)
+	}
+	if got := gateNames(later); got != "e2e vuln" {
+		t.Errorf("later = %q", got)
+	}
+}
+
+// TestTestPackagesForTestsWhatChanged: Go changes test their own packages, a
+// file a package embeds or reads tests that package, and a file nothing names
+// keeps ./... and go test's cache.
+func TestTestPackagesForTestsWhatChanged(t *testing.T) {
+	cases := []struct {
+		paths []string
+		want  []string
+	}{
+		{[]string{"internal/catalog/rows.go", "internal/catalog/rows_test.go", "internal/web/api.go"}, []string{"./internal/catalog", "./internal/web"}},
+		{[]string{"internal/catalog/rows.go", "README.md"}, []string{"./.", "./internal/catalog"}},
+		{[]string{"internal/i18n/locales/ja.json"}, []string{"./.", "./internal/i18n"}},
+		{[]string{"internal/web/src/profiles/state.ts", "internal/web/static/profiles/main.js"}, []string{"./.", "./internal/web"}},
+		{[]string{"e2e/tests/nav.spec.ts", ".gitignore"}, nil},
+		{[]string{"testdata/hq/config/hergy/config.yaml"}, []string{"./..."}},
+		{[]string{"go.mod"}, []string{"./..."}},
+		{[]string{"main.go"}, []string{"./."}},
+	}
+	for _, c := range cases {
+		if got := testPackagesFor(c.paths); !slices.Equal(got, c.want) {
+			t.Errorf("testPackagesFor(%v) = %v, want %v", c.paths, got, c.want)
+		}
+	}
+}

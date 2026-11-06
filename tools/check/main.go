@@ -3,7 +3,8 @@
 //
 //	go run ./tools/check             every gate, in order
 //	go run ./tools/check lint test   only the named gates
-//	go run ./tools/check diff        the gates a change can fail, picked from what differs from the upstream
+//	go run ./tools/check diff        the gates a change can fail here, picked from what differs from the upstream
+//	go run ./tools/check e2e tests/profiles.spec.ts   only those browser walks
 //	go run ./tools/check nightly     the daily run: mutation testing and fuzzing
 //	go run ./tools/check -h          the gates, each with its rule
 //
@@ -51,7 +52,7 @@ var gates = []gate{
 	{"unit", Hard, "the WebUI's modules' own tests (internal/web/jstest/*.test.js) under bun test, with happy-dom's document and no browser (tools/webtools)", (*runner).unitGate},
 	{"lint", Hard, "golangci-lint run (.golangci.yml); gocognit and cyclop are Ratchet, their thresholds move down only", (*runner).lintGate},
 	{"arch", Hard, "the direction of imports (arch_test.go); lint restricts os/exec to herdrcli, gycli, browser and tools/check (test files excepted)", (*runner).archGate},
-	{"test", Hard, "go test -race ./... with a coverage profile; diff keeps the cache, other runs add -count=1", (*runner).testGate},
+	{"test", Hard, "go test -race -count=1 ./... with a coverage profile; diff runs go test over the changed packages alone, with the cache and without -race or the profile", (*runner).testGate},
 	{"reading", Hard, "no walk compares what the page said once: an expect( never takes an awaited read, a reading is read again until it matches (e2e/tests/*.spec.ts, r-291a)", (*runner).readingGate},
 	{"owners", Hard, "the band's numbers are written only by lib/band-counts.ts, and the list's rows and counts are asked only of internal/catalog: a name outside its owner fails, unless tools/check/owners.yml allows it with why and a decision (r-ea17, ac-f62f, d-4d88)", (*runner).ownersGate},
 	{"e2e", Hard, "the browser walks of e2e/tests (*.spec.ts) in Playwright, run by bun: e2e/bun.lock's dependency and Playwright's pinned chromium are fetched into .bin/ and e2e/.bin/ when missing (d-bb0d)", (*runner).e2eGate},
@@ -78,6 +79,10 @@ func run(args []string) error {
 	}
 	args, write := splitWrite(args)
 	r.write = write
+	args, r.e2eSpecs = splitSpecs(args)
+	if r.e2eSpecs != nil && (len(args) != 1 || args[0] != "e2e") {
+		return errors.New("a spec path goes with the e2e gate alone (go run ./tools/check e2e tests/<name>.spec.ts)")
+	}
 	if len(args) == 1 && args[0] == "nightly" {
 		return r.nightly()
 	}
@@ -113,6 +118,21 @@ func gateNamed(name string) (gate, bool) {
 		}
 	}
 	return gate{}, false
+}
+
+// splitSpecs takes the browser walks named on the command line (tests/<name>.spec.ts)
+// out of the gate names: `go run ./tools/check e2e tests/profiles.spec.ts` runs that
+// walk alone. No spec named keeps every walk (nil).
+func splitSpecs(args []string) ([]string, []string) {
+	var kept, specs []string
+	for _, a := range args {
+		if strings.HasSuffix(a, ".spec.ts") {
+			specs = append(specs, a)
+			continue
+		}
+		kept = append(kept, a)
+	}
+	return kept, specs
 }
 
 // -write is how the gates that write (webbuild, apitypes) are told to write: the rest of
@@ -165,8 +185,10 @@ func (r *runner) runGates(selected []gate) error {
 func usage() string {
 	var b strings.Builder
 	b.WriteString("go run ./tools/check [gate ...]   run every gate, or the named ones, in this order\n")
-	b.WriteString("go run ./tools/check diff         the gates a change can fail, picked from the files that differ from the upstream; test keeps go test's cache (tools/check/diff.go)\n")
-	b.WriteString("                                 known CLI-only files skip e2e; screen-only changes run that screen and cross-screen specs; shared or unknown browser changes run all specs\n")
+	b.WriteString("go run ./tools/check diff         the gates a change can fail here, picked from the files that differ from the upstream (tools/check/diff.go);\n")
+	b.WriteString("                                 e2e, coverage and vuln are CI's: diff names the browser walks the change selects and the command to run them;\n")
+	b.WriteString("                                 test runs over the changed packages with go test's cache; webbuild and apitypes write their files\n")
+	b.WriteString("go run ./tools/check e2e tests/<name>.spec.ts ...   only those browser walks\n")
 	b.WriteString("go run ./tools/check nightly      the daily run: gremlins mutation testing and go test -fuzz (tools/check/nightly.yml)\n")
 	b.WriteString("go run ./tools/check webbuild -write  write internal/web/static's scripts again from internal/web/src\n")
 	b.WriteString("go run ./tools/check apitypes -write  write internal/apicontract/api-types.d.ts again from openapi.yaml\n")
@@ -214,8 +236,14 @@ func (r *runner) archGate() error {
 }
 
 func (r *runner) testGate() error {
-	if r.cachedTests {
-		return r.exec("go", "test", "-race", "-coverprofile="+r.coverProfile(), "./...")
+	if r.local {
+		// The diff run: go test's cache, no -race and no profile (both CI's; see
+		// diff.go), over the packages that changed.
+		if len(r.testPackages) == 0 {
+			fmt.Fprintln(r.stdout, "-- nothing a Go test reads changed")
+			return nil
+		}
+		return r.exec("go", append([]string{"test"}, r.testPackages...)...)
 	}
 	return r.exec("go", "test", "-race", "-count=1", "-coverprofile="+r.coverProfile(), "./...")
 }
