@@ -35,6 +35,9 @@ const (
 	Tell
 	// Hire starts one worker.
 	Hire
+	// Turns watches a running team and hands each stopped member's turn on
+	// along the definition's turns (r-bc26).
+	Turns
 	// Ls lists visible teams.
 	Ls
 	// Show prints the effective config and where it came from.
@@ -204,7 +207,7 @@ func parseFlags(args []string, o *Options) ([]string, error) {
 
 func assignPositionals(o *Options, positionals []string) error {
 	switch o.Kind {
-	case Up, Down, Status, Show, New:
+	case Up, Down, Status, Show, New, Turns:
 		if len(positionals) > 1 {
 			return i18n.Errorf("error.too_many_args", positionals)
 		}

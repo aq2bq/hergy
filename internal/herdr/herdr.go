@@ -332,6 +332,21 @@ func (h *Herdr) Prompt(target, text string) error {
 	return err
 }
 
+// PromptWait sends text to a live agent and waits until herdr sees it working,
+// up to timeoutMS: the receipt hergy turns asks for before it counts a turn as
+// handed on (d-b4b5). An agent that does not start is herdr's
+// agent_prompt_stalled error; one that is blocked is agent_blocked.
+func (h *Herdr) PromptWait(target, text string, timeoutMS int) error {
+	_, err := h.port.JSON("agent", "prompt", target, text, "--wait", "--until", "working", "--timeout", fmt.Sprintf("%d", timeoutMS))
+	return err
+}
+
+// ReadRecent reads the last lines of a live agent's terminal, unwrapped, from
+// the scrollback: what the agent wrote, for hergy turns to hand on.
+func (h *Herdr) ReadRecent(target string, lines int) (string, error) {
+	return h.port.Text("agent", "read", target, "--source", "recent-unwrapped", "--lines", fmt.Sprintf("%d", lines))
+}
+
 // SendKeys presses keys in a live agent's pane. hergy stop sends esc, which ends
 // the agent's current turn and keeps its conversation.
 func (h *Herdr) SendKeys(target, key string) error {

@@ -202,6 +202,8 @@ func dispatch(ctx context.Context, env team.Env, opts *options.Options, stdout, 
 		return runTell(env, opts, stdout)
 	case options.Hire:
 		return runHire(ctx, env, opts, stdout, stderr)
+	case options.Turns:
+		return runTurns(ctx, env, opts, stdout)
 	default:
 		return i18n.Errorf("error.unhandled_command")
 	}

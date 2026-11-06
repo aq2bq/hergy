@@ -119,7 +119,17 @@ const (
 	// WhyNoEdge: the member hands the turn to nobody (the definition should not
 	// hold this: I12a).
 	WhyNoEdge = "no-edge"
+	// WhyUndelivered: hergy handed the turn on and the recipient never started
+	// (herdr saw no working state, after one more try), so the person is told
+	// (d-b4b5).
+	WhyUndelivered = "undelivered"
 )
+
+// Undelivered records that a delivery to the holder did not land: the human
+// holds the turn, and the state says why.
+func (st *State) Undelivered(at time.Time) {
+	st.Holder, st.Since, st.Why = Human, at, WhyUndelivered
+}
 
 // Step reads one observation and says what to do. It changes st.
 func Step(st *State, in Input) []Action {

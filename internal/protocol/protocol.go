@@ -193,6 +193,14 @@ var statusGroups = []Group{
 	{Name: "tab", Subs: []string{"list"}},
 }
 
+var turnsGroups = []Group{
+	// The watcher reads the live agents, their panes and the tabs, and prompts
+	// the party a stopped member's turn goes to.
+	{Name: "agent", Subs: []string{"list", "read", "prompt"}},
+	{Name: "pane", Subs: []string{"list"}},
+	{Name: "tab", Subs: []string{"list"}},
+}
+
 var focusGroups = []Group{
 	{Name: "agent", Subs: []string{"focus"}},
 }
@@ -225,6 +233,9 @@ const (
 	ModePrompt = "prompt"
 	// ModeStop interrupts a live agent's turn (stop); it starts nothing.
 	ModeStop = "stop"
+	// ModeTurns watches a team and hands stopped members' turns on (turns); it
+	// starts nothing.
+	ModeTurns = "turns"
 )
 
 // RequiredCommands is the groups and subcommands needed for one operation.
@@ -245,6 +256,8 @@ func RequiredCommands(mode string) []Group {
 		return promptGroups
 	case ModeStop:
 		return stopGroups
+	case ModeTurns:
+		return turnsGroups
 	default:
 		return bootGroups
 	}

@@ -319,6 +319,18 @@ var specs = []Spec{
 		},
 	},
 	{
+		Kind: Turns, Name: "turns",
+		Summary: text("Watch a team and hand each stopped member's turn on", "チームを見張り、止まったメンバーのターンを渡す"),
+		Detail: text(
+			"Read herdr once a second. When a member or worker stops, hand what it wrote in its pane\nto the party the definition's turns name (a worker returns to the member that hired it);\nkeep it for a member that is still working, and hand it over when that member stops.\nhergy up starts this in a pane of the team's tab; it ends when the pane closes.",
+			"herdr を 1 秒ごとに読む。メンバーかワーカーが止まったら、ペインに書いた内容を\nチーム定義の turns が名指す相手へ渡す（ワーカーは雇ったメンバーへ返す）。\n相手が作業中なら箱に入れ、止まった瞬間に渡す。\nhergy up がチームのタブのペインで起動し、ペインが閉じれば終わる。"),
+		Args: []Arg{{
+			Name: text("team", "チーム"), Optional: true,
+			Desc: text("The team name (left out: the one running team)", "チーム名（省くと、動いている 1 つのチーム）"),
+		}},
+		Flags: []Use{use(flagDir, descDir)},
+	},
+	{
 		Kind: Ls, Name: "ls",
 		Summary: text("List the team definitions", "チーム定義の一覧を見る"),
 		Detail: text(
