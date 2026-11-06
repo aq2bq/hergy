@@ -58,27 +58,55 @@ func (h *hqRead) findRunning(read herdrNow, name string) (runningTeam, bool) {
 	return runningTeam{}, false
 }
 
-// closeTeam puts one team away. A definition that reads closes every member's
-// pane, including the ones whose agent ended; one that does not is closed by the
-// names hergy gave its panes, so a broken definition never keeps a team up.
-func (h *hqRead) closeTeam(env team.Env, one runningTeam, read herdrNow) (web.HQClosed, error) {
+// stopTarget is what stopping one team takes: the panes it closes, and the one
+// way to close them. Stop and the confirmation both take it from here (ac-ddb6).
+type stopTarget struct {
+	members []string
+	workers []string
+	close   func(selfPane string) error
+}
+
+// stopTargets is that one answer: a definition that reads closes every member's
+// pane by the starts it was launched with; one that does not is closed by the
+// names hergy gave its panes.
+func (h *hqRead) stopTargets(env team.Env, one runningTeam, read herdrNow) (stopTarget, error) {
 	cat := env.Catalog(source.Disk{})
 	r, buildErr := buildRunningIn(cat, env.ProjectRoot, team.Running{Team: one.Name, Definition: one.Definition}, one.Place)
-	selfPane := os.Getenv("HERDR_PANE_ID")
-	counts := countsOf(one, read)
+	workers := workerNamesOf(read.tabs, one.Name)
 	if buildErr != nil {
 		l := newLauncherWithPort(&resolved{team: team.Team{Name: one.Name}}, 30000, io.Discard, h.act.herdrPort())
 		agents := team.MemberAgents(read.tabs, one.Name)
-		if _, err := l.DownByName(agents, selfPane, false); err != nil {
-			return web.HQClosed{}, err
+		members := make([]string, 0, len(agents))
+		for _, agent := range agents {
+			members = append(members, agent)
 		}
-		return counts, nil
+		return stopTarget{members: members, workers: workers, close: func(selfPane string) error {
+			_, err := l.DownByName(agents, selfPane, false)
+			return err
+		}}, nil
 	}
 	l := newLauncherWithPort(r, 30000, io.Discard, h.act.herdrPort())
-	if _, err := l.Down(r.starts, selfPane, false); err != nil {
+	members := make([]string, 0, len(r.starts))
+	for _, start := range r.starts {
+		members = append(members, start.Short)
+	}
+	return stopTarget{members: members, workers: workers, close: func(selfPane string) error {
+		_, err := l.Down(r.starts, selfPane, false)
+		return err
+	}}, nil
+}
+
+// closeTeam puts one team away through the one answer the confirmation reads.
+func (h *hqRead) closeTeam(env team.Env, one runningTeam, read herdrNow) (web.HQClosed, error) {
+	selfPane := os.Getenv("HERDR_PANE_ID")
+	target, err := h.stopTargets(env, one, read)
+	if err != nil {
 		return web.HQClosed{}, err
 	}
-	return counts, nil
+	if err := target.close(selfPane); err != nil {
+		return web.HQClosed{}, err
+	}
+	return web.HQClosed{Members: len(target.members), Workers: len(target.workers)}, nil
 }
 
 // finishLaunchFor marks this serve's start of a team as given up: the panes it
