@@ -8,7 +8,7 @@
 import { test, expect } from './fixtures';
 import type { Locator, Page } from '@playwright/test';
 import { ready } from './helpers';
-import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, realpathSync, renameSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
@@ -304,11 +304,21 @@ test.describe('undo: the headquarters takes a project out of the list', () => {
     await page.locator('[data-hq="projects"]').click();
     const sheet = page.locator('.hq-sheet');
     await expect(listed(page)).toHaveText(['alpha', 'beta', 'gamma']);
+    // The list is read again after the write (hergy:wrote, 150 ms later). Let
+    // that reading finish before the file is broken: a read that lands on the
+    // half-written file can replace the sheet, and the notice with it.
+    const reread = page.waitForResponse((res) => res.request().method() === 'GET'
+      && new URL(res.url()).pathname === '/api/hq/projects' && res.status() === 200);
     await sheet.locator('.hq-li').filter({ hasText: 'beta' }).locator('[data-hq="unlist"]').click();
     await expect(listed(page)).toHaveText(['alpha', 'gamma']);
+    await reread;
+    await expect(sheet.locator('.hq-li').filter({ hasText: 'beta' }).locator('.undo')).toContainText('並びから外しました');
     // The file it must put the lines back in is broken under it: the way back
     // cannot be taken, and the notice says why instead of closing as if it had.
-    writeFileSync(file, 'projects: [\n');
+    // The broken content goes in whole (a rename), so no reader sees a half file.
+    const broken = path.join(app.cfg, 'hergy', 'config.yaml.broken');
+    writeFileSync(broken, 'projects: [\n');
+    renameSync(broken, file);
     await sheet.locator('.hq-li').filter({ hasText: 'beta' }).locator('.undo button').click();
     await expect(sheet.locator('.undo[role="alert"]')).toContainText('config.yaml');
     await expect(sheet.locator('.undo[role="alert"]')).toContainText('読み取れません');
