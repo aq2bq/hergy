@@ -27,6 +27,9 @@ func (s *Server) apiDanger(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
 	place := r.URL.Query().Get("place")
 	switch r.PathValue("kind") {
+	case "activity":
+		lines, refusal := scoped.dangerLossActivity(name)
+		apiAnswer(w, apiDangerLoss{Lines: lines}, refusal)
 	case "team":
 		lines, refusal := scoped.dangerLossTeam(place, name)
 		apiAnswer(w, apiDangerLoss{Lines: lines}, refusal)
@@ -154,11 +157,50 @@ func (s *Server) dangerLossTeam(place, name string) ([]string, *apiErr) {
 		shown = append(shown, s.cat.Display(path))
 	}
 	lines := []string{tf("danger.team_files", strings.Join(shown, "、"))}
+	for _, item := range s.activity().List().Items {
+		if item.Summary.Definition == name {
+			lines = append(lines, tf("danger.team_running", item.Name))
+		}
+	}
 	if dirRemoved {
 		lines = append(lines, t("danger.team_folder"))
 	}
 	if len(leftovers) > 0 {
 		lines = append(lines, tf("danger.team_left", strings.Join(leftovers, "、")))
 	}
+	return lines, nil
+}
+
+// dangerLossActivity is the team stop's loss: the members and workers whose
+// panes close, the workspace that stays, and the words of the confirmation
+// (r-ccf8). It reads the same activity answer the stop closes from.
+func (s *Server) dangerLossActivity(team string) ([]string, *apiErr) {
+	list := s.activity().List()
+	var item *ActivityItem
+	for i := range list.Items {
+		if list.Items[i].Name == team {
+			item = &list.Items[i]
+			break
+		}
+	}
+	if item == nil {
+		return nil, refuse(http.StatusNotFound, t("web.error.not_found"))
+	}
+	doc, ok := s.activity().One(team)
+	if !ok {
+		return nil, refuse(http.StatusNotFound, t("web.error.not_found"))
+	}
+	names := make([]string, 0, len(doc.Nodes))
+	for _, node := range doc.Nodes {
+		names = append(names, node.Name)
+	}
+	lines := []string{tf("danger.stop_members", len(doc.Nodes), strings.Join(names, "、"))}
+	if len(doc.Hired) > 0 {
+		lines = append(lines, tf("danger.stop_workers", len(doc.Hired)))
+	}
+	if label := item.Workspace.Label; label != "" {
+		lines = append(lines, tf("danger.stop_workspace", label))
+	}
+	lines = append(lines, t("danger.stop_talk"))
 	return lines, nil
 }

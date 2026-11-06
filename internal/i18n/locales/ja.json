@@ -615,5 +615,10 @@
   "danger.role_used": "%d 人が読んでいます。",
   "danger.team_files": "%s を消します。",
   "danger.team_folder": "フォルダも消えます。",
-  "danger.team_left": "フォルダには %s が残ります。"
+  "danger.team_left": "フォルダには %s が残ります。",
+  "danger.stop_members": "メンバー %d 人（%s）のペインを閉じます。",
+  "danger.stop_workers": "%d 人のワーカーのタブも閉じます。",
+  "danger.stop_workspace": "ワークスペース %s は閉じません。",
+  "danger.stop_talk": "会話は残りません。この操作は取り消せません。",
+  "danger.team_running": "チーム %s が動いています。チームは終了しません。"
 }
