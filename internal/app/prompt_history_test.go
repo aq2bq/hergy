@@ -44,14 +44,14 @@ func TestPromptHistoryReadsLiveMembersOnly(t *testing.T) {
 	_, env, _ := hqFixture(t)
 	read := newActivityRead(env)
 	read.now = func() time.Time { return activityNow }
-	out, err := read.PromptHistory(env.ProjectRoot, "core", "project", "lead", "")
-	if err != nil {
+	runs, err := read.PromptRuns(env.ProjectRoot, "core", "project")
+	if err != nil || len(runs) != 1 || runs[0].Team != "core" {
+		t.Fatalf("runs = %+v, %v", runs, err)
+	}
+	if _, err := read.PromptHistory(env.ProjectRoot, "core", "project", "lead", "core"); err != nil {
 		t.Fatal(err)
 	}
-	if len(out.Runs) != 1 || out.Selected == nil {
-		t.Fatalf("%+v", out)
-	}
-	absent, err := read.PromptHistory(env.ProjectRoot, "core", "project", "absent", "")
+	absent, err := read.PromptHistory(env.ProjectRoot, "core", "project", "absent", "core")
 	if err != nil || absent.Status != "stopped" || absent.Recorded != nil {
 		t.Fatalf("%+v %v", absent, err)
 	}
@@ -74,7 +74,7 @@ func TestPromptHistoryExactBodyAndReadFailures(t *testing.T) {
 	}
 	read := newActivityRead(env)
 	read.now = func() time.Time { return activityNow }
-	out, err := read.PromptHistory(env.ProjectRoot, "core", "project", "lead", "")
+	out, err := read.PromptHistory(env.ProjectRoot, "core", "project", "lead", "core")
 	if err != nil || out.Recorded == nil || out.Recorded.Text != body || out.Recorded.Command != "refresh" {
 		t.Fatalf("%+v %v", out, err)
 	}
@@ -82,7 +82,7 @@ func TestPromptHistoryExactBodyAndReadFailures(t *testing.T) {
 	if err := log.Append(record); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = read.PromptHistory(env.ProjectRoot, "core", "project", "lead", ""); err == nil {
+	if _, err = read.PromptHistory(env.ProjectRoot, "core", "project", "lead", "core"); err == nil {
 		t.Fatal("invalid hash accepted")
 	}
 	record.Members[0].Prompt = hash
@@ -92,13 +92,13 @@ func TestPromptHistoryExactBodyAndReadFailures(t *testing.T) {
 	if err := os.Remove(filepath.Join(log.Dir(), "blobs", hash)); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = read.PromptHistory(env.ProjectRoot, "core", "project", "lead", ""); err == nil {
+	if _, err = read.PromptHistory(env.ProjectRoot, "core", "project", "lead", "core"); err == nil {
 		t.Fatal("missing blob hidden")
 	}
 	if err := os.WriteFile(filepath.Join(log.Dir(), "log.jsonl"), []byte("broken\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = read.PromptHistory(env.ProjectRoot, "core", "project", "lead", ""); err == nil {
+	if _, err = read.PromptHistory(env.ProjectRoot, "core", "project", "lead", "core"); err == nil {
 		t.Fatal("broken record hidden")
 	}
 }

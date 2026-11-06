@@ -2,6 +2,7 @@ package web
 
 import (
 	"encoding/json"
+	"errors"
 	"reflect"
 	"strings"
 	"testing"
@@ -75,15 +76,23 @@ func TestPromptComparisonInvalidDraftAndRoute(t *testing.T) {
 type promptReaderFixture struct {
 	Activity
 	history PromptHistory
+	runs    []PromptRun
+	runsErr error
 }
 
+func (f promptReaderFixture) PromptRuns(_, _, _ string) ([]PromptRun, error) {
+	return f.runs, f.runsErr
+}
 func (f promptReaderFixture) PromptHistory(_, _, _, _, _ string) (PromptHistory, error) {
 	return f.history, nil
 }
 func TestPromptComparisonPreservesHistoryForInvalidDraft(t *testing.T) {
 	f := newFixture(t)
 	s := f.server(t)
-	s.act = promptReaderFixture{history: PromptHistory{Runs: []PromptRun{}, Status: "recorded", Recorded: &RecordedPrompt{Text: "old\r\n \t", Command: "up", Time: "2026-11-04T00:00:00Z"}}}
+	s.act = promptReaderFixture{
+		runs:    []PromptRun{{Team: "demo", Project: ""}},
+		history: PromptHistory{Status: "recorded", Recorded: &RecordedPrompt{Text: "old\r\n \t", Command: "up", Time: "2026-11-04T00:00:00Z"}},
+	}
 	text := readFile(t, f.teamYAML())
 	text = strings.ReplaceAll(text, "role: lead", "role: absent")
 	f.write(t, "teams/demo/team.yaml", text)
@@ -106,7 +115,10 @@ func TestPromptComparisonRejectsTraversalAndUnknownTargets(t *testing.T) {
 func TestPromptComparisonSegmentsUseRunningAlias(t *testing.T) {
 	f := newFixture(t)
 	s := f.server(t)
-	s.act = promptReaderFixture{history: PromptHistory{Runs: []PromptRun{}, Selected: &PromptRun{Team: "sample-run", Project: ""}, Status: "missing"}}
+	s.act = promptReaderFixture{
+		runs:    []PromptRun{{Team: "sample-run", Project: ""}},
+		history: PromptHistory{Status: "missing"},
+	}
 	out, failure := s.comparePrompt(promptComparisonIn{apiIn: apiIn{Name: "demo", Place: "project", Hash: source.Hash(readFile(t, f.teamYAML())), Doc: json.RawMessage(`{"ops":[]}`)}, Member: "lead"})
 	if failure != nil || out.Current == nil {
 		t.Fatalf("%+v %+v", out, failure)
@@ -117,5 +129,58 @@ func TestPromptComparisonSegmentsUseRunningAlias(t *testing.T) {
 	}
 	if joined.String() != *out.Current || !strings.Contains(joined.String(), "sample-run-lead") {
 		t.Fatal("segments must describe the running alias, not the definition preview")
+	}
+}
+
+// TestPromptsForChoosesTheName: ⑤ r-ba9b — the one name rule. The text carries
+// the name the answer names, and says why when the live reading fails.
+func TestPromptsForChoosesTheName(t *testing.T) {
+	f := newFixture(t)
+	text := readFile(t, f.teamYAML())
+	base := promptComparisonIn{apiIn: apiIn{Name: "demo", Place: "project", Hash: source.Hash(text), Doc: json.RawMessage(`{"ops":[]}`)}, Member: "lead"}
+	cases := []struct {
+		name    string
+		runs    []PromptRun
+		runsErr error
+		picked  string
+		team    string
+		kind    string
+		status  string
+	}{
+		{"none running", nil, nil, "", "demo", "definition", "none"},
+		{"one running", []PromptRun{{Team: "demo", Project: f.proj}}, nil, "", "demo", "run", "single"},
+		{"one alias", []PromptRun{{Team: "demo-hotfix", Project: f.proj}}, nil, "", "demo-hotfix", "run", "single"},
+		{"two unchosen", []PromptRun{{Team: "demo", Project: f.proj}, {Team: "demo-hotfix", Project: f.proj}}, nil, "", "demo", "definition", "choose"},
+		{"two chosen", []PromptRun{{Team: "demo", Project: f.proj}, {Team: "demo-hotfix", Project: f.proj}}, nil, "demo-hotfix", "demo-hotfix", "run", "picked"},
+		{"pick stopped", []PromptRun{{Team: "demo", Project: f.proj}}, nil, "demo-old", "demo", "definition", "choose"},
+		{"unreadable", nil, errors.New("herdr is not there"), "", "demo", "definition", "error"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			s := f.server(t)
+			s.act = promptReaderFixture{runs: tc.runs, runsErr: tc.runsErr}
+			in := base
+			in.RunningTeam = tc.picked
+			built, failure := s.promptsFor(promptAsk{In: in, WithRuns: true})
+			if failure != nil {
+				t.Fatal(failure)
+			}
+			if built.Names.Team != tc.team || built.Names.Kind != tc.kind || built.Names.Status != tc.status {
+				t.Fatalf("names = %+v, want %s/%s/%s", built.Names, tc.team, tc.kind, tc.status)
+			}
+			if tc.status == "error" && built.Names.Reason == "" {
+				t.Error("an unreadable live reading says no reason")
+			}
+			if len(built.Built) != 1 {
+				t.Fatalf("built %d texts, want the one member", len(built.Built))
+			}
+			var joined strings.Builder
+			for _, segment := range built.Built[0].Segments {
+				joined.WriteString(segment.Text)
+			}
+			if !strings.Contains(joined.String(), tc.team+"-lead") {
+				t.Errorf("the text does not name %s-lead: %s", tc.team, joined.String())
+			}
+		})
 	}
 }

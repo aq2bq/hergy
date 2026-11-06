@@ -316,6 +316,11 @@ type activityRead struct {
 
 	watcherMu sync.Mutex
 	watcher   *activity.Watcher
+
+	// runs is the live reading the prompt owner shares (⑤ r-ba9b): one herdr
+	// reading for two seconds, so a prompt and a check in the same moment do
+	// not read it twice.
+	runs runningHold
 }
 
 // newActivityRead is the reading behind one hergy serve. The watcher's memory is
