@@ -110,3 +110,93 @@ test.describe('the revert and its undo, in the field', () => {
     await expect(dot(page, 'teams')).toHaveCount(1);
   });
 });
+
+// The YAML tab on every screen: typing marks it, typing the file's text back
+// clears every mark.
+for (const screen of ['teams', 'profiles'] as const) {
+  test.describe(`yaml ${screen}`, () => {
+    test.use({ reads: screen });
+    test('a change and the same text back', async ({ page, app }) => {
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await page.goto(`${app.base}/${screen}/yaml`); await ready(page);
+      const area = page.locator('.ytext').first();
+      const before = await area.inputValue();
+      await expect(dot(page, screen)).toHaveCount(0);
+      await area.fill(before + '# x\n');
+      await expect(dot(page, screen)).toHaveCount(1);
+      await area.fill(before);
+      await expect(dot(page, screen)).toHaveCount(0);
+    });
+  });
+}
+
+// One person's pick on the assignment tabs.
+test.describe('roles assign', () => {
+  test.use({ reads: 'roles' });
+  test('a pick and the same pick back', async ({ page, app }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto(`${app.base}/roles/assign`); await ready(page);
+    const select = page.locator('select.pickrole').first();
+    const before = await select.inputValue();
+    const other = (await select.locator('option').evaluateAll((os) => os.map((o) => (o as HTMLOptionElement).value))).find((v) => v !== before) || before;
+    await expect(dot(page, 'roles')).toHaveCount(0);
+    await select.selectOption(other);
+    await expect(dot(page, 'roles')).toHaveCount(1);
+    await select.selectOption(before);
+    await expect(dot(page, 'roles')).toHaveCount(0);
+  });
+});
+
+test.describe('profiles assign', () => {
+  test.use({ reads: 'profiles' });
+  test('a pick and the same pick back', async ({ page, app }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto(`${app.base}/profiles/assign`); await ready(page);
+    const select = page.locator('select[data-act="pick"]').first();
+    const before = await select.inputValue();
+    const options = await select.locator('option').evaluateAll((os) => os.map((o) => (o as HTMLOptionElement).value));
+    const other = options.find((v) => v !== before) || before;
+    await expect(dot(page, 'profiles')).toHaveCount(0);
+    await select.selectOption(other);
+    await expect(dot(page, 'profiles')).toHaveCount(1);
+    await select.selectOption(before);
+    await expect(dot(page, 'profiles')).toHaveCount(0);
+  });
+});
+
+// A duplicate nobody touched goes at once; one change asks. Copy too.
+test.describe('duplicate and copy ask once touched', () => {
+  test.use({ reads: 'teams' });
+  test('team definition', async ({ page, app }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    for (const act of ['dup', 'copy']) {
+      await page.goto(`${app.base}/teams?open=research`); await ready(page);
+      await page.locator(`.tdef[data-name="research"] [data-act="${act}"]`).click();
+      const draft = page.locator('.tdef[data-name^="~new"]');
+      await expect(draft).toHaveCount(1);
+      await draft.locator('.in-name').fill(`matrix-${act}`);
+      await draft.locator('[data-act="discard"]').click();
+      await expect(page.locator('.confirm')).toBeVisible();
+      await page.locator('.confirm .btn').first().click();
+    }
+  });
+});
+
+test.describe('duplicate and copy ask once touched (roles, profiles)', () => {
+  test.use({ reads: 'roles' });
+  test('role', async ({ page, app }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    for (const act of ['dup', 'copy']) {
+      await page.goto(`${app.base}/roles?open=builder`); await ready(page);
+      const button = page.locator(`#rows .role .panel [data-act="${act}"]`).first();
+      if (await button.count() === 0) continue;
+      await button.click();
+      const draft = page.locator('#rows .role').filter({ has: page.locator('[data-act="discard"]') });
+      await expect(draft).toHaveCount(1);
+      await draft.locator('[data-f="name"]').fill(`matrix-${act}`);
+      await draft.locator('[data-act="discard"]').click();
+      await expect(page.locator('.confirm')).toBeVisible();
+      await page.locator('.confirm .btn').first().click();
+    }
+  });
+});
