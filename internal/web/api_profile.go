@@ -347,8 +347,7 @@ func (k apiProfile) Delete(name string, in apiIn) (any, *apiErr) {
 	if hash != pathHash {
 		return nil, s.refuseChanged(display, path, nil, true)
 	}
-	entries, _ := profile.ReadAll(text, display)
-	if _, found := p2FindEntry(entries, name); !found {
+	if _, _, _, found := s.profileTargets(place, name); !found {
 		return nil, refuse(http.StatusUnprocessableEntity, tf("error.edit_no_profile", name))
 	}
 	edited, err := profile.EditYAML([]byte(text), display, profile.Remove(name))

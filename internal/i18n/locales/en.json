@@ -607,5 +607,8 @@
   "web.role_context.usage_failed": "Cannot read role usage. Reload before saving.",
   "web.role_context.changed": "The effective role place changed. Reload the document before saving.",
   "error.legacy_prose": "Legacy definition remains: %s. Inspect with hergy migrate --dry, then run hergy migrate. Use --global for global definitions.",
-  "delivery.document_unreadable": "%s: cannot compare the previous document; the legacy launch snapshot is unreadable"
+  "delivery.document_unreadable": "%s: cannot compare the previous document; the legacy launch snapshot is unreadable",
+  "danger.profile_item": "Delete the profile %2$s from %1$s.",
+  "danger.file_stays": "The file stays.",
+  "danger.profile_users": "%d people use it."
 }

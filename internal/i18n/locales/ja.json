@@ -607,5 +607,8 @@
   "web.role_context.usage_failed": "使用先を確認できません。読み直してから保存してください",
   "web.role_context.changed": "使われるロールの置き場所が変わりました。文書を読み直してから保存してください",
   "error.legacy_prose": "旧形式の定義が残っています: %s。hergy migrate --dry で対象を確認し、hergy migrate で移してください。グローバルの定義には --global を付けてください。",
-  "delivery.document_unreadable": "%s: 以前の本文と比較できません。起動の記録の旧形式を読めませんでした"
+  "delivery.document_unreadable": "%s: 以前の本文と比較できません。起動の記録の旧形式を読めませんでした",
+  "danger.profile_item": "%s の 1 項目 %s を消します。",
+  "danger.file_stays": "ファイルは残ります。",
+  "danger.profile_users": "%d 人が使っています。"
 }

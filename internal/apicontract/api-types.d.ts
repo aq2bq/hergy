@@ -41,6 +41,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/danger/{kind}/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 消すと何が消えるかを読む */
+        get: operations["getDangerLoss"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/team/{name}": {
         parameters: {
             query?: never;
@@ -1674,6 +1691,10 @@ export interface components {
              */
             state?: "unreadable";
         };
+        /** @description 消すと何が消えるか（r-ccf8）。 */
+        DangerLoss: {
+            lines: string[];
+        };
         /** @description チーム定義にある問題と警告の数。 */
         TeamCounts: {
             /** @description チーム定義を読めない、または保存を止める問題の数 */
@@ -2313,6 +2334,32 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["Refusal"];
                     "text/plain": string;
+                };
+            };
+        };
+    };
+    getDangerLoss: {
+        parameters: {
+            query?: {
+                place?: string;
+                project?: string;
+            };
+            header?: never;
+            path: {
+                kind: string;
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 確認に出す文 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DangerLoss"];
                 };
             };
         };

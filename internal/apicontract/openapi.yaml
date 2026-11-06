@@ -64,6 +64,32 @@ paths:
               schema:
                 type: string
                 description: 書き込み用トークンなどを断った理由
+  /api/danger/{kind}/{name}:
+    get:
+      operationId: getDangerLoss
+      summary: 消すと何が消えるかを読む
+      parameters:
+        - name: kind
+          in: path
+          required: true
+          schema: {type: string}
+        - name: name
+          in: path
+          required: true
+          schema: {type: string}
+        - name: place
+          in: query
+          schema: {type: string}
+        - name: project
+          in: query
+          schema: {type: string}
+      responses:
+        "200":
+          description: 確認に出す文
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DangerLoss"
   /api/team/{name}:
     get:
       operationId: getTeam
@@ -3268,6 +3294,15 @@ components:
           type: string
           enum: [unreadable]
           description: その置き場所のファイルが読めないという印。行は出て、件数にも数える（r-ea17、d-0d00）
+    DangerLoss:
+      description: 消すと何が消えるか（r-ccf8）。
+      type: object
+      additionalProperties: false
+      required: [lines]
+      properties:
+        lines:
+          type: array
+          items: {type: string}
     TeamCounts:
       description: チーム定義にある問題と警告の数。
       type: object

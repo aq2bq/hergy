@@ -259,6 +259,7 @@ func (s *Server) routes(static fs.FS) http.Handler {
 	mux.HandleFunc("POST /api/hq/stop", s.hqStop)
 	mux.HandleFunc("POST /api/activity/focus", s.apiActivityFocus)
 
+	mux.HandleFunc("GET /api/danger/{kind}/{name}", s.apiDanger)
 	mux.HandleFunc("GET /api/{kind}", s.apiList)
 	mux.HandleFunc("GET /api/{kind}/{name}", s.apiGet)
 	mux.HandleFunc("POST /api/{kind}/check", s.apiCheck)
