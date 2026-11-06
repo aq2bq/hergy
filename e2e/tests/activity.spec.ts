@@ -66,6 +66,15 @@ function agentState(cfg: string, name: string, state: string): void {
   writeFileSync(at, JSON.stringify(doc));
 }
 
+test('ACTIVITY-T1 the tile says who holds the turn', async ({ page, app }) => {
+  // r-bc26: the watcher's record of the turn (turns/core.json in the state
+  // directory) is read onto the tile; a team the watcher has not seen has no
+  // such line.
+  await open(page, app.base, '');
+  await readTo<string>(page, `document.querySelector('.hq-tile[data-team="core"] .hq-turn').textContent`, 'core holds its turn as the watcher wrote it').toBe('ターン: lead（impl-a から）');
+  await readTo<number>(page, `document.querySelectorAll('.hq-tile[data-team="research"] .hq-turn').length`, 'research has no turn line').toBe(0);
+});
+
 test('ACTIVITY-D1 a running team carries no description', async ({ page, app }) => {
   // d-5f55: the description is read where a person picks or reads a definition,
   // not on the tiles of the teams that are running.

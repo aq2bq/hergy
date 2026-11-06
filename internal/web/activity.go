@@ -77,6 +77,20 @@ type ActivitySummary struct {
 	// Since is how long the tile has been in this state, and when it began. It is
 	// left out for a working team and for one with no live agent (2.2).
 	Since *ActivitySince `json:"since,omitempty"`
+	// Turn is who holds the turn, as hergy's watcher keeps it (r-bc26). It is
+	// left out for a team the watcher has not seen.
+	Turn *ActivityTurn `json:"turn,omitempty"`
+}
+
+// ActivityTurn is the turn's holder as the tile writes it: a member's or
+// worker's short name or "human", who handed it to them, and, when hergy handed
+// it to the human, why (silent, undelivered, no-edge; empty along an edge).
+type ActivityTurn struct {
+	Holder string `json:"holder"`
+	From   string `json:"from"`
+	Why    string `json:"why"`
+	// Text is the line the tile prints, in the server's words.
+	Text string `json:"text"`
 }
 
 // ActivitySince is a length and the moment it began, in the server's own words

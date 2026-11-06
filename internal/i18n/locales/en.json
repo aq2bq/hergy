@@ -643,5 +643,8 @@
   "status.turn_why_silent": ": it stopped without writing a line",
   "status.turn_why_undelivered": ": the recipient never started",
   "status.turn_why_no-edge": ": it hands the turn to nobody",
-  "status.no_watcher": "no watcher is running; hergy turns %s starts it\n"
+  "status.no_watcher": "no watcher is running; hergy turns %s starts it\n",
+  "activity.turn_the_human": "the human",
+  "activity.turn_holder": "turn: %s (handed by %s)",
+  "activity.turn_human": "turn: the human (from %s)%s"
 }

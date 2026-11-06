@@ -1128,6 +1128,19 @@ export interface components {
             state: string;
             /** @description アクティビティ状態が続いている長さと開始時刻。ないときは省略 */
             since?: components["schemas"]["ActivitySince"] | null;
+            /** @description ターンの持ち主（hergy の見張りが記録したもの）。見張りが見ていないチームでは省略 */
+            turn?: components["schemas"]["ActivityTurn"] | null;
+        };
+        /** @description ターンの持ち主と、誰から受けたか */
+        ActivityTurn: {
+            /** @description ターンを持つメンバーかワーカーの短い名前。人間なら human */
+            holder: string;
+            /** @description ターンを渡した相手の短い名前。人間なら human */
+            from: string;
+            /** @description 人間が持つ理由（silent・undelivered・no-edge）。線に沿って渡ったときは空 */
+            why: string;
+            /** @description 札に出す文（サーバーの言葉） */
+            text: string;
         };
         /** @description アクティビティ状態が続いている長さと開始時刻 */
         ActivitySince: {

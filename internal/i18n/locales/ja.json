@@ -643,5 +643,8 @@
   "status.turn_why_silent": "。1 行も書かずに止まったため",
   "status.turn_why_undelivered": "。渡し先に届かなかったため",
   "status.turn_why_no-edge": "。渡す線が無いため",
-  "status.no_watcher": "見張りが居ません。hergy turns %s で起動できます\n"
+  "status.no_watcher": "見張りが居ません。hergy turns %s で起動できます\n",
+  "activity.turn_the_human": "人間",
+  "activity.turn_holder": "ターン: %s（%s から）",
+  "activity.turn_human": "ターン: 人間（%s から）%s"
 }

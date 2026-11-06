@@ -42,6 +42,7 @@ export type ActivityTeam = {
   place: ActivityItem['place'];
   state: string;
   since: components['schemas']['ActivitySince'] | null;
+  turn: components['schemas']['ActivityTurn'] | null;
   crew: CrewMember[];
   workers: Worker[];
   turns: [string, string][];
@@ -117,7 +118,7 @@ function sheetOf(item: ActivityItem, docs: Map<string, ActivityDocument>): Activ
   return {
     name: item.name, project: item.project, projectName: item.project_name || (A ? A.projectName(item.project) : ''),
     workspace: (item.workspace && item.workspace.label) || (run && run.workspace && run.workspace.label) || '',
-    definition: defName, place: item.place, state, since: item.summary.since || null,
+    definition: defName, place: item.place, state, since: item.summary.since || null, turn: item.summary.turn || null,
     crew, workers, turns: turnsOf(def),
     starting: !!(run && run.starting),
     error: item.error || '',

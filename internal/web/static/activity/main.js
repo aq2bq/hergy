@@ -106,6 +106,7 @@ function sheetOf(item, docs) {
     place: item.place,
     state,
     since: item.summary.since || null,
+    turn: item.summary.turn || null,
     crew,
     workers,
     turns: turnsOf(def),
@@ -434,6 +435,13 @@ function countsLine(t) {
     ]
   });
 }
+function turnLine(t) {
+  return t.turn ? /* @__PURE__ */ u("p", {
+    class: "hq-turn",
+    "data-role": "turn",
+    children: t.turn.text
+  }) : "";
+}
 function Tile({ team: t }) {
   const sel = t.name === current.value?.name;
   const projectWorkspace = [t.projectName, t.workspace].filter(Boolean).join(" · ");
@@ -496,6 +504,7 @@ function Tile({ team: t }) {
       /* @__PURE__ */ u(Figure, {
         team: t
       }),
+      turnLine(t),
       broken,
       stall,
       countsLine(t),

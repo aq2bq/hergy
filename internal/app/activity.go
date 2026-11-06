@@ -20,6 +20,7 @@ import (
 	"github.com/aq2bq/hergy/internal/protocol"
 	"github.com/aq2bq/hergy/internal/source"
 	"github.com/aq2bq/hergy/internal/team"
+	"github.com/aq2bq/hergy/internal/turns"
 	"github.com/aq2bq/hergy/internal/web"
 )
 
@@ -691,7 +692,39 @@ func itemOf(row activityRow, now time.Time) web.ActivityItem {
 	if since := sinceOf(t, now); since != nil {
 		item.Summary.Since = since
 	}
+	item.Summary.Turn = turnOf(t.Name)
 	return item
+}
+
+// turnOf is the tile's turn: the holder hergy's watcher keeps for this team
+// (r-bc26), or nil for a team the watcher has not seen.
+func turnOf(teamName string) *web.ActivityTurn {
+	path := activityStatePath()
+	if path == "" {
+		return nil
+	}
+	st, err := turns.Load(turns.Path(filepath.Dir(path), teamName), teamName)
+	if err != nil || st.Since.IsZero() {
+		return nil
+	}
+	return &web.ActivityTurn{Holder: st.Holder, From: st.From, Why: st.Why, Text: turnText(st)}
+}
+
+// turnText is the turn line in the server's words: the holder and who handed it
+// over, and why the human holds it when hergy handed it to the person.
+func turnText(st *turns.State) string {
+	from := st.From
+	if from == turns.Human {
+		from = i18n.T("activity.turn_the_human")
+	}
+	if st.Holder != turns.Human {
+		return i18n.Tf("activity.turn_holder", st.Holder, from)
+	}
+	why := ""
+	if st.Why != "" {
+		why = i18n.T("status.turn_why_" + st.Why)
+	}
+	return i18n.Tf("activity.turn_human", from, why)
 }
 
 // sinceOf is the row's いつから: how long the state has lasted and when it began,

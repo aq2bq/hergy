@@ -78,6 +78,12 @@ function countsLine(t: ActivityTeam): JSX.Element {
   return <div class="hq-tc">{group('メンバー', t.crew)}{group('ワーカー', t.workers)}</div>;
 }
 
+// turnLine は、hergy の見張りが記録したターンの持ち主（r-bc26）。文はサーバーが
+// 作り、ここは出すだけ。見張りが見ていないチームには出さない。
+function turnLine(t: ActivityTeam): JSX.Element | '' {
+  return t.turn ? <p class="hq-turn" data-role="turn">{t.turn.text}</p> : '';
+}
+
 function Tile({ team: t }: { team: ActivityTeam }): JSX.Element {
   const sel = t.name === current.value?.name;
   const projectWorkspace = [t.projectName, t.workspace].filter(Boolean).join(' · ');
@@ -96,6 +102,7 @@ function Tile({ team: t }: { team: ActivityTeam }): JSX.Element {
       <span class="hq-tl">{t.since ? <><b>{t.since.len}</b> {t.since.at}</> : ''}</span>
     </button>
     <Figure team={t} />
+    {turnLine(t)}
     {broken}
     {stall}
     {countsLine(t)}

@@ -2291,6 +2291,29 @@ components:
           allOf:
             - $ref: '#/components/schemas/ActivitySince'
           description: アクティビティ状態が続いている長さと開始時刻。ないときは省略
+        turn:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/ActivityTurn'
+          description: ターンの持ち主（hergy の見張りが記録したもの）。見張りが見ていないチームでは省略
+    ActivityTurn:
+      description: ターンの持ち主と、誰から受けたか
+      type: object
+      additionalProperties: false
+      required: [holder, from, why, text]
+      properties:
+        holder:
+          type: string
+          description: ターンを持つメンバーかワーカーの短い名前。人間なら human
+        from:
+          type: string
+          description: ターンを渡した相手の短い名前。人間なら human
+        why:
+          type: string
+          description: 人間が持つ理由（silent・undelivered・no-edge）。線に沿って渡ったときは空
+        text:
+          type: string
+          description: 札に出す文（サーバーの言葉）
     ActivitySince:
       description: アクティビティ状態が続いている長さと開始時刻
       type: object

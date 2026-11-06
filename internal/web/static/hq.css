@@ -198,6 +198,7 @@
 .hq-th .hq-tl { grid-area: tl; }
 .hq-svg { width: 100%; height: auto; display: block; }
 .hq-fig { width: min(100%, 440px); margin-inline: auto; }
+.hq-turn { margin: 0 14px 6px; font-size: 12px; color: var(--muted); }
 .hq-why { margin: 0 14px 6px; font-size: 13px; color: var(--ink); background: var(--sunk); border-radius: 4px; padding: 6px 8px; }
 .hq-tc { display: grid; gap: 5px; font-size: 12px; color: var(--muted); padding: 6px 14px 10px; border-top: 1px solid var(--line); }
 .hq-tgroup { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; }
