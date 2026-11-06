@@ -10,7 +10,7 @@ import (
 
 func TestRawProseReachesPromptAndRosterUsesTitle(t *testing.T) {
 	f := newFixture(t)
-	f.team("  - human -> lead\n  - lead -> human\n  - spec -> human\n")
+	f.team("  - human -> lead\n  - lead -> human\n  - lead -> spec\n  - spec -> human\n")
 	f.roles()
 	raw := "# 実装担当\r\n\r\n  lead → unknown\t%{role_doc}  \r\n"
 	f.write(f.leadRolePath(), raw)

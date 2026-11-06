@@ -121,7 +121,7 @@ func TestDefinitionWarnsAboutTheStarterDescription(t *testing.T) {
 	f := newFixture(t)
 	f.write(filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml"),
 		"version: 1\ndescription: "+scaffold.DescriptionPlaceholder[i18n.Fallback]+"\nmembers:\n"+
-			leadMember+specMember+"turns:\n  - human -> lead\n  - lead -> human\n  - spec -> human\n")
+			leadMember+specMember+"turns:\n  - human -> lead\n  - lead -> human\n  - lead -> spec\n  - spec -> human\n")
 	f.role("lead", "      - id: PAAF\n        text: 何かをする。\n")
 	f.role("spec", "      - id: SPEC-1\n        text: 何かをする。\n")
 
@@ -172,12 +172,12 @@ func TestDefinitionStopsOnAGraphProblem(t *testing.T) {
 // it (I11). The one way a name is looked up reports nothing.
 func TestDefinitionSaysWhenTheGlobalOneIsHidden(t *testing.T) {
 	f := newFixture(t)
-	f.team("  - human -> lead\n  - lead -> human\n  - spec -> human\n")
+	f.team("  - human -> lead\n  - lead -> human\n  - lead -> spec\n  - spec -> human\n")
 	f.role("lead", "      - id: PAAF\n        text: 何かをする。\n")
 	f.role("spec", "      - id: SPEC-1\n        text: 何かをする。\n")
 	global := filepath.Join(f.global, "teams", "demo", "team.yaml")
 	f.write(global, "version: 1\ndescription: a team for the test\nmembers:\n"+leadMember+specMember+
-		"turns:\n  - human -> lead\n  - lead -> human\n  - spec -> human\n")
+		"turns:\n  - human -> lead\n  - lead -> human\n  - lead -> spec\n  - spec -> human\n")
 
 	got := Definition(Input{Catalog: f.cat, Name: "demo", Layer: source.LayerGlobal})
 	var joined strings.Builder
@@ -201,7 +201,7 @@ func TestDefinitionReportsEveryMemberThatCannotBeBuilt(t *testing.T) {
 	// The description is still the starter's example: a warning that must be there
 	// even though a prompt cannot be built.
 	f.write(f.teamPath(), "version: 1\ndescription: "+scaffold.DescriptionPlaceholder[i18n.Fallback]+
-		"\nmembers:\n"+leadMember+specMember+"turns:\n  - human -> lead\n  - lead -> human\n  - spec -> human\n")
+		"\nmembers:\n"+leadMember+specMember+"turns:\n  - human -> lead\n  - lead -> human\n  - lead -> spec\n  - spec -> human\n")
 
 	got := f.findings()
 	var stops, warnings []Finding
@@ -230,7 +230,7 @@ func TestDefinitionReportsEveryMemberThatCannotBeBuilt(t *testing.T) {
 // is one key per case, written the same way whatever language the sentence is in
 // (N2). The cases are the ones check.Finding.Field writes.
 func TestFieldKeysReadTheSameInBothLanguages(t *testing.T) {
-	teamTurns := "turns:\n  - human -> lead\n  - lead -> human\n  - spec -> human\n"
+	teamTurns := "turns:\n  - human -> lead\n  - lead -> human\n  - lead -> spec\n  - spec -> human\n"
 	reads := teamHead + leadMember + specMember + teamTurns
 
 	cases := []struct {

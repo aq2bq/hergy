@@ -702,7 +702,7 @@ func TestValidatePrintsOnePromptBreakAtATime(t *testing.T) {
 		"version: 1\ndescription: a description for the test\nmembers:\n"+
 			"  - name: lead\n    role: absent\n    profile: claude-default\n"+
 			"  - name: spec\n    role: gone\n    profile: claude-default\n"+
-			"turns:\n  - human -> lead\n  - lead -> human\n  - spec -> human\n")
+			"turns:\n  - human -> lead\n  - lead -> human\n  - lead -> spec\n  - spec -> human\n")
 
 	got, _, code := run("validate")
 	if code == 0 {

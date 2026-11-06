@@ -2,6 +2,7 @@ package definition
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -179,4 +180,75 @@ func TestNodeIDsAreWrittenTheWaySettingsWriteThem(t *testing.T) {
 // workerID is a worker node's identity, so a test does not spell out the kind.
 func workerID(from, purpose string) NodeID {
 	return WorkerNode{From: from, Purpose: purpose}.ID()
+}
+
+// TestGraphCheckRefusesACutOffTurn: I13a (every member is reached from the
+// human) and I13b (the turn comes back from every member to the human), the
+// three shapes ac-7c06 names (r-bc26). A member with no turn at all is I12a's
+// alone, so the sentence is not said twice.
+func TestGraphCheckRefusesACutOffTurn(t *testing.T) {
+	keys := func(problems []Problem) []string {
+		var out []string
+		for _, p := range problems {
+			out = append(out, p.Field+" "+p.Key)
+		}
+		return out
+	}
+	t.Run("an island: two members the turn never reaches and never comes back from", func(t *testing.T) {
+		g := NewGraph([]MemberNode{{Name: "a"}, {Name: "b"}, {Name: "c"}}, nil, []Edge{
+			turn(humanID(), memberID("a")), turn(memberID("a"), humanID()),
+			turn(memberID("b"), memberID("c")), turn(memberID("c"), memberID("b")),
+		})
+		want := []string{
+			"node:b error.graph_member_unreached", "node:b error.graph_member_no_way_back",
+			"node:c error.graph_member_unreached", "node:c error.graph_member_no_way_back",
+		}
+		if got := keys(g.Check()); strings.Join(got, ",") != strings.Join(want, ",") {
+			t.Fatalf("Check = %v, want %v", got, want)
+		}
+		problems := g.Check()
+		if got := problems[0].Args; len(got) != 4 || got[0] != "b" || got[2] != "a" || got[3] != "b" {
+			t.Errorf("the unreached sentence names %v, want b reached from a", got)
+		}
+		if got := problems[1].Args; len(got) != 4 || got[0] != "b" || got[2] != "b" || got[3] != "a" {
+			t.Errorf("the no-way-back sentence names %v, want b returning through a", got)
+		}
+	})
+	t.Run("no way back: a ring the turn enters and never leaves", func(t *testing.T) {
+		g := NewGraph([]MemberNode{{Name: "a"}, {Name: "b"}, {Name: "c"}}, nil, []Edge{
+			turn(humanID(), memberID("a")), turn(memberID("a"), memberID("b")), turn(memberID("b"), memberID("c")),
+			turn(memberID("c"), memberID("b")), turn(memberID("a"), humanID()),
+		})
+		want := []string{"node:b error.graph_member_no_way_back", "node:c error.graph_member_no_way_back"}
+		if got := keys(g.Check()); strings.Join(got, ",") != strings.Join(want, ",") {
+			t.Fatalf("Check = %v, want %v", got, want)
+		}
+	})
+	t.Run("unreached: a member nobody hands the turn to", func(t *testing.T) {
+		g := NewGraph([]MemberNode{{Name: "a"}, {Name: "b"}}, nil, []Edge{
+			turn(humanID(), memberID("a")), turn(memberID("a"), humanID()), turn(memberID("b"), memberID("a")),
+		})
+		want := []string{"node:b error.graph_member_unreached"}
+		if got := keys(g.Check()); strings.Join(got, ",") != strings.Join(want, ",") {
+			t.Fatalf("Check = %v, want %v", got, want)
+		}
+	})
+	t.Run("a member with no turn is I12a's alone", func(t *testing.T) {
+		g := NewGraph([]MemberNode{{Name: "a"}, {Name: "b"}}, nil, []Edge{turn(humanID(), memberID("a")), turn(memberID("a"), humanID())})
+		want := []string{"node:b error.graph_member_no_turn"}
+		if got := keys(g.Check()); strings.Join(got, ",") != strings.Join(want, ",") {
+			t.Fatalf("Check = %v, want %v", got, want)
+		}
+	})
+	t.Run("the 2026-11-05 team: dev reached through spec and back through spec and lead", func(t *testing.T) {
+		g := NewGraph([]MemberNode{{Name: "lead"}, {Name: "spec"}, {Name: "dev"}},
+			[]WorkerNode{{From: "spec", Purpose: "開発", Profile: "ds4f"}},
+			[]Edge{
+				turn(humanID(), memberID("lead")), turn(memberID("lead"), humanID()), turn(memberID("lead"), memberID("spec")),
+				turn(memberID("spec"), memberID("lead")), turn(memberID("dev"), memberID("spec")), turn(memberID("spec"), memberID("dev")),
+			})
+		if problems := g.Check(); len(problems) != 0 {
+			t.Errorf("Check = %+v, want nothing: the ring is whole, the stall was the handing, not the shape", problems)
+		}
+	})
 }

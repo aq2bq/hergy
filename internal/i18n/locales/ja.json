@@ -334,6 +334,8 @@
   "error.graph_human_no_turn": "人間は、誰にもターンを渡していません。turns: に human から渡す相手を 1 行書いてください（例: human -> %s）",
   "error.graph_member_no_turn": "メンバー %s は、誰にもターンを渡していません。turns: に %s から渡す相手を 1 行書いてください（例: %s -> %s）",
   "error.graph_no_turn_reaches_human": "人間に届くターンがありません。turns: に、人間へ渡すメンバーを 1 行書いてください（例: %s -> human）",
+  "error.graph_member_unreached": "メンバー %s には、人間からのターンが届きません。turns: に、人間か人間から届くメンバーから %s へ渡す 1 行を書いてください（例: %s -> %s）",
+  "error.graph_member_no_way_back": "メンバー %s からのターンは、人間へ戻れません。turns: に、%s から人間か人間へ戻れるメンバーへ渡す 1 行を書いてください（例: %s -> %s）",
   "error.graph_self_loop": "turns: の %s は、自分へのターンです。自分以外の相手を書いてください",
   "error.turns_not_an_edge": "turns: の %sは「a -> b」の形で書いてください（%s）",
   "error.turns_empty_end": "turns: の %sの -> の左か右が空です（%s）。-> の両側にノード名を書いてください",

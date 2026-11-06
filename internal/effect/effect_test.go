@@ -131,7 +131,7 @@ func teamText() string {
 		"  - name: lead\n    role: lead\n    profile: claude-default\n" +
 		"  - name: spec\n    role: spec\n    profile: claude-default\n" +
 		"workers:\n  - from: lead\n    purpose: 試作\n    profile: claude-default\n" +
-		"turns:\n  - human -> lead\n  - lead -> spec\n  - spec -> lead\n  - lead -> human\n"
+		"turns:\n  - human -> lead\n  - lead -> spec\n  - spec -> lead\n  - lead -> human\n  - human -> spec\n"
 }
 
 // TestOfTurnRemovalMovesOnlyTheMemberThatHandsIt is the I13 golden: taking
@@ -736,7 +736,7 @@ func TestHireLinesSayWhatAWorkerOnlyProfileChangeDoes(t *testing.T) {
 		"  - name: lead\n    role: lead\n    profile: claude-default\n" +
 		"  - name: spec\n    role: spec\n    profile: claude-default\n" +
 		"workers:\n  - from: lead\n    purpose: 試作\n    profile: codex-default\n" +
-		"turns:\n  - human -> lead\n  - lead -> spec\n  - spec -> lead\n  - lead -> human\n"
+		"turns:\n  - human -> lead\n  - lead -> spec\n  - spec -> lead\n  - lead -> human\n  - human -> spec\n"
 	before := l.view(t, l.read(t, text))
 	after := before
 	after.Profiles = l.profiles()

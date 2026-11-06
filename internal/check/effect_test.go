@@ -14,7 +14,7 @@ import (
 // (turns.member_item), and names the problem the change would add (1.4.4, X3).
 func TestTeamEffectTakesATurnAway(t *testing.T) {
 	f := newFixture(t)
-	f.team("  - human -> lead\n  - lead -> human\n  - lead -> spec\n  - spec -> human\n")
+	f.team("  - human -> lead\n  - lead -> human\n  - lead -> spec\n  - spec -> human\n  - human -> spec\n")
 	f.role("lead", "      - id: PAAF\n        text: 実装は spec に渡す（lead → spec）。\n")
 	f.role("spec", "      - id: SPEC-1\n        text: 何かをする。\n")
 
@@ -48,7 +48,7 @@ func TestTeamEffectChangesAWorkersPurpose(t *testing.T) {
 	f.write(f.teamPath(), "version: 1\ndescription: a team for the test\nmembers:\n"+
 		leadMember+specMember+
 		"workers:\n  - from: lead\n    purpose: 実装\n    profile: claude\n"+
-		"turns:\n  - human -> lead\n  - lead -> human\n  - spec -> human\n")
+		"turns:\n  - human -> lead\n  - lead -> human\n  - lead -> spec\n  - spec -> human\n")
 	f.roles()
 
 	got := TeamEffect(teamInput(f), definition.WorkerPurpose("lead", "実装", "実装する"))

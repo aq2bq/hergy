@@ -24,7 +24,7 @@ func reportFor(f *fixture, in RoleInput) RoleReport {
 // d-b87a). Readers says who uses it, by name only.
 func TestRoleWarnsAboutItsOwnSize(t *testing.T) {
 	f := newFixture(t)
-	f.team("  - human -> lead\n  - lead -> human\n  - spec -> human\n")
+	f.team("  - human -> lead\n  - lead -> human\n  - lead -> spec\n  - spec -> human\n")
 	var rulesText strings.Builder
 	for i := range 30 {
 		rulesText.WriteString("      - id: LEAD-" + string(rune('A'+i%26)) + strings.Repeat("A", i/26) + "\n")
@@ -63,7 +63,7 @@ func TestRoleWarnsAboutItsOwnSize(t *testing.T) {
 // information apart from the check, changes.
 func TestRoleAnswerDoesNotChangeWithTheTeamsThatUseIt(t *testing.T) {
 	withTeam := newFixture(t)
-	withTeam.team("  - human -> lead\n  - lead -> human\n  - spec -> human\n")
+	withTeam.team("  - human -> lead\n  - lead -> human\n  - lead -> spec\n  - spec -> human\n")
 	lead := withTeam.roleText("lead", "      - id: PAAF\n        text: 実装は impl に渡す（lead → impl）。\n")
 	withTeam.role("spec", "      - id: SPEC-1\n        text: 何かをする。\n")
 

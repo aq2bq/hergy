@@ -604,11 +604,11 @@ func TestTurnLeavesThePromptWithItsEdge(t *testing.T) {
 	head := "version: 1\ndescription: a description for the test\nteam: t\nprompt: \"%{role_doc}%{docs}%{name}\\n%{turns}\"\nmembers:\n" +
 		"  - name: lead\n    role: r\n    profile: seeker\n" +
 		"  - name: spec\n    role: r\n    profile: seeker\n"
-	full, err := parse(head+"turns:\n  - human -> lead\n  - lead -> spec\n  - lead -> human\n  - spec -> lead\n", "t", "", l, profiles)
+	full, err := parse(head+"turns:\n  - human -> lead\n  - lead -> spec\n  - lead -> human\n  - spec -> lead\n  - human -> spec\n", "t", "", l, profiles)
 	if err != nil {
 		t.Fatal(err)
 	}
-	less, err := parse(head+"turns:\n  - human -> lead\n  - lead -> human\n  - spec -> lead\n", "t", "", l, profiles)
+	less, err := parse(head+"turns:\n  - human -> lead\n  - lead -> human\n  - spec -> lead\n  - human -> spec\n", "t", "", l, profiles)
 	if err != nil {
 		t.Fatal(err)
 	}

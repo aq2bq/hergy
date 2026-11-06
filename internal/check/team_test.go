@@ -55,7 +55,7 @@ func TestTeamMatchesTheDefinitionsFindings(t *testing.T) {
 	f.write(f.teamPath(), "version: 1\ndescription: a team for the test\nmembers:\n"+
 		leadMember+specMember+
 		"workers:\n  - from: lead\n    purpose: 実装\n    profile: claude\n"+
-		"turns:\n  - human -> lead\n  - lead -> human\n  - spec -> human\n")
+		"turns:\n  - human -> lead\n  - lead -> human\n  - lead -> spec\n  - spec -> human\n")
 	f.roles()
 
 	got := Team(teamInput(f))
@@ -63,8 +63,8 @@ func TestTeamMatchesTheDefinitionsFindings(t *testing.T) {
 	if !slices.Equal(got.Problems, want) {
 		t.Errorf("problems = %+v, want check.Definition's %+v", got.Problems, want)
 	}
-	if got.Counts != (TeamCounts{Members: 2, Workers: 1, Turns: 3}) {
-		t.Errorf("counts = %+v, want 2 members, 1 worker, 3 turns", got.Counts)
+	if got.Counts != (TeamCounts{Members: 2, Workers: 1, Turns: 4}) {
+		t.Errorf("counts = %+v, want 2 members, 1 worker, 4 turns", got.Counts)
 	}
 	wantNodes := []TeamNode{
 		{ID: "human", Kind: "human"},
@@ -85,7 +85,8 @@ func TestTeamMatchesTheDefinitionsFindings(t *testing.T) {
 // (1.4.1, 1.6, spec 1.4.4 M2).
 func TestTeamLosesATurnAnOpTookAway(t *testing.T) {
 	f := newFixture(t)
-	f.team("  - human -> lead\n  - lead -> human\n  - lead -> spec\n  - spec -> human\n")
+	// human -> spec keeps spec reached once lead -> spec is taken away (I13a).
+	f.team("  - human -> lead\n  - lead -> human\n  - lead -> spec\n  - spec -> human\n  - human -> spec\n")
 	f.role("lead", "      - id: PAAF\n        text: 実装は spec に渡す（lead → spec）。\n")
 	f.role("spec", "      - id: SPEC-1\n        text: 何かをする。\n")
 
@@ -106,8 +107,8 @@ func TestTeamLosesATurnAnOpTookAway(t *testing.T) {
 	if !slices.Contains(got.Graph.SavedTurns, [2]string{"lead", "spec"}) {
 		t.Errorf("the saved turns lost lead -> spec: %v", got.Graph.SavedTurns)
 	}
-	if len(got.Graph.Turns) != 3 || len(got.Graph.SavedTurns) != 4 {
-		t.Errorf("turns = %v, savedTurns = %v, want 3 and 4", got.Graph.Turns, got.Graph.SavedTurns)
+	if len(got.Graph.Turns) != 4 || len(got.Graph.SavedTurns) != 5 {
+		t.Errorf("turns = %v, savedTurns = %v, want 4 and 5", got.Graph.Turns, got.Graph.SavedTurns)
 	}
 }
 
@@ -116,7 +117,7 @@ func TestTeamLosesATurnAnOpTookAway(t *testing.T) {
 // validate's own error.graph_* sentences, each one stopping the definition.
 func TestTeamStopsOnATurnTheDraftCannotHold(t *testing.T) {
 	f := newFixture(t)
-	f.team("  - human -> lead\n  - lead -> human\n  - spec -> human\n")
+	f.team("  - human -> lead\n  - lead -> human\n  - lead -> spec\n  - spec -> lead\n")
 	f.roles()
 
 	op := definition.RemoveTurn(memberNode("lead"), humanNode())
@@ -141,7 +142,7 @@ func TestTeamStopsOnATurnTheDraftCannotHold(t *testing.T) {
 // is still the one the saved file holds (the ops did not change it).
 func TestTeamStopsOnAnOpTheFileCannotHold(t *testing.T) {
 	f := newFixture(t)
-	f.team("  - human -> lead\n  - lead -> human\n  - spec -> human\n")
+	f.team("  - human -> lead\n  - lead -> human\n  - human -> spec\n  - spec -> human\n")
 	f.roles()
 
 	got := Team(teamInput(f, definition.RemoveTurn(memberNode("lead"), memberNode("spec"))))
@@ -149,7 +150,7 @@ func TestTeamStopsOnAnOpTheFileCannotHold(t *testing.T) {
 	if len(got.Problems) != 1 || got.Problems[0] != want {
 		t.Fatalf("problems = %+v, want the one refusal %+v", got.Problems, want)
 	}
-	if len(got.Graph.Nodes) != 3 || len(got.Graph.Turns) != 3 {
+	if len(got.Graph.Nodes) != 3 || len(got.Graph.Turns) != 4 {
 		t.Errorf("graph = %+v, want the saved figure still drawn", got.Graph)
 	}
 }
@@ -206,7 +207,7 @@ func TestTeamSaysARoleNameThatIsNotOne(t *testing.T) {
 	f.write(f.teamPath(), "version: 1\ndescription: a team for the test\nmembers:\n"+
 		leadMember+
 		"  - name: spec-2\n    role: 進行管理\n    profile: claude\n"+
-		"turns:\n  - human -> lead\n  - lead -> human\n  - spec-2 -> human\n")
+		"turns:\n  - human -> lead\n  - lead -> human\n  - lead -> spec-2\n  - spec-2 -> human\n")
 	f.roles()
 	f.role("進行管理", "      - id: SPEC-1\n        text: 何かをする。\n")
 

@@ -14,7 +14,7 @@ func (f *fixture) agreementPath() string {
 
 func TestProseArrowsDoNotChangeTopologyChecks(t *testing.T) {
 	f := newFixture(t)
-	f.team("  - human -> lead\n  - lead -> human\n  - spec -> human\n")
+	f.team("  - human -> lead\n  - lead -> human\n  - lead -> spec\n  - spec -> human\n")
 	f.roles()
 	text := "# 合意\r\n不明な人 → 別の人。lead ⇄ unknown。\n"
 	f.write(f.agreementPath(), text)

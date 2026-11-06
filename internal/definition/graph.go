@@ -178,14 +178,94 @@ func (g *Graph) Check() []Problem {
 			})
 		}
 	}
-	problems = append(problems, g.noTurnProblems()...)
+	turnProblems := g.noTurnProblems()
 	if !g.ReachesHuman() {
-		problems = append(problems, Problem{
+		turnProblems = append(turnProblems, Problem{
 			Field: "node:human", Key: "error.graph_no_turn_reaches_human",
 			Args: []any{g.exampleTarget(g.Human.ID())},
 		})
 	}
+	if len(turnProblems) == 0 {
+		// I13 is read only on a graph I12 holds: a human who hands the turn to
+		// nobody leaves every member unreached, and that is the one fault I12a
+		// already names (one fault, one problem).
+		turnProblems = g.cutOffProblems()
+	}
+	return append(problems, turnProblems...)
+}
+
+// cutOffProblems is I13a and I13b (r-bc26, ac-7c06): the turn, handed on by
+// hergy along the edges, must be able to reach every member from the human
+// (I13a) and come back from every member to the human (I13b). A member it can
+// never reach is an island nobody ever starts; a member it can never come back
+// from is a ring that goes on without the person. A member with no turn at all
+// is I12a's and is not repeated here. Workers are left out: a worker's edges go
+// to and from the member that hired it, so it is cut off exactly when that
+// member is.
+func (g *Graph) cutOffProblems() []Problem {
+	var problems []Problem
+	fromHuman := g.reachableFrom(g.Human.ID())
+	for _, member := range g.Members {
+		id := member.ID()
+		if len(g.Out(id)) == 0 {
+			continue
+		}
+		if !fromHuman[id] {
+			problems = append(problems, Problem{
+				Field: "node:" + id.String(), Key: "error.graph_member_unreached",
+				Args: []any{id.String(), id.String(), g.exampleReached(fromHuman, id), id.String()},
+			})
+		}
+		if !g.reachableFrom(id)[g.Human.ID()] {
+			problems = append(problems, Problem{
+				Field: "node:" + id.String(), Key: "error.graph_member_no_way_back",
+				Args: []any{id.String(), id.String(), id.String(), g.exampleReturning(id)},
+			})
+		}
+	}
 	return problems
+}
+
+// reachableFrom is every node the turn can reach from start along the edges,
+// start itself included.
+func (g *Graph) reachableFrom(start NodeID) map[NodeID]bool {
+	seen := map[NodeID]bool{start: true}
+	queue := []NodeID{start}
+	for len(queue) > 0 {
+		id := queue[0]
+		queue = queue[1:]
+		for _, edge := range g.Out(id) {
+			if !seen[edge.To] {
+				seen[edge.To] = true
+				queue = append(queue, edge.To)
+			}
+		}
+	}
+	return seen
+}
+
+// exampleReached is the party a fix's example hands the turn from, for a member
+// the human never reaches: the first member the human does reach, other than
+// the one the sentence is about, or the human.
+func (g *Graph) exampleReached(fromHuman map[NodeID]bool, about NodeID) string {
+	for _, member := range g.Members {
+		if member.ID() != about && fromHuman[member.ID()] {
+			return member.Name
+		}
+	}
+	return g.Human.ID().String()
+}
+
+// exampleReturning is the party a fix's example hands the turn to, for a member
+// the turn never comes back from: the first other member whose turn does come
+// back to the human, or the human.
+func (g *Graph) exampleReturning(about NodeID) string {
+	for _, member := range g.Members {
+		if member.ID() != about && g.reachableFrom(member.ID())[g.Human.ID()] {
+			return member.Name
+		}
+	}
+	return g.Human.ID().String()
 }
 
 // exampleTarget is the name a fix's example writes: the first member, or the
