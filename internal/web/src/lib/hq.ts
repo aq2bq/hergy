@@ -44,12 +44,14 @@ document.querySelectorAll('[data-hq="projects"]').forEach((b) => {
 document.addEventListener('click', (e) => {
   if (!(e.target instanceof Element)) return;
   // A press inside the sheet is read from the path the press took: a 取り消す
-  // that takes its own notice away is still a press in the sheet (d-aeeb).
+  // that takes its own notice away is still a press in the sheet (d-aeeb). A
+  // notice that lost its row stands in the shared place below the band and is
+  // still the sheet's own press, not one outside it (d-2cb2).
   const path = e.composedPath();
   const inside = (selector: string): boolean => path.some((one) => one instanceof Element && one.matches(selector));
   // The shared confirmation is a dialog of its own: a press in it is not a
   // press outside the sheet behind it (r-d480).
-  if (sheetOpen() && !inside('.hq-sheet') && !inside('[data-hq]') && !inside('.confirm')) closeSheet();
+  if (sheetOpen() && !inside('.hq-sheet') && !inside('[data-hq]') && !inside('.confirm') && !inside('.undo-fallback')) closeSheet();
   if (searchBoxOpen() && !inside('.hq-sr, .hq-search')) closeBox();
 });
 

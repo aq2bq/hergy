@@ -101,11 +101,53 @@ function ConfirmDialog() {
   });
 }
 
+// lib/dialogs.tsx
+function Dialogs() {
+  return /* @__PURE__ */ u(ConfirmDialog, {});
+}
+function belowBand(className) {
+  const found = document.querySelector(`.${className}`);
+  if (found)
+    return found;
+  const host = document.createElement("div");
+  host.className = className;
+  (document.querySelector(".bar") || document.body).appendChild(host);
+  return host;
+}
+function undoFallback() {
+  if (typeof document === "undefined")
+    return null;
+  return belowBand("undo-fallback");
+}
+var mounted = false;
+function mountDialogs() {
+  if (mounted || typeof document === "undefined")
+    return;
+  R(/* @__PURE__ */ u(Dialogs, {}), belowBand("dialogs-host"));
+  mounted = true;
+}
+
 // lib/undo.tsx
 var undo = y(null);
 var hostEl = null;
+var watch = null;
+function stopWatch() {
+  if (watch) {
+    watch.disconnect();
+    watch = null;
+  }
+}
+function place(host) {
+  const one = document.createElement("div");
+  one.className = "undo-host";
+  host.appendChild(one);
+  hostEl = one;
+  R(/* @__PURE__ */ u(UndoNotice, {}), one);
+  return one;
+}
 function offerUndo(one, host) {
   undo.value = one;
+  stopWatch();
   if (hostEl) {
     R(null, hostEl);
     hostEl.remove();
@@ -113,16 +155,25 @@ function offerUndo(one, host) {
   }
   if (!host)
     return;
-  hostEl = document.createElement("div");
-  hostEl.className = "undo-host";
-  host.appendChild(hostEl);
-  R(/* @__PURE__ */ u(UndoNotice, {}), hostEl);
+  const mine = place(host);
+  if (typeof MutationObserver !== "function" || typeof document === "undefined" || !document.body)
+    return;
+  watch = new MutationObserver(() => {
+    if (hostEl !== mine || mine.isConnected)
+      return;
+    stopWatch();
+    const there = undoFallback();
+    if (there)
+      place(there);
+  });
+  watch.observe(document.body, { childList: true, subtree: true });
 }
 function takeUndo() {
   const one = undo.value;
   if (!one)
     return;
   undo.value = null;
+  stopWatch();
   const host = hostEl;
   const done = one.restore();
   if (!done || typeof done.then !== "function") {
@@ -145,6 +196,7 @@ function takeUndo() {
   });
 }
 function closeHost(host) {
+  stopWatch();
   if (hostEl === host)
     hostEl = null;
   if (host) {
@@ -155,6 +207,7 @@ function closeHost(host) {
 function dropUndo() {
   const host = hostEl;
   hostEl = null;
+  stopWatch();
   if (host) {
     R(null, host);
     host.remove();
@@ -244,4 +297,4 @@ function runDanger(action, opts) {
   askConfirm({ ...ask, body: ask.body ?? k("div", {}), run: opts.run });
 }
 
-export { ConfirmDialog, dropUndo, runDanger };
+export { mountDialogs, dropUndo, runDanger };

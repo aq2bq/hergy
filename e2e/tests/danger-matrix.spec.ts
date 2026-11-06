@@ -296,32 +296,54 @@ test.describe('undo: the headquarters takes a project out of the list', () => {
     });
   }
 
-  test('a restore the server refuses says why it could not', async ({ page, app }) => {
+  // outOfTheList takes beta out and answers nothing; the notice stands in beta's
+  // row, as the walk above saw.
+  const outOfTheList = async (page: Page, app: { base: string; state: string; home: string }, file: string): Promise<void> => {
     launched(app);
-    const file = cfgFile(app);
     writeFileSync(file, BEFORE);
     await page.goto(`${app.base}/teams`); await ready(page);
     await page.locator('[data-hq="projects"]').click();
     const sheet = page.locator('.hq-sheet');
     await expect(listed(page)).toHaveText(['alpha', 'beta', 'gamma']);
-    // The list is read again after the write (hergy:wrote, 150 ms later). Let
-    // that reading finish before the file is broken: a read that lands on the
-    // half-written file can replace the sheet, and the notice with it.
-    const reread = page.waitForResponse((res) => res.request().method() === 'GET'
-      && new URL(res.url()).pathname === '/api/hq/projects' && res.status() === 200);
     await sheet.locator('.hq-li').filter({ hasText: 'beta' }).locator('[data-hq="unlist"]').click();
     await expect(listed(page)).toHaveText(['alpha', 'gamma']);
-    await reread;
     await expect(sheet.locator('.hq-li').filter({ hasText: 'beta' }).locator('.undo')).toContainText('並びから外しました');
+  };
+  // buildAgain presses the band's project button a second time, so the sheet and
+  // every row in it are made afresh. A redraw after the write (hergy:wrote, 150 ms
+  // later) does the same to the row the notice stands in; this press does it at a
+  // moment the walk chooses (d-2cb2).
+  const buildAgain = (page: Page) => page.locator('[data-hq="projects"]').click();
+  // fallback is where the notice says what it did once its row is gone: the
+  // shared place below the band, not a screen's own (d-2cb2).
+  const fallback = (page: Page) => page.locator('.undo-fallback .undo');
+
+  test('a notice outlives the sheet being built again, and 取り消す puts the project back', async ({ page, app }) => {
+    const file = cfgFile(app);
+    await outOfTheList(page, app, file);
+    await buildAgain(page);
+    await expect(fallback(page)).toContainText('並びから外しました');
+    await fallback(page).locator('button').click();
+    await expect(listed(page)).toHaveText(['alpha', 'beta', 'gamma']);
+    await expect(page.locator('.undo')).toHaveCount(0);
+    expect(text(file), 'config.yaml came back different').toBe(BEFORE);
+  });
+
+  test('a restore the server refuses says why it could not, after the sheet is built again', async ({ page, app }) => {
+    const file = cfgFile(app);
+    await outOfTheList(page, app, file);
+    await buildAgain(page);
+    await expect(fallback(page)).toContainText('並びから外しました');
     // The file it must put the lines back in is broken under it: the way back
     // cannot be taken, and the notice says why instead of closing as if it had.
     // The broken content goes in whole (a rename), so no reader sees a half file.
     const broken = path.join(app.cfg, 'hergy', 'config.yaml.broken');
     writeFileSync(broken, 'projects: [\n');
     renameSync(broken, file);
-    await sheet.locator('.hq-li').filter({ hasText: 'beta' }).locator('.undo button').click();
-    await expect(sheet.locator('.undo[role="alert"]')).toContainText('config.yaml');
-    await expect(sheet.locator('.undo[role="alert"]')).toContainText('読み取れません');
+    await fallback(page).locator('button').click();
+    const said = page.locator('.undo-fallback .undo[role="alert"]');
+    await expect(said).toContainText('config.yaml');
+    await expect(said).toContainText('読み取れません');
     expect(text(file), 'a refused restore changed config.yaml').toBe('projects: [\n');
   });
 });

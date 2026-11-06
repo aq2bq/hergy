@@ -71,4 +71,22 @@ describe('undo', () => {
     expect(host.querySelector('.undo')).toBeNull();
     host.remove();
   });
+  test('a notice whose row is drawn away moves below the band and still takes it back', async () => {
+    const { offerUndo } = await import('../src/lib/undo.js');
+    let back = false;
+    document.body.innerHTML = '<div class="bar"></div>';
+    const row = document.createElement('div');
+    document.querySelector('.bar').appendChild(row);
+    offerUndo({ said: '並びから外しました', restore: () => { back = true; } }, row);
+    expect(row.textContent).toContain('並びから外しました');
+    // The sheet is drawn again: the row the notice stood in is a new element,
+    // and the notice moves to the shared place instead of going with it (d-2cb2).
+    row.remove();
+    await new Promise((done) => setTimeout(done, 0));
+    const fallback = document.querySelector('.undo-fallback');
+    expect(fallback?.textContent).toContain('並びから外しました');
+    fallback.querySelector('button').click();
+    expect(back).toBe(true);
+    expect(document.querySelector('.undo')).toBeNull();
+  });
 });

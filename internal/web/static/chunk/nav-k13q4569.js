@@ -8,28 +8,9 @@
 // tools/webvendor/package.json and bun.lock.
 
 import {
-  R,
-  u
-} from "./nav-zn7g81kr.js";
-import {
-  ConfirmDialog,
+  mountDialogs,
   runDanger
-} from "./nav-scz7dfy9.js";
-
-// lib/dialogs.tsx
-function Dialogs() {
-  return /* @__PURE__ */ u(ConfirmDialog, {});
-}
-var mounted = false;
-function mountDialogs() {
-  if (mounted || typeof document === "undefined")
-    return;
-  const host = document.createElement("div");
-  host.className = "dialogs-host";
-  (document.querySelector(".bar") || document.body).appendChild(host);
-  R(/* @__PURE__ */ u(Dialogs, {}), host);
-  mounted = true;
-}
+} from "./nav-gs311eny.js";
 
 // lib/nav.ts
 mountDialogs();

@@ -220,3 +220,7 @@ button.chev.disclosure[aria-expanded="true"]::before { transform:rotate(45deg); 
 .confirm-body p { margin: 6px 0; }
 .confirm-body dl { margin: 6px 0; }
 .confirm footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+
+/* 取り消しの知らせの逃げ場（d-2cb2）: 押した場所が描き直しで消えたら、帯の
+   下のこの入れ物に立つ。欄より手前に置き、狭い画面でも押せるようにする。 */
+.undo-fallback { position: fixed; z-index: 40; top: calc(var(--stick, 62px) + 8px); left: 50%; transform: translateX(-50%); max-width: min(40rem, calc(100vw - 32px)); }
