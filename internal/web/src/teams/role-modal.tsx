@@ -164,7 +164,7 @@ function Editor({ session, onScanned, visible }: { session: Session; onScanned: 
   useEffect(() => {
     if (!e || focusTarget.value !== `prose-${session.r.uid}-${session.name}`) return;
     const input = dialog.current?.querySelector('textarea');
-    if (input) { input.focus(); input.scrollIntoView({ block: 'nearest', inline: 'nearest' }); focusTarget.value = ''; }
+    if (input) { input.focus({ preventScroll: true }); input.scrollIntoView({ block: 'nearest', inline: 'nearest' }); focusTarget.value = ''; }
   }, [e, focusTarget.value]);
   const answer = editor.check.value.value?.json;
   const issues = e && answer?.problems ? roleProblems(e.draft, answer.problems) : [];

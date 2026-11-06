@@ -21,7 +21,7 @@ export function Menu({ r }: { r: Rec }): JSX.Element | null {
     el.style.left = `${Math.max(6, Math.min(m.x, cr.width - w - 6))}px`;
     el.style.top = `${Math.max(6, Math.min(m.y, cr.height - h - 6))}px`;
     const first = el.querySelector<HTMLElement>('button');
-    if (first) first.focus();
+    if (first) first.focus({ preventScroll: true });
   });
   if (!m) return null;
   const t = r.draft.value;

@@ -113,7 +113,7 @@ function showSearch(open: boolean): void {
  const band = document.querySelector<HTMLElement>('.bar');
  if (band) band.dataset.searchOpen = String(open);
  document.querySelector('[data-hq="search-toggle"]')?.setAttribute('aria-expanded', String(open));
- if (open) document.getElementById('hq-q')?.focus();
+ if (open) document.getElementById('hq-q')?.focus({ preventScroll: true });
 }
 document.addEventListener('click', (event) => {
  if (!(event.target instanceof Element)) return;

@@ -21,7 +21,7 @@ export function PromptComparison({ r, member, close }: {r: Rec; member: string; 
  useEffect(() => {
   const trigger = document.activeElement as HTMLElement | null;
   dialog.current?.showModal();
-  return () => { dialog.current?.close(); trigger?.focus(); };
+  return () => { dialog.current?.close(); trigger?.focus({ preventScroll: true }); };
  }, []);
  useEffect(() => {
   if (answer && !initialized.current) { setView(answer.recorded ? 'diff' : 'current'); initialized.current = true; }

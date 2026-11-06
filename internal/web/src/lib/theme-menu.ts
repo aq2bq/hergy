@@ -25,11 +25,11 @@ function mount(): void {
   }
   function close(returnFocus = false): void {
     opened = false; update();
-    if (returnFocus) trigger.focus();
+    if (returnFocus) trigger.focus({ preventScroll: true });
   }
   function open(): void {
     opened = true; update();
-    items.find(item => item.dataset.mode === theme!.state.mode)?.focus();
+    items.find(item => item.dataset.mode === theme!.state.mode)?.focus({ preventScroll: true });
   }
   trigger.addEventListener('click', () => { if (opened) close(); else open(); });
   trigger.addEventListener('keydown', (event) => {
@@ -49,7 +49,7 @@ function mount(): void {
       event.preventDefault();
       const index = event.key === 'Home' ? 0 : event.key === 'End' ? items.length - 1
         : (at + (event.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
-      items[index].focus();
+      items[index].focus({ preventScroll: true });
     }
   });
   document.addEventListener('click', (event) => { if (!control.contains(event.target as Node)) close(); });

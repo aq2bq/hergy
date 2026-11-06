@@ -83,7 +83,7 @@ function openSheet(vnode: JSX.Element, side?: string): HTMLDivElement {
     sheetHost.style.top = `${Math.max(72, Math.min(anchor.bottom + 8, innerHeight - 420))}px`;
     sheetHost.style.maxHeight = `${innerHeight - Math.max(72, Math.min(anchor.bottom + 8, innerHeight - 420)) - 16}px`;
   }
-  sheetHost.focus();
+  sheetHost.focus({ preventScroll: true });
   draw(vnode, sheetHost);
   return sheetHost;
 }

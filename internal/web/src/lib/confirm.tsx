@@ -42,7 +42,7 @@ export function ConfirmDialog(): JSX.Element | null {
     const node = dialog.current;
     if (!ask || !node) return;
     if (!node.open) node.showModal();
-    cancel.current?.focus();
+    cancel.current?.focus({ preventScroll: true });
     // Nothing closes it here: an ask that goes away removes the element, and a
     // re-render of the screen must not shut a dialog the person is reading
     // (r-d480).

@@ -171,7 +171,7 @@ function Panel({ panel }: { panel: PanelState }) {
     const ask = focusAsk.value;
     if (!ask || ask.key !== panel.key) return;
     if (ask.field === 'name' && nameInput.current) {
-      nameInput.current.focus();
+      nameInput.current.focus({ preventScroll: true });
       if (ask.select) nameInput.current.select();
       // A copy brings the page to the row it made (d-022a): the row a person
       // pressed stands in the other place, and the copy is off the screen.
@@ -313,7 +313,7 @@ function ArgChip({ index, arg, changed, bad, panelKey }: { index: number; arg: s
   const input = useRef<HTMLInputElement>(null);
   useEffect(() => {
     const ask = focusAsk.value;
-    if (ask && ask.key === panelKey && ask.field === 'arg' && ask.index === index && input.current) input.current.focus();
+    if (ask && ask.key === panelKey && ask.field === 'arg' && ask.index === index && input.current) input.current.focus({ preventScroll: true });
   }, [focusAsk.value]);
   const size = Math.max(String(arg).length, 3);
   return (
@@ -331,7 +331,7 @@ function EnvRow({ index, pair, changed, bad, panelKey }: { index: number; pair: 
   const val = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
     const ask = focusAsk.value;
-    if (ask && ask.key === panelKey && ask.field === 'ek' && ask.index === index && key.current) key.current.focus();
+    if (ask && ask.key === panelKey && ask.field === 'ek' && ask.index === index && key.current) key.current.focus({ preventScroll: true });
   }, [focusAsk.value]);
   useEffect(() => {
     if (!val.current) return;

@@ -216,7 +216,7 @@ document.addEventListener('click', (e) => {
     location.assign(url.href);
   };
   const tabs = link.closest('#tabs');
-  if (tabs && confirmLeave(follow, () => tabs.querySelector<HTMLElement>('[aria-selected="true"]')?.focus())) {
+  if (tabs && confirmLeave(follow, () => tabs.querySelector<HTMLElement>('[aria-selected="true"]')?.focus({ preventScroll: true }))) {
     // The draft would go with the page: the move waits for the answer, and
     // やめる puts the focus back on the tab the person was on.
     e.preventDefault(); e.stopImmediatePropagation();
@@ -240,7 +240,7 @@ document.addEventListener('keydown', (e) => {
   if (at < 0) return;
   e.preventDefault();
   const index = e.key === 'Home' ? 0 : e.key === 'End' ? tabs.length - 1 : (at + (e.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
-  tabs[index].focus(); tabs[index].click();
+  tabs[index].focus({ preventScroll: true }); tabs[index].click();
 });
 
 // Search visibility, fonts and incoming counts can change the band's height.
