@@ -42,7 +42,7 @@ func (e Env) AddProjectAt(dir string, at int) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	out, err := EditProjects(text, e.Display(pathFile), addProject{path: path, written: written})
+	out, err := EditProjects(text, e.Display(pathFile), addProject{path: path, written: written, at: at})
 	if err != nil {
 		return "", err
 	}

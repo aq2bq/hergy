@@ -197,3 +197,58 @@ func TestAddProjectKeepsAFlowList(t *testing.T) {
 	}
 }
 
+// TestAProjectGoesBackWhereItStood: removing the middle of three projects and
+// adding it back at the position the removal answered leaves config.yaml byte for
+// byte as it was, its comment included (d-2cce).
+func TestAProjectGoesBackWhereItStood(t *testing.T) {
+	root := t.TempDir()
+	env := Env{GlobalDir: filepath.Join(root, "hergy")}
+	dirs := []string{filepath.Join(root, "a"), filepath.Join(root, "b"), filepath.Join(root, "c")}
+	resolved := make([]string, len(dirs))
+	for i, dir := range dirs {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		resolved[i], _ = filepath.EvalSymlinks(dir)
+	}
+	before := "# the projects\nversion: 1\nprojects:\n  - " + resolved[0] + "\n  - " + resolved[1] + "\n  - " + resolved[2] + "\n# after\nlang: ja\n"
+	write(t, env.ConfigPath(), before)
+	at, err := env.RemoveProject(dirs[1])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if at != 1 {
+		t.Fatalf("the removal answered %d, want the middle (1)", at)
+	}
+	if _, err := env.AddProjectAt(dirs[1], at); err != nil {
+		t.Fatal(err)
+	}
+	text, err := os.ReadFile(env.ConfigPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(text) != before {
+		t.Errorf("the file changed:\nbefore:\n%s\nafter:\n%s", before, text)
+	}
+}
+
+// TestAddProjectStillGoesAtTheEnd: the plain add keeps its place at the end.
+func TestAddProjectStillGoesAtTheEnd(t *testing.T) {
+	root := t.TempDir()
+	env := Env{GlobalDir: filepath.Join(root, "hergy")}
+	dirs := []string{filepath.Join(root, "a"), filepath.Join(root, "b")}
+	for _, dir := range dirs {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write(t, env.ConfigPath(), "version: 1\nprojects:\n  - "+dirs[0]+"\n")
+	if _, err := env.AddProject(dirs[1]); err != nil {
+		t.Fatal(err)
+	}
+	text, _ := os.ReadFile(env.ConfigPath())
+	resolved, _ := filepath.EvalSymlinks(dirs[1])
+	if !strings.HasSuffix(string(text), "  - "+resolved+"\n") {
+		t.Errorf("the plain add did not go at the end:\n%s", text)
+	}
+}
