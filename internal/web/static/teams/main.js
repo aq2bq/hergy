@@ -591,27 +591,6 @@ function Editor({ session, onScanned, visible }) {
   });
 }
 
-// teams/canvas/prompt-run.ts
-var promptRun = y({});
-var runOf = (key) => promptRun.value[key] || "";
-function setRun(key, team) {
-  if (runOf(key) === team)
-    return;
-  promptRun.value = { ...promptRun.value, [key]: team };
-}
-function keepRun(key, answer) {
-  if (answer.status === "error")
-    return;
-  const runs = answer.runs || [];
-  const picked = runOf(key);
-  if (picked && !runs.some((run) => run.team === picked)) {
-    setRun(key, "");
-    return;
-  }
-  if (!picked && answer.selected)
-    setRun(key, answer.selected.team);
-}
-
 // teams/place.ts
 var textW = (s, mono) => [...String(s)].reduce((w, c) => w + (/[\u3000-\u9fff\uff00-\uffef]/.test(c) ? 13 : mono ? 8.4 : 7.4), 0);
 function boxOf(id, t) {
@@ -1830,7 +1809,7 @@ function resetCanvas(r) {
 }
 var WRK_NAME = "zz-worker-name-0";
 var WRK_TASK = "zzTaskPlaceholder0";
-function workerPrompt(r, i) {
+function workerPrompt(r, i, runningTeam) {
   const w = r.draft.value.workers[i];
   if (!w || !w.purpose || !w.from)
     return null;
@@ -1841,7 +1820,7 @@ function workerPrompt(r, i) {
   if (r.wpromptReq[k])
     return null;
   r.wpromptReq[k] = true;
-  check2("team", { ...teamIn(r), part: "worker", hash: r.hash.value, running_team: runOf(dkey(r)), doc: { name: WRK_NAME, purpose: w.purpose, task: WRK_TASK, from: w.from, preview: true, ops: r.ops.value } }).then((res) => {
+  check2("team", { ...teamIn(r), part: "worker", hash: r.hash.value, running_team: runningTeam, doc: { name: WRK_NAME, purpose: w.purpose, task: WRK_TASK, from: w.from, preview: true, ops: r.ops.value } }).then((res) => {
     delete r.wpromptReq[k];
     const ans = res.json;
     r.wprompts.value = {
@@ -1936,7 +1915,6 @@ function yamlSaved(file, answer) {
   setYdraft(file, undefined);
   setYc(file, undefined);
 }
-var promptsOf = (r) => r.prompts.value;
 var promptBlockedOf = (r) => r.promptsReady.value === false;
 var teamLabel = (r) => r.name.value || "新しいチーム定義";
 var currentProjectName = () => {
@@ -3891,56 +3869,154 @@ function CurrentPrompt({ text, lines }) {
   });
 }
 
-// teams/canvas/prompt-comparison.tsx
-function PromptComparison({ r, member, close }) {
-  const dialog = A(null);
-  const key = dkey(r);
-  const [running, setRunning] = d(runOf(key));
-  const [view, setView] = d("diff");
-  const initialized = A(false);
-  const reading = T(() => resource(async (signal, payload) => {
-    const answer = await call2("POST", "/api/team/prompt-comparison", payload, { signal });
+// teams/prompt-source.ts
+var PROMPT_READ = { wait: 260 };
+var stores = new Map;
+var promptRun = y({});
+var runOf = (key) => promptRun.value[key] || "";
+function setRun(key, team) {
+  if (runOf(key) === team)
+    return;
+  promptRun.value = { ...promptRun.value, [key]: team };
+}
+var pickedRun = (r) => runOf(dkey(r));
+var pickRun = (r, team) => setRun(dkey(r), team);
+function runningRevision(r) {
+  const project = r.project && r.project !== "global" ? r.project : CURRENT;
+  const teams = (st.running.value.teams || []).filter((t) => t.definition === r.name.value && (t.place || "project") === r.place.value && (r.place.value === "global" || !project || t.project === project)).map((t) => [t.team, t.project || "", ...(t.members || []).map((m) => `${m.name}:${m.live ? "1" : "0"}`)].join("\x00")).sort();
+  return teams.join("\x01");
+}
+function promptKey(r, ask) {
+  return [dkey(r), JSON.stringify(promptComparisonInput(r)), ask.member, runOf(dkey(r)), runningRevision(r)].join("\x02");
+}
+function storeFor(r, ask) {
+  const k = dkey(r) + "|" + ask.member;
+  const had = stores.get(k);
+  if (had)
+    return had;
+  const reading = resource(async (stop, body) => {
+    const answer = await call2("POST", "/api/team/prompt-comparison", body, { signal: stop });
     if (!answer.json)
       throw new Error("本文の応答がありません");
     return answer.json;
-  }), [r, member]);
-  const payload = JSON.stringify({ ...promptComparisonInput(r), member, running_team: running });
-  const load = () => reading.run(JSON.parse(payload)).then((answer) => {
-    if (answer && !initialized.current) {
-      setView(answer.recorded ? "diff" : "current");
-      initialized.current = true;
-    }
   });
+  const made = {
+    runKey: dkey(r),
+    key: "",
+    payload: null,
+    shown: y(null),
+    loading: y(false),
+    error: y(""),
+    reading,
+    timer: null
+  };
+  stores.set(k, made);
+  return made;
+}
+function schedule(store, key, body) {
+  store.payload = body;
+  if (store.key === key)
+    return;
+  store.key = key;
+  if (store.timer)
+    clearTimeout(store.timer);
+  store.timer = setTimeout(() => {
+    store.timer = null;
+    if (store.key === key)
+      load(store, key);
+  }, PROMPT_READ.wait);
+}
+async function load(store, key) {
+  const body = store.payload;
+  if (!body)
+    return;
+  store.shown.value = null;
+  store.error.value = "";
+  store.loading.value = true;
+  const answer = await store.reading.run(body);
+  if (store.key !== key)
+    return;
+  store.loading.value = false;
+  if (answer) {
+    store.shown.value = answer;
+    const picked = runOf(store.runKey);
+    if (answer.status !== "error" && picked && !(answer.runs || []).some((run) => run.team === picked))
+      setRun(store.runKey, "");
+    return;
+  }
+  if (store.reading.error.value)
+    store.error.value = problemText2(store.reading.error.value, "本文を読めませんでした");
+}
+function reloadPrompt(r, ask) {
+  const store = storeFor(r, ask);
+  store.key = "";
+  const body = { ...promptComparisonInput(r), member: ask.member, running_team: pickedRun(r) };
+  schedule(store, promptKey(r, ask), body);
+}
+function usePrompt(r, ask) {
+  const store = storeFor(r, ask);
+  const key = promptKey(r, ask);
+  const body = { ...promptComparisonInput(r), member: ask.member, running_team: pickedRun(r) };
+  h(() => {
+    schedule(store, key, body);
+  }, [store, key]);
+  const answer = store.shown.value;
+  const error = store.error.value;
+  return {
+    answer,
+    segments: answer ? answer.segments : [],
+    note: noteOf(answer, r.name.value, error),
+    loading: store.loading.value,
+    error
+  };
+}
+function noteOf(answer, name, error) {
+  if (error)
+    return `${error} 文を表示できません。`;
+  if (!answer)
+    return "";
+  if (answer.status === "error")
+    return `${answer.reason || "チームの状態を読めませんでした"} そのため、定義名 ${name} で作っています。`;
+  if (answer.selected)
+    return `実行中のチーム ${answer.team} の名前で作っています。`;
+  const runs = answer.runs || [];
+  if (runs.length > 1)
+    return `動いているチームが ${runs.length} つあるため、定義名 ${name} で作っています。全文と差分のパネルでチームを選ぶと、その名前で作ります。`;
+  if (runs.length === 0)
+    return `この定義から動いているチームが無いため、定義名 ${name} で作っています。`;
+  return `定義名 ${name} で作っています。`;
+}
+
+// teams/canvas/prompt-comparison.tsx
+function PromptComparison({ r, member, close }) {
+  const dialog = A(null);
+  const prompt = usePrompt(r, { member });
+  const answer = prompt.answer;
+  const picked = pickedRun(r);
+  const [view, setView] = d("diff");
+  const initialized = A(false);
   h(() => {
     const trigger = document.activeElement;
     dialog.current?.showModal();
     return () => {
-      reading.abort();
       dialog.current?.close();
       trigger?.focus();
     };
-  }, [reading]);
+  }, []);
   h(() => {
-    load();
-    return () => reading.abort();
-  }, [reading, payload]);
-  const answer = reading.value.value;
+    if (answer && !initialized.current) {
+      setView(answer.recorded ? "diff" : "current");
+      initialized.current = true;
+    }
+  }, [answer]);
   const body = A(null);
   h(() => {
     if (body.current)
       body.current.scrollTop = 0;
   }, [view]);
-  h(() => {
-    if (!answer)
-      return;
-    keepRun(key, answer);
-    const next = runOf(key);
-    if (next !== running)
-      setRunning(next);
-  }, [answer, key, running]);
   const lines = T(() => answer?.current !== null && answer?.current !== undefined ? originLines(answer.current, answer.segments) : null, [answer]);
-  const busy = reading.loading.value;
-  const error = reading.error.value;
+  const busy = prompt.loading;
+  const error = prompt.error;
   return /* @__PURE__ */ u("dialog", {
     class: "prompt-comparison",
     ref: dialog,
@@ -3977,11 +4053,10 @@ function PromptComparison({ r, member, close }) {
             children: [
               "実行中のチーム ",
               /* @__PURE__ */ u("select", {
-                value: running || answer.selected?.team || "",
+                value: picked || answer.selected?.team || "",
                 onChange: (event) => {
                   initialized.current = false;
-                  setRunning(event.currentTarget.value);
-                  setRun(key, event.currentTarget.value);
+                  pickRun(r, event.currentTarget.value);
                 },
                 children: [
                   /* @__PURE__ */ u("option", {
@@ -4004,9 +4079,7 @@ function PromptComparison({ r, member, close }) {
             class: "btn sm",
             type: "button",
             disabled: busy,
-            onClick: () => {
-              load();
-            },
+            onClick: () => reloadPrompt(r, { member }),
             children: "再取得"
           })
         ]
@@ -4030,7 +4103,7 @@ function PromptComparison({ r, member, close }) {
         children: "本文を読んでいます。"
       }) : error ? /* @__PURE__ */ u("p", {
         role: "alert",
-        children: problemText2(error, "本文を読めませんでした")
+        children: error
       }) : answer && /* @__PURE__ */ u(S, {
         children: [
           /* @__PURE__ */ u("div", {
@@ -4325,35 +4398,10 @@ var prange = (a, b) => b - a > 1 ? `${a + 1}–${b}` : `${a + 1}`;
 var PROMPT_BLOCKED = "このチーム定義には問題があるので、hergy はプロンプトを組みません（hergy up も止まります）。下の設定の検査の欄の問題を直すと、ここに出ます。";
 function MemberPrompt({ r, m }) {
   const [opened, setOpened] = d(false);
-  const key = dkey(r);
   const blocked = promptBlockedOf(r);
-  const tick = r.check.value;
-  const reading = T(() => resource(async (signal, payload) => {
-    const answer = await call2("POST", "/api/team/prompt-comparison", payload, { signal });
-    if (!answer.json)
-      throw new Error("本文の応答がありません");
-    return answer.json;
-  }), [r, m.name]);
-  h(() => {
-    if (blocked) {
-      reading.abort();
-      return;
-    }
-    reading.run({ ...promptComparisonInput(r), member: m.name, running_team: runOf(key) });
-    return () => reading.abort();
-  }, [reading, key, m.name, tick, blocked, runOf(key)]);
-  const answer = reading.value.value;
-  const failure = reading.error.value;
-  h(() => {
-    if (answer)
-      keepRun(key, answer);
-  }, [answer, key]);
-  const fallback = promptsOf(r).find((item) => item.name === m.name);
-  const segments = answer ? answer.segments : fallback?.segments || [];
-  const shown = answer ? answer.team : r.name.value;
-  const name = r.name.value;
-  const runs = answer && answer.runs || [];
-  const note = failure ? answer ? `${problemText2(failure, "本文を読めませんでした")} 直前に作った文は、${answer.selected ? `実行中のチーム ${answer.team}` : `定義名 ${answer.team}`} の名前で作ったものです。` : `${problemText2(failure, "本文を読めませんでした")} そのため、定義名 ${name} で作っています。` : !answer ? "" : answer.status === "error" ? `${answer.reason || "チームの状態を読めませんでした"} そのため、定義名 ${name} で作っています。` : answer.selected ? `実行中のチーム ${shown} の名前で作っています。` : runs.length > 1 ? `動いているチームが ${runs.length} つあるため、定義名 ${name} で作っています。全文と差分のパネルでチームを選ぶと、その名前で作ります。` : runs.length === 0 ? `この定義から動いているチームが無いため、定義名 ${name} で作っています。` : `定義名 ${name} で作っています。`;
+  const prompt = usePrompt(r, { member: m.name });
+  const segments = prompt.segments;
+  const note = prompt.note;
   return /* @__PURE__ */ u("section", {
     class: "cv-sec cv-prompt cv-topology-prompt",
     children: [
@@ -4368,6 +4416,7 @@ function MemberPrompt({ r, m }) {
       }),
       /* @__PURE__ */ u("p", {
         class: "cv-note",
+        "data-role": "prompt-note",
         children: [
           "今の定義から出る文。未保存の編集を含みます。",
           note
@@ -4379,9 +4428,12 @@ function MemberPrompt({ r, m }) {
           PROMPT_BLOCKED,
           " 記録された本文は確認できます。"
         ]
-      }) : !answer && !fallback ? /* @__PURE__ */ u("p", {
+      }) : prompt.loading && !segments.length ? /* @__PURE__ */ u("p", {
         role: "status",
         children: "プロンプトを読んでいます。"
+      }) : prompt.error && !segments.length ? /* @__PURE__ */ u("p", {
+        role: "alert",
+        children: prompt.error
       }) : topologySections.map(([kind, label]) => {
         const parts = (segments || []).filter((segment) => segment.kind === kind && segment.text !== "");
         if (kind === "workers" && !parts.length)
@@ -4442,7 +4494,7 @@ function WorkerPromptSection({ r, w, i }) {
         })
       ]
     });
-  const pv = workerPrompt(r, i);
+  const pv = workerPrompt(r, i, pickedRun(r));
   let body;
   if (!pv)
     body = /* @__PURE__ */ u("span", {

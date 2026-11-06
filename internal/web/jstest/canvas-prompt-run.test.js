@@ -1,9 +1,12 @@
-// r-0b69: the prompt column builds its text where the whole-text panel builds
-// it, with the same running team, and says which name it used. A team booted
-// under another name (up --as) then shows the same member name in both places,
-// and the note always names the team the shown text was built with.
+// r-0b69 / ⑤ r-ba9b: one owner reads the prompt (prompt-source.ts). The column
+// and the whole-text panel draw its answer, a pick is one pick, a start/stop or
+// an edit reads again through the key, and a failed read leaves no old text.
 import { expect, test } from 'bun:test';
 import { layout, serve, settle } from './page.js';
+
+// flush lets a read (and the pick it may clear) finish: the owner's pause is 0
+// in this file, and a short timer lets its promise and signals settle.
+const flush = async () => { await settle(); await new Promise((r) => setTimeout(r, 5)); await settle(); };
 import { checkAnswer, choose, click, island, memberSegments } from './teams-page.js';
 
 const aliasSegments = [
@@ -23,7 +26,6 @@ function comparison(over = {}) {
   };
 }
 
-// mode is what the comparison API answers with, changed between the phases.
 let mode = 'two';
 
 test('the note names the team the shown text was built with, in every case', async () => {
@@ -36,7 +38,7 @@ test('the note names the team the shown text was built with, in every case', asy
       if (mode === 'one') return comparison({ team: 'core-hotfix', selected: { team: 'core-hotfix', project: '/example' }, runs: [{ team: 'core-hotfix', project: '/example' }] });
       if (mode === 'stale') {
         // core-hotfix stopped: only core runs now, and a stale pick is not
-        // taken by the server, so the column has to let it go itself.
+        // taken by the server, so the owner has to let it go itself.
         return comparison({ runs: [{ team: 'core', project: '/example' }], selected: sent === 'core-hotfix' ? null : { team: 'core', project: '/example' }, team: 'core', segments: memberSegments, status: sent === 'core-hotfix' ? 'choose' : 'stopped', reason: sent === 'core-hotfix' ? '実行中のチームを選んでください' : '' });
       }
       if (mode === 'error') return comparison({ status: 'error', reason: 'チームの状態を読めません', runs: [], selected: null, team: 'core', segments: memberSegments });
@@ -53,73 +55,96 @@ test('the note names the team the shown text was built with, in every case', asy
     if (url.startsWith('/api/role')) return { items: [] };
     return undefined;
   });
-  await import('../src/teams/main'); await settle();
+  await import('../src/teams/main');
+  const { PROMPT_READ } = await import('../src/teams/prompt-source.js');
+  PROMPT_READ.wait = 0;
+  await flush();
   const row = () => document.querySelector('.tdef[data-name="core"]');
   const panel = () => row().querySelector('.cv-topology-prompt');
-  const openTab = async () => {
-    click(row().querySelector('[data-cv-side="prompt"]')); await settle(); await settle(); await settle(); await settle();
-  };
-  const reopen = async () => {
-    click(row().querySelector('[data-cv-side="attr"]')); await settle();
-    await openTab();
-  };
   const note = () => panel().querySelector('.cv-note').textContent;
   const roster = () => panel().querySelector('.cv-topology-section[data-kind=roster] pre').textContent;
+  const dialog = () => document.querySelector('.prompt-comparison');
+  const openTab = async () => {
+    click(row().querySelector('[data-cv-side="prompt"]')); await flush();
+  };
+  const openDialog = async () => {
+    click(panel().querySelector('.cv-prompt button')); await flush();
+  };
+  const closeDialog = async () => {
+    click([...document.querySelectorAll('.prompt-comparison button')].find((x) => x.textContent === '閉じる')); await flush();
+  };
+  // The server's answer is changed by the test (mode); a read is asked for by
+  // the panel's 再取得. The key did not move, so this is what asks again.
+  const reread = async () => {
+    await openDialog();
+    click([...document.querySelectorAll('.prompt-comparison button')].find((x) => x.textContent === '再取得')); await flush(); await flush();
+    await closeDialog();
+  };
 
-  click(row().querySelector('.cv-n.member[data-cv-n="lead"]')); await settle();
+  click(row().querySelector('.cv-n.member[data-cv-n="lead"]')); await flush();
   await openTab();
 
   // Two runs, none picked: the definition's name. The panel's pick is taken,
   // and the column builds with that team's name.
   expect(note()).toContain('動いているチームが 2 つあるため、定義名 core で作っています。');
-  click(panel().querySelector('.cv-prompt button')); await settle(); await settle();
-  choose(document.querySelector('.prompt-controls select'), 'core-hotfix'); await settle(); await settle();
-  click([...document.querySelectorAll('.prompt-comparison button')].find((x) => x.textContent === '閉じる')); await settle(); await settle();
+  await openDialog();
+  choose(document.querySelector('.prompt-controls select'), 'core-hotfix'); await flush(); await flush();
+  await closeDialog();
   expect(note()).toContain('実行中のチーム core-hotfix の名前で作っています。');
   expect(roster()).toContain('core-hotfix-builder');
 
   // A failed reading of the team state says nothing about the runs, so the pick
   // stands: the reason is shown, and the next reading still names the pick.
   mode = 'error';
-  await reopen();
+  await reread();
   expect(note()).toContain('チームの状態を読めません そのため、定義名 core で作っています。');
   mode = 'two';
-  await reopen();
+  await reread();
   const afterError = asked.filter((one) => one.url.startsWith('/api/team/prompt-comparison'));
   expect(afterError[afterError.length - 1].body.running_team).toBe('core-hotfix');
   expect(note()).toContain('実行中のチーム core-hotfix の名前で作っています。');
 
   // One running team: its name is taken and shown.
   mode = 'one';
-  await reopen();
+  await reread();
   expect(note()).toContain('実行中のチーム core-hotfix の名前で作っています。');
   expect(roster()).toContain('core-hotfix-builder');
 
-  // The picked team stops, and the full panel is not opened: the column lets
-  // the pick go and takes the one team still running.
+  // The picked team stops: the owner lets the pick go, and the next read takes
+  // the one team still running.
   mode = 'stale';
-  await reopen();
+  await reread();
   expect(note()).toContain('実行中のチーム core の名前で作っています。');
   const afterStale = asked.filter((one) => one.url.startsWith('/api/team/prompt-comparison'));
   expect(afterStale[afterStale.length - 1].body.running_team).toBe('');
 
-  // A failed re-read keeps the text it had, and the note names that text's team.
-  // The dialog stays open so its own last answer still names the teams to pick.
+  // The pick was let go, so two running teams ask for a choice again (the owner
+  // does not adopt the single team into the person's pick).
   mode = 'two';
-  await reopen();
-  expect(note()).toContain('実行中のチーム core の名前で作っています。');
-  click(panel().querySelector('.cv-prompt button')); await settle(); await settle();
-  choose(document.querySelector('.prompt-controls select'), 'core-hotfix'); await settle(); await settle();
+  await reread();
+  expect(note()).toContain('動いているチームが 2 つあるため、定義名 core で作っています。');
+  await openDialog();
+  choose(document.querySelector('.prompt-controls select'), 'core-hotfix'); await flush(); await flush();
+  await closeDialog();
   expect(note()).toContain('実行中のチーム core-hotfix の名前で作っています。');
-  mode = 'netfail';
-  choose(document.querySelector('.prompt-controls select'), 'core'); await settle(); await settle(); await settle();
-  expect(note()).toContain('直前に作った文は、実行中のチーム core-hotfix の名前で作ったものです。');
-  expect(roster()).toContain('core-hotfix-builder');
-  click([...document.querySelectorAll('.prompt-comparison button')].find((x) => x.textContent === '閉じる')); await settle(); await settle();
 
-  // A failed first read has no text of its own: the check's segments stand in,
-  // built on the definition's name.
-  await reopen();
-  expect(note()).toContain('定義名 core で作っています。');
-  expect(roster()).toContain('core-builder');
+  // A failed re-read leaves no old text: the note says so, and no roster stands.
+  mode = 'netfail';
+  await reread();
+  expect(note()).toContain('文を表示できません。');
+  expect(panel().querySelector('.cv-topology-section[data-kind=roster]')).toBeNull();
+
+  // A failed first read has no text of its own: the column says it cannot show
+  // one (the check's segments are not a second reading any more).
+  click(row().querySelector('[data-cv-side="attr"]')); await flush();
+  await openTab();
+  expect(note()).toContain('文を表示できません。');
+  expect(panel().querySelector('.cv-topology-section[data-kind=roster]')).toBeNull();
+
+  // 再取得 reads again, and the column is whole.
+  click(row().querySelector('[data-cv-side="attr"]')); await flush();
+  await openTab();
+  mode = 'two';
+  await reread();
+  expect(roster()).toContain('core-hotfix-builder');
 });

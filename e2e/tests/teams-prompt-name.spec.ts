@@ -41,7 +41,7 @@ test('a team running under another name builds both texts with that name', async
   await page.locator('.cv-n.member[data-cv-n="lead"]').click();
   await page.locator('.cv-side [data-cv-side="prompt"]').click();
   const panel = page.locator('.tdef[data-name="core"] .cv-topology-prompt');
-  await expect(panel.locator('.cv-note')).toContainText(`実行中のチーム ${alias} の名前で作っています。`);
+  await expect(panel.locator('[data-role="prompt-note"]')).toContainText(`実行中のチーム ${alias} の名前で作っています。`);
   await expect(panel.locator('.cv-topology-section[data-kind=roster] pre')).toContainText(`${alias}-lead`);
 
   for (const scheme of ['light', 'dark'] as const) {

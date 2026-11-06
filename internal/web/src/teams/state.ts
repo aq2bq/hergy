@@ -34,7 +34,6 @@ import type { Shape } from '../lib/changed.js';
 import type { TeamWritten } from '../lib/changed.js';
 import { copyGroupOf, groupPlace, projectOfGroup } from '../lib/copy';
 import { roleEntries } from './role-modal.js';
-import { runOf } from './canvas/prompt-run.js';
 import { runDanger } from '../lib/danger.js';
 import { dropUndo } from '../lib/undo.js';
 import { roleDirty } from '../lib/changed.js';
@@ -1358,7 +1357,7 @@ export function resetCanvas(r: Rec): void {
 // for the purpose or another line, and shows <ワーカー名> / <依頼> in their
 // place. The values are the walk's own too, so it can put them back.
 const WRK_NAME = 'zz-worker-name-0', WRK_TASK = 'zzTaskPlaceholder0';
-export function workerPrompt(r: Rec, i: number) {
+export function workerPrompt(r: Rec, i: number, runningTeam: string) {
   const w = r.draft.value.workers[i];
   if (!w || !w.purpose || !w.from) return null;
   const k = w.from + '\u0000' + w.purpose;
@@ -1369,7 +1368,7 @@ export function workerPrompt(r: Rec, i: number) {
   // not write a signal (5 章 1).
   if (r.wpromptReq[k]) return null;
   r.wpromptReq[k] = true;
-  apiCheck('team', { ...teamIn(r), part: 'worker', hash: r.hash.value, running_team: runOf(dkey(r)), doc: { name: WRK_NAME, purpose: w.purpose, task: WRK_TASK, from: w.from, preview: true, ops: r.ops.value } }).then((res) => {
+  apiCheck('team', { ...teamIn(r), part: 'worker', hash: r.hash.value, running_team: runningTeam, doc: { name: WRK_NAME, purpose: w.purpose, task: WRK_TASK, from: w.from, preview: true, ops: r.ops.value } }).then((res) => {
     delete r.wpromptReq[k];
     const ans = res.json;
     r.wprompts.value = {

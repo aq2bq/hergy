@@ -34,6 +34,7 @@ test('a definition with a problem says why, keeps the history entry available af
     return undefined;
   });
   await import('../src/teams/main');
+ const { PROMPT_READ } = await import('../src/teams/prompt-source.js'); PROMPT_READ.wait = 0;
   await settle();
 
   // (a) the new member hands the turn to no one: the lead's column says why and

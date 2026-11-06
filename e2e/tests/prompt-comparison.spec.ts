@@ -29,8 +29,12 @@ for (const theme of ['light','dark'] as const) {
   const current=JSON.parse(execFileSync(hergyBin,['up','core','--dry','--json','--lang','ja'],{cwd:app.proj,env:{...process.env,...app.env},encoding:'utf8'}));
   await page.goto(`${app.base}/teams?open=core`);await ready(page);
   await page.locator('.cv-n.member[data-cv-n="lead"]').click();
-  // The prompt is read in its own tab (r-f0be).
+  // The prompt is read in its own tab (r-f0be). One owner reads it for the
+  // column and the dialog (⑤ r-ba9b): the answer comes with the tab, not again
+  // when the dialog opens.
+  const response=page.waitForResponse(r=>r.url().endsWith('/api/team/prompt-comparison')&&r.request().method()==='POST');
   await page.locator('.cv-side [data-cv-side="prompt"]').click();
+  const comparison=await (await response).json();
   const entry=page.getByRole('button',{name:'全文と差分を読む',exact:true});
   const sections=page.locator('.cv-topology-section');
   await expect(sections).toHaveCount(4);
@@ -39,9 +43,7 @@ for (const theme of ['light','dark'] as const) {
    const button=await entry.boundingBox();const parent=await page.locator('.cv-topology-prompt').boundingBox();
    return !!button && !!parent && button.width<parent.width-20;
   }).toBe(true);
-  const response=page.waitForResponse(r=>r.url().endsWith('/api/team/prompt-comparison')&&r.request().method()==='POST');
   await entry.click();
-  const comparison=await (await response).json();
   const expectedKinds=expectedOrigins(comparison.segments);
   for(const kind of ['roster','herdr','turns','workers']) {
    await expect.poll(()=>page.locator(`.cv-topology-section[data-kind=${kind}] pre`).allTextContents().then(x=>x.join('')))

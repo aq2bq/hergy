@@ -1,4 +1,6 @@
 // The member panel opens a read-only comparison; full text is never folded.
+// ⑤ r-ba9b: the column and the dialog read through one owner, and an older
+// answer that arrives after a newer one is not shown.
 import { expect, test } from 'bun:test';
 import { layout, serve, settle, later } from './page.js';
 import { checkAnswer, click, docText, island, memberSegments } from './teams-page.js';
@@ -16,19 +18,24 @@ test('member comparison retains full recorded text and rejects a stale response'
   if(url.startsWith('/api/role'))return {items:[]};
  });
  await import('../src/teams/main');await settle();
+ const { PROMPT_READ } = await import('../src/teams/prompt-source.js'); PROMPT_READ.wait = 0;await settle();
  click(document.querySelector('.tdef[data-name="core"] .cv-n.member[data-cv-n="lead"]'));await settle();
- click(document.querySelector('.tdef[data-name="core"] [data-cv-side="prompt"]'));await settle();
+ click(document.querySelector('.tdef[data-name="core"] [data-cv-side="prompt"]'));await settle();await settle();await settle();
+ // The first read is out (the test holds its answer): no text stands yet.
+ const panel=document.querySelector('.cv-topology-prompt');
+ expect(panel.querySelectorAll('.cv-topology-section').length).toBe(0);
+ // 再取得 reads again while the first request is still out: the newer answer
+ // stands, and the older one that arrives after it is not shown.
+ click(panel.querySelector('.cv-prompt button'));await settle();
+ click([...document.querySelectorAll('.prompt-comparison button')].find(x=>x.textContent==='再取得'));await settle();await settle();
  const sections=[...document.querySelectorAll('.cv-topology-section')];
  expect(sections.map(x=>x.dataset.kind)).toEqual(['roster','herdr','turns']);
  for(const section of sections) expect([...section.querySelectorAll('pre')].map(x=>x.textContent).join('')).toBe(memberSegments.filter(x=>x.kind===section.dataset.kind).map(x=>x.text).join(''));
- expect(document.querySelector('.cv-topology-prompt').textContent).not.toContain('TEAM-1');
- const trigger=document.querySelector('.cv-prompt button');click(trigger);await settle();
- click([...document.querySelectorAll('.prompt-comparison button')].find(x=>x.textContent==='閉じる'));await settle();
- click(trigger);await settle();
+ expect(panel.textContent).not.toContain('TEAM-1');
  click([...document.querySelectorAll('.prompt-tabs button')].find(x=>x.textContent==='渡した文'));await settle();
  expect(document.querySelector('.prompt-full').textContent).toBe(full);
  expect(document.querySelectorAll('.prompt-body details,.prompt-body .cv-fold').length).toBe(0);
- old.resolve({...answer,recorded:{...answer.recorded,text:'stale'}});await settle();
+ old.resolve({...answer,recorded:{...answer.recorded,text:'stale'}});await settle();await settle();
  expect(document.querySelector('.prompt-full').textContent).toBe(full);
  expect(document.querySelector('.prompt-context').textContent).toContain('受信の確認ではありません');
  expect(asked.filter(x=>x.url.includes('prompt-comparison')).every(x=>x.body.member==='lead')).toBe(true);
