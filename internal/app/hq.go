@@ -32,7 +32,10 @@ type hqRead struct {
 	act *activityRead
 	// mu guards the starts: an HTTP request reads one while its goroutine
 	// writes it.
-	mu      sync.Mutex
+	mu sync.Mutex
+	// removed holds the lines a project's removal took, by path, so 取り消す puts
+	// config.yaml back as it was (d-2cce). A serve's memory only.
+	removed map[string]removedProject
 	ops     map[string]*launchOp
 	order   []string
 	seq     int
@@ -227,10 +230,28 @@ func (h *hqRead) AddProject(path string, at int) (web.HQProjects, error) {
 	if err := screenPath(path); err != nil {
 		return web.HQProjects{}, err
 	}
-	if _, err := h.act.env.AddProjectAt(path, at); err != nil {
+	var err error
+	if took, ok := h.takeRemoved(path, at); ok {
+		err = h.act.env.AddProjectBlock(at, took)
+	} else {
+		_, err = h.act.env.AddProjectAt(path, at)
+	}
+	if err != nil {
 		return web.HQProjects{}, hqRefuse(http.StatusUnprocessableEntity, err.Error())
 	}
 	return h.Projects()
+}
+
+// takeRemoved gives back the lines a removal took at this position, once.
+func (h *hqRead) takeRemoved(path string, at int) ([]string, bool) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	took, ok := h.removed[path]
+	if !ok || took.at != at {
+		return nil, false
+	}
+	delete(h.removed, path)
+	return took.lines, true
 }
 
 // RemoveProject is DELETE /api/hq/projects: unlist one directory, leaving its
@@ -239,10 +260,16 @@ func (h *hqRead) RemoveProject(path string) (web.HQProjects, int, error) {
 	if err := screenPath(path); err != nil {
 		return web.HQProjects{}, -1, err
 	}
-	at, err := h.act.env.RemoveProject(path)
+	at, block, err := h.act.env.RemoveProjectBlock(path)
 	if err != nil {
 		return web.HQProjects{}, -1, hqRefuse(http.StatusNotFound, err.Error())
 	}
+	h.mu.Lock()
+	if h.removed == nil {
+		h.removed = map[string]removedProject{}
+	}
+	h.removed[path] = removedProject{at: at, lines: block}
+	h.mu.Unlock()
 	projects, err := h.Projects()
 	return projects, at, err
 }
@@ -396,3 +423,9 @@ func hqError(err error) error {
 
 // clockText is one moment in the wire's shape.
 func clockText(at time.Time) string { return at.Format(time.RFC3339) }
+
+// removedProject is the lines a project's removal took, and where it stood.
+type removedProject struct {
+	at    int
+	lines []string
+}

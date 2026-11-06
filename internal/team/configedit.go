@@ -297,3 +297,92 @@ func sameProjectList(after []byte, want []string, display string) error {
 	}
 	return nil
 }
+
+// RemoveProjectBlock is RemoveProject with the lines it took: the entry and the
+// comment lines RemoveItemLines takes with it, so a restore can put the file back
+// byte for byte (d-2cce). at is the item's position before the removal.
+func (e Env) RemoveProjectBlock(dir string) (int, []string, error) {
+	pathFile := e.ConfigPath()
+	before, err := os.ReadFile(pathFile)
+	if err != nil {
+		return -1, nil, err
+	}
+	at, err := e.RemoveProject(dir)
+	if err != nil {
+		return -1, nil, err
+	}
+	after, err := os.ReadFile(pathFile)
+	if err != nil {
+		return -1, nil, err
+	}
+	return at, removedBlock(string(before), string(after)), nil
+}
+
+// removedBlock is the lines a deletion took: one contiguous block.
+func removedBlock(before, after string) []string {
+	b, a := strings.Split(before, "\n"), strings.Split(after, "\n")
+	if len(b) <= len(a) {
+		return nil
+	}
+	i := 0
+	for i < len(a) && i < len(b) && a[i] == b[i] {
+		i++
+	}
+	n := len(b) - len(a)
+	if i+n > len(b) {
+		return nil
+	}
+	return append([]string{}, b[i:i+n]...)
+}
+
+// AddProjectBlock puts back the lines a removal took, before the item now at
+// at (the end when at is past the list).
+func (e Env) AddProjectBlock(at int, block []string) error {
+	if len(block) == 0 {
+		return nil
+	}
+	pathFile := e.ConfigPath()
+	text, err := os.ReadFile(pathFile)
+	if err != nil {
+		return err
+	}
+	out, err := EditProjects(text, e.Display(pathFile), addProjectBlock{at: at, lines: block})
+	if err != nil {
+		return err
+	}
+	return source.WriteBeside(pathFile, string(out))
+}
+
+type addProjectBlock struct {
+	at    int
+	lines []string
+}
+
+func (a addProjectBlock) apply(src *yamledit.Source, root, projects *yaml.Node) ([]string, error) {
+	items, err := projectItems(src, root, projects)
+	if err != nil {
+		return nil, err
+	}
+	line := len(src.Bytes()) // unused fallback
+	_ = line
+	if projects != nil && a.at >= 0 && a.at < len(projects.Content) {
+		src.Insert(projects.Content[a.at].Line-1, a.lines...)
+	} else {
+		place, err := yamledit.BlockPlace(src, root, "projects", projects)
+		if err != nil {
+			return nil, err
+		}
+		src.Insert(place.AfterLast, a.lines...)
+	}
+	if len(a.lines) == 0 {
+		return items, nil
+	}
+	last := a.lines[len(a.lines)-1]
+	value := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(last), "- "))
+	at := a.at
+	if at < 0 || at > len(items) {
+		at = len(items)
+	}
+	items = append(items[:at], append([]string{value}, items[at:]...)...)
+	return items, nil
+}

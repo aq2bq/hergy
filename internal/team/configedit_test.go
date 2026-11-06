@@ -252,3 +252,37 @@ func TestAddProjectStillGoesAtTheEnd(t *testing.T) {
 		t.Errorf("the plain add did not go at the end:\n%s", text)
 	}
 }
+
+// TestABlockGoesBackWithItsComment: the lines a removal took (the item and the
+// comment above it) go back where they stood, and config.yaml is the same text.
+func TestABlockGoesBackWithItsComment(t *testing.T) {
+	root := t.TempDir()
+	env := Env{GlobalDir: filepath.Join(root, "hergy")}
+	dirs := []string{filepath.Join(root, "a"), filepath.Join(root, "b"), filepath.Join(root, "c")}
+	resolved := make([]string, len(dirs))
+	for i, dir := range dirs {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		resolved[i], _ = filepath.EvalSymlinks(dir)
+	}
+	before := "# the projects\nversion: 1\nprojects:\n  - " + resolved[0] + "\n  # middle\n  - " + resolved[1] + "\n  - " + resolved[2] + "\n# after\nlang: ja\n"
+	write(t, env.ConfigPath(), before)
+	at, block, err := env.RemoveProjectBlock(resolved[1])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if at != 1 || len(block) == 0 || !strings.Contains(strings.Join(block, "\n"), "# middle") {
+		t.Fatalf("the removal took at %d, block %q", at, block)
+	}
+	if err := env.AddProjectBlock(at, block); err != nil {
+		t.Fatal(err)
+	}
+	text, err := os.ReadFile(env.ConfigPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(text) != before {
+		t.Errorf("the file changed:\nbefore:\n%s\nafter:\n%s", before, text)
+	}
+}
