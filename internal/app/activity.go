@@ -720,10 +720,7 @@ func (a *activityRead) StopTargets(name string) ([]string, int, bool) {
 	if err != nil {
 		return nil, 0, false
 	}
-	target, err := a.hq.stopTargets(env, one, read)
-	if err != nil {
-		return nil, 0, false
-	}
+	target := a.hq.stopTargets(env, one, read)
 	return target.members, len(target.workers), true
 }
 

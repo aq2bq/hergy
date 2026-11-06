@@ -64,24 +64,98 @@ paths:
               schema:
                 type: string
                 description: 書き込み用トークンなどを断った理由
-  /api/danger/{kind}/{name}:
+  /api/danger/team/{name}:
     get:
-      operationId: getDangerLoss
-      summary: 消すと何が消えるかを読む
+      operationId: getDangerLossTeam
+      summary: チーム定義を消すと何が消えるかを読む
       parameters:
-        - name: kind
-          in: path
-          required: true
-          schema: {type: string}
         - name: name
           in: path
           required: true
+          description: チーム定義の名前
           schema: {type: string}
         - name: place
           in: query
+          description: 読む場所。project または global。
           schema: {type: string}
         - name: project
           in: query
+          description: 並べたプロジェクトのパス。省略するとこの serve のプロジェクトを読む。
+          schema: {type: string}
+      responses:
+        "200":
+          description: 確認に出す文
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DangerLoss"
+  /api/danger/role/{name}:
+    get:
+      operationId: getDangerLossRole
+      summary: ロールを消すと何が消えるかを読む
+      parameters:
+        - name: name
+          in: path
+          required: true
+          description: ロールの名前
+          schema: {type: string}
+        - name: place
+          in: query
+          description: 読む場所。project または global。
+          schema: {type: string}
+        - name: project
+          in: query
+          description: 並べたプロジェクトのパス。省略するとこの serve のプロジェクトを読む。
+          schema: {type: string}
+      responses:
+        "200":
+          description: 確認に出す文
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DangerLoss"
+  /api/danger/profile/{name}:
+    get:
+      operationId: getDangerLossProfile
+      summary: プロファイルを消すと何が消えるかを読む
+      parameters:
+        - name: name
+          in: path
+          required: true
+          description: プロファイルの名前
+          schema: {type: string}
+        - name: place
+          in: query
+          description: 読む場所。project または global。
+          schema: {type: string}
+        - name: project
+          in: query
+          description: 並べたプロジェクトのパス。省略するとこの serve のプロジェクトを読む。
+          schema: {type: string}
+      responses:
+        "200":
+          description: 確認に出す文
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DangerLoss"
+  /api/danger/activity/{name}:
+    get:
+      operationId: getDangerLossActivity
+      summary: チームを終了すると何が閉じるかを読む
+      parameters:
+        - name: name
+          in: path
+          required: true
+          description: 動いているチームの名前
+          schema: {type: string}
+        - name: place
+          in: query
+          description: 読む場所。project または global。
+          schema: {type: string}
+        - name: project
+          in: query
+          description: 並べたプロジェクトのパス。省略するとこの serve のプロジェクトを読む。
           schema: {type: string}
       responses:
         "200":

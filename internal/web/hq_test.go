@@ -27,7 +27,7 @@ type fakeHQ struct {
 }
 
 func (f fakeHQ) Projects() (HQProjects, error) { return f.projects, nil }
-func (f fakeHQ) AddProject(path string, at int) (HQProjects, error) {
+func (f fakeHQ) AddProject(path string, _ int) (HQProjects, error) {
 	next := f.projects
 	next.Projects = append(next.Projects, HQProject{Path: path, Listed: true})
 	return next, nil

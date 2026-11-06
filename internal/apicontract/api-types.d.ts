@@ -41,15 +41,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/danger/{kind}/{name}": {
+    "/api/danger/team/{name}": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** 消すと何が消えるかを読む */
-        get: operations["getDangerLoss"];
+        /** チーム定義を消すと何が消えるかを読む */
+        get: operations["getDangerLossTeam"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/danger/role/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ロールを消すと何が消えるかを読む */
+        get: operations["getDangerLossRole"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/danger/profile/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** プロファイルを消すと何が消えるかを読む */
+        get: operations["getDangerLossProfile"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/danger/activity/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** チームを終了すると何が閉じるかを読む */
+        get: operations["getDangerLossActivity"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2342,15 +2393,101 @@ export interface operations {
             };
         };
     };
-    getDangerLoss: {
+    getDangerLossTeam: {
         parameters: {
             query?: {
+                /** @description 読む場所。project または global。 */
                 place?: string;
+                /** @description 並べたプロジェクトのパス。省略するとこの serve のプロジェクトを読む。 */
                 project?: string;
             };
             header?: never;
             path: {
-                kind: string;
+                /** @description チーム定義の名前 */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 確認に出す文 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DangerLoss"];
+                };
+            };
+        };
+    };
+    getDangerLossRole: {
+        parameters: {
+            query?: {
+                /** @description 読む場所。project または global。 */
+                place?: string;
+                /** @description 並べたプロジェクトのパス。省略するとこの serve のプロジェクトを読む。 */
+                project?: string;
+            };
+            header?: never;
+            path: {
+                /** @description ロールの名前 */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 確認に出す文 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DangerLoss"];
+                };
+            };
+        };
+    };
+    getDangerLossProfile: {
+        parameters: {
+            query?: {
+                /** @description 読む場所。project または global。 */
+                place?: string;
+                /** @description 並べたプロジェクトのパス。省略するとこの serve のプロジェクトを読む。 */
+                project?: string;
+            };
+            header?: never;
+            path: {
+                /** @description プロファイルの名前 */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 確認に出す文 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DangerLoss"];
+                };
+            };
+        };
+    };
+    getDangerLossActivity: {
+        parameters: {
+            query?: {
+                /** @description 読む場所。project または global。 */
+                place?: string;
+                /** @description 並べたプロジェクトのパス。省略するとこの serve のプロジェクトを読む。 */
+                project?: string;
+            };
+            header?: never;
+            path: {
+                /** @description 動いているチームの名前 */
                 name: string;
             };
             cookie?: never;

@@ -94,10 +94,7 @@ func TestStopClosesWhatStopTargetsNames(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			target, err := read.hq.stopTargets(penv, one, running)
-			if err != nil {
-				t.Fatal(err)
-			}
+			target := read.hq.stopTargets(penv, one, running)
 			closed, err := read.Stop("wave")
 			if err != nil {
 				t.Fatal(err)

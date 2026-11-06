@@ -132,7 +132,7 @@ func (f fakeActivity) One(name string) (ActivityDoc, bool) {
 }
 
 // StopTargets is the stop's one answer: the members and worker panes.
-func (f fakeActivity) StopTargets(name string) ([]string, int, bool) {
+func (f fakeActivity) StopTargets(_ string) ([]string, int, bool) {
 	if f.list.Running == 0 {
 		return nil, 0, false
 	}

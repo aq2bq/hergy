@@ -1245,6 +1245,7 @@ func printSize(w io.Writer, teams []teamSize, roles []roleSize) {
 // validateConfig reads the global config.yaml the way up does, and holds its
 // lang to the same check every other command applies when it picks a language.
 func validateConfig(path string) error {
+	//nolint:gosec // G703: the path is the settings directory's own config.yaml, not a request's value.
 	text, err := os.ReadFile(path)
 	if err != nil {
 		return err

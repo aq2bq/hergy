@@ -69,21 +69,17 @@ type stopTarget struct {
 // stopTargets is that one answer: a definition that reads closes every member's
 // pane by the starts it was launched with; one that does not is closed by the
 // names hergy gave its panes.
-func (h *hqRead) stopTargets(env team.Env, one runningTeam, read herdrNow) (stopTarget, error) {
+func (h *hqRead) stopTargets(env team.Env, one runningTeam, read herdrNow) stopTarget {
 	cat := env.Catalog(source.Disk{})
 	r, buildErr := buildRunningIn(cat, env.ProjectRoot, team.Running{Team: one.Name, Definition: one.Definition}, one.Place)
 	workers := workerNamesOf(read.tabs, one.Name)
 	if buildErr != nil {
 		l := newLauncherWithPort(&resolved{team: team.Team{Name: one.Name}}, 30000, io.Discard, h.act.herdrPort())
 		agents := team.MemberAgents(read.tabs, one.Name)
-		members := make([]string, 0, len(agents))
-		for _, agent := range agents {
-			members = append(members, agent)
-		}
-		return stopTarget{members: members, workers: workers, close: func(selfPane string) error {
+		return stopTarget{members: append([]string{}, agents...), workers: workers, close: func(selfPane string) error {
 			_, err := l.DownByName(agents, selfPane, false)
 			return err
-		}}, nil
+		}}
 	}
 	l := newLauncherWithPort(r, 30000, io.Discard, h.act.herdrPort())
 	members := make([]string, 0, len(r.starts))
@@ -93,16 +89,13 @@ func (h *hqRead) stopTargets(env team.Env, one runningTeam, read herdrNow) (stop
 	return stopTarget{members: members, workers: workers, close: func(selfPane string) error {
 		_, err := l.Down(r.starts, selfPane, false)
 		return err
-	}}, nil
+	}}
 }
 
 // closeTeam puts one team away through the one answer the confirmation reads.
 func (h *hqRead) closeTeam(env team.Env, one runningTeam, read herdrNow) (web.HQClosed, error) {
 	selfPane := os.Getenv("HERDR_PANE_ID")
-	target, err := h.stopTargets(env, one, read)
-	if err != nil {
-		return web.HQClosed{}, err
-	}
+	target := h.stopTargets(env, one, read)
 	if err := target.close(selfPane); err != nil {
 		return web.HQClosed{}, err
 	}
@@ -127,22 +120,6 @@ func (h *hqRead) finishLaunchFor(name string) {
 		}
 		op.mu.Unlock()
 	}
-}
-
-// countsOf is how many panes a stop is about to close: the definition's members,
-// and the worker tabs hergy made for the team.
-func countsOf(one runningTeam, read herdrNow) web.HQClosed {
-	members := 0
-	if one.Built != nil {
-		members = len(one.Built.starts)
-	}
-	workers := 0
-	for _, tab := range read.tabs {
-		if _, ok := workerOf(tab.Label, one.Name); ok {
-			workers++
-		}
-	}
-	return web.HQClosed{Members: members, Workers: workers}
 }
 
 // hqLeftoversOf is what a stopped team left in git, as the stop sheet reads it.

@@ -324,35 +324,53 @@ func (r *runner) dangerFindings(conf ownersFile) ([]string, error) {
 			return nil, err
 		}
 		code := maskSpec(string(raw))
-		for _, rule := range dangerNameRules {
-			if allowed(rel, rule.files) || allowedBy(rel, conf.Allow, rule.name) {
-				continue
-			}
-			for _, line := range plainCallLines(code, rule.name) {
-				out = append(out, fmt.Sprintf("%s:%d: %s は持ち主（%s）に置いてください。寄せられない場合は %s の allow に理由と決定を添えてください",
-					rel, line, rule.name, dangerOwner, ownersPath))
-			}
-		}
-		if rel != dangerMounted {
-			for i, line := range strings.Split(code, "\n") {
-				if strings.Contains(line, "<ConfirmDialog") {
-					out = append(out, fmt.Sprintf("%s:%d: <ConfirmDialog は %s の 1 か所だけに置いてください", rel, i+1, dangerMounted))
-				}
-			}
-		}
-		// The browser's closing warning stands in a string, which maskSpec blanks:
-		// it is read from the text, and only the owner or an allowlist may hold it.
-		if !allowed(rel, []string{dangerOwner}) && !allowedBy(rel, conf.Allow, "beforeunload") {
-			for i, line := range strings.Split(string(raw), "\n") {
-				if strings.Contains(line, "beforeunload") && strings.Contains(line, "EventListener(") {
-					out = append(out, fmt.Sprintf("%s:%d: ブラウザの確認（beforeunload）は持ち主（%s）の外に置かず、%s の allow に理由と決定を添えてください", rel, i+1, dangerOwner, ownersPath))
-				}
-			}
-		}
+		out = append(out, dangerFileFindings(rel, code, conf)...)
+		out = append(out, dangerClosingWarning(rel, string(raw), conf)...)
 		out = append(out, dangerAttrFindings(rel, string(raw), acts)...)
 	}
 	sort.Strings(out)
 	return out, nil
+}
+
+// dangerFileFindings is one file's names and dialog mounts: the old confirmation
+// names, the owner's two calls, and <ConfirmDialog standing only in its one
+// place.
+func dangerFileFindings(rel, code string, conf ownersFile) []string {
+	var out []string
+	for _, rule := range dangerNameRules {
+		if allowed(rel, rule.files) || allowedBy(rel, conf.Allow, rule.name) {
+			continue
+		}
+		for _, line := range plainCallLines(code, rule.name) {
+			out = append(out, fmt.Sprintf("%s:%d: %s は持ち主（%s）に置いてください。寄せられない場合は %s の allow に理由と決定を添えてください",
+				rel, line, rule.name, dangerOwner, ownersPath))
+		}
+	}
+	if rel == dangerMounted {
+		return out
+	}
+	for i, line := range strings.Split(code, "\n") {
+		if strings.Contains(line, "<ConfirmDialog") {
+			out = append(out, fmt.Sprintf("%s:%d: <ConfirmDialog は %s の 1 か所だけに置いてください", rel, i+1, dangerMounted))
+		}
+	}
+	return out
+}
+
+// dangerClosingWarning is the browser's beforeunload. It stands in a string,
+// which maskSpec blanks, so it is read from the text; only the owner or an
+// allowlist entry may hold it (d-3a42).
+func dangerClosingWarning(rel, raw string, conf ownersFile) []string {
+	if allowed(rel, []string{dangerOwner}) || allowedBy(rel, conf.Allow, "beforeunload") {
+		return nil
+	}
+	var out []string
+	for i, line := range strings.Split(raw, "\n") {
+		if strings.Contains(line, "beforeunload") && strings.Contains(line, "EventListener(") {
+			out = append(out, fmt.Sprintf("%s:%d: ブラウザの確認（beforeunload）は持ち主（%s）の外に置かず、%s の allow に理由と決定を添えてください", rel, i+1, dangerOwner, ownersPath))
+		}
+	}
+	return out
 }
 
 // dangerActs is the actions lib/danger.ts's DANGER table names: the only values
@@ -466,11 +484,11 @@ func jsxTagEnd(raw string, at int) int {
 
 // jsxAttr is one attribute's string value in a tag, as data-danger-act writes it.
 func jsxAttr(tag, name string) (string, bool) {
-	at := strings.Index(tag, name)
-	if at < 0 {
+	_, after, ok := strings.Cut(tag, name)
+	if !ok {
 		return "", false
 	}
-	rest := tag[at+len(name):]
+	rest := after
 	eq := strings.IndexByte(rest, '=')
 	if eq < 0 {
 		return "", false
@@ -480,8 +498,8 @@ func jsxAttr(tag, name string) (string, bool) {
 		return "", false
 	}
 	quote := rest[0]
-	if close := strings.IndexByte(rest[1:], quote); close >= 0 {
-		return rest[1 : 1+close], true
+	if end := strings.IndexByte(rest[1:], quote); end >= 0 {
+		return rest[1 : 1+end], true
 	}
 	return "", false
 }
