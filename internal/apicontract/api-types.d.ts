@@ -1206,6 +1206,8 @@ export interface components {
         };
         /** @description 本部が読む現在のプロジェクト、並べたプロジェクト、グローバルの数 */
         HQProjects: {
+            /** @description 外したプロジェクトの元の位置（削除の答えだけ、d-2cce） */
+            removed_at?: number;
             /** @description プロジェクト一覧を持つ設定ファイルの場所 */
             config: string;
             /** @description プロジェクトを並べた設定か、現在のプロジェクトだけを使うか */

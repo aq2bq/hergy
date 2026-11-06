@@ -20,6 +20,14 @@ import {
   u
 } from "./nav-zn7g81kr.js";
 import {
+  askConfirm,
+  setCount2,
+  setActivity2
+} from "./nav-5vd3v6sp.js";
+import {
+  offerUndo
+} from "./nav-exx7f16c.js";
+import {
   Refusal2,
   call2,
   read2,
@@ -28,14 +36,67 @@ import {
   applyMembers2,
   problemText2
 } from "./nav-sk3m5qf3.js";
-import {
-  askConfirm,
-  setCount2,
-  setActivity2
-} from "./nav-5vd3v6sp.js";
-import {
-  offerUndo
-} from "./nav-exx7f16c.js";
+
+// lib/danger.ts
+var DANGER = {
+  deleteTeam: "confirm",
+  deleteRole: "confirm",
+  deleteProfile: "confirm",
+  stopTeam: "confirm",
+  unlistProject: "undoable",
+  revertDraft: "undoable",
+  removeMember: "undoable",
+  removeWorker: "undoable",
+  removeTurn: "undoable",
+  conflictRevert: "undoable",
+  discardRow: "confirm",
+  abortStart: "none"
+};
+function runDanger(action, opts) {
+  const kind = DANGER[action];
+  if (kind === "none") {
+    opts.run();
+    return;
+  }
+  if (kind === "undoable") {
+    const offer = () => {
+      if (opts.restore)
+        offerUndo({ said: opts.said || "実行しました", restore: opts.restore }, opts.host);
+    };
+    const done = opts.run();
+    if (done && typeof done.then === "function")
+      done.then(offer);
+    else
+      offer();
+    return;
+  }
+  if (!opts.confirm)
+    return;
+  const ask = { ...opts.confirm };
+  if (opts.loss) {
+    const loss = opts.loss;
+    const q = new URLSearchParams;
+    if (loss.place)
+      q.set("place", loss.place);
+    if (loss.project)
+      q.set("project", loss.project);
+    const url = `/api/danger/${encodeURIComponent(loss.kind)}/${encodeURIComponent(loss.name)}${q.toString() ? `?${q}` : ""}`;
+    read2(url).then((answer) => {
+      const lines = answer && answer.lines || [];
+      askConfirm({ ...ask, body: k("div", {}, lines.map((line) => k("p", {}, line))), run: opts.run });
+    }).catch((err) => {
+      askConfirm({ ...ask, body: k("p", { role: "alert" }, `消えるものを読めませんでした: ${String(err)}`), run: () => {
+        return;
+      } });
+    });
+    return;
+  }
+  if (opts.lost) {
+    askConfirm({ ...ask, body: k("div", {}, [...opts.lost.map((one) => k("p", {}, one)), k("p", {}, k("b", {}, "取り消せません。"))]), run: opts.run });
+    return;
+  }
+  askConfirm({ ...ask, body: ask.body ?? k("div", {}), run: opts.run });
+}
 
 // lib/band-counts.ts
 function applyCounts(counts) {
@@ -261,22 +322,40 @@ function noteStarting(launch) {
   say();
   [600, 1500, 3000, 6000].forEach((ms) => setTimeout(readRunning2, ms));
 }
-async function postProject(path) {
+async function postProject(path, at) {
   try {
-    const request = { path };
+    const request = at === undefined ? { path } : { path, at };
     await call2("POST", "/api/hq/projects", request);
     return null;
   } catch (e) {
     return problemText2(e, "並べられませんでした");
   }
 }
-async function unlistProject(path) {
-  try {
-    await call2("DELETE", "/api/hq/projects?path=" + encodeURIComponent(String(path)));
-    return null;
-  } catch (e) {
-    return problemText2(e, "外せませんでした");
-  }
+function unlistProject(path, host) {
+  let at = -1;
+  return new Promise((resolve) => {
+    runDanger("unlistProject", {
+      run: async () => {
+        try {
+          const answer = await call2("DELETE", "/api/hq/projects?path=" + encodeURIComponent(String(path)));
+          const json = answer.json;
+          if (json) {
+            at = json.removed_at ?? -1;
+            st.projects.value = json;
+          }
+          resolve(null);
+        } catch (e) {
+          resolve(problemText2(e, "外せませんでした"));
+        }
+      },
+      restore: () => {
+        if (at >= 0)
+          postProject(path, at);
+      },
+      said: "並びから外しました",
+      host
+    });
+  });
 }
 async function listProject(path) {
   const p = st.projects.value;
@@ -298,61 +377,6 @@ function startReads() {
     if (document.visibilityState === "visible")
       readRunning2();
   });
-}
-
-// lib/danger.ts
-var DANGER = {
-  deleteTeam: "confirm",
-  deleteRole: "confirm",
-  deleteProfile: "confirm",
-  stopTeam: "confirm",
-  unlistProject: "undoable",
-  revertDraft: "undoable",
-  removeMember: "undoable",
-  removeWorker: "undoable",
-  removeTurn: "undoable",
-  conflictRevert: "undoable",
-  discardRow: "confirm",
-  abortStart: "none"
-};
-function runDanger(action, opts) {
-  const kind = DANGER[action];
-  if (kind === "none") {
-    opts.run();
-    return;
-  }
-  if (kind === "undoable") {
-    opts.run();
-    if (opts.restore)
-      offerUndo({ said: opts.said || "実行しました", restore: opts.restore }, opts.host);
-    return;
-  }
-  if (!opts.confirm)
-    return;
-  const ask = { ...opts.confirm };
-  if (opts.loss) {
-    const loss = opts.loss;
-    const q = new URLSearchParams;
-    if (loss.place)
-      q.set("place", loss.place);
-    if (loss.project)
-      q.set("project", loss.project);
-    const url = `/api/danger/${encodeURIComponent(loss.kind)}/${encodeURIComponent(loss.name)}${q.toString() ? `?${q}` : ""}`;
-    read2(url).then((answer) => {
-      const lines = answer && answer.lines || [];
-      askConfirm({ ...ask, body: k("div", {}, lines.map((line) => k("p", {}, line))), run: opts.run });
-    }).catch((err) => {
-      askConfirm({ ...ask, body: k("p", { role: "alert" }, `消えるものを読めませんでした: ${String(err)}`), run: () => {
-        return;
-      } });
-    });
-    return;
-  }
-  if (opts.lost) {
-    askConfirm({ ...ask, body: k("div", {}, [...opts.lost.map((one) => k("p", {}, one)), k("p", {}, k("b", {}, "取り消せません。"))]), run: opts.run });
-    return;
-  }
-  askConfirm({ ...ask, body: ask.body ?? k("div", {}), run: opts.run });
 }
 
 // lib/hq/sheets.tsx
@@ -490,7 +514,14 @@ function ProjectsSheet() {
           class: "hq-btn sm",
           "data-hq": "unlist",
           "data-path": project.path,
-          onClick: rewrite(unlistProject, project.path),
+          onClick: async (e) => {
+            const host = e.currentTarget.closest(".hq-li");
+            const no = await unlistProject(project.path, host);
+            if (no)
+              setError(no);
+          },
+          "data-danger": true,
+          "data-danger-act": "unlistProject",
           children: "外す"
         })
       })
@@ -1952,4 +1983,4 @@ async function send() {
   }
 }
 
-export { st, setRunning2, token2, parseOpen2, projectName2, runningFor, runningTeam2, lastWorkspaceOf, definitionOf2, bandActivity2, readCore2, readGroups2, readAll2, readRunning2, startReads, runDanger, sheetOpen, closeSheet2, startSheet2, stopSheet2, projectsSheet, searchBoxOpen, closeBox, moveSel, mountSearch, resetSearch, searchHook, POLL, count, opened, answer, note, scope, chosen, teams, canApply, applyLabel, teamCount, toggle, readCount, readTeams, openSheet, close, send };
+export { runDanger, st, setRunning2, token2, parseOpen2, projectName2, runningFor, runningTeam2, lastWorkspaceOf, definitionOf2, bandActivity2, readCore2, readGroups2, readAll2, readRunning2, startReads, sheetOpen, closeSheet2, startSheet2, stopSheet2, projectsSheet, searchBoxOpen, closeBox, moveSel, mountSearch, resetSearch, searchHook, POLL, count, opened, answer, note, scope, chosen, teams, canApply, applyLabel, teamCount, toggle, readCount, readTeams, openSheet, close, send };

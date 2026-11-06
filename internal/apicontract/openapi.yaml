@@ -2443,6 +2443,10 @@ components:
       additionalProperties: false
       required: [config, mode, current, projects, global]
       properties:
+        removed_at:
+          type: integer
+          minimum: 0
+          description: 外したプロジェクトの元の位置（削除の答えだけ、d-2cce）
         config:
           type: string
           description: プロジェクト一覧を持つ設定ファイルの場所

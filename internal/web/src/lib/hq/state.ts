@@ -8,6 +8,7 @@
 // 描くのは lib/hq/figure.js（図）、lib/hq/sheets.js（欄と探す欄）、
 // lib/hq/run.js（チーム定義の一覧の「動き」の欄）。入口は lib/hq.js で、
 // 画面は lib/hq.js から import して読む。
+import { runDanger } from '../danger.js';
 import { signal } from '../preact.js';
 import { read, call, problemText } from '../api.js';
 import { applyCounts, applyActivity } from '../band-counts.js';
@@ -27,7 +28,6 @@ type TeamItem = components['schemas']['TeamItem'];
 type TeamDocument = components['schemas']['TeamDocument'];
 type AnyGroup = HQTeamGroup | HQRoleGroup | HQProfileGroup;
 type HQLaunch = components['schemas']['HQLaunch'];
-type HQAddProjectRequest = components['schemas']['HQAddProjectRequest'];
 type GroupKind = 'teams' | 'roles' | 'profiles';
 type GroupSets = { teams: HQTeamGroup[]; roles: HQRoleGroup[]; profiles: HQProfileGroup[] };
 export type RunningTeam = Omit<HQRunningTeam, 'not_up'> & { not_up?: string[]; provisional?: boolean };
@@ -317,15 +317,36 @@ export function noteStarting(launch: HQLaunch): void {
 // ---- 書き（並べる・外す） ---------------------------------------------
 // postProject lists one project. The sheet shows the server's own sentence when
 // it says no; the answer is the refusal, or null.
-export async function postProject(path: string): Promise<string | null> {
+export async function postProject(path: string, at?: number): Promise<string | null> {
   try {
-    const request = { path } satisfies HQAddProjectRequest;
+    const request = at === undefined ? { path } : { path, at };
     await call<HQProjects>('POST', '/api/hq/projects', request);
     return null;
   } catch (e) { return problemText(e, '並べられませんでした'); }
 }
-export async function unlistProject(path: string): Promise<string | null> {
-  try { await call<HQProjects>('DELETE', '/api/hq/projects?path=' + encodeURIComponent(String(path))); return null; } catch (e) { return problemText(e, '外せませんでした'); }
+// unlistProject takes one project out and leaves 取り消す in its row: the notice
+// puts it back at the position the answer named (d-2cce). The screen does not
+// reload; the reading is the answer's.
+export function unlistProject(path: string, host?: HTMLElement | null): Promise<string | null> {
+  let at = -1;
+  return new Promise((resolve) => {
+    runDanger('unlistProject', {
+      run: async () => {
+        try {
+          const answer = await call<HQProjects>('DELETE', '/api/hq/projects?path=' + encodeURIComponent(String(path)));
+          const json = answer.json;
+          if (json) {
+            at = json.removed_at ?? -1;
+            st.projects.value = json;
+          }
+          resolve(null);
+        } catch (e) { resolve(problemText(e, '外せませんでした')); }
+      },
+      restore: () => { if (at >= 0) void postProject(path, at); },
+      said: '並びから外しました',
+      host,
+    });
+  });
 }
 // listProject lists one project. Without projects:, the project serve was started
 // in is listed first, so listing another one does not drop the teams a person is

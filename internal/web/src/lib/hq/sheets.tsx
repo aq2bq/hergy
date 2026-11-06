@@ -135,7 +135,7 @@ function ProjectsSheet(): JSX.Element {
   };
   const row = (project: HQProject): JSX.Element => <div class="hq-li"><span class="hq-pn">{project.name}</span><span class="hq-pp">{project.display}</span>
       <span class="hq-pc">チーム定義 {project.definitions || 0} · 動いているチーム {project.running || 0}</span>
-      <span class="hq-act"><button type="button" class="hq-btn sm" data-hq="unlist" data-path={project.path} onClick={rewrite(unlistProject, project.path)}>外す</button></span></div>;
+      <span class="hq-act"><button type="button" class="hq-btn sm" data-hq="unlist" data-path={project.path} onClick={async (e: Event) => { const host = (e.currentTarget as HTMLElement).closest('.hq-li') as HTMLElement | null; const no = await unlistProject(project.path, host); if (no) setError(no); }} data-danger data-danger-act="unlistProject">外す</button></span></div>;
   const cand = (project: HQProject): JSX.Element => <div class="hq-li cand"><span class="hq-pn">{project.name}</span><span class="hq-pp">{project.display}</span>
       <span class="hq-pc">最後の起動 {mmdd(project.last_launch)} · チーム定義 {project.definitions || 0}</span>
       <span class="hq-act"><button type="button" class="hq-btn sm" data-hq="list" data-path={project.path} onClick={rewrite(listProject, project.path)}>並べる</button></span></div>;

@@ -44,8 +44,10 @@ export function runDanger(action: DangerAction, opts: DangerOptions): void {
   const kind = DANGER[action];
   if (kind === 'none') { void opts.run(); return; }
   if (kind === 'undoable') {
-    void opts.run();
-    if (opts.restore) offerUndo({ said: opts.said || '実行しました', restore: opts.restore }, opts.host);
+    const offer = () => { if (opts.restore) offerUndo({ said: opts.said || '実行しました', restore: opts.restore }, opts.host); };
+    const done = opts.run();
+    if (done && typeof (done as Promise<unknown>).then === 'function') void (done as Promise<unknown>).then(offer);
+    else offer();
     return;
   }
   if (!opts.confirm) return;
