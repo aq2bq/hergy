@@ -21,11 +21,12 @@ import {
   x,
   u
 } from "../chunk/nav-zn7g81kr.js";
+import"../chunk/nav-cxc0561z.js";
 import {
   carryTo2,
   takeDraft2,
   setDirty2
-} from "../chunk/nav-5vd3v6sp.js";
+} from "../chunk/nav-vxv4rttp.js";
 import {
   call2,
   read2,
@@ -57,23 +58,22 @@ import {
   RuleDoc2
 } from "../chunk/nav-nte0yehk.js";
 import {
-  offerUndo
-} from "../chunk/nav-exx7f16c.js";
+  runDanger
+} from "../chunk/nav-b0v6p86y.js";
 import {
-  runDanger,
   st,
   token2,
   parseOpen2,
   projectName2
-} from "../chunk/nav-x31r3dky.js";
+} from "../chunk/nav-26pfy4tx.js";
 import {
   RunCell2
-} from "../chunk/nav-hzmjr419.js";
+} from "../chunk/nav-nbnn2rvp.js";
 import {
   conflictOf,
   ConflictNotice,
   YamlTab2
-} from "../chunk/nav-59d2xrnm.js";
+} from "../chunk/nav-ksefc14g.js";
 import {
   roleEditor,
   roleProblems
@@ -84,7 +84,7 @@ import {
   projectOfGroup,
   bringUnderBand,
   ProjectView
-} from "../chunk/nav-2n09h7bf.js";
+} from "../chunk/nav-yctmvyzg.js";
 import {
   Field
 } from "../chunk/nav-9htrbyn7.js";
@@ -2148,16 +2148,22 @@ function pressUndoConflict(r, which) {
 }
 function pressTRevert(r, host) {
   const ops = snapshot(r.ops.value);
-  setOps(r, []);
-  resetCanvas(r);
-  forgetUndo(r);
-  syncTeam(r);
-  tellDirty();
-  offerUndo({ said: "保存した内容に戻しました", restore: () => {
-    r.ops.value = ops;
-    syncTeam(r);
-    tellDirty();
-  } }, host);
+  runDanger("revertDraft", {
+    run: () => {
+      setOps(r, []);
+      resetCanvas(r);
+      forgetUndo(r);
+      syncTeam(r);
+      tellDirty();
+    },
+    restore: () => {
+      r.ops.value = ops;
+      syncTeam(r);
+      tellDirty();
+    },
+    said: "保存した内容に戻しました",
+    host
+  });
 }
 function pressSave(r) {
   saveAgree(r);
@@ -2165,14 +2171,20 @@ function pressSave(r) {
 function pressRevert(r, host) {
   const saved = r.agreeSaved.value;
   const before = snapshot(r.agreeDraft.value);
-  r.agreeDraft.value = saved ? clone2(saved) : emptyAgreement(r.name.value);
-  checkAgree(r);
-  tellDirty();
-  offerUndo({ said: "保存した内容に戻しました", restore: () => {
-    r.agreeDraft.value = before;
-    checkAgree(r);
-    tellDirty();
-  } }, host);
+  runDanger("revertDraft", {
+    run: () => {
+      r.agreeDraft.value = saved ? clone2(saved) : emptyAgreement(r.name.value);
+      checkAgree(r);
+      tellDirty();
+    },
+    restore: () => {
+      r.agreeDraft.value = before;
+      checkAgree(r);
+      tellDirty();
+    },
+    said: "保存した内容に戻しました",
+    host
+  });
 }
 function pressToastUndo() {
   canvasUndoFromToast();

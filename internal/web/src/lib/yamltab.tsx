@@ -15,7 +15,7 @@
 // what stands inside it, and the screen passes the file and the ways to tell it
 // things as props (依頼書 4).
 import { yamlDirty } from './changed.js';
-import { offerUndo } from './undo.js';
+import { runDanger } from './danger.js';
 import { useEffect, useRef, useState } from './preact.js';
 import { check as apiCheck, save as apiSave, problemText, saved as apiSaved } from './api.js';
 import type { RawAnswer } from './api.js';
@@ -318,18 +318,13 @@ export function YamlTab(props: YamlTabProps) {
     const el = ta.current;
     if (!el) return;
     const was = now.text;
-    if (onRevert) onRevert();
-    el.value = base.current;
-    setRefusal('');
-    layout(now.problems);
-    check();
     const host = ta.current ? (ta.current.closest('.panel') as HTMLElement | null) || ta.current.parentElement : null;
-    offerUndo({ said: '保存した内容に戻しました', restore: () => {
-      if (el) el.value = was;
-      setNow((one) => ({ ...one, text: was }));
-      onState?.({ text: was } as unknown as Parameters<NonNullable<typeof onState>>[0]);
-      check();
-    } }, host);
+    runDanger('revertDraft', {
+      run: () => { if (onRevert) onRevert(); el.value = base.current; setRefusal(''); layout(now.problems); check(); },
+      restore: () => { if (el) el.value = was; setNow((one) => ({ ...one, text: was })); onState?.({ text: was } as unknown as Parameters<NonNullable<typeof onState>>[0]); check(); },
+      said: '保存した内容に戻しました',
+      host,
+    });
   }
 
   // jump puts the caret on the line a problem names, and looks at it: a person

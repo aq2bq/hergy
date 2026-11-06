@@ -8,7 +8,6 @@
 // tools/webvendor/package.json and bun.lock.
 
 import {
-  k,
   S,
   R,
   d,
@@ -20,13 +19,8 @@ import {
   u
 } from "./nav-zn7g81kr.js";
 import {
-  askConfirm,
-  setCount2,
-  setActivity2
-} from "./nav-5vd3v6sp.js";
-import {
-  offerUndo
-} from "./nav-exx7f16c.js";
+  runDanger
+} from "./nav-b0v6p86y.js";
 import {
   Refusal2,
   call2,
@@ -36,67 +30,10 @@ import {
   applyMembers2,
   problemText2
 } from "./nav-sk3m5qf3.js";
-
-// lib/danger.ts
-var DANGER = {
-  deleteTeam: "confirm",
-  deleteRole: "confirm",
-  deleteProfile: "confirm",
-  stopTeam: "confirm",
-  unlistProject: "undoable",
-  revertDraft: "undoable",
-  removeMember: "undoable",
-  removeWorker: "undoable",
-  removeTurn: "undoable",
-  conflictRevert: "undoable",
-  discardRow: "confirm",
-  abortStart: "none"
-};
-function runDanger(action, opts) {
-  const kind = DANGER[action];
-  if (kind === "none") {
-    opts.run();
-    return;
-  }
-  if (kind === "undoable") {
-    const offer = () => {
-      if (opts.restore)
-        offerUndo({ said: opts.said || "実行しました", restore: opts.restore }, opts.host);
-    };
-    const done = opts.run();
-    if (done && typeof done.then === "function")
-      done.then(offer);
-    else
-      offer();
-    return;
-  }
-  if (!opts.confirm)
-    return;
-  const ask = { ...opts.confirm };
-  if (opts.loss) {
-    const loss = opts.loss;
-    const q = new URLSearchParams;
-    if (loss.place)
-      q.set("place", loss.place);
-    if (loss.project)
-      q.set("project", loss.project);
-    const url = `/api/danger/${encodeURIComponent(loss.kind)}/${encodeURIComponent(loss.name)}${q.toString() ? `?${q}` : ""}`;
-    read2(url).then((answer) => {
-      const lines = answer && answer.lines || [];
-      askConfirm({ ...ask, body: k("div", {}, lines.map((line) => k("p", {}, line))), run: opts.run });
-    }).catch((err) => {
-      askConfirm({ ...ask, body: k("p", { role: "alert" }, `消えるものを読めませんでした: ${String(err)}`), run: () => {
-        return;
-      } });
-    });
-    return;
-  }
-  if (opts.lost) {
-    askConfirm({ ...ask, body: k("div", {}, [...opts.lost.map((one) => k("p", {}, one)), k("p", {}, k("b", {}, "取り消せません。"))]), run: opts.run });
-    return;
-  }
-  askConfirm({ ...ask, body: ask.body ?? k("div", {}), run: opts.run });
-}
+import {
+  setCount2,
+  setActivity2
+} from "./nav-vxv4rttp.js";
 
 // lib/band-counts.ts
 function applyCounts(counts) {
@@ -1983,4 +1920,4 @@ async function send() {
   }
 }
 
-export { runDanger, st, setRunning2, token2, parseOpen2, projectName2, runningFor, runningTeam2, lastWorkspaceOf, definitionOf2, bandActivity2, readCore2, readGroups2, readAll2, readRunning2, startReads, sheetOpen, closeSheet2, startSheet2, stopSheet2, projectsSheet, searchBoxOpen, closeBox, moveSel, mountSearch, resetSearch, searchHook, POLL, count, opened, answer, note, scope, chosen, teams, canApply, applyLabel, teamCount, toggle, readCount, readTeams, openSheet, close, send };
+export { st, setRunning2, token2, parseOpen2, projectName2, runningFor, runningTeam2, lastWorkspaceOf, definitionOf2, bandActivity2, readCore2, readGroups2, readAll2, readRunning2, startReads, sheetOpen, closeSheet2, startSheet2, stopSheet2, projectsSheet, searchBoxOpen, closeBox, moveSel, mountSearch, resetSearch, searchHook, POLL, count, opened, answer, note, scope, chosen, teams, canApply, applyLabel, teamCount, toggle, readCount, readTeams, openSheet, close, send };

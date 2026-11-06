@@ -34,7 +34,7 @@ import type { Shape } from '../lib/changed.js';
 import type { TeamWritten } from '../lib/changed.js';
 import { copyGroupOf, groupPlace, projectOfGroup } from '../lib/copy';
 import { roleEntries } from './role-modal.js';
-import { offerUndo } from '../lib/undo.js';
+import { runDanger } from '../lib/danger.js';
 import { roleDirty } from '../lib/changed.js';
 import { takeDraft, setDirty } from '../lib/nav.js';
 import { place } from './place';
@@ -1778,12 +1778,12 @@ export function pressUndoConflict(r: Rec, which: string) {
 export function pressTRevert(r: Rec, host?: HTMLElement | null) {
   // 元に戻す goes at once and leaves its 取り消す in place (d-79e3 の A).
   const ops = changedSnapshot(r.ops.value) as typeof r.ops.value;
-  setOps(r, []);
-  resetCanvas(r);
-  forgetUndo(r);
-  syncTeam(r);
-  tellDirty();
-  offerUndo({ said: '保存した内容に戻しました', restore: () => { r.ops.value = ops; syncTeam(r); tellDirty(); } }, host);
+  runDanger('revertDraft', {
+    run: () => { setOps(r, []); resetCanvas(r); forgetUndo(r); syncTeam(r); tellDirty(); },
+    restore: () => { r.ops.value = ops; syncTeam(r); tellDirty(); },
+    said: '保存した内容に戻しました',
+    host,
+  });
 }
 export function pressSave(r: Rec) { saveAgree(r); }
 export function pressRevert(r: Rec, host?: HTMLElement | null): void {
@@ -1792,10 +1792,12 @@ export function pressRevert(r: Rec, host?: HTMLElement | null): void {
   // (n-e3de).
   const saved = r.agreeSaved.value;
   const before = changedSnapshot(r.agreeDraft.value) as typeof r.agreeDraft.value;
-  r.agreeDraft.value = saved ? clone(saved) : emptyAgreement(r.name.value);
-  checkAgree(r);
-  tellDirty();
-  offerUndo({ said: '保存した内容に戻しました', restore: () => { r.agreeDraft.value = before; checkAgree(r); tellDirty(); } }, host);
+  runDanger('revertDraft', {
+    run: () => { r.agreeDraft.value = saved ? clone(saved) : emptyAgreement(r.name.value); checkAgree(r); tellDirty(); },
+    restore: () => { r.agreeDraft.value = before; checkAgree(r); tellDirty(); },
+    said: '保存した内容に戻しました',
+    host,
+  });
 }
 export function pressToastUndo() { canvasUndoFromToast(); }
 // pressVpick puts the cursor in a finding's own field, or picks what it names on

@@ -15,8 +15,8 @@ import {
   u
 } from "./nav-zn7g81kr.js";
 import {
-  offerUndo
-} from "./nav-exx7f16c.js";
+  runDanger
+} from "./nav-b0v6p86y.js";
 import {
   check2,
   save2,
@@ -392,20 +392,26 @@ function YamlTab2(props) {
     if (!el)
       return;
     const was = now.text;
-    if (onRevert)
-      onRevert();
-    el.value = base.current;
-    setRefusal("");
-    layout(now.problems);
-    check();
     const host = ta.current ? ta.current.closest(".panel") || ta.current.parentElement : null;
-    offerUndo({ said: "保存した内容に戻しました", restore: () => {
-      if (el)
-        el.value = was;
-      setNow((one) => ({ ...one, text: was }));
-      onState?.({ text: was });
-      check();
-    } }, host);
+    runDanger("revertDraft", {
+      run: () => {
+        if (onRevert)
+          onRevert();
+        el.value = base.current;
+        setRefusal("");
+        layout(now.problems);
+        check();
+      },
+      restore: () => {
+        if (el)
+          el.value = was;
+        setNow((one) => ({ ...one, text: was }));
+        onState?.({ text: was });
+        check();
+      },
+      said: "保存した内容に戻しました",
+      host
+    });
   }
   function jump(line) {
     const el = ta.current;

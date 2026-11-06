@@ -9,76 +9,11 @@
 
 import {
   R,
-  h,
-  A,
-  y,
   u
 } from "./nav-zn7g81kr.js";
-
-// lib/confirm.tsx
-var confirmAsk = y(null);
-var askConfirm = (ask) => {
-  confirmAsk.value = ask;
-};
-var closeConfirm = () => {
-  confirmAsk.value = null;
-};
-function ConfirmDialog() {
-  const ask = confirmAsk.value;
-  const dialog = A(null);
-  const cancel = A(null);
-  h(() => {
-    const node = dialog.current;
-    if (!ask || !node)
-      return;
-    if (!node.open)
-      node.showModal();
-    cancel.current?.focus();
-    return;
-  }, [ask]);
-  if (!ask)
-    return null;
-  return /* @__PURE__ */ u("dialog", {
-    class: "confirm",
-    ref: dialog,
-    "aria-labelledby": "confirm-title",
-    onCancel: (event) => {
-      event.preventDefault();
-      closeConfirm();
-    },
-    children: [
-      /* @__PURE__ */ u("h2", {
-        id: "confirm-title",
-        children: ask.title
-      }),
-      /* @__PURE__ */ u("div", {
-        class: "confirm-body",
-        children: ask.body
-      }),
-      /* @__PURE__ */ u("footer", {
-        children: [
-          /* @__PURE__ */ u("button", {
-            class: "btn",
-            type: "button",
-            ref: cancel,
-            onClick: closeConfirm,
-            children: "やめる"
-          }),
-          /* @__PURE__ */ u("button", {
-            class: "btn danger solid",
-            type: "button",
-            onClick: () => {
-              const run = ask.run;
-              closeConfirm();
-              run();
-            },
-            children: ask.label
-          })
-        ]
-      })
-    ]
-  });
-}
+import {
+  ConfirmDialog
+} from "./nav-cxc0561z.js";
 
 // lib/dialogs.tsx
 function Dialogs() {
@@ -303,4 +238,4 @@ if (header) {
   new ResizeObserver(followBand).observe(header);
 }
 
-export { askConfirm, carryTo2, takeDraft2, setDirty2, setCount2, setActivity2, confirmLeave2 };
+export { carryTo2, takeDraft2, setDirty2, setCount2, setActivity2, confirmLeave2 };
