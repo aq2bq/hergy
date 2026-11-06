@@ -41,8 +41,9 @@ import {
   problemText2
 } from "../chunk/nav-sk3m5qf3.js";
 import {
+  dropUndo,
   runDanger
-} from "../chunk/nav-b0v6p86y.js";
+} from "../chunk/nav-qhjzcfn0.js";
 import {
   num,
   documents,
@@ -65,15 +66,15 @@ import {
   token2,
   parseOpen2,
   projectName2
-} from "../chunk/nav-26pfy4tx.js";
+} from "../chunk/nav-39jkzqwr.js";
 import {
   RunCell2
-} from "../chunk/nav-nbnn2rvp.js";
+} from "../chunk/nav-v0y32ezc.js";
 import {
   conflictOf,
   ConflictNotice,
   YamlTab2
-} from "../chunk/nav-fqsfchb6.js";
+} from "../chunk/nav-q8zbgc80.js";
 import {
   roleEditor,
   roleProblems
@@ -1687,6 +1688,7 @@ var toastRow = null;
 var toastTimer;
 var cloneOps = (ops) => clone2(ops || []);
 function canvasUndoPoint(r, label) {
+  dropUndo();
   const k = dkey(r), st = cundo.get(k) || [];
   st.push({ ops: cloneOps(r.ops.value), label });
   while (st.length > 80)
@@ -1756,6 +1758,7 @@ function canvasUndo(r) {
   setOps(r, cloneOps(point.ops));
   ctyping = { key: null, field: null };
   checkTeam(r);
+  dropUndo();
   canvasToast(r, point.label || "元に戻した", false);
 }
 function undoRow() {
@@ -2738,6 +2741,8 @@ function Figure({ r }) {
         selE === k ? /* @__PURE__ */ u("g", {
           class: "cv-ex",
           "data-cv-act": "edge-del",
+          "data-danger": true,
+          "data-danger-act": "removeTurn",
           "data-k": k,
           transform: `translate(${mx.toFixed(1)},${my.toFixed(1)})`,
           role: "button",
@@ -3076,6 +3081,8 @@ function turnRows(t, s, id, dir) {
         class: "cv-x",
         type: "button",
         "data-cv-act": "turn-del",
+        "data-danger": true,
+        "data-danger-act": "removeTurn",
         "data-a": a,
         "data-b": b,
         "aria-label": `${nodeName(a)} から ${nodeName(b)} へのターンを外す`,
@@ -3240,6 +3247,8 @@ function SideAttr({ r }) {
           class: "cv-x",
           type: "button",
           "data-cv-act": "turn-del",
+          "data-danger": true,
+          "data-danger-act": "removeTurn",
           "data-a": p,
           "data-b": q,
           title: "外す",
@@ -3392,6 +3401,8 @@ function SideAttr({ r }) {
           class: "btn danger sm cv-danger",
           type: "button",
           "data-cv-act": "del",
+          "data-danger": true,
+          "data-danger-act": "removeWorker",
           children: "ワーカーを外す"
         })
       ]
@@ -3608,6 +3619,8 @@ function SideAttr({ r }) {
                     class: "cv-x",
                     type: "button",
                     "data-cv-act": "w-del",
+                    "data-danger": true,
+                    "data-danger-act": "removeWorker",
                     "data-i": i,
                     title: "外す",
                     "aria-label": "外す",
@@ -3650,6 +3663,8 @@ function SideAttr({ r }) {
             class: "btn danger sm cv-danger",
             type: "button",
             "data-cv-act": "del",
+            "data-danger": true,
+            "data-danger-act": "removeMember",
             children: "メンバーを外す"
           }),
           /* @__PURE__ */ u("span", {
@@ -4639,6 +4654,17 @@ function addWorker(r, from, at) {
   selectPick(r, { type: "worker", i: idx }, "attr");
   canvasAct(r, ops, { message: `${from} のワーカーを足した。目的を右で決める`, undo: "ワーカーを足したのを取り消した", focus: '[data-cv-f="w-purpose"]' });
 }
+function panelOf(r) {
+  return document.querySelector(`.panel.team-p[data-key="${CSS.escape(dkey(r))}"]`);
+}
+function remove(r, action, ops, o) {
+  runDanger(action, {
+    run: () => canvasAct(r, ops, { undo: o.undo }),
+    restore: () => canvasUndo(r),
+    said: o.said,
+    host: panelOf(r)
+  });
+}
 function del(r) {
   const t = r.draft.value, sel = selOf(r);
   if (!sel)
@@ -4646,7 +4672,7 @@ function del(r) {
   if (sel.type === "node" && sel.id !== "human") {
     const id = sel.id, nt = t.turns.filter(([a, b]) => a === id || b === id).length, nw = t.workers.filter((w) => w.from === id).length;
     selectPick(r, null);
-    canvasAct(r, [{ kind: "removeMember", member: id }], { message: `${id} を外した（ターン ${nt} 本・ワーカー ${nw} 件も）`, undo: `${id} を外したのを取り消した` });
+    remove(r, "removeMember", [{ kind: "removeMember", member: id }], { said: `${id} を外した（ターン ${nt} 本・ワーカー ${nw} 件も）`, undo: `${id} を外したのを取り消した` });
   } else if (sel.type === "edge") {
     const [a, b] = sel.k.split("|"), ops = [];
     if (hasTurn(t, a, b))
@@ -4655,13 +4681,13 @@ function del(r) {
       ops.push({ kind: "removeTurn", from: b, to: a });
     selectPick(r, null);
     if (ops.length)
-      canvasAct(r, ops, { message: `${nodeName(a)} ⇄ ${nodeName(b)} のターンを外した`, undo: `${nodeName(a)} ⇄ ${nodeName(b)} のターンを外したのを取り消した` });
+      remove(r, "removeTurn", ops, { said: `${nodeName(a)} ⇄ ${nodeName(b)} のターンを外した`, undo: `${nodeName(a)} ⇄ ${nodeName(b)} のターンを外したのを取り消した` });
   } else if (sel.type === "worker") {
     const w = t.workers[sel.i];
     if (!w)
       return;
     selectPick(r, null);
-    canvasAct(r, [{ kind: "removeWorker", from: w.from, purpose: w.purpose }], { message: `ワーカー ${w.purpose || "（目的）"} を外した`, undo: "ワーカーを外したのを取り消した" });
+    remove(r, "removeWorker", [{ kind: "removeWorker", from: w.from, purpose: w.purpose }], { said: `ワーカー ${w.purpose || "（目的）"} を外した`, undo: "ワーカーを外したのを取り消した" });
   }
 }
 var lastPress = null;
@@ -4861,11 +4887,11 @@ function onClick(r, e) {
       ops.push({ kind: "removeTurn", from: q, to: p });
     selectPick(r, null);
     if (ops.length)
-      canvasAct(r, ops, { message: `${nodeName(p)} ⇄ ${nodeName(q)} のターンを外した`, undo: `${nodeName(p)} ⇄ ${nodeName(q)} のターンを外したのを取り消した` });
+      remove(r, "removeTurn", ops, { said: `${nodeName(p)} ⇄ ${nodeName(q)} のターンを外した`, undo: `${nodeName(p)} ⇄ ${nodeName(q)} のターンを外したのを取り消した` });
     return;
   }
   if (a === "turn-del") {
-    canvasAct(r, [{ kind: "removeTurn", from: b.dataset.a || "", to: b.dataset.b || "" }], { message: `${nodeName(b.dataset.a || "")} → ${nodeName(b.dataset.b || "")} のターンを外した`, undo: `${nodeName(b.dataset.a || "")} → ${nodeName(b.dataset.b || "")} のターンを足したのを取り消した` });
+    remove(r, "removeTurn", [{ kind: "removeTurn", from: b.dataset.a || "", to: b.dataset.b || "" }], { said: `${nodeName(b.dataset.a || "")} → ${nodeName(b.dataset.b || "")} のターンを外した`, undo: `${nodeName(b.dataset.a || "")} → ${nodeName(b.dataset.b || "")} のターンを足したのを取り消した` });
     return;
   }
   if (a === "turn-add") {
@@ -4876,7 +4902,7 @@ function onClick(r, e) {
     const w = t.workers[Number(b.dataset.i)];
     if (!w)
       return;
-    canvasAct(r, [{ kind: "removeWorker", from: w.from, purpose: w.purpose }], { message: `ワーカー ${w.purpose || "（目的）"} を外した`, undo: "ワーカーを外したのを取り消した" });
+    remove(r, "removeWorker", [{ kind: "removeWorker", from: w.from, purpose: w.purpose }], { said: `ワーカー ${w.purpose || "（目的）"} を外した`, undo: "ワーカーを外したのを取り消した" });
     return;
   }
   if (a === "pick-w")

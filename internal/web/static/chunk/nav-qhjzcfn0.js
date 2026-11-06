@@ -39,14 +39,17 @@ function offerUndo(one, host) {
 }
 function takeUndo() {
   const one = undo.value;
+  dropUndo();
+  if (one)
+    one.restore();
+}
+function dropUndo() {
   undo.value = null;
   if (hostEl) {
     R(null, hostEl);
     hostEl.remove();
     hostEl = null;
   }
-  if (one)
-    one.restore();
 }
 function UndoNotice() {
   const one = undo.value;
@@ -130,4 +133,4 @@ function runDanger(action, opts) {
   askConfirm({ ...ask, body: ask.body ?? k("div", {}), run: opts.run });
 }
 
-export { runDanger };
+export { dropUndo, runDanger };

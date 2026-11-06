@@ -68,7 +68,7 @@ test('the tile action opens the stop sheet for that team', async ({ page, app })
   const ask = page.locator('.confirm');
   await expect(ask).toBeVisible();
   await expect(ask.locator('h2')).toHaveText('チーム core を終了しますか');
-  await expect(ask.locator('.hq-kv')).toContainText('閉じるペイン');
+  await expect(ask).toContainText('メンバー 5 人（lead、analyst、impl-a、impl-b、reviewer）のペインを閉じます。');
   await expect(ask).toContainText('会話は残りません。この操作は取り消せません。');
   await expect(ask.locator('.btn.danger.solid')).toHaveText('終了する');
 });

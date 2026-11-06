@@ -20,9 +20,14 @@ export function offerUndo(one: Undoable, host?: HTMLElement | null): void {
 }
 export function takeUndo(): void {
   const one = undo.value;
+  dropUndo();
+  if (one) one.restore();
+}
+// dropUndo closes the notice without taking anything back: the operation it
+// offered is already undone, or a newer one stands in its place (④ 段 4b-2).
+export function dropUndo(): void {
   undo.value = null;
   if (hostEl) { render(null, hostEl); hostEl.remove(); hostEl = null; }
-  if (one) one.restore();
 }
 export function UndoNotice(): JSX.Element | null {
   const one = undo.value;

@@ -67,15 +67,22 @@ test('the team definition action opens the end sheet', async ({ page, app }) => 
       workers: [], waiting: [], starting: false,
     }],
   } }));
+  await page.route('**/api/danger/activity/core*', (route) => route.fulfill({ json: { lines: [
+    'メンバー 1 人（core-lead）のペインを閉じます。',
+    'ワークスペース main は閉じません。',
+    '会話は残りません。この操作は取り消せません。',
+  ] } }));
   await page.goto(`${app.base}/teams`);
   const end = page.locator('.tdef .hq-runc [data-hq="stop"]');
   await expect(end).toHaveText('終了する');
   await end.click();
-  // The stop is asked for in the shared dialog (r-d480): the panes it closes
-  // stand in its body, and the run button is there, not where the trigger was.
+  // The stop is asked for in the shared dialog (r-d480): the lines the server
+  // answers (the panes it closes, the irreversible words) stand in its body, and
+  // the run button is there, not where the trigger was.
   const ask = page.locator('.confirm');
   await expect(ask.locator('h2')).toHaveText('チーム core を終了しますか');
-  await expect(ask.locator('.hq-kv')).toContainText('閉じるペイン');
+  await expect(ask).toContainText('メンバー 1 人（core-lead）のペインを閉じます。');
+  await expect(ask).toContainText('会話は残りません。この操作は取り消せません。');
   await expect(ask.locator('.btn.danger.solid')).toHaveText('終了する');
   await ask.getByRole('button', { name: 'やめる', exact: true }).click();
   await expect(ask).toHaveCount(0);
@@ -203,11 +210,11 @@ async function saveShape(page: Parameters<typeof read>[0], app: { base: string; 
   await press(page, `${panel}.querySelector('.cv-n.member[data-cv-n=impl-b]')`);
   await wait(page, there2(panel, '.cv-side [data-cv-f=m-name]'));
   await press(page, `${panel}.querySelector('.cv-side [data-cv-act=turn-del][data-a=impl-b][data-b=reviewer]')`);
-  await wait(page, `!!document.querySelector('.cv-toast')`);
-  // 外したことは知らせで言い、そこから戻せる (the mock's toast).
+  await wait(page, `!!${panel}.querySelector('.undo')`);
+  // 外したことは、図のある欄の中の知らせで言い、そこから戻せる (d-aeeb).
   await readTo<string>(
     page,
-    `document.querySelector('.cv-toast').textContent`,
+    `${panel}.querySelector('.undo').textContent`,
     'the removal notice reads',
   ).toContain('impl-b → reviewer のターンを外した');
   await wait(page, `${panel}.querySelector('footer.pf .dirty').textContent.trim()==='1 か所'`);
@@ -378,12 +385,30 @@ test('TEAMS-C1 the canvas adds a member, removes it, and adds a worker', async (
     'the save did not write the added member',
   ).toBe(6);
 
-  // (2) the point goes with Delete and the save takes it away. ⌘Z puts it back.
+  // (2) the point goes with Delete, and both 取り消す and ⌘Z put it back: the
+  // draft and the band's dot come back with it (d-aeeb).
+  const dirty = `${panel}.querySelector('footer.pf .dirty').textContent.trim()`;
+  const bandDot = `document.querySelectorAll('.scr[data-screen="teams"] .dot').length`;
   await press(page, `${panel}.querySelector('.cv-n.member[data-cv-n="${name}"]')`);
   await page.keyboard.press('Delete');
-  await wait(page, `!!document.querySelector('.cv-toast')`);
-  await press(page, `document.querySelector('.cv-toast [data-act=cv-undo]')`);
+  await wait(page, `!!${panel}.querySelector('.undo')`);
+  await readTo<string>(page, dirty, 'the draft keeps the removal').toBe('1 か所');
+  await readTo<number>(page, bandDot, 'the band dot takes the removal').toBe(1);
+  await press(page, `${panel}.querySelector('.undo button')`);
   await wait(page, `!!${panel}.querySelector('.cv-n.member[data-cv-n="${name}"]')`);
+  await readTo<string>(page, dirty, '取り消す puts the draft back').toBe('');
+  await readTo<number>(page, bandDot, '取り消す puts the band dot back').toBe(0);
+  // ⌘Z takes the same operation back, and the notice it stood in closes.
+  await press(page, `${panel}.querySelector('.cv-n.member[data-cv-n="${name}"]')`);
+  await page.keyboard.press('Delete');
+  await wait(page, `!!${panel}.querySelector('.undo')`);
+  await readTo<string>(page, dirty, 'the draft keeps the second removal').toBe('1 か所');
+  await page.keyboard.press('Meta+z');
+  await wait(page, `!!${panel}.querySelector('.cv-n.member[data-cv-n="${name}"]')`);
+  await readTo<string>(page, dirty, '⌘Z puts the draft back').toBe('');
+  await readTo<number>(page, bandDot, '⌘Z puts the band dot back').toBe(0);
+  await readTo<number>(page, `${panel}.querySelectorAll('.undo').length`, 'the notice closes after ⌘Z').toBe(0);
+  // The save takes it away for good.
   await press(page, `${panel}.querySelector('.cv-n.member[data-cv-n="${name}"]')`);
   await page.keyboard.press('Delete');
   await wait(page, `${panel}.querySelector('[data-act=t-save]').disabled===false`);
@@ -503,8 +528,8 @@ test('TEAMS-C2 undo after letting go, a line from the keyboard, and no two point
   await wait(page, `!!${panel}.querySelector('.cv-side .cv-t')`);
   await readTo<string>(page, `${panel}.querySelector('.cv-side .cv-t').textContent`, 'the picked line reads').toContain('⇄');
   await page.keyboard.press('Delete');
-  await wait(page, `!!document.querySelector('.cv-toast')`);
-  await readTo<string>(page, `document.querySelector('.cv-toast').textContent`, 'the removed line reads').toContain('のターンを外した');
+  await wait(page, `!!${panel}.querySelector('.undo')`);
+  await readTo<string>(page, `${panel}.querySelector('.undo').textContent`, 'the removed line reads').toContain('のターンを外した');
 
   // (4) no two points stand over each other, including a worker just added.
   const overlap = `(function(){var b=[...document.querySelectorAll('.tdef[data-name="core"] .cv-n')].map(function(e){return e.getBoundingClientRect()});for(var i=0;i<b.length;i++)for(var j=i+1;j<b.length;j++){var a=b[i],c=b[j];if(a.left<c.right-1&&c.left<a.right-1&&a.top<c.bottom-1&&c.top<a.bottom-1)return 'point '+i+' and '+j+' cover each other';}return '';})()`;

@@ -56,7 +56,7 @@ function turnRows(t: Team, s: Team, id: string, dir: 'out' | 'in'): JSX.Element 
   return list.map(([a, b]) => (
     <div class={'cv-li' + (hasTurn(s, a, b) ? '' : ' new')}>
       <span>{dir === 'out' ? '→' : '←'} {nodeName(dir === 'out' ? b : a)}</span>
-      <button class="cv-x" type="button" data-cv-act="turn-del" data-a={a} data-b={b} aria-label={`${nodeName(a)} から ${nodeName(b)} へのターンを外す`} title="外す">×</button>
+      <button class="cv-x" type="button" data-cv-act="turn-del" data-danger data-danger-act="removeTurn" data-a={a} data-b={b} aria-label={`${nodeName(a)} から ${nodeName(b)} へのターンを外す`} title="外す">×</button>
     </div>
   ));
 }
@@ -108,7 +108,7 @@ export function SideAttr({ r }: { r: Rec }): JSX.Element | null {
   if (sel.type === 'edge') {
     const [a, b] = sel.k.split('|');
     const row = (p: string, q: string) => (hasTurn(t, p, q)
-      ? <div class={'cv-li' + (hasTurn(s, p, q) ? '' : ' new')}><span>{nodeName(p)} → {nodeName(q)}</span><button class="cv-x" type="button" data-cv-act="turn-del" data-a={p} data-b={q} title="外す" aria-label="外す">×</button></div>
+      ? <div class={'cv-li' + (hasTurn(s, p, q) ? '' : ' new')}><span>{nodeName(p)} → {nodeName(q)}</span><button class="cv-x" type="button" data-cv-act="turn-del" data-danger data-danger-act="removeTurn" data-a={p} data-b={q} title="外す" aria-label="外す">×</button></div>
       : <div class="cv-li"><span class="cv-empty">{nodeName(p)} → {nodeName(q)}</span><button class="btn sm" type="button" data-cv-act="turn-add" data-a={p} data-b={q}>この向きも足す</button></div>);
     return (
       <>
@@ -135,7 +135,7 @@ export function SideAttr({ r }: { r: Rec }): JSX.Element | null {
           <span class="sel"><select id={`cv-wpf-${r.uid}`} data-cv-f="w-profile">{profs.map((p) => <Opt v={p} on={p === w.profile}>{p}</Opt>)}</select></span>
           <span class="cv-sub">ワーカーは規則を受けない。安いプロファイルで</span>
         </div>
-        <button class="btn danger sm cv-danger" type="button" data-cv-act="del">ワーカーを外す</button>
+        <button class="btn danger sm cv-danger" type="button" data-cv-act="del" data-danger data-danger-act="removeWorker">ワーカーを外す</button>
       </>
     );
   }
@@ -190,13 +190,13 @@ export function SideAttr({ r }: { r: Rec }): JSX.Element | null {
         {ws.length ? ws.map(({ w, i }) => (
           <div class={'cv-li' + (s.workers.some((x) => x.from === w.from && x.purpose === w.purpose) ? '' : ' new')}>
             <span>{`${w.purpose || '（目的）'} · ${w.profile}`}</span>
-            <span class="cv-liend"><button class="cv-link" type="button" data-cv-act="pick-w" data-i={i}>選ぶ</button><button class="cv-x" type="button" data-cv-act="w-del" data-i={i} title="外す" aria-label="外す">×</button></span>
+            <span class="cv-liend"><button class="cv-link" type="button" data-cv-act="pick-w" data-i={i}>選ぶ</button><button class="cv-x" type="button" data-cv-act="w-del" data-danger data-danger-act="removeWorker" data-i={i} title="外す" aria-label="外す">×</button></span>
           </div>
         )) : <span class="cv-empty">なし</span>}
         <button class="btn sm cv-danger" type="button" data-cv-act="w-add">＋ ワーカー</button>
       </div>
       <div class="cv-sec"><button class="btn sm" type="button" data-cv-act="m-copy">複製</button><span class="cv-note">同じロール・プロファイル・ターンの相手・ワーカーの目的で、もう 1 人足す</span></div>
-      <div class="cv-sec"><button class="btn danger sm cv-danger" type="button" data-cv-act="del">メンバーを外す</button><span class="cv-note">ターン {nt} 本とワーカー {ws.length} 件も一緒に外れる。<span class="cv-kbd">⌘Z</span> で取り消せる。</span></div>
+      <div class="cv-sec"><button class="btn danger sm cv-danger" type="button" data-cv-act="del" data-danger data-danger-act="removeMember">メンバーを外す</button><span class="cv-note">ターン {nt} 本とワーカー {ws.length} 件も一緒に外れる。<span class="cv-kbd">⌘Z</span> で取り消せる。</span></div>
     </>
   );
 }

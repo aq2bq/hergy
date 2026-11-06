@@ -13,6 +13,7 @@ import {
 } from '../state.js';
 import type { CanvasPick, Member, Op, Rec, Team, Worker } from '../state.js';
 import { NAME, layoutOf, menuOf, pair, putPlace, renamePlace, selOf, setMenu, setTyped } from './shared.js';
+import { runDanger } from '../../lib/danger.js';
 
 // ---- 操作 ------------------------------------------------------------
 // endField takes the focus away from the field the person was typing in: a press
@@ -117,24 +118,43 @@ function addWorker(r: Rec, from: string, at: Spot | null): void {
   selectPick(r, { type: 'worker', i: idx }, 'attr');
   canvasAct(r, ops, { message: `${from} のワーカーを足した。目的を右で決める`, undo: 'ワーカーを足したのを取り消した', focus: '[data-cv-f="w-purpose"]' });
 }
+// panelOf is the field the figure stands in: the removal's 取り消す is put there,
+// in the place the person pressed (d-aeeb).
+function panelOf(r: Rec): HTMLElement | null {
+  return document.querySelector<HTMLElement>(`.panel.team-p[data-key="${CSS.escape(dkey(r))}"]`);
+}
+
+// remove takes something out of the figure through the one table (r-ccf8): it
+// runs at once, and the notice in the figure's panel takes it back. The
+// figure's own stack is what canvasUndo pops, so ⌘Z and 取り消す are the same
+// restore. No CanvasToast here: two 取り消す would say the same thing twice.
+function remove(r: Rec, action: 'removeMember' | 'removeWorker' | 'removeTurn', ops: Op[], o: { said: string; undo: string }): void {
+  runDanger(action, {
+    run: () => canvasAct(r, ops, { undo: o.undo }),
+    restore: () => canvasUndo(r),
+    said: o.said,
+    host: panelOf(r),
+  });
+}
+
 function del(r: Rec): void {
   const t = r.draft.value, sel = selOf(r);
   if (!sel) return;
   if (sel.type === 'node' && sel.id !== 'human') {
     const id = sel.id, nt = t.turns.filter(([a, b]) => a === id || b === id).length, nw = t.workers.filter((w) => w.from === id).length;
     selectPick(r, null);
-    canvasAct(r, [{ kind: 'removeMember', member: id }], { message: `${id} を外した（ターン ${nt} 本・ワーカー ${nw} 件も）`, undo: `${id} を外したのを取り消した` });
+    remove(r, 'removeMember', [{ kind: 'removeMember', member: id }], { said: `${id} を外した（ターン ${nt} 本・ワーカー ${nw} 件も）`, undo: `${id} を外したのを取り消した` });
   } else if (sel.type === 'edge') {
     const [a, b] = sel.k.split('|'), ops: Op[] = [];
     if (hasTurn(t, a, b)) ops.push({ kind: 'removeTurn', from: a, to: b });
     if (hasTurn(t, b, a)) ops.push({ kind: 'removeTurn', from: b, to: a });
     selectPick(r, null);
-    if (ops.length) canvasAct(r, ops, { message: `${nodeName(a)} ⇄ ${nodeName(b)} のターンを外した`, undo: `${nodeName(a)} ⇄ ${nodeName(b)} のターンを外したのを取り消した` });
+    if (ops.length) remove(r, 'removeTurn', ops, { said: `${nodeName(a)} ⇄ ${nodeName(b)} のターンを外した`, undo: `${nodeName(a)} ⇄ ${nodeName(b)} のターンを外したのを取り消した` });
   } else if (sel.type === 'worker') {
     const w = t.workers[sel.i];
     if (!w) return;
     selectPick(r, null);
-    canvasAct(r, [{ kind: 'removeWorker', from: w.from, purpose: w.purpose }], { message: `ワーカー ${w.purpose || '（目的）'} を外した`, undo: 'ワーカーを外したのを取り消した' });
+    remove(r, 'removeWorker', [{ kind: 'removeWorker', from: w.from, purpose: w.purpose }], { said: `ワーカー ${w.purpose || '（目的）'} を外した`, undo: 'ワーカーを外したのを取り消した' });
   }
 }
 
@@ -300,11 +320,11 @@ export function onClick(r: Rec, e: MouseEvent): void {
     if (hasTurn(t, p, q)) ops.push({ kind: 'removeTurn', from: p, to: q });
     if (hasTurn(t, q, p)) ops.push({ kind: 'removeTurn', from: q, to: p });
     selectPick(r, null);
-    if (ops.length) canvasAct(r, ops, { message: `${nodeName(p)} ⇄ ${nodeName(q)} のターンを外した`, undo: `${nodeName(p)} ⇄ ${nodeName(q)} のターンを外したのを取り消した` });
+    if (ops.length) remove(r, 'removeTurn', ops, { said: `${nodeName(p)} ⇄ ${nodeName(q)} のターンを外した`, undo: `${nodeName(p)} ⇄ ${nodeName(q)} のターンを外したのを取り消した` });
     return;
   }
   if (a === 'turn-del') {
-    canvasAct(r, [{ kind: 'removeTurn', from: b.dataset.a || '', to: b.dataset.b || '' }], { message: `${nodeName(b.dataset.a || '')} → ${nodeName(b.dataset.b || '')} のターンを外した`, undo: `${nodeName(b.dataset.a || '')} → ${nodeName(b.dataset.b || '')} のターンを足したのを取り消した` });
+    remove(r, 'removeTurn', [{ kind: 'removeTurn', from: b.dataset.a || '', to: b.dataset.b || '' }], { said: `${nodeName(b.dataset.a || '')} → ${nodeName(b.dataset.b || '')} のターンを外した`, undo: `${nodeName(b.dataset.a || '')} → ${nodeName(b.dataset.b || '')} のターンを足したのを取り消した` });
     return;
   }
   if (a === 'turn-add') {
@@ -313,7 +333,7 @@ export function onClick(r: Rec, e: MouseEvent): void {
   }
   if (a === 'w-del') {
     const w = t.workers[Number(b.dataset.i)]; if (!w) return;
-    canvasAct(r, [{ kind: 'removeWorker', from: w.from, purpose: w.purpose }], { message: `ワーカー ${w.purpose || '（目的）'} を外した`, undo: 'ワーカーを外したのを取り消した' });
+    remove(r, 'removeWorker', [{ kind: 'removeWorker', from: w.from, purpose: w.purpose }], { said: `ワーカー ${w.purpose || '（目的）'} を外した`, undo: 'ワーカーを外したのを取り消した' });
     return;
   }
   if (a === 'pick-w') selectPick(r, { type: 'worker', i: Number(b.dataset.i) }, 'attr');

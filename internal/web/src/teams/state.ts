@@ -35,6 +35,7 @@ import type { TeamWritten } from '../lib/changed.js';
 import { copyGroupOf, groupPlace, projectOfGroup } from '../lib/copy';
 import { roleEntries } from './role-modal.js';
 import { runDanger } from '../lib/danger.js';
+import { dropUndo } from '../lib/undo.js';
 import { roleDirty } from '../lib/changed.js';
 import { takeDraft, setDirty } from '../lib/nav.js';
 import { place } from './place';
@@ -1261,6 +1262,9 @@ let ctyping: { key: string | null; field: string | null } = { key: null, field: 
 let toastRow: Rec | null = null, toastTimer: ReturnType<typeof setTimeout> | undefined;
 const cloneOps = (ops: Op[] | null | undefined): Op[] => clone(ops || []);
 function canvasUndoPoint(r: Rec, label: string) {
+  // A newer operation makes the notice's 取り消す stale: it would take back this
+  // one, not the one the notice names (d-aeeb).
+  dropUndo();
   const k = dkey(r), st = cundo.get(k) || [];
   st.push({ ops: cloneOps(r.ops.value), label });
   while (st.length > 80) st.shift();
@@ -1314,6 +1318,9 @@ export function canvasUndo(r: Rec): void {
   setOps(r, cloneOps(point.ops));
   ctyping = { key: null, field: null };
   checkTeam(r);
+  // The notice offered this operation; it has now been taken back (⌘Z and the
+  // notice's 取り消す are the same restore), so it closes (d-aeeb).
+  dropUndo();
   canvasToast(r, point.label || '元に戻した', false);
 }
 // The row the newest operation stands on: ⌘Z acts on it even when nothing is
