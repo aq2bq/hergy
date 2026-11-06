@@ -1722,11 +1722,6 @@ export function pressDtab(r: Rec, t: string) {
 export function pressPmode(r: Rec, v: string) {
   put({ pmode: { ...state.value.pmode, [dkey(r)]: v } });
 }
-export function pressToYaml(key: string) {
-  put({ tab: 'yaml', yfile: `${key}.team` });
-  syncURL();
-  window.scrollTo(0, 0);
-}
 export function pressTSave(r: Rec) { saveTeam(r); }
 // ---- a save refused because the file moved (r-3c77, d-a34a) ---------------
 // pressOverwrite writes what the person wrote over the file the answer showed:

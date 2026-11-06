@@ -65,12 +65,6 @@ export function movePage(act: PageAction, el: Element | null, opts?: { extra?: n
   el.scrollIntoView({ block: at, behavior: quiet ? 'auto' : 'smooth' });
 }
 
-// bringUnderBand は段 1 の架け橋。行く操作の呼び出しを movePage へ付け替える
-// 次の段で消す。
-export function bringUnderBand(row: HTMLElement | null): void {
-  movePage('copyRow', row);
-}
-
 // r-ddb7 (d-656c): the wheel over an input nobody is typing in sends the page,
 // not the input. Only an unfocused textarea's vertical wheel is taken; a focused
 // input keeps its own scrolling, and Ctrl/⌘ (zoom, pinch) and horizontal wheels

@@ -17,7 +17,7 @@ import {
   doSave, doDelete, syncURL, conflictAt, pressOverwrite, pressRevertConflict, pressUndoConflict,
 } from './state.js';
 import { ConflictNotice } from '../lib/conflict.js';
-import { bringUnderBand } from '../lib/page-position.js';
+import { movePage } from '../lib/page-position.js';
 import { RuleDoc, Counts, Badge } from '../lib/ruledoc.js';
 import { dirty as changedDirty, lost as changedLost, roleDirty, ROLE_DOC } from '../lib/changed.js';
 import type { RuleIssue } from '../lib/ruledoc.js';
@@ -91,18 +91,6 @@ function groupHeader(g: RoleGroup) {
 function Role({ r }: { r: RoleRow }) {
   const open = filtering() || state.value.open.has(r.uid);
   const el = useRef<HTMLDivElement | null>(null);
-  const wasOpen = useRef(false);
-  useEffect(() => {
-    if (open && !wasOpen.current && !filtering()) {
-      const frame = requestAnimationFrame(() => {
-        const top = document.querySelector<HTMLElement>('.bar')?.offsetHeight || 0;
-        if (el.current) window.scrollBy({ top: el.current.getBoundingClientRect().top - top, behavior: 'instant' });
-      });
-      wasOpen.current = open;
-      return () => cancelAnimationFrame(frame);
-    }
-    wasOpen.current = open;
-  }, [open]);
   useEffect(() => {
     const ask = focusAsk.value;
     if (!ask || ask.uid !== r.uid || !el.current) return;
@@ -114,7 +102,7 @@ function Role({ r }: { r: RoleRow }) {
     if (ask.select && (one instanceof HTMLInputElement || one instanceof HTMLTextAreaElement)) one.select();
     // A copy brings the page to the row it made (d-022a): the row a person
     // pressed stands in the other place, and the copy is off the screen.
-    if (ask.scroll) bringUnderBand(el.current);
+    if (ask.scroll) movePage('copyRow', el.current);
   }, [focusAsk.value]);
   return <div class={'role' + (open ? ' open' : '') + (unsaved(r) ? ' unsaved' : '')} data-uid={r.uid} ref={el}>
       <div class="sum" role="group" data-act="toggle" onClick={() => pressToggle(r.uid)}>{sumInner(r)}</div>

@@ -8,11 +8,11 @@
 import { useEffect, useRef } from '../lib/preact.js';
 import { Field } from '../lib/field.js';
 import { ConflictNotice } from '../lib/conflict.js';
-import { bringUnderBand } from '../lib/page-position.js';
+import { movePage } from '../lib/page-position.js';
 import {
   rows, chips, shownRows, filterKind, query, groupName, GROUPS, placeGroups,
   panelFlags, writtenProfile, saveBlocked, rowUnsaved, classOf, otherKinds, BASE_KINDS,
-  focusAsk, scrollAsk, panelByKey, HQ, canCopy, files,
+  focusAsk, panelByKey, HQ, canCopy, files,
   pressOverwrite, pressRevertConflict, pressUndoConflict,
 } from './state.js';
 import {
@@ -100,16 +100,6 @@ export function Row({ row }: { row: Row }) {
   const detail = useRef<HTMLDivElement>(null);
   const sum = useRef<HTMLButtonElement>(null);
 
-  // A row a person pressed into opens in front of them (d-d475), and the caret
-  // goes back to the line they pressed (5 章 5). Opening from the address is not
-  // a press, and does not move the page.
-  useEffect(() => {
-    const ask = scrollAsk.value;
-    if (!ask || ask.key !== row.key || !row.open) return;
-    if (detail.current) detail.current.scrollIntoView({ block: 'nearest' });
-    if (sum.current) sum.current.focus({ preventScroll: true });
-  }, [scrollAsk.value]);
-
   const first = row.panels[0];
   const name = row.isNew && first ? first.draft.name : row.name;
   const kind = row.isNew && first ? first.draft.kind : row.kind;
@@ -186,7 +176,7 @@ function Panel({ panel }: { panel: PanelState }) {
       // A copy brings the page to the row it made (d-022a): the row a person
       // pressed stands in the other place, and the copy is off the screen.
       const row = ask.scroll ? nameInput.current.closest('.row') : null;
-      if (row instanceof HTMLElement) bringUnderBand(row);
+      if (row instanceof HTMLElement) movePage('copyRow', row);
     }
   }, [focusAsk.value]);
 

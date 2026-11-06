@@ -12,6 +12,7 @@ import {
 } from './state.js';
 import type { ComponentChildren } from 'preact';
 import { Vm } from '../lib/ruledoc.js';
+import { movePage } from '../lib/page-position.js';
 
 type TeamCard = (typeof teams.value)[number];
 type TeamMember = TeamCard['members'][number];
@@ -49,7 +50,7 @@ function Team({ t }: { t: TeamCard }) {
     if (!ask || ask.team !== t.id || !el.current) return;
     const row = el.current.querySelector(`.arow[data-m="${CSS.escape(ask.member)}"]`);
     if (!row) return;
-    row.scrollIntoView({ block: 'center' });
+    movePage('assignPerson', row);
     row.classList.add('flash');
     const select = row.querySelector('select');
     if (select) select.focus({ preventScroll: true });

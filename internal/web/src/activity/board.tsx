@@ -13,6 +13,7 @@ import { openSheet, teamCount } from '../lib/apply/state.js';
 import { teams, note, current, noneText, ST, NS, lastMoment, pick } from './state.js';
 import type { ActivityTeam, CrewMember } from './state.js';
 import { Figure } from './figure.js';
+import { movePage } from '../lib/page-position.js';
 
 // A workspace herdr did not name is left out whole, so no separator stands
 // without a word (r-5b96 audit 11).
@@ -26,7 +27,7 @@ const tabWhere = (t: ActivityTeam): string => [t.workspace ? `ワークスペー
 function pickTile(name: string): void {
   pick(name);
   const tile = Array.from(document.querySelectorAll<HTMLElement>('.hq-tile[data-team]')).find((el) => el.dataset.team === name);
-  if (tile && typeof tile.scrollIntoView === 'function') tile.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  if (tile) movePage('waitingRow', tile);
 }
 
 // attention is the first tier: every member waiting for a human, with where to

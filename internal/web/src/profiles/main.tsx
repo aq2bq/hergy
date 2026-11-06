@@ -5,6 +5,7 @@
 // actions.ts の関数を直接呼ぶ。ここも DOM を書かない（5 章 1）。
 import { installWheel } from '../lib/page-position.js';
 import { render } from '../lib/preact.js';
+import { movePage } from '../lib/page-position.js';
 import { takeDraft } from '../lib/nav.js';
 import {
   view, TAB, rows, dirty, lost, take, tellDirty, restore, syncAssignURL, initAssign, initYaml,
@@ -54,7 +55,7 @@ function flashFromHash(): void {
   requestAnimationFrame(() => {
     const row = view.querySelector(`.team[data-g="${CSS.escape(team)}"] .arow[data-k="${CSS.escape(key)}"]`);
     if (!(row instanceof HTMLElement)) return;
-    row.scrollIntoView({ block: 'center' });
+    movePage('personFromURL', row);
     row.classList.add('flash');
     const select = row.querySelector('select');
     if (select instanceof HTMLElement) select.focus({ preventScroll: true });

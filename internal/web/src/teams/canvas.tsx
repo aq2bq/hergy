@@ -21,6 +21,7 @@ import { SideAttr } from './canvas/attr.js';
 import { PromptView } from './canvas/prompt.js';
 import { onClick, onInput, onPointerDown } from './canvas/act.js';
 import { pickOf, select, sideOf } from './selection.js';
+import { movePage } from '../lib/page-position.js';
 
 export { fitYboxes } from './canvas/yaml.js';
 export { mountCanvas } from './canvas/act.js';
@@ -95,7 +96,7 @@ export function Canvas({ r, vlist }: { r: Rec; vlist: JSX.Element }): JSX.Elemen
           <button class="btn sm" type="button" data-cv-act="w-add">＋ ワーカー</button>
           <button class="btn sm" type="button" onClick={(event) => { event.stopPropagation(); select(r, { how: 'field', what: null }); }}>チームの説明を編集</button>
           <span class="cv-hint">{hint}</span>
-          {cur ? <button class="btn sm cv-edit-selection" type="button" onClick={(event) => { event.stopPropagation(); const panel = box.current?.querySelector<HTMLElement>('.cv-side'); if (!panel) return; const band = document.querySelector<HTMLElement>('.bar')?.offsetHeight || 0; const summary = box.current?.closest('.tdef')?.querySelector<HTMLElement>(':scope > .sum')?.offsetHeight || 0; panel.style.scrollMarginTop = `${band + summary + 12}px`; panel.scrollIntoView({ block: 'start', behavior: 'smooth' }); (panel.querySelector<HTMLElement>('input, select') || panel.querySelector<HTMLElement>('button'))?.focus({ preventScroll: true }); }}>選択した属性を編集</button> : null}
+          {cur ? <button class="btn sm cv-edit-selection" type="button" onClick={(event) => { event.stopPropagation(); const panel = box.current?.querySelector<HTMLElement>('.cv-side'); if (!panel) return; const summary = box.current?.closest('.tdef')?.querySelector<HTMLElement>(':scope > .sum')?.offsetHeight || 0; movePage('editSelection', panel, { extra: summary + 12 }); (panel.querySelector<HTMLElement>('input, select') || panel.querySelector<HTMLElement>('button'))?.focus({ preventScroll: true }); }}>選択した属性を編集</button> : null}
         </div>
         <div class="cv-canvas"><Figure r={r} /><Menu r={r} /></div>
         <div class="vlist">{vlist}</div>

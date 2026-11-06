@@ -4,9 +4,9 @@
 // onInput からここの関数を直接呼ぶ。だから同じ押し込みが 2 回走ることも、部品が
 // 自分の DOM を書き換えることもない（webui-preact-design 5 章 1）。
 import {
-  rows, filterKind, query, placeGroups, pathFor, labelOf, classOf, BASE_KINDS, assignKind,
+  filterKind, query, placeGroups, pathFor, labelOf, classOf, BASE_KINDS, assignKind,
   addRow, duplicateRow, copyPanel, discardPanel, deletePanel, savePanel, checkPanel,
-  patchPanel, panelByKey, toggleRow, closeRow, closeAllConfirm, askFocus, askScroll, syncURL,
+  patchPanel, panelByKey, toggleRow, closeRow, closeAllConfirm, askFocus, syncURL,
   syncAssignURL, saveTeam, tellDirty,
 } from './state.js';
 import type { Place } from '../lib/api.js';
@@ -46,8 +46,6 @@ export function clearFilter(): void {
 // ---- the rows -----------------------------------------------------------
 export function pressToggle(key: string): void {
   toggleRow(key);
-  const row = rows.value.find((r) => r.key === key);
-  if (row && row.open) askScroll(key);
   syncURL();
   tellDirty();
 }

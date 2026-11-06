@@ -25,7 +25,7 @@ import { ConflictNotice } from '../lib/conflict.js';
 import { RunCell } from '../lib/hq/run.js';
 import { state as hq, projectName as hqProjectName } from '../lib/hq.js';
 import { copyGroupOf } from '../lib/copy.js';
-import { bringUnderBand } from '../lib/page-position.js';
+import { movePage } from '../lib/page-position.js';
 import {
   PLACES, PLACE, DIR, HQ, GROUPED, GROUPS, CURRENT, state, allRecs, groupRecs, rowsInGroup, placeGroups,
   dkey, currentProjectName, teamLabel, dtabOf, isOpenRow, missingOpen,
@@ -121,11 +121,6 @@ function PlaceHead({ g }: { g: TeamGroup }) {
 function Row({ r }: { r: Rec }) {
   const open = isOpenRow(r);
   const el = useRef<HTMLDivElement>(null);
-  const wasOpen = useRef(false);
-  useEffect(() => {
-    if (open && !wasOpen.current && dtabOf(r) !== 'agree') bringUnderBand(el.current);
-    wasOpen.current = open;
-  }, [open]);
   useEffect(() => {
     const ask = focusAsk.value;
     if (!ask || ask.dom !== r.dom || !el.current) return;
@@ -135,7 +130,7 @@ function Row({ r }: { r: Rec }) {
     if (one instanceof HTMLInputElement) one.select();
     // A copy brings the page to the row it made (d-022a): the row a person
     // pressed stands in the other place, and the copy is off the screen.
-    if (ask.scroll) bringUnderBand(el.current);
+    if (ask.scroll) movePage('copyRow', el.current);
   }, [focusAsk.value]);
   return (
     <div class={'tdef' + (open ? ' open' : '') + (dirtyDef(r) ? ' unsaved' : '')} data-name={r.dom} data-key={dkey(r)} ref={el}>

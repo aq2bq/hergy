@@ -15,7 +15,7 @@ import { setDirty } from '../lib/nav.js';
 import type {
   Assign, AssignRow, Carried, Draft, EnvPair, FocusAsk, Island,
   IslandHQ, HQProfileGroup, IslandRow, OpenTarget, Panel, ProfileCheck,
-  ProfileList, Problem, Row, ScrollAsk, Team, YamlFile, YamlOne,
+  ProfileList, Problem, Row, Team, YamlFile, YamlOne,
 } from './types.js';
 
 // mustElement is a node the page always carries: the screen reads it once, and
@@ -334,10 +334,6 @@ export const saveBlocked = (panel: Panel): boolean =>
 export const focusAsk = signal<FocusAsk | null>(null);
 export function askFocus(key: string, field: string, index: number, select: boolean, scroll?: boolean): void {
   focusAsk.value = { key, field, index: index || 0, select: !!select, scroll: !!scroll, seq: ((focusAsk.value && focusAsk.value.seq) || 0) + 1 };
-}
-export const scrollAsk = signal<ScrollAsk | null>(null);
-export function askScroll(rowKey: string): void {
-  scrollAsk.value = { key: rowKey, seq: ((scrollAsk.value && scrollAsk.value.seq) || 0) + 1 };
 }
 
 // ---- the list's own operations -----------------------------------------
