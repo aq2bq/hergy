@@ -72,7 +72,7 @@ const enc = (s: unknown): string => encodeURIComponent(String(s == null ? '' : s
 // reading (spec 6 章): the reading replaces the answers, not the pick.
 export const selected = signal<string | null>(null);
 
-function openTeam(): { name: string; group: string } {
+export function openedTeam(): { name: string; group: string } {
   if (!A) return { name: '', group: '' };
   const one = A.readOpen(new URLSearchParams(location.search))[0];
   return one || { name: '', group: '' };
@@ -161,7 +161,7 @@ async function readBoard(stop: AbortSignal): Promise<ActivityBoard> {
   // The pick is the address's (an opened team) while the screen has none of it,
   // and the first team otherwise (spec 6 章).
   if (!selected.value || !teams.some((t) => t.name === selected.value)) {
-    const pick = openTeam();
+    const pick = openedTeam();
     const found = pick.name ? teams.find((t) => t.name === pick.name && (!pick.group || t.project === pick.group)) : null;
     selected.value = found ? found.name : (teams[0] ? teams[0].name : null);
   }

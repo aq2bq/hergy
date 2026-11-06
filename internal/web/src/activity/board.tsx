@@ -1,5 +1,5 @@
 import { call, problemText } from '../lib/api';
-import { useState } from '../lib/preact';
+import { useState, useEffect, useRef } from '../lib/preact';
 // activity/board.tsx — アクティビティの画面（spec 6 章、r-8a67、d-8a45）。
 //
 // 上から、人間を待っている（許可待ち・人間の返事待ち）と止まっているチーム、
@@ -10,7 +10,7 @@ import { useState } from '../lib/preact';
 import type { JSX } from 'preact';
 import * as A from '../lib/hq.js';
 import { openSheet, teamCount } from '../lib/apply/state.js';
-import { teams, note, current, noneText, ST, NS, lastMoment, pick } from './state.js';
+import { teams, note, current, noneText, ST, NS, lastMoment, pick, openedTeam } from './state.js';
 import type { ActivityTeam, CrewMember } from './state.js';
 import { Figure } from './figure.js';
 import { movePage } from '../lib/page-position.js';
@@ -118,6 +118,14 @@ export function Board(): JSX.Element {
 function BoardRows(): JSX.Element {
   const rows = teams.value;
   const n = note.value;
+  const fromAddress = useRef(openedTeam().name);
+  useEffect(() => {
+    if (!fromAddress.current) return;
+    const tile = Array.from(document.querySelectorAll<HTMLElement>('.hq-tile[data-team]')).find((el) => el.dataset.team === fromAddress.current);
+    if (!tile) return;
+    fromAddress.current = '';
+    requestAnimationFrame(() => movePage('openByURL', tile));
+  }, [rows]);
   if (!rows.length) return <p class="gone">{n.ok ? noneText : n.text}</p>;
   if (!n.ok) return <p class="gone">{n.text}</p>;
   return <div class="hq-board"><Attention rows={rows} /><div class="hq-tiles">{rows.map((t) => <Tile key={t.name} team={t} />)}</div>{rows.some(t => t.workers.some(w => !w.from)) ? <p class="hq-worker-guide">雇い主不明：起動記録には、ワーカーを雇ったメンバーの情報がありません。ワーカーのペインで確認してください。</p> : null}</div>;

@@ -521,6 +521,10 @@ export function setWide(r: Rec): void {
 }
 export const recs = signal<Rec[]>([]);
 export const missingOpen = signal<string[]>([]);
+// addressOpen is the rows the address opened: the first draw after the boot
+// brings the first of them into the screen (d-c5ce, decision 2). A press opens
+// a row without moving the page (d-2b33).
+export const addressOpen = new Set<string>();
 let uids = 0;
 
 // defOf is one item of GET /api/team (or of one group of GET /api/hq/teams)
@@ -1474,7 +1478,10 @@ export function readURL() {
     if (!rows.length) missing.push(ref.name);
     // An address with no place opens both rows of that name: the old link names
     // a definition, and the screen cannot tell which side it meant (d-a143).
-    rows.forEach((r) => refs.add(token(r.name.value, urlGroup(r))));
+    rows.forEach((r) => {
+      refs.add(token(r.name.value, urlGroup(r)));
+      addressOpen.add(r.dom);
+    });
   });
   missingOpen.value = missing;
   put({ open: refs });
