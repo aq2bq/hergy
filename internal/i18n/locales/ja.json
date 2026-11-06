@@ -610,5 +610,7 @@
   "delivery.document_unreadable": "%s: 以前の本文と比較できません。起動の記録の旧形式を読めませんでした",
   "danger.profile_item": "%s の 1 項目 %s を消します。",
   "danger.file_stays": "ファイルは残ります。",
-  "danger.profile_users": "%d 人が使っています。"
+  "danger.profile_users": "%d 人が使っています。",
+  "danger.role_doc": "%s を消します。",
+  "danger.role_used": "%d 人が読んでいます。"
 }

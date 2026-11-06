@@ -175,7 +175,7 @@ func r2EffectiveDoc(row r2Row) *r2Doc {
 // Get is GET /api/role/{name}?place=: one document, its text and its hash.
 func (k apiRole) Get(name, place string) (any, *apiErr) {
 	s := k.s
-	path := s.cat.RolePath(place, name)
+	path, _, _ := s.roleTargets(place, name)
 	text, err := s.cat.Reader().Read(source.Doc{Path: path})
 	if err != nil {
 		return nil, refuse(http.StatusNotFound, t("web.error.not_found"))

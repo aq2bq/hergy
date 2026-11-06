@@ -2,7 +2,10 @@ package web
 
 import (
 	"fmt"
+	"github.com/aq2bq/hergy/internal/catalog"
 	"net/http"
+	"net/url"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -39,4 +42,33 @@ func TestPROFILES_DangerLossNamesWhatDeleteTakes(t *testing.T) {
 		_ = err
 	}
 	_ = fmt.Sprint()
+}
+
+// TestROLES_DangerLossNamesWhatDeleteTakes: a used role's loss names the
+// document and its readers, and Delete takes that same document.
+func TestROLES_DangerLossNamesWhatDeleteTakes(t *testing.T) {
+	f := ruFixtureRoles(t)
+	server := f.server(t)
+	path := ruRolePath(f, catalog.PlaceProject, "builder")
+	lines, refusal := server.dangerLossRole(catalog.PlaceProject, "builder")
+	if refusal != nil {
+		t.Fatalf("the loss: %+v", refusal)
+	}
+	joined := strings.Join(lines, "\n")
+	if !strings.Contains(joined, "builder.md") {
+		t.Errorf("the loss does not name the document: %v", lines)
+	}
+	hash := source.Hash(readFile(t, path))
+	resp, body := f.api(t, server, http.MethodDelete, "/api/role/builder?place=project&hash="+url.QueryEscape(hash), nil)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("DELETE answers %d: %s", resp.StatusCode, body)
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Errorf("the document the loss named is still there: %v", err)
+	}
+	// A role nobody names carries no readers line.
+	unused, _ := server.dangerLossRole(catalog.PlaceGlobal, "writer")
+	if strings.Contains(strings.Join(unused, "\n"), "読んでいます") {
+		t.Errorf("an unused role names readers: %v", unused)
+	}
 }

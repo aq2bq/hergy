@@ -610,5 +610,7 @@
   "delivery.document_unreadable": "%s: cannot compare the previous document; the legacy launch snapshot is unreadable",
   "danger.profile_item": "Delete the profile %2$s from %1$s.",
   "danger.file_stays": "The file stays.",
-  "danger.profile_users": "%d people use it."
+  "danger.profile_users": "%d people use it.",
+  "danger.role_doc": "Delete %s.",
+  "danger.role_used": "%d people read it."
 }
