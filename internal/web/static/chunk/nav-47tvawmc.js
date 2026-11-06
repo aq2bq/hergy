@@ -9,7 +9,7 @@
 
 import {
   y
-} from "./nav-wtffyt4p.js";
+} from "./nav-zn7g81kr.js";
 
 // lib/wheel.ts
 var LINE = 16;

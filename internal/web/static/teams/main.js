@@ -20,12 +20,12 @@ import {
   O,
   x,
   u
-} from "../chunk/nav-wtffyt4p.js";
+} from "../chunk/nav-zn7g81kr.js";
 import {
   carryTo2,
   takeDraft2,
   setDirty2
-} from "../chunk/nav-tsc4shg2.js";
+} from "../chunk/nav-5vd3v6sp.js";
 import {
   call2,
   read2,
@@ -55,43 +55,43 @@ import {
   Counts2,
   Vm2,
   RuleDoc2
-} from "../chunk/nav-gyepqzgw.js";
+} from "../chunk/nav-cc35hn2j.js";
 import {
   st,
   token2,
   parseOpen2,
   projectName2,
   runDanger
-} from "../chunk/nav-jyed3n26.js";
+} from "../chunk/nav-rpd3x2p4.js";
 import {
   offerUndo
-} from "../chunk/nav-28mg0k2z.js";
+} from "../chunk/nav-exx7f16c.js";
 import {
   RunCell2
-} from "../chunk/nav-mngrt1we.js";
+} from "../chunk/nav-h4dvq7g8.js";
 import {
   conflictOf,
   ConflictNotice,
   YamlTab2
-} from "../chunk/nav-p3ncw2dt.js";
+} from "../chunk/nav-0r9vj0y4.js";
 import {
   roleEditor,
   roleProblems
-} from "../chunk/nav-j0bacxcx.js";
+} from "../chunk/nav-g1kfx462.js";
 import {
   copyGroupOf,
   groupPlace,
   projectOfGroup,
   bringUnderBand,
   ProjectView
-} from "../chunk/nav-3chtstze.js";
+} from "../chunk/nav-2n09h7bf.js";
 import {
   Field
-} from "../chunk/nav-hrc2s6sc.js";
+} from "../chunk/nav-9htrbyn7.js";
 import {
   installWheel,
   resource
-} from "../chunk/nav-xgdfw3q1.js";
+} from "../chunk/nav-47tvawmc.js";
 import {
   snapshot,
   dirty,
@@ -5798,22 +5798,11 @@ function DtabsNav({ r }) {
   });
 }
 function Dacts({ r }) {
-  const del = () => runDanger("deleteTeam", { run: () => pressDelYes(r), confirm: {
-    title: `${teamLabel(r)} を削除しますか`,
-    body: /* @__PURE__ */ u(S, {
-      children: [
-        /* @__PURE__ */ u("p", {
-          children: `${placeName(r.place.value)} の ${r.name.value}/ から team.yaml と agreement.md を消します。`
-        }),
-        /* @__PURE__ */ u("p", {
-          children: /* @__PURE__ */ u("b", {
-            children: "取り消せません。"
-          })
-        })
-      ]
-    }),
-    label: "削除する（team.yaml と agreement.md）"
-  } });
+  const del = () => runDanger("deleteTeam", {
+    run: () => pressDelYes(r),
+    loss: { kind: "team", name: r.name.value, place: r.place.value, project: groupOfRecord(r) },
+    confirm: { title: `${teamLabel(r)} を削除しますか`, label: "削除する（team.yaml と agreement.md）" }
+  });
   const touched = () => bornTouched(r);
   const discard = () => {
     if (!touched()) {

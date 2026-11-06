@@ -17,7 +17,6 @@ import {
   noteStarting, definitionDoc, listProject, unlistProject, groupOf, projectOfGroup,
   groupLabel, runningTeam,
 } from './state.js';
-import type { RunningTeam } from './state.js';
 
 type HQProject = components['schemas']['HQProject'];
 type HQLaunchOptions = components['schemas']['HQLaunchOptions'];
@@ -523,25 +522,7 @@ export function startSheet(definition: string, place: string, project: string): 
 // stopSheet asks in the shared dialog, listing the panes it will close, and runs
 // the stop only after the person chose 終了する (r-d480, d-021e).
 export function stopSheet(team: string): void {
-  const t: RunningTeam | null = runningTeam(team);
-  const members = (t?.members || []).filter((m) => m.live !== false).map((m) => m.name);
-  const workers = (t?.workers || []).length;
-  const workspace = t?.workspace.label || t?.workspace.id || '';
-  const project = (t && (t.project_name || projectName(t.project))) || '';
-  const place = [
-    workspace ? `ワークスペース ${workspace} は閉じません。` : '',
-    project ? `${project} で` : '',
-  ].filter(Boolean).join('');
-  runDanger('stopTeam', { run: () => { openSheet(<StopSheet team={team} />); }, confirm: {
-    title: `チーム ${team} を終了しますか`,
-    body: <>
-      {t ? <dl class="hq-kv"><dt>プロジェクト</dt><dd><code>{project}</code></dd>{workspace ? <><dt>ワークスペース</dt><dd><code>{workspace}</code></dd></> : ''}
-        <dt>閉じるペイン</dt><dd>{`メンバー ${members.length} 人（`}{spaced(members.map((m) => <code>{m}</code>))}{`）${workers ? `と、${team} が追加したワーカー ${workers} 人のタブ` : ''}`}</dd></dl> : null}
-      <p class="hq-sub">{`エージェントを終了してペインを閉じます。${place ? `${place} ` : ''}`}<code>{`hergy down ${team}`}</code>{' を打つのと同じです。'}</p>
-      <p class="hq-err"><strong>会話は残りません。この操作は取り消せません。</strong></p>
-    </>,
-    label: '終了する',
-  } });
+  runDanger('stopTeam', { run: () => { openSheet(<StopSheet team={team} />); }, loss: { kind: 'activity', name: team }, confirm: { title: `チーム ${team} を終了しますか`, label: '終了する' } });
 }
 
 export function projectsSheet(): void {

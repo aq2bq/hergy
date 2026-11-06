@@ -39,6 +39,8 @@ test('an empty workspace has no trailing separator or stop-sheet row, and a name
   serve((method, url) => {
     if (url === '/api/activity') return { items: teams, herdr: { ok: true }, running: 2, waiting: 0 };
     if (url === '/api/activity/empty' || url === '/api/activity/named') return { doc: { nodes: [], hired: [], question: '' } };
+    if (url === '/api/danger/activity/empty') return { lines: ['メンバー 0 人のペインを閉じます。', '会話は残りません。'] };
+    if (url === '/api/danger/activity/named') return { lines: ['メンバー 0 人のペインを閉じます。', 'ワークスペース w1 は閉じません。', '会話は残りません。'] };
     if (url === '/api/hq/running') return running;
     return undefined;
   });
@@ -59,19 +61,14 @@ test('an empty workspace has no trailing separator or stop-sheet row, and a name
   document.querySelector('.hq-tile[data-team="empty"] [data-hq="stop"]').click();
   await settle();
   let ask = document.querySelector('.confirm');
-  expect([...ask.querySelectorAll('.hq-kv dt')].map((row) => row.textContent)).toEqual(['プロジェクト', '閉じるペイン']);
-  expect(ask.querySelector('.hq-kv').textContent).not.toContain('ワークスペース');
-  expect(ask.querySelector('.hq-sub').textContent).not.toContain('ワークスペース');
+  expect(ask.textContent).not.toContain('ワークスペース');
 
   ask.querySelector('.confirm footer .btn').click();
   await settle();
   document.querySelector('.hq-tile[data-team="named"] [data-hq="stop"]').click();
   await settle();
   ask = document.querySelector('.confirm');
-  const workspaceRow = [...ask.querySelectorAll('.hq-kv dt')].find((row) => row.textContent === 'ワークスペース');
-  expect(workspaceRow).not.toBe(undefined);
-  expect(workspaceRow.nextElementSibling.textContent).toBe('本体');
-  expect(ask.querySelector('.hq-sub').textContent).toContain('ワークスペース 本体 は閉じません。');
+  expect(ask.textContent).toContain('ワークスペース w1 は閉じません。');
 });
 
 test('the headquarters movement field has no dangling separator when the workspace is unnamed', async () => {

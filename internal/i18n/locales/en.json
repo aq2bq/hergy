@@ -620,5 +620,6 @@
   "danger.stop_workers": "%d workers’ tabs close too.",
   "danger.stop_workspace": "Workpace %s stays.",
   "danger.stop_talk": "The conversation does not stay. This cannot be taken back.",
-  "danger.team_running": "The team %s is running. It is not stopped."
+  "danger.team_running": "The team %s is running. It is not stopped.",
+  "danger.irreversible": "This cannot be taken back."
 }

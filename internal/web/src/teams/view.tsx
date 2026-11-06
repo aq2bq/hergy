@@ -280,11 +280,11 @@ function DtabsNav({ r }: { r: Rec }) {
 function Dacts({ r }: { r: Rec }) {
   // Deleting cannot be taken back: it is asked for in the shared dialog, away
   // from this button, so the same place pressed twice never deletes (r-d480).
-  const del = () => runDanger('deleteTeam', { run: () => pressDelYes(r), confirm: {
-    title: `${teamLabel(r)} を削除しますか`,
-    body: <><p>{`${placeName(r.place.value)} の ${r.name.value}/ から team.yaml と agreement.md を消します。`}</p><p><b>取り消せません。</b></p></>,
-    label: '削除する（team.yaml と agreement.md）',
-  } });
+  const del = () => runDanger('deleteTeam', {
+    run: () => pressDelYes(r),
+    loss: { kind: 'team', name: r.name.value, place: r.place.value, project: groupOfRecord(r) },
+    confirm: { title: `${teamLabel(r)} を削除しますか`, label: '削除する（team.yaml と agreement.md）' },
+  });
   // The starter's words stand on the base the row was seeded with, so the same
   // rule as the other screens holds: nothing changed since it was made is thrown
   // away at once, and anything the person put in is asked for (r-d480).

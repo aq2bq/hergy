@@ -208,11 +208,7 @@ function Panel({ panel }: { panel: PanelState }) {
     <>
       {saved ? <button class="btn" data-act="dup" onClick={() => pressDup(panel.key)}>複製</button> : ''}
       {saved && canCopy(panel) ? <button class="btn" data-act="copy" onClick={() => pressCopy(panel.key)}>{panel.otherLabel}にコピー</button> : ''}
-      {saved ? <button class="btn danger" data-act="del" data-danger data-danger-act="deleteProfile" onClick={() => runDanger('deleteProfile', { run: () => pressDelYes(panel.key), confirm: {
-        title: `プロファイル ${panel.draft.name || panel.saved?.name || ''} を削除しますか`,
-        body: <><p>{`${panel.path} から プロファイル ${panel.draft.name || panel.saved?.name || ''} を消します。ファイルは残ります。`}{panel.users ? `${panel.users} 人が使っています。` : ''}</p><p><b>取り消せません。</b></p></>,
-        label: `削除する${panel.users ? `（${panel.users} 人が使っている）` : ''}`,
-      } })}>削除</button> : <button class="btn danger" data-act="discard" data-danger data-danger-act="discardRow" onClick={() => {
+      {saved ? <button class="btn danger" data-act="del" data-danger data-danger-act="deleteProfile" onClick={() => runDanger('deleteProfile', { run: () => pressDelYes(panel.key), loss: { kind: 'profile', name: panel.draft.name || panel.saved?.name || '', place: panel.file, project: panel.group }, confirm: { title: `プロファイル ${panel.draft.name || panel.saved?.name || ''} を削除しますか`, label: `削除する${panel.users ? `（${panel.users} 人が使っている）` : ''}` } })}>削除</button> : <button class="btn danger" data-act="discard" data-danger data-danger-act="discardRow" onClick={() => {
         // A panel nobody touched since it was made goes at once (r-d480).
         if (!panel.saved && (!panel.born || !dirty(PROFILE, panel.born, writtenProfile(panel)))) { pressDiscard(panel.key); return; }
         runDanger('discardRow', { run: () => pressDiscard(panel.key), confirm: { title: '入力した内容を捨てますか', body: <p>保存していない入力があります。<b>取り消せません。</b></p>, label: '破棄する' } });

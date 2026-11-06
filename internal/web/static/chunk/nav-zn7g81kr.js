@@ -1200,7 +1200,7 @@ function u(e, t, n, o, i, u) {
   return l.vnode && l.vnode(l2), l2;
 }
 
-export { S, R, d, h, _, A, T, q, y, O, x, u };
+export { k, S, R, d, h, _, A, T, q, y, O, x, u };
 
 // ---- licences ---------------------------------------------------------
 //

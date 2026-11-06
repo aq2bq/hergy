@@ -7,6 +7,8 @@
 import { askConfirm } from './confirm.js';
 import type { ConfirmAsk } from './confirm.js';
 import { offerUndo } from './undo.js';
+import { h } from './preact.js';
+import { read } from './api.js';
 
 export type DangerAction =
   | 'deleteTeam' | 'deleteRole' | 'deleteProfile' | 'stopTeam' | 'discardRow'
@@ -25,11 +27,14 @@ export const DANGER: Record<DangerAction, 'confirm' | 'undoable' | 'none'> = {
 export type DangerOptions = {
   run: () => void | Promise<void>;
   // confirm actions: the words the person reads (called only for 'confirm').
-  confirm?: Omit<ConfirmAsk, 'run'>;
+  confirm?: { title: string; label: string; body?: unknown };
   // undoable actions: what to put back and where the notice stands.
   host?: HTMLElement | null;
   restore?: () => void;
   said?: string;
+  // loss names the thing whose loss the server answers; the confirmation's body
+  // is the server's lines, not the screen's words (r-ccf8, ac-ddb6).
+  loss?: { kind: 'team' | 'role' | 'profile' | 'activity'; name: string; place?: string; project?: string };
 };
 
 // runDanger asks the table and does the one thing it says.
@@ -41,5 +46,21 @@ export function runDanger(action: DangerAction, opts: DangerOptions): void {
     if (opts.restore) offerUndo({ said: opts.said || '実行しました', restore: opts.restore }, opts.host);
     return;
   }
-  if (opts.confirm) askConfirm({ ...opts.confirm, run: opts.run });
+  if (!opts.confirm) return;
+  const ask = { ...opts.confirm };
+  if (opts.loss) {
+    const loss = opts.loss;
+    const q = new URLSearchParams();
+    if (loss.place) q.set('place', loss.place);
+    if (loss.project) q.set('project', loss.project);
+    const url = `/api/danger/${encodeURIComponent(loss.kind)}/${encodeURIComponent(loss.name)}${q.toString() ? `?${q}` : ''}`;
+    void read<{ lines: string[] }>(url).then((answer) => {
+      const lines = (answer && answer.lines) || [];
+      askConfirm({ ...ask, body: h('div', {}, lines.map((line) => h('p', {}, line))), run: opts.run } as ConfirmAsk);
+    }).catch((err: unknown) => {
+      askConfirm({ ...ask, body: h('p', { role: 'alert' }, `消えるものを読めませんでした: ${String(err)}`), run: () => undefined } as ConfirmAsk);
+    });
+    return;
+  }
+  askConfirm({ ...ask, body: ask.body ?? h('div', {}), run: opts.run } as ConfirmAsk);
 }

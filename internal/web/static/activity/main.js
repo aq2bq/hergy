@@ -14,13 +14,13 @@ import {
   y,
   O,
   u
-} from "../chunk/nav-wtffyt4p.js";
+} from "../chunk/nav-zn7g81kr.js";
 import {
   call2,
   read2,
   problemText2
 } from "../chunk/nav-sk3m5qf3.js";
-import"../chunk/nav-tsc4shg2.js";
+import"../chunk/nav-5vd3v6sp.js";
 import {
   setRunning2,
   token2,
@@ -33,16 +33,16 @@ import {
   stopSheet2,
   teamCount,
   openSheet
-} from "../chunk/nav-jyed3n26.js";
-import"../chunk/nav-28mg0k2z.js";
+} from "../chunk/nav-rpd3x2p4.js";
+import"../chunk/nav-exx7f16c.js";
 import {
   TeamFigure2,
   exports_hq
-} from "../chunk/nav-mngrt1we.js";
+} from "../chunk/nav-h4dvq7g8.js";
 import {
   installWheel,
   resource
-} from "../chunk/nav-xgdfw3q1.js";
+} from "../chunk/nav-47tvawmc.js";
 
 // activity/state.ts
 var POLL = 1e4;

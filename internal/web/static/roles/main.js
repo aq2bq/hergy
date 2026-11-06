@@ -14,7 +14,7 @@ import {
   A,
   y,
   u
-} from "../chunk/nav-wtffyt4p.js";
+} from "../chunk/nav-zn7g81kr.js";
 import {
   save2,
   del2,
@@ -27,14 +27,14 @@ import {
 import {
   takeDraft2,
   setDirty2
-} from "../chunk/nav-tsc4shg2.js";
+} from "../chunk/nav-5vd3v6sp.js";
 import {
   token2,
   parseOpen2,
   runDanger
-} from "../chunk/nav-jyed3n26.js";
-import"../chunk/nav-28mg0k2z.js";
-import"../chunk/nav-mngrt1we.js";
+} from "../chunk/nav-rpd3x2p4.js";
+import"../chunk/nav-exx7f16c.js";
+import"../chunk/nav-h4dvq7g8.js";
 import {
   Measure,
   renameCarries2,
@@ -44,28 +44,28 @@ import {
   Badge2,
   Vm2,
   RuleDoc2
-} from "../chunk/nav-gyepqzgw.js";
+} from "../chunk/nav-cc35hn2j.js";
 import {
   conflictOf,
   ConflictNotice,
   YamlTab2
-} from "../chunk/nav-p3ncw2dt.js";
+} from "../chunk/nav-0r9vj0y4.js";
 import {
   roleEditor,
   roleProblems
-} from "../chunk/nav-j0bacxcx.js";
+} from "../chunk/nav-g1kfx462.js";
 import {
   copyGroupOf,
   projectOfGroup,
   bringUnderBand,
   ProjectView
-} from "../chunk/nav-3chtstze.js";
+} from "../chunk/nav-2n09h7bf.js";
 import {
   Field
-} from "../chunk/nav-hrc2s6sc.js";
+} from "../chunk/nav-9htrbyn7.js";
 import {
   installWheel
-} from "../chunk/nav-xgdfw3q1.js";
+} from "../chunk/nav-47tvawmc.js";
 import {
   snapshot,
   dirty,
@@ -1994,25 +1994,7 @@ function Panel({ r, l }) {
                 "data-act": "del",
                 "data-danger": true,
                 "data-danger-act": "deleteRole",
-                onClick: () => runDanger("deleteRole", { run: () => doDelete(r.uid, l), confirm: {
-                  title: `ロール ${d.name} を削除しますか`,
-                  body: /* @__PURE__ */ u(S, {
-                    children: [
-                      /* @__PURE__ */ u("p", {
-                        children: [
-                          `${placeLabel} の roles/${d.name}.md を消します。`,
-                          nread ? `${nread} 人が読んでいます。` : ""
-                        ]
-                      }),
-                      /* @__PURE__ */ u("p", {
-                        children: /* @__PURE__ */ u("b", {
-                          children: "取り消せません。"
-                        })
-                      })
-                    ]
-                  }),
-                  label: `削除する${nread ? `（${nread} 人が読んでいる）` : ""}`
-                } }),
+                onClick: () => runDanger("deleteRole", { run: () => doDelete(r.uid, l), loss: { kind: "role", name: d.name, place: l, project: groupOfRow(r) }, confirm: { title: `ロール ${d.name} を削除しますか`, label: `削除する${nread ? `（${nread} 人が読んでいる）` : ""}` } }),
                 children: "削除"
               })
             ]

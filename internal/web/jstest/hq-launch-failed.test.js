@@ -44,6 +44,7 @@ test('a start that failed says who, why and what is left, and opens the stop she
   serve((method, url) => {
     if (url.startsWith('/api/hq/launches/')) return { launch: failed };
     if (url === '/api/hq/running') return running();
+    if (url.startsWith('/api/danger/')) return { lines: ['会話は残りません。この操作は取り消せません。'] };
     return undefined;
   });
   const { runStart } = await import('../src/lib/hq/sheets');

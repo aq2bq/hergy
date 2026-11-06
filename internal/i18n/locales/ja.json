@@ -620,5 +620,6 @@
   "danger.stop_workers": "%d 人のワーカーのタブも閉じます。",
   "danger.stop_workspace": "ワークスペース %s は閉じません。",
   "danger.stop_talk": "会話は残りません。この操作は取り消せません。",
-  "danger.team_running": "チーム %s が動いています。チームは終了しません。"
+  "danger.team_running": "チーム %s が動いています。チームは終了しません。",
+  "danger.irreversible": "取り消せません。"
 }

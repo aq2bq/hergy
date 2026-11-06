@@ -262,11 +262,7 @@ function Panel({ r, l }: { r: RoleRow; l: Place }) {
             if (untouched) { pressDiscard(r.uid, l); return; }
             runDanger('discardRow', { run: () => pressDiscard(r.uid, l), confirm: { title: '入力した内容を捨てますか', body: <p>保存していない入力があります。<b>取り消せません。</b></p>, label: '破棄する' } });
           }}>取り消し</button>
-            : <button class="btn danger" data-act="del" data-danger data-danger-act="deleteRole" onClick={() => runDanger('deleteRole', { run: () => doDelete(r.uid, l), confirm: {
-              title: `ロール ${d.name} を削除しますか`,
-              body: <><p>{`${placeLabel} の roles/${d.name}.md を消します。`}{nread ? `${nread} 人が読んでいます。` : ''}</p><p><b>取り消せません。</b></p></>,
-              label: `削除する${nread ? `（${nread} 人が読んでいる）` : ''}`,
-            } })}>削除</button>}
+            : <button class="btn danger" data-act="del" data-danger data-danger-act="deleteRole" onClick={() => runDanger('deleteRole', { run: () => doDelete(r.uid, l), loss: { kind: 'role', name: d.name, place: l, project: groupOfRow(r) }, confirm: { title: `ロール ${d.name} を削除しますか`, label: `削除する${nread ? `（${nread} 人が読んでいる）` : ''}` } })}>削除</button>}
         </span></header>
       <div class="pmain"><RuleDoc row={row} issues={issues} nameError={nameError} heading={{ kind: 'ロール', name: row.draft.name || '新しいロール', title: row.draft.title,
           id: `role-${r.uid}-${l}`, compact: true, path: `${placeLabel} · roles/${d.name}.md`, fullPath: pathOfRow(r, l, d), state: (n ? '未保存' : '保存済み') + (shadowed ? '（隠れている）' : ''), members: whoReads(row.draft.name, r.group).map((u) => `${u.t.id}: ${u.m.name}`).join('、') }}

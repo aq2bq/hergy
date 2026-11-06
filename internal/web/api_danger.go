@@ -69,6 +69,7 @@ func (s *Server) dangerLossProfile(place, name string) ([]string, *apiErr) {
 	if users > 0 {
 		lines = append(lines, tf("danger.profile_users", users))
 	}
+	lines = append(lines, t("danger.irreversible"))
 	return lines, nil
 }
 
@@ -116,6 +117,7 @@ func (s *Server) dangerLossRole(place, name string) ([]string, *apiErr) {
 	if readers > 0 {
 		lines = append(lines, tf("danger.role_used", readers))
 	}
+	lines = append(lines, t("danger.irreversible"))
 	return lines, nil
 }
 
@@ -168,6 +170,7 @@ func (s *Server) dangerLossTeam(place, name string) ([]string, *apiErr) {
 	if len(leftovers) > 0 {
 		lines = append(lines, tf("danger.team_left", strings.Join(leftovers, "、")))
 	}
+	lines = append(lines, t("danger.irreversible"))
 	return lines, nil
 }
 
@@ -197,6 +200,7 @@ func (s *Server) dangerLossActivity(team string) ([]string, *apiErr) {
 	if label := item.Workspace.Label; label != "" {
 		lines = append(lines, tf("danger.stop_workspace", label))
 	}
+	lines = append(lines, t("danger.irreversible"))
 	lines = append(lines, t("danger.stop_talk"))
 	return lines, nil
 }

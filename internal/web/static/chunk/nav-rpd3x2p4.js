@@ -8,6 +8,7 @@
 // tools/webvendor/package.json and bun.lock.
 
 import {
+  k,
   S,
   R,
   d,
@@ -17,7 +18,7 @@ import {
   y,
   O,
   u
-} from "./nav-wtffyt4p.js";
+} from "./nav-zn7g81kr.js";
 import {
   Refusal2,
   call2,
@@ -31,10 +32,10 @@ import {
   askConfirm,
   setCount2,
   setActivity2
-} from "./nav-tsc4shg2.js";
+} from "./nav-5vd3v6sp.js";
 import {
   offerUndo
-} from "./nav-28mg0k2z.js";
+} from "./nav-exx7f16c.js";
 
 // lib/band-counts.ts
 function applyCounts(counts) {
@@ -326,8 +327,28 @@ function runDanger(action, opts) {
       offerUndo({ said: opts.said || "実行しました", restore: opts.restore }, opts.host);
     return;
   }
-  if (opts.confirm)
-    askConfirm({ ...opts.confirm, run: opts.run });
+  if (!opts.confirm)
+    return;
+  const ask = { ...opts.confirm };
+  if (opts.loss) {
+    const loss = opts.loss;
+    const q = new URLSearchParams;
+    if (loss.place)
+      q.set("place", loss.place);
+    if (loss.project)
+      q.set("project", loss.project);
+    const url = `/api/danger/${encodeURIComponent(loss.kind)}/${encodeURIComponent(loss.name)}${q.toString() ? `?${q}` : ""}`;
+    read2(url).then((answer) => {
+      const lines = answer && answer.lines || [];
+      askConfirm({ ...ask, body: k("div", {}, lines.map((line) => k("p", {}, line))), run: opts.run });
+    }).catch((err) => {
+      askConfirm({ ...ask, body: k("p", { role: "alert" }, `消えるものを読めませんでした: ${String(err)}`), run: () => {
+        return;
+      } });
+    });
+    return;
+  }
+  askConfirm({ ...ask, body: ask.body ?? k("div", {}), run: opts.run });
 }
 
 // lib/hq/sheets.tsx
@@ -1516,80 +1537,11 @@ function startSheet2(definition, place, project) {
   }));
 }
 function stopSheet2(team) {
-  const t = runningTeam2(team);
-  const members = (t?.members || []).filter((m) => m.live !== false).map((m) => m.name);
-  const workers = (t?.workers || []).length;
-  const workspace = t?.workspace.label || t?.workspace.id || "";
-  const project = t && (t.project_name || projectName2(t.project)) || "";
-  const place = [
-    workspace ? `ワークスペース ${workspace} は閉じません。` : "",
-    project ? `${project} で` : ""
-  ].filter(Boolean).join("");
   runDanger("stopTeam", { run: () => {
     openSheet2(/* @__PURE__ */ u(StopSheet, {
       team
     }));
-  }, confirm: {
-    title: `チーム ${team} を終了しますか`,
-    body: /* @__PURE__ */ u(S, {
-      children: [
-        t ? /* @__PURE__ */ u("dl", {
-          class: "hq-kv",
-          children: [
-            /* @__PURE__ */ u("dt", {
-              children: "プロジェクト"
-            }),
-            /* @__PURE__ */ u("dd", {
-              children: /* @__PURE__ */ u("code", {
-                children: project
-              })
-            }),
-            workspace ? /* @__PURE__ */ u(S, {
-              children: [
-                /* @__PURE__ */ u("dt", {
-                  children: "ワークスペース"
-                }),
-                /* @__PURE__ */ u("dd", {
-                  children: /* @__PURE__ */ u("code", {
-                    children: workspace
-                  })
-                })
-              ]
-            }) : "",
-            /* @__PURE__ */ u("dt", {
-              children: "閉じるペイン"
-            }),
-            /* @__PURE__ */ u("dd", {
-              children: [
-                `メンバー ${members.length} 人（`,
-                spaced(members.map((m) => /* @__PURE__ */ u("code", {
-                  children: m
-                }))),
-                `）${workers ? `と、${team} が追加したワーカー ${workers} 人のタブ` : ""}`
-              ]
-            })
-          ]
-        }) : null,
-        /* @__PURE__ */ u("p", {
-          class: "hq-sub",
-          children: [
-            `エージェントを終了してペインを閉じます。${place ? `${place} ` : ""}`,
-            /* @__PURE__ */ u("code", {
-              children: `hergy down ${team}`
-            }),
-            " を打つのと同じです。"
-          ]
-        }),
-        /* @__PURE__ */ u("p", {
-          class: "hq-err",
-          children: /* @__PURE__ */ u("strong", {
-            children: "会話は残りません。この操作は取り消せません。"
-          })
-        })
-      ]
-    }),
-    label: "終了する"
-  } });
+  }, loss: { kind: "activity", name: team }, confirm: { title: `チーム ${team} を終了しますか`, label: "終了する" } });
 }
 function projectsSheet() {
   openSheet2(/* @__PURE__ */ u(ProjectsSheet, {}), "left");

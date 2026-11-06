@@ -13,7 +13,7 @@ import {
   A,
   y,
   u
-} from "./nav-wtffyt4p.js";
+} from "./nav-zn7g81kr.js";
 
 // lib/confirm.tsx
 var confirmAsk = y(null);
