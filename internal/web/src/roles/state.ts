@@ -317,13 +317,16 @@ export const eff = (r: RoleRow): Place => (live(r, 'project') ? 'project' : live
 const rowGroup = (r: RoleRow): string => (GROUPED ? r.group : eff(r));
 // rowsOfRef is every row an address names: an address with no place names both
 // rows of that name (d-a143).
-const rowsOfRef = (name: string, group: string): RoleRow[] => roles.value.filter((x) => {
-  if (curName(x) !== name) return false;
-  if (group) return GROUPED ? rowGroup(x) === group : groupPlace(group, CURRENT) === eff(x);
+const rowsOfRef = (name: string, group: string): RoleRow[] => {
+  const named = roles.value.filter((x) => curName(x) === name);
+  if (group) return named.filter((x) => (GROUPED ? rowGroup(x) === group : groupPlace(group, CURRENT) === eff(x)));
   // The old link names both sides of this project's row: the project's and the
-  // global layer's (d-a143).
-  return !GROUPED || rowGroup(x) === CURRENT || rowGroup(x) === 'global';
-});
+  // global layer's (d-a143). A name only another project holds keeps the old
+  // reading of the first row of that name.
+  if (!GROUPED) return named;
+  const both = named.filter((x) => rowGroup(x) === CURRENT || rowGroup(x) === 'global');
+  return both.length ? both : named.slice(0, 1);
+};
 export const cur = (r: RoleRow): EditableDocument => r[eff(r)]!.draft;
 export const curName = (r: RoleRow): string => (r.markdown ? r.name || '' : (r[eff(r)]!.saved || r[eff(r)]!.draft).name);
 export const savedRoles = (): RoleRow[] => roles.value.filter((r) => live(r, 'project') || live(r, 'global'));

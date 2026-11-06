@@ -259,13 +259,15 @@ var byUid = (id) => roles.value.find((r) => r.uid === Number(id));
 var live = (r, l) => !!(r && r[l] && r[l].saved);
 var eff = (r) => live(r, "project") ? "project" : live(r, "global") ? "global" : r.project ? "project" : "global";
 var rowGroup = (r) => GROUPED ? r.group : eff(r);
-var rowsOfRef = (name, group) => roles.value.filter((x) => {
-  if (curName(x) !== name)
-    return false;
+var rowsOfRef = (name, group) => {
+  const named = roles.value.filter((x) => curName(x) === name);
   if (group)
-    return GROUPED ? rowGroup(x) === group : groupPlace2(group, CURRENT) === eff(x);
-  return !GROUPED || rowGroup(x) === CURRENT || rowGroup(x) === "global";
-});
+    return named.filter((x) => GROUPED ? rowGroup(x) === group : groupPlace2(group, CURRENT) === eff(x));
+  if (!GROUPED)
+    return named;
+  const both = named.filter((x) => rowGroup(x) === CURRENT || rowGroup(x) === "global");
+  return both.length ? both : named.slice(0, 1);
+};
 var cur = (r) => r[eff(r)].draft;
 var curName = (r) => r.markdown ? r.name || "" : (r[eff(r)].saved || r[eff(r)].draft).name;
 var savedRoles = () => roles.value.filter((r) => live(r, "project") || live(r, "global"));
