@@ -348,6 +348,10 @@ function runDanger(action, opts) {
     });
     return;
   }
+  if (opts.lost) {
+    askConfirm({ ...ask, body: k("div", {}, [...opts.lost.map((one) => k("p", {}, one)), k("p", {}, k("b", {}, "取り消せません。"))]), run: opts.run });
+    return;
+  }
   askConfirm({ ...ask, body: ask.body ?? k("div", {}), run: opts.run });
 }
 

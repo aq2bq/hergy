@@ -19,7 +19,7 @@ import {
 import { ConflictNotice } from '../lib/conflict.js';
 import { bringUnderBand } from '../lib/band.js';
 import { RuleDoc, Counts, Badge } from '../lib/ruledoc.js';
-import { dirty as changedDirty, roleDirty , ROLE_DOC } from '../lib/changed.js';
+import { dirty as changedDirty, lost as changedLost, roleDirty, ROLE_DOC } from '../lib/changed.js';
 import type { RuleIssue } from '../lib/ruledoc.js';
 import type { Place, RoleGroup, RoleRow } from './state.js';
 import { AssignPage } from './assign.js';
@@ -260,7 +260,7 @@ function Panel({ r, l }: { r: RoleRow; l: Place }) {
             // goes; there is no template to compare with.
             const untouched = !r.born || !changedDirty(ROLE_DOC, r.born, { name: e.draft.name, title: e.draft.title || '', text: e.draft.text });
             if (untouched) { pressDiscard(r.uid, l); return; }
-            runDanger('discardRow', { run: () => pressDiscard(r.uid, l), confirm: { title: '入力した内容を捨てますか', body: <p>保存していない入力があります。<b>取り消せません。</b></p>, label: '破棄する' } });
+            runDanger('discardRow', { run: () => pressDiscard(r.uid, l), lost: changedLost(ROLE_DOC, r.born || null, { name: e.draft.name, title: e.draft.title || '', text: e.draft.text }), confirm: { title: '入力した内容を捨てますか', label: '破棄する' } });
           }}>取り消し</button>
             : <button class="btn danger" data-act="del" data-danger data-danger-act="deleteRole" onClick={() => runDanger('deleteRole', { run: () => doDelete(r.uid, l), loss: { kind: 'role', name: d.name, place: l, project: groupOfRow(r) }, confirm: { title: `ロール ${d.name} を削除しますか`, label: `削除する${nread ? `（${nread} 人が読んでいる）` : ''}` } })}>削除</button>}
         </span></header>

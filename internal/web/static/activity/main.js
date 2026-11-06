@@ -33,12 +33,12 @@ import {
   stopSheet2,
   teamCount,
   openSheet
-} from "../chunk/nav-rpd3x2p4.js";
+} from "../chunk/nav-ebvdz5my.js";
 import"../chunk/nav-exx7f16c.js";
 import {
   TeamFigure2,
   exports_hq
-} from "../chunk/nav-h4dvq7g8.js";
+} from "../chunk/nav-0f8fybyw.js";
 import {
   installWheel,
   resource

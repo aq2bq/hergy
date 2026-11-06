@@ -1,4 +1,5 @@
 import { runDanger } from '../lib/danger.js';
+import { TEAM as CHANGED_TEAM, TEAM_AGREEMENT as CHANGED_AGREEMENT, lost as changedLost } from '../lib/changed.js';
 import { ProjectView } from '../lib/project-view';
 // teams/view.tsx — チーム定義の画面の一覧とパネル（webui-preact-design 4 章）。
 //
@@ -28,7 +29,7 @@ import { bringUnderBand } from '../lib/band.js';
 import {
   PLACES, PLACE, DIR, HQ, GROUPED, GROUPS, CURRENT, state, allRecs, groupRecs, rowsInGroup, placeGroups,
   dkey, currentProjectName, teamLabel, dtabOf, isOpen, missingOpen,
-  rowIssues, dirtyDef, teamIssues, agreeIssues, agreementChanged, teamChanges, vlistParts,
+  rowIssues, dirtyDef, writtenTeam, teamIssues, agreeIssues, agreementChanged, teamChanges, vlistParts,
   rowOfPanel, okOf, refusalOf, pmodeOf, yfiles, fileOf, yamlChanged, yIssues,
   chosenFile, scheduleAgree, syncURL, focusAsk, groupOfRecord,
   pressTab, pressToggle, pressNew, pressDup, pressCopy, pressDiscard,
@@ -293,11 +294,11 @@ function Dacts({ r }: { r: Rec }) {
   const touched = () => bornTouched(r);
   const discard = () => {
     if (!touched()) { pressDiscard(r); return; }
-    runDanger('discardRow', { run: () => pressDiscard(r), confirm: {
-      title: '入力した内容を捨てますか',
-      body: <p>保存していない入力があります。<b>取り消せません。</b></p>,
-      label: '破棄する',
-    } });
+    const born = r.born.value;
+    runDanger('discardRow', { run: () => pressDiscard(r), lost: [
+      ...changedLost(CHANGED_TEAM, born ? born.team : null, writtenTeam(r)),
+      ...changedLost(CHANGED_AGREEMENT, born ? { text: born.agreement } : null, { text: r.agreeDraft.value.text }),
+    ], confirm: { title: '入力した内容を捨てますか', label: '破棄する' } });
   };
   if (r.draftRow) return <button class="btn danger" data-act="discard" data-danger data-danger-act="discardRow" onClick={discard}>取り消し</button>;
   const o = other(r.place.value);

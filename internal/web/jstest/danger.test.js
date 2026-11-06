@@ -33,3 +33,15 @@ describe('runDanger', () => {
     expect(DANGER.conflictRevert).toBe('undoable');
   });
 });
+
+describe('lost', () => {
+  test('a discard names what it loses and says it cannot be taken back', async () => {
+    const { render, h } = await import('../src/lib/preact.js');
+    runDanger('discardRow', { run: () => {}, lost: ['本文'], confirm: { title: '捨てますか', label: '破棄' } });
+    const host = document.createElement('div');
+    render(h('div', {}, confirmAsk.value.body), host);
+    expect(host.textContent).toContain('本文');
+    expect(host.textContent).toContain('取り消せません');
+    closeConfirm();
+  });
+});

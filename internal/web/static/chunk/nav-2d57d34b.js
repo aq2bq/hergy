@@ -58,6 +58,9 @@ function diff(shape, from, to, readable = true) {
     } }];
   return out;
 }
+function lost(shape, from, to, readable = true) {
+  return diff(shape, from, to, readable).map((f) => f.label);
+}
 function empty(v) {
   if (v === null || v === undefined || v === "")
     return true;
@@ -124,4 +127,4 @@ function profileFlags(saved, draft, readable = true) {
   return out;
 }
 
-export { snapshot, dirty, diff, ROLE_DOC, TEAM, TEAM_AGREEMENT, PROFILE, YAML_TEXT, roleDirty, assignDirty, yamlDirty, profileFlags };
+export { snapshot, dirty, diff, lost, ROLE_DOC, TEAM, TEAM_AGREEMENT, PROFILE, YAML_TEXT, roleDirty, assignDirty, yamlDirty, profileFlags };

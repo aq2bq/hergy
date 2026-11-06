@@ -35,6 +35,8 @@ export type DangerOptions = {
   // loss names the thing whose loss the server answers; the confirmation's body
   // is the server's lines, not the screen's words (r-ccf8, ac-ddb6).
   loss?: { kind: 'team' | 'role' | 'profile' | 'activity'; name: string; place?: string; project?: string };
+  // lost is what the owner says a discard throws away, in words (changed.lost).
+  lost?: string[];
 };
 
 // runDanger asks the table and does the one thing it says.
@@ -60,6 +62,10 @@ export function runDanger(action: DangerAction, opts: DangerOptions): void {
     }).catch((err: unknown) => {
       askConfirm({ ...ask, body: h('p', { role: 'alert' }, `消えるものを読めませんでした: ${String(err)}`), run: () => undefined } as ConfirmAsk);
     });
+    return;
+  }
+  if (opts.lost) {
+    askConfirm({ ...ask, body: h('div', {}, [...opts.lost.map((one) => h('p', {}, one)), h('p', {}, h('b', {}, '取り消せません。'))]), run: opts.run } as ConfirmAsk);
     return;
   }
   askConfirm({ ...ask, body: ask.body ?? h('div', {}), run: opts.run } as ConfirmAsk);

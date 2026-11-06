@@ -32,9 +32,9 @@ import {
   token2,
   parseOpen2,
   runDanger
-} from "../chunk/nav-rpd3x2p4.js";
+} from "../chunk/nav-ebvdz5my.js";
 import"../chunk/nav-exx7f16c.js";
-import"../chunk/nav-h4dvq7g8.js";
+import"../chunk/nav-0f8fybyw.js";
 import {
   Measure,
   renameCarries2,
@@ -44,12 +44,12 @@ import {
   Badge2,
   Vm2,
   RuleDoc2
-} from "../chunk/nav-cc35hn2j.js";
+} from "../chunk/nav-nte0yehk.js";
 import {
   conflictOf,
   ConflictNotice,
   YamlTab2
-} from "../chunk/nav-0r9vj0y4.js";
+} from "../chunk/nav-59d2xrnm.js";
 import {
   roleEditor,
   roleProblems
@@ -69,11 +69,12 @@ import {
 import {
   snapshot,
   dirty,
+  lost,
   ROLE_DOC,
   roleDirty,
   assignDirty,
   yamlDirty
-} from "../chunk/nav-8acs8rk4.js";
+} from "../chunk/nav-2d57d34b.js";
 
 // roles/state.ts
 var view = document.getElementById("view");
@@ -1979,14 +1980,7 @@ function Panel({ r, l }) {
                     pressDiscard(r.uid, l);
                     return;
                   }
-                  runDanger("discardRow", { run: () => pressDiscard(r.uid, l), confirm: { title: "入力した内容を捨てますか", body: /* @__PURE__ */ u("p", {
-                    children: [
-                      "保存していない入力があります。",
-                      /* @__PURE__ */ u("b", {
-                        children: "取り消せません。"
-                      })
-                    ]
-                  }), label: "破棄する" } });
+                  runDanger("discardRow", { run: () => pressDiscard(r.uid, l), lost: lost(ROLE_DOC, r.born || null, { name: e.draft.name, title: e.draft.title || "", text: e.draft.text }), confirm: { title: "入力した内容を捨てますか", label: "破棄する" } });
                 },
                 children: "取り消し"
               }) : /* @__PURE__ */ u("button", {

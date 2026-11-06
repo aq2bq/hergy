@@ -32,14 +32,14 @@ import {
   token2,
   parseOpen2,
   runDanger
-} from "../chunk/nav-rpd3x2p4.js";
+} from "../chunk/nav-ebvdz5my.js";
 import"../chunk/nav-exx7f16c.js";
-import"../chunk/nav-h4dvq7g8.js";
+import"../chunk/nav-0f8fybyw.js";
 import {
   conflictOf,
   ConflictNotice,
   YamlTab2
-} from "../chunk/nav-0r9vj0y4.js";
+} from "../chunk/nav-59d2xrnm.js";
 import {
   copyGroupOf,
   projectOfGroup,
@@ -56,11 +56,12 @@ import {
 import {
   snapshot,
   dirty,
+  lost,
   PROFILE,
   assignDirty,
   yamlDirty,
   profileFlags
-} from "../chunk/nav-8acs8rk4.js";
+} from "../chunk/nav-2d57d34b.js";
 
 // profiles/state.ts
 function mustElement(id) {
@@ -1465,14 +1466,7 @@ function Panel({ panel }) {
             pressDiscard(panel.key);
             return;
           }
-          runDanger("discardRow", { run: () => pressDiscard(panel.key), confirm: { title: "入力した内容を捨てますか", body: /* @__PURE__ */ u("p", {
-            children: [
-              "保存していない入力があります。",
-              /* @__PURE__ */ u("b", {
-                children: "取り消せません。"
-              })
-            ]
-          }), label: "破棄する" } });
+          runDanger("discardRow", { run: () => pressDiscard(panel.key), lost: lost(PROFILE, panel.born || null, writtenProfile(panel)), confirm: { title: "入力した内容を捨てますか", label: "破棄する" } });
         },
         children: "取り消し"
       })
