@@ -32,9 +32,9 @@ import {
   token2,
   parseOpen2,
   runDanger
-} from "../chunk/nav-ba7tjw5e.js";
+} from "../chunk/nav-jyed3n26.js";
 import"../chunk/nav-28mg0k2z.js";
-import"../chunk/nav-e5rnwhtv.js";
+import"../chunk/nav-mngrt1we.js";
 import {
   Measure,
   renameCarries2,
@@ -1975,6 +1975,8 @@ function Panel({ r, l }) {
               !e.saved ? /* @__PURE__ */ u("button", {
                 class: "btn danger",
                 "data-act": "discard",
+                "data-danger": true,
+                "data-danger-act": "discardRow",
                 onClick: () => {
                   const untouched = !r.born || !dirty(ROLE_DOC, r.born, { name: e.draft.name, title: e.draft.title || "", text: e.draft.text });
                   if (untouched) {

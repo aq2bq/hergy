@@ -1284,6 +1284,8 @@ function RunSheet({ id, launch: first }) {
             launch.tab.id ? /* @__PURE__ */ u("button", {
               type: "button",
               class: "hq-btn danger",
+              "data-danger": true,
+              "data-danger-act": "stopTeam",
               "data-hq": "stop",
               "data-team": launch.team,
               onClick: () => stopSheet2(launch.team),

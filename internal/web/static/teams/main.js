@@ -62,13 +62,13 @@ import {
   parseOpen2,
   projectName2,
   runDanger
-} from "../chunk/nav-ba7tjw5e.js";
+} from "../chunk/nav-jyed3n26.js";
 import {
   offerUndo
 } from "../chunk/nav-28mg0k2z.js";
 import {
   RunCell2
-} from "../chunk/nav-e5rnwhtv.js";
+} from "../chunk/nav-mngrt1we.js";
 import {
   conflictOf,
   ConflictNotice,
@@ -5854,6 +5854,8 @@ function Dacts({ r }) {
     return /* @__PURE__ */ u("button", {
       class: "btn danger",
       "data-act": "discard",
+      "data-danger": true,
+      "data-danger-act": "discardRow",
       onClick: discard,
       children: "取り消し"
     });

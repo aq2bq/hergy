@@ -32,9 +32,9 @@ import {
   token2,
   parseOpen2,
   runDanger
-} from "../chunk/nav-ba7tjw5e.js";
+} from "../chunk/nav-jyed3n26.js";
 import"../chunk/nav-28mg0k2z.js";
-import"../chunk/nav-e5rnwhtv.js";
+import"../chunk/nav-mngrt1we.js";
 import {
   conflictOf,
   ConflictNotice,
@@ -1452,6 +1452,8 @@ function Panel({ panel }) {
       saved ? /* @__PURE__ */ u("button", {
         class: "btn danger",
         "data-act": "del",
+        "data-danger": true,
+        "data-danger-act": "deleteProfile",
         onClick: () => runDanger("deleteProfile", { run: () => pressDelYes(panel.key), confirm: {
           title: `プロファイル ${panel.draft.name || panel.saved?.name || ""} を削除しますか`,
           body: /* @__PURE__ */ u(S, {
@@ -1475,6 +1477,8 @@ function Panel({ panel }) {
       }) : /* @__PURE__ */ u("button", {
         class: "btn danger",
         "data-act": "discard",
+        "data-danger": true,
+        "data-danger-act": "discardRow",
         onClick: () => {
           if (!panel.saved && (!panel.born || !dirty(PROFILE, panel.born, writtenProfile(panel)))) {
             pressDiscard(panel.key);

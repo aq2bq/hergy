@@ -299,7 +299,7 @@ function Dacts({ r }: { r: Rec }) {
       label: '破棄する',
     } });
   };
-  if (r.draftRow) return <button class="btn danger" data-act="discard" onClick={discard}>取り消し</button>;
+  if (r.draftRow) return <button class="btn danger" data-act="discard" data-danger data-danger-act="discardRow" onClick={discard}>取り消し</button>;
   const o = other(r.place.value);
   const group = copyGroupOf(o, groupOfRecord(r), GROUPED ? CURRENT : '');
   // A name the side the copy would go to already holds is not offered again:

@@ -251,7 +251,7 @@ function Panel({ r, l }: { r: RoleRow; l: Place }) {
       <header class="edit-actions"><b>ロール {d.name}</b>        <span class="acts">
           {e.saved ? <button class="btn" data-act="dup" onClick={() => pressDup(r.uid, l)}>複製</button> : ''}
           {canCopy(r, l) ? <button class="btn" data-act="copy" onClick={() => pressCopy(r.uid, l)}>{LNAME[other(l)]}にコピー</button> : ''}
-          {!e.saved ? <button class="btn danger" data-act="discard" onClick={() => {
+          {!e.saved ? <button class="btn danger" data-act="discard" data-danger data-danger-act="discardRow" onClick={() => {
             // Compared with what the row was made with (a new one, a duplicate
             // or a copy), so a fresh copy that nobody touched goes at once
             // (r-d480).
