@@ -10,6 +10,9 @@ changed_enforce: true
 # The danger section: the confirmation and the undo notice have one owner each,
 # and every danger button says which action it runs (r-ccf8, d-2cce, d-aeeb).
 danger_enforce: true
+# The prompt section: 渡る文 is built by promptsFor (internal/web/api_prompt.go)
+# and read by teams/prompt-source.ts, and nowhere else (⑤ r-ba9b, d-002b).
+prompt_enforce: true
 enforce: true
 #
 # Every entry needs the path, the name, why the owner is not the place for it,

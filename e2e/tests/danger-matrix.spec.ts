@@ -162,7 +162,7 @@ test.describe('undo: one press takes it back where it was pressed', () => {
     await line.focus();
     await page.keyboard.press('Enter');
     await page.keyboard.press('Delete');
-    await expect(panel.locator('.undo')).toContainText('のターンを外した');
+    await expect(panel.locator('.undo')).toContainText('のターンを外しました');
     await panel.locator('.undo button').click();
     await expect(panel.locator('.undo')).toHaveCount(0);
     // The turn is back: the draft is the file's again, and the line it was
@@ -171,6 +171,23 @@ test.describe('undo: one press takes it back where it was pressed', () => {
     await line.focus();
     await page.keyboard.press('Enter');
     await expect(panel.locator('.cv-side .cv-t')).toContainText('⇄');
+  });
+
+  test('the figure: one direction of a line says that direction', async ({ page, app }) => {
+    // A turn that goes one way only (the sample's lines go both ways): removing
+    // the line takes that direction, and the notice names it with →.
+    const file = path.join(app.proj, '.hergy/teams/core/team.yaml');
+    writeFileSync(file, text(file).replace('  - human -> lead\n', '  - human -> lead\n  - analyst -> reviewer\n'));
+    await page.goto(`${app.base}/teams?open=core`); await ready(page);
+    const panel = page.locator('.tdef[data-name="core"] .panel.team-p');
+    const line = panel.locator('.cv-hit[data-cv-e*="analyst"][data-cv-e*="reviewer"]');
+    await line.focus();
+    await page.keyboard.press('Enter');
+    await page.keyboard.press('Delete');
+    await expect(panel.locator('.undo')).toContainText('analyst → reviewer のターンを外しました');
+    await panel.locator('.undo button').click();
+    await expect(panel.locator('.undo')).toHaveCount(0);
+    await expect(panel.locator('[data-act="t-save"]')).toBeDisabled();
   });
 
   test('the figure: a worker', async ({ page, app }) => {

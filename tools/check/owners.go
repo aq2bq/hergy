@@ -40,6 +40,9 @@ type ownerRule struct {
 	name  string
 	where string // "go" or "ts", which files the name is looked for in
 	files []string
+	// scope, when set, reads only files under these directory prefixes: a rule
+	// about one layer does not list every caller in the other layers.
+	scope []string
 }
 
 // ownerRules is the table the gate reads. The lists are paths or directory
@@ -90,6 +93,55 @@ var dangerNameRules = []ownerRule{
 	{name: "window.confirm", where: "ts", files: []string{dangerOwner}},
 }
 
+// The prompt section (⑤ r-ba9b): the text handed to a member or a worker is
+// built by promptsFor (internal/web/api_prompt.go) and read by prompt-source.ts,
+// and nowhere else. The check and the two panels ask the owners; they build no
+// text and keep no second reading of it.
+const (
+	promptBuilder = "internal/web/api_prompt.go"
+	promptReader  = "internal/web/src/teams/prompt-source.ts"
+)
+
+// promptGoRules are the builder's calls, read only in the WebUI's server: the
+// command's own senders (up, hire, apply) are outside this layer and keep their
+// calls.
+var promptGoRules = []ownerRule{
+	{name: "prompt.Member", where: "go", scope: []string{"internal/web/"}, files: []string{promptBuilder}},
+	{name: "prompt.Worker", where: "go", scope: []string{"internal/web/"}, files: []string{promptBuilder}},
+	{name: "t2PromptOf", where: "go", scope: []string{"internal/web/"}, files: []string{promptBuilder}},
+	{name: "prompt.TurnsOf", where: "go", scope: []string{"internal/web/"}, files: []string{promptBuilder}},
+	{name: "prompt.WorkersOf", where: "go", scope: []string{"internal/web/"}, files: []string{promptBuilder}},
+}
+
+// promptWords are the names the copies used. They stand only in their owner, and
+// the ones with no owner at all (an old cache, an old reading) stand nowhere.
+var promptWords = []struct {
+	name  string
+	files []string
+}{
+	{"wprompts", nil},
+	{"wpromptReq", nil},
+	{"workerPrompt", nil},
+	{"promptsOf", nil},
+	{"promptsReady", nil},
+	{"memberPrompts", nil},
+	{"keepRun", nil},
+	{"promptRun", []string{promptReader}},
+	{"runOf", []string{promptReader}},
+	{"setRun", []string{promptReader}},
+}
+
+// promptStrings are the addresses only the reader may name: a screen that calls
+// them itself is the second reading the section exists for.
+var promptStrings = []struct {
+	text  string
+	files []string
+}{
+	{"/api/team/prompt-comparison", []string{promptReader}},
+	{"part: 'worker'", []string{promptReader}},
+	{`part: "worker"`, []string{promptReader}},
+}
+
 // changedOwner is the one module that decides 「変えたか」 (r-1e9a).
 const changedOwner = "internal/web/src/lib/changed.ts"
 
@@ -114,6 +166,7 @@ type ownersFile struct {
 	Enforce        bool         `yaml:"enforce"`
 	ChangedEnforce bool         `yaml:"changed_enforce"`
 	DangerEnforce  bool         `yaml:"danger_enforce"`
+	PromptEnforce  bool         `yaml:"prompt_enforce"`
 	Allow          []ownerAllow `yaml:"allow"`
 }
 
@@ -144,15 +197,20 @@ func (r *runner) ownersGate() error {
 	if err != nil {
 		return err
 	}
-	if len(findings)+len(danger) == 0 {
+	prompt, err := r.promptFindings(conf)
+	if err != nil {
+		return err
+	}
+	all := append(append(append([]string{}, findings...), danger...), prompt...)
+	if len(all) == 0 {
 		return nil
 	}
-	for _, finding := range append(append([]string{}, findings...), danger...) {
+	for _, finding := range all {
 		fmt.Println(finding)
 	}
 	// Each section turns Hard on its own: a section still reporting prints its
 	// findings and passes, and an enforced one fails (owners.yml).
-	failed := len(findings) > 0 && conf.Enforce || len(danger) > 0 && conf.DangerEnforce
+	failed := len(findings) > 0 && conf.Enforce || len(danger) > 0 && conf.DangerEnforce || len(prompt) > 0 && conf.PromptEnforce
 	if !failed {
 		which := ""
 		if len(findings) > 0 && !conf.Enforce {
@@ -161,10 +219,13 @@ func (r *runner) ownersGate() error {
 		if len(danger) > 0 && !conf.DangerEnforce {
 			which += " danger_enforce"
 		}
-		fmt.Printf("owners: %d 件（報告のみ。tools/check/owners.yml の%s を true にする前に、持ち主へ寄せるか許可リストに理由と決定を添えてください）\n", len(findings)+len(danger), which)
+		if len(prompt) > 0 && !conf.PromptEnforce {
+			which += " prompt_enforce"
+		}
+		fmt.Printf("owners: %d 件（報告のみ。tools/check/owners.yml の%s を true にする前に、持ち主へ寄せるか許可リストに理由と決定を添えてください）\n", len(all), which)
 		return nil
 	}
-	return fmt.Errorf("持ち主の外で帯の件数を書く・一覧の行を決める・危ない操作の確認や取り消しを書く場所が %d 件", len(findings)+len(danger))
+	return fmt.Errorf("持ち主の外で帯の件数を書く・一覧の行を決める・危ない操作の確認や取り消しを書く・渡る文を組み立てる場所が %d 件", len(all))
 }
 
 func (r *runner) ownersConf() (ownersFile, error) {
@@ -204,6 +265,9 @@ func (r *runner) ownerFindings(conf ownersFile) ([]string, error) {
 		goFile := strings.HasSuffix(rel, ".go")
 		for _, rule := range ownerRules {
 			if rule.where == "go" != goFile {
+				continue
+			}
+			if len(rule.scope) > 0 && !allowed(rel, rule.scope) {
 				continue
 			}
 			if goFile && strings.HasSuffix(rel, "_test.go") {
@@ -294,6 +358,94 @@ func callLines(code, name string) []int {
 		i = at + len(name)
 	}
 	return out
+}
+
+// promptFindings is the prompt section: the builder's calls (only in the
+// WebUI's server), the names the copies used, and the two addresses only the
+// reader names. It reads the WebUI's Go and TypeScript, not the command's.
+func (r *runner) promptFindings(conf ownersFile) ([]string, error) {
+	files, err := r.sourceFiles()
+	if err != nil {
+		return nil, err
+	}
+	var out []string
+	for _, path := range files {
+		rel, err := filepath.Rel(r.root, path)
+		if err != nil {
+			return nil, err
+		}
+		rel = filepath.ToSlash(rel)
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			return nil, err
+		}
+		goFile := strings.HasSuffix(rel, ".go")
+		if goFile && strings.HasSuffix(rel, "_test.go") {
+			continue
+		}
+		if !goFile && !allowed(rel, []string{"internal/web/"}) {
+			continue // the WebUI's screens, not a generated contract or another kind
+		}
+		code := maskSpec(string(raw))
+		if goFile {
+			for _, rule := range promptGoRules {
+				if len(rule.scope) > 0 && !allowed(rel, rule.scope) {
+					continue
+				}
+				if allowed(rel, rule.files) || allowedBy(rel, conf.Allow, rule.name) {
+					continue
+				}
+				for _, line := range wordLines(code, rule.name) {
+					out = append(out, fmt.Sprintf("%s:%d: %s はここではなく %s に置いてください", rel, line, rule.name, promptBuilder))
+				}
+			}
+		}
+		for _, one := range promptWords {
+			if allowed(rel, one.files) || allowedBy(rel, conf.Allow, one.name) {
+				continue
+			}
+			for _, line := range wordLines(code, one.name) {
+				out = append(out, fmt.Sprintf("%s:%d: %s は %s に置いてください", rel, line, one.name, promptReader))
+			}
+		}
+		if goFile {
+			continue
+		}
+		for _, one := range promptStrings {
+			if allowed(rel, one.files) {
+				continue
+			}
+			for _, line := range stringLines(string(raw), one.text) {
+				out = append(out, fmt.Sprintf("%s:%d: %s を直に呼ばず %s を通してください", rel, line, one.text, promptReader))
+			}
+		}
+	}
+	return out, nil
+}
+
+// wordLines is the 1-based lines where a whole word stands: the name with no
+// identifier character before or after it, so setRun is not setRunning.
+func wordLines(code, name string) []int {
+	pattern := regexp.MustCompile(`(^|[^A-Za-z0-9_$])` + regexp.QuoteMeta(name) + `([^A-Za-z0-9_$]|$)`)
+	var out []int
+	for _, at := range pattern.FindAllStringIndex(code, -1) {
+		out = append(out, lineOf(code, at[0]))
+	}
+	return out
+}
+
+// stringLines is the 1-based lines where a text stands in the source as written,
+// strings included: an address a screen calls itself is a string.
+func stringLines(text, want string) []int {
+	var out []int
+	for i := 0; ; {
+		j := strings.Index(text[i:], want)
+		if j < 0 {
+			return out
+		}
+		out = append(out, lineOf(text, i+j))
+		i += j + len(want)
+	}
 }
 
 // dangerFindings is the danger section's four rules: the old confirmation names

@@ -4793,6 +4793,13 @@ function remove(r, action, ops, o) {
     host: panelOf(r)
   });
 }
+function turnDirection(ops) {
+  const turns = ops.filter((op) => op.kind === "removeTurn");
+  if (turns.length === 2 && turns.some((op) => op.from === turns[0].to && op.to === turns[0].from)) {
+    return `${nodeName(turns[0].from)} ⇄ ${nodeName(turns[0].to)}`;
+  }
+  return `${nodeName(turns[0].from)} → ${nodeName(turns[0].to)}`;
+}
 function del(r) {
   const t = r.draft.value, sel = selOf(r);
   if (!sel)
@@ -4808,8 +4815,10 @@ function del(r) {
     if (hasTurn(t, b, a))
       ops.push({ kind: "removeTurn", from: b, to: a });
     selectPick(r, null);
-    if (ops.length)
-      remove(r, "removeTurn", ops, { said: `${nodeName(a)} ⇄ ${nodeName(b)} のターンを外した`, undo: `${nodeName(a)} ⇄ ${nodeName(b)} のターンを外したのを取り消した` });
+    if (ops.length) {
+      const direction = turnDirection(ops);
+      remove(r, "removeTurn", ops, { said: `${direction} のターンを外しました`, undo: `${direction} のターンを外したのを取り消した` });
+    }
   } else if (sel.type === "worker") {
     const w = t.workers[sel.i];
     if (!w)
@@ -5014,12 +5023,14 @@ function onClick(r, e) {
     if (hasTurn(t, q, p))
       ops.push({ kind: "removeTurn", from: q, to: p });
     selectPick(r, null);
-    if (ops.length)
-      remove(r, "removeTurn", ops, { said: `${nodeName(p)} ⇄ ${nodeName(q)} のターンを外した`, undo: `${nodeName(p)} ⇄ ${nodeName(q)} のターンを外したのを取り消した` });
+    if (ops.length) {
+      const direction = turnDirection(ops);
+      remove(r, "removeTurn", ops, { said: `${direction} のターンを外しました`, undo: `${direction} のターンを外したのを取り消した` });
+    }
     return;
   }
   if (a === "turn-del") {
-    remove(r, "removeTurn", [{ kind: "removeTurn", from: b.dataset.a || "", to: b.dataset.b || "" }], { said: `${nodeName(b.dataset.a || "")} → ${nodeName(b.dataset.b || "")} のターンを外した`, undo: `${nodeName(b.dataset.a || "")} → ${nodeName(b.dataset.b || "")} のターンを足したのを取り消した` });
+    remove(r, "removeTurn", [{ kind: "removeTurn", from: b.dataset.a || "", to: b.dataset.b || "" }], { said: `${nodeName(b.dataset.a || "")} → ${nodeName(b.dataset.b || "")} のターンを外しました`, undo: `${nodeName(b.dataset.a || "")} → ${nodeName(b.dataset.b || "")} のターンを外したのを取り消した` });
     return;
   }
   if (a === "turn-add") {

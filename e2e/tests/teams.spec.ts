@@ -216,7 +216,7 @@ async function saveShape(page: Parameters<typeof read>[0], app: { base: string; 
     page,
     `${panel}.querySelector('.undo').textContent`,
     'the removal notice reads',
-  ).toContain('impl-b → reviewer のターンを外した');
+  ).toContain('impl-b → reviewer のターンを外しました');
   await wait(page, `${panel}.querySelector('footer.pf .dirty').textContent.trim()==='1 か所'`);
   await press(page, `${panel}.querySelector('[data-act=t-save]')`);
   await wait(page, there2(panel, '.ok'));
@@ -529,7 +529,7 @@ test('TEAMS-C2 undo after letting go, a line from the keyboard, and no two point
   await readTo<string>(page, `${panel}.querySelector('.cv-side .cv-t').textContent`, 'the picked line reads').toContain('⇄');
   await page.keyboard.press('Delete');
   await wait(page, `!!${panel}.querySelector('.undo')`);
-  await readTo<string>(page, `${panel}.querySelector('.undo').textContent`, 'the removed line reads').toContain('のターンを外した');
+  await readTo<string>(page, `${panel}.querySelector('.undo').textContent`, 'the removed line reads').toContain('のターンを外しました');
 
   // (4) no two points stand over each other, including a worker just added.
   const overlap = `(function(){var b=[...document.querySelectorAll('.tdef[data-name="core"] .cv-n')].map(function(e){return e.getBoundingClientRect()});for(var i=0;i<b.length;i++)for(var j=i+1;j<b.length;j++){var a=b[i],c=b[j];if(a.left<c.right-1&&c.left<a.right-1&&a.top<c.bottom-1&&c.top<a.bottom-1)return 'point '+i+' and '+j+' cover each other';}return '';})()`;

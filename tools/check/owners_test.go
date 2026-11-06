@@ -266,3 +266,74 @@ func TestDangerFindingsFlagsTheClosingWarning(t *testing.T) {
 		t.Fatalf("an allowed closing warning failed:\n%s", strings.Join(findings, "\n"))
 	}
 }
+
+// TestPromptFindingsFlagsTheBuilderOutsideItsOwner: a WebUI server file that
+// builds a prompt itself is the copy ⑤ r-ba9b removed.
+func TestPromptFindingsFlagsTheBuilderOutsideItsOwner(t *testing.T) {
+	root := t.TempDir()
+	writeTree(t, root, "internal/web/api_team.go", "func build(def *Definition) { prompt.Member(def, node, run) }\n")
+	r := &runner{root: root}
+	findings, err := r.promptFindings(ownersFile{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(findings) != 1 || !strings.Contains(findings[0], "prompt.Member") || !strings.Contains(findings[0], "api_prompt.go") {
+		t.Fatalf("findings = %v, want one for prompt.Member", findings)
+	}
+}
+
+// TestPromptFindingsFlagsTheReadersOutsideTheirOwner: a screen that calls the
+// comparison itself, or brings back an old cache name, fails.
+func TestPromptFindingsFlagsTheReadersOutsideTheirOwner(t *testing.T) {
+	root := t.TempDir()
+	writeTree(t, root, "internal/web/src/teams/canvas/prompt.tsx",
+		"const one = () => call('POST', '/api/team/prompt-comparison');\n"+
+			"const two = () => workerPrompt(r, i);\n")
+	r := &runner{root: root}
+	findings, err := r.promptFindings(ownersFile{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(findings) != 2 {
+		t.Fatalf("findings = %v, want the address and the old name", findings)
+	}
+	joined := strings.Join(findings, "\n")
+	if !strings.Contains(joined, "prompt-comparison") || !strings.Contains(joined, "workerPrompt") {
+		t.Errorf("findings = %v, want both named", findings)
+	}
+}
+
+// TestPromptFindingsLetsTheOwnersThrough: the builder and the reader pass, and
+// the command's own senders are outside the section's scope.
+func TestPromptFindingsLetsTheOwnersThrough(t *testing.T) {
+	root := t.TempDir()
+	writeTree(t, root, "internal/web/api_prompt.go", "func build(def *Definition) { prompt.Member(def, node, run); prompt.Worker(prompt.WorkerInput{}) }\n")
+	writeTree(t, root, "internal/web/src/teams/prompt-source.ts",
+		"const p = signal({});\nconst runOf = (k) => '';\nconst setRun = (k, t) => {};\n"+
+			"const one = () => call('POST', '/api/team/prompt-comparison');\nconst two = () => check('team', { part: 'worker' });\n")
+	writeTree(t, root, "internal/app/hire.go", "func plan() { prompt.Worker(prompt.WorkerInput{}) }\n")
+	r := &runner{root: root}
+	findings, err := r.promptFindings(ownersFile{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(findings) != 0 {
+		t.Fatalf("read %d findings, want none:\n%s", len(findings), strings.Join(findings, "\n"))
+	}
+}
+
+// TestOwnersPromptSectionIsHard: the prompt section reports while its flag is
+// false and fails once prompt_enforce is true.
+func TestOwnersPromptSectionIsHard(t *testing.T) {
+	root := t.TempDir()
+	writeTree(t, root, "internal/web/api_team.go", "func build() { prompt.Member(nil, nil, run) }\n")
+	writeTree(t, root, ownersPath, "prompt_enforce: false\nallow: []\n")
+	r := &runner{root: root}
+	if err := r.ownersGate(); err != nil {
+		t.Fatalf("a report run failed: %v", err)
+	}
+	writeTree(t, root, ownersPath, "prompt_enforce: true\nallow: []\n")
+	if err := r.ownersGate(); err == nil {
+		t.Fatal("an enforced prompt section passed with a builder outside its owner")
+	}
+}
