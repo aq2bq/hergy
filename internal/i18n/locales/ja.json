@@ -636,5 +636,14 @@
   "turns.to_human_undelivered": "%s → %s: 渡せませんでした（%s）。ターンは人間へ\n",
   "turns.started": "人間が %s のターンを始めました\n",
   "turns.read_error": "herdr を読めません: %s\n",
-  "turns.save_error": "ターンの状態を書けません: %s\n"
+  "turns.save_error": "ターンの状態を書けません: %s\n",
+  "launcher.watcher_started": "見張り: %s のターンを渡す見張りをペイン %s で起動しました\n",
+  "launcher.watcher_failed": "見張り: %s の見張りを起動できませんでした（%s）。hergy turns %s で起動できます\n",
+  "status.turn": "ターン",
+  "status.turn_holder": "%s（%s から受けた）",
+  "status.turn_human": "人間（%s から）%s",
+  "status.turn_why_silent": "。1 行も書かずに止まったため",
+  "status.turn_why_undelivered": "。渡し先に届かなかったため",
+  "status.turn_why_no-edge": "。渡す線が無いため",
+  "status.no_watcher": "見張りが居ません。hergy turns %s で起動できます\n"
 }

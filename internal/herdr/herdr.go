@@ -5,6 +5,7 @@ package herdr
 import (
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -281,6 +282,26 @@ func (h *Herdr) Split(pane, direction, cwd string, env map[string]string) (strin
 		return "", err
 	}
 	return protocol.DigString(result, "pane", "pane_id")
+}
+
+// SplitRatio splits a pane, the pane it splits keeping ratio of the room, and
+// returns the new pane: the strip under the members a team's watcher runs in
+// (d-5b60).
+func (h *Herdr) SplitRatio(pane, direction string, ratio float64, cwd string, env map[string]string) (string, error) {
+	args := []string{"pane", "split", pane, "--direction", direction, "--ratio", strconv.FormatFloat(ratio, 'f', 2, 64), "--cwd", cwd}
+	args = append(args, envArgs(env)...)
+	args = append(args, "--no-focus")
+	result, err := h.port.JSON(args...)
+	if err != nil {
+		return "", err
+	}
+	return protocol.DigString(result, "pane", "pane_id")
+}
+
+// Run runs one command in a pane's shell.
+func (h *Herdr) Run(pane string, command []string) error {
+	_, err := h.port.JSON(append([]string{"pane", "run", pane}, command...)...)
+	return err
 }
 
 // Rename names a pane after its member.

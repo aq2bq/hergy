@@ -1301,6 +1301,7 @@ func TestUpProductionShowsNoPerMemberProvenance(t *testing.T) {
 		"version: 1",
 		"team.yaml: .hergy/teams/demo/team.yaml",
 		"profiles: .hergy/profiles.yaml",
+		"watcher: demo's turns are handed on by the watcher in pane p2",
 		"submitted: demo-lead (pane p1)",
 		"submitted: demo-builder (pane p2)",
 		"booted: demo (tab t1)",

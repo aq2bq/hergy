@@ -636,5 +636,14 @@
   "turns.to_human_undelivered": "%s → %s: could not be handed on (%s). The turn goes to the human\n",
   "turns.started": "the human started %s's turn\n",
   "turns.read_error": "herdr cannot be read: %s\n",
-  "turns.save_error": "the turn's state cannot be written: %s\n"
+  "turns.save_error": "the turn's state cannot be written: %s\n",
+  "launcher.watcher_started": "watcher: %s's turns are handed on by the watcher in pane %s\n",
+  "launcher.watcher_failed": "watcher: %s's watcher could not be started (%s); hergy turns %s starts it\n",
+  "status.turn": "turn",
+  "status.turn_holder": "%s (handed by %s)",
+  "status.turn_human": "the human (from %s)%s",
+  "status.turn_why_silent": ": it stopped without writing a line",
+  "status.turn_why_undelivered": ": the recipient never started",
+  "status.turn_why_no-edge": ": it hands the turn to nobody",
+  "status.no_watcher": "no watcher is running; hergy turns %s starts it\n"
 }

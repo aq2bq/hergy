@@ -43,6 +43,10 @@ type Launcher struct {
 	// adding a member: apply is the caller that hands the lineup itself, so the
 	// command line it suggests would be wrong (d-36ef).
 	noNext bool
+	// watcher is the command a boot runs in the strip under the members: hergy
+	// turns, the watcher that hands each stopped member's turn on (r-bc26,
+	// d-90e0, d-5b60). Nil runs none.
+	watcher []string
 
 	// kill stops a process group. It is a field so a test can record the call
 	// instead of signalling a real process group.
@@ -107,6 +111,13 @@ type Waiting struct {
 	Pane      string
 }
 
+// WithWatcher makes a boot run command in a strip under the members, as the
+// team's watcher (hergy turns <team>). It returns the launcher.
+func (l *Launcher) WithWatcher(command []string) *Launcher {
+	l.watcher = command
+	return l
+}
+
 // WithContext stops the wait when ctx is done. It returns the launcher.
 func (l *Launcher) WithContext(ctx context.Context) *Launcher {
 	l.ctx = ctx
@@ -157,8 +168,16 @@ func (l *Launcher) BootIn(workspace, up string) error {
 	if space, err := l.herdr.Workspace(workspace); err == nil {
 		l.wsLabel = space.Label
 	}
-	if _, err := l.createTab(workspace, &members[0], l.teamTabLabel()); err != nil {
+	root, err := l.createTab(workspace, &members[0], l.teamTabLabel())
+	if err != nil {
 		return err
+	}
+	if l.watcher != nil {
+		// The watcher's strip is cut off the bottom before the members are laid
+		// out above it, so the members' layout is the one it always was.
+		if err := l.startWatcher(root, &members[0]); err != nil {
+			fmt.Fprint(l.out, i18n.Tf("launcher.watcher_failed", l.team, err.Error(), l.team))
+		}
 	}
 	l.stage(i18n.T("progress.stage.creating_panes"))
 	for _, step := range layout.Plan(namesOf(members), 0) {
@@ -175,6 +194,32 @@ func (l *Launcher) BootIn(workspace, up string) error {
 	}
 	fmt.Fprintf(l.out, i18n.T("launcher.boot_complete"), l.team, l.tabID())
 	fmt.Fprint(l.out, i18n.T("launcher.boot_submitted"))
+	return nil
+}
+
+// watcherRatio is the share of the tab the members keep above the watcher's
+// strip (d-5b60).
+const watcherRatio = 0.85
+
+// WatcherPane is the name of the pane a team's watcher runs in: "<team>-turns",
+// named for the team like a member's pane, so down closes it with the rest.
+func WatcherPane(team string) string { return team + "-turns" }
+
+// startWatcher cuts the strip under the first member's pane, names it, and runs
+// the watcher there. The strip keeps the project's directory and the member's
+// environment (the same hergy, the same settings).
+func (l *Launcher) startWatcher(root string, first *definition.Start) error {
+	pane, err := l.herdr.SplitRatio(root, "down", watcherRatio, first.Cwd, first.Env)
+	if err != nil {
+		return err
+	}
+	if err := l.herdr.Rename(pane, WatcherPane(l.team)); err != nil {
+		return err
+	}
+	if err := l.herdr.Run(pane, l.watcher); err != nil {
+		return err
+	}
+	fmt.Fprint(l.out, i18n.Tf("launcher.watcher_started", l.team, pane))
 	return nil
 }
 

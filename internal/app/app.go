@@ -37,6 +37,7 @@ import (
 	"github.com/aq2bq/hergy/internal/spawn"
 	"github.com/aq2bq/hergy/internal/status"
 	"github.com/aq2bq/hergy/internal/team"
+	"github.com/aq2bq/hergy/internal/turns"
 	"github.com/aq2bq/hergy/internal/version"
 )
 
@@ -1326,7 +1327,7 @@ func runUp(ctx context.Context, env team.Env, opts *options.Options, stdout, std
 		return err
 	}
 	printHeader(stdout, r, env, true)
-	l := newLauncher(r, opts.Timeout, stdout)
+	l := newLauncher(r, opts.Timeout, stdout).WithWatcher(watcherCommand(r.team.Name, env.ProjectRoot))
 	up := hergyCommand(opts)
 	// A boot that stops partway says the same thing the screen's start sheet
 	// says: the member, herdr's reason, what remains, and the command to go on
@@ -1654,7 +1655,61 @@ func runStatus(env team.Env, opts *options.Options, stdout io.Writer) error {
 	for _, row := range rows {
 		field(stdout, row.Name, row.Text())
 	}
+	printTurn(stdout, r.team.Name)
 	return printStatusJudgement(stdout, rows, "")
+}
+
+// watcherCommand is what a boot runs in the watcher's strip: this hergy, hergy
+// turns <team>, in the project, in the language the command line runs in.
+func watcherCommand(teamName, projectRoot string) []string {
+	return []string{executable(), "turns", teamName, "-C", projectRoot, "--lang", i18n.Language()}
+}
+
+// printTurn is the status line about the turn: who holds it, from whom, and why
+// the human does when hergy handed it over; and whether the watcher's pane is
+// there at all (r-bc26).
+func printTurn(stdout io.Writer, teamName string) {
+	dir, err := screenlog.DefaultDir()
+	if err != nil {
+		return
+	}
+	st, err := turns.Load(turns.Path(dir, teamName), teamName)
+	if err != nil {
+		return
+	}
+	if st.Since.IsZero() {
+		// The watcher has not seen this team: there is no turn to speak of.
+		if !watcherPresent(teamName) {
+			fmt.Fprint(stdout, i18n.Tf("status.no_watcher", teamName))
+		}
+		return
+	}
+	if st.Holder == turns.Human {
+		why := ""
+		if st.Why != "" {
+			why = i18n.T("status.turn_why_" + st.Why)
+		}
+		field(stdout, i18n.T("status.turn"), i18n.Tf("status.turn_human", st.From, why))
+	} else {
+		field(stdout, i18n.T("status.turn"), i18n.Tf("status.turn_holder", st.Holder, st.From))
+	}
+	if !watcherPresent(teamName) {
+		fmt.Fprint(stdout, i18n.Tf("status.no_watcher", teamName))
+	}
+}
+
+// watcherPresent is whether a pane named for the team's watcher is live in herdr.
+func watcherPresent(teamName string) bool {
+	panes, err := herdrPanes()
+	if err != nil {
+		return true // nothing to say when herdr cannot be asked
+	}
+	for _, pane := range panes {
+		if pane.Label == launcher.WatcherPane(teamName) {
+			return true
+		}
+	}
+	return false
 }
 
 // statusOfARunningTeam keeps the reason a running team's definition cannot be

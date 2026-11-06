@@ -63,6 +63,12 @@ var ownerRules = []ownerRule{
 	{name: "ReadableOf", where: "go", files: []string{"internal/catalog/", "internal/web/"}},
 	{name: "ListedRoles", where: "go", files: []string{"internal/catalog/"}},
 	{name: "navRoles", where: "go", files: []string{"internal/catalog/"}},
+	// The turn's holder (r-bc26): the step that moves the turn and the write of
+	// its state are called by the watcher alone; status and the screens only
+	// read it (turns.Load).
+	{name: "turns.Step", where: "go", files: []string{"internal/app/turns.go"}},
+	{name: "turns.Save", where: "go", files: []string{"internal/app/turns.go"}},
+	{name: "Undelivered(", where: "go", files: []string{"internal/turns/", "internal/app/turns.go"}},
 }
 
 // The danger section: the one table of what a dangerous action does, and the one

@@ -528,7 +528,7 @@ func (h *hqRead) activeLaunch(teamName string) (string, bool) {
 
 // runStart runs one start in the background and keeps its progress.
 func (h *hqRead) runStart(ctx context.Context, op *launchOp, env team.Env, r *resolved, in web.HQLaunchIn, workspace web.HQWorkspace) {
-	l := newLauncherWithPort(r, 30000, io.Discard, h.act.herdrPort()).WithContext(ctx)
+	l := newLauncherWithPort(r, 30000, io.Discard, h.act.herdrPort()).WithContext(ctx).WithWatcher(watcherCommand(r.team.Name, env.ProjectRoot))
 	l.Observe(func(event launcher.Event) { h.observe(op, event) })
 	command := startCommand(in.Definition, r.team.Name)
 	err := l.BootIn(workspace.ID, command)
