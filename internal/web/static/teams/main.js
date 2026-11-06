@@ -22,7 +22,6 @@ import {
   u
 } from "../chunk/nav-wtffyt4p.js";
 import {
-  askConfirm,
   carryTo2,
   takeDraft2,
   setDirty2
@@ -61,17 +60,20 @@ import {
   st,
   token2,
   parseOpen2,
-  projectName2
-} from "../chunk/nav-etg511c3.js";
+  projectName2,
+  runDanger
+} from "../chunk/nav-ba7tjw5e.js";
+import {
+  offerUndo
+} from "../chunk/nav-28mg0k2z.js";
 import {
   RunCell2
-} from "../chunk/nav-7hv17xqh.js";
+} from "../chunk/nav-e5rnwhtv.js";
 import {
-  offerUndo,
   conflictOf,
   ConflictNotice,
   YamlTab2
-} from "../chunk/nav-j0c77ktd.js";
+} from "../chunk/nav-p3ncw2dt.js";
 import {
   roleEditor,
   roleProblems
@@ -5813,7 +5815,7 @@ function DtabsNav({ r }) {
   });
 }
 function Dacts({ r }) {
-  const del = () => askConfirm({
+  const del = () => runDanger("deleteTeam", { run: () => pressDelYes(r), confirm: {
     title: `${teamLabel(r)} を削除しますか`,
     body: /* @__PURE__ */ u(S, {
       children: [
@@ -5827,16 +5829,15 @@ function Dacts({ r }) {
         })
       ]
     }),
-    label: "削除する（team.yaml と agreement.md）",
-    run: () => pressDelYes(r)
-  });
+    label: "削除する（team.yaml と agreement.md）"
+  } });
   const touched = () => bornTouched(r);
   const discard = () => {
     if (!touched()) {
       pressDiscard(r);
       return;
     }
-    askConfirm({
+    runDanger("discardRow", { run: () => pressDiscard(r), confirm: {
       title: "入力した内容を捨てますか",
       body: /* @__PURE__ */ u("p", {
         children: [
@@ -5846,9 +5847,8 @@ function Dacts({ r }) {
           })
         ]
       }),
-      label: "破棄する",
-      run: () => pressDiscard(r)
-    });
+      label: "破棄する"
+    } });
   };
   if (r.draftRow)
     return /* @__PURE__ */ u("button", {
@@ -5880,6 +5880,8 @@ function Dacts({ r }) {
       /* @__PURE__ */ u("button", {
         class: "btn danger",
         "data-act": "del",
+        "data-danger": true,
+        "data-danger-act": "deleteTeam",
         onClick: del,
         children: "削除"
       })

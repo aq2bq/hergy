@@ -9,7 +9,7 @@ import type { ConfirmAsk } from './confirm.js';
 import { offerUndo } from './undo.js';
 
 export type DangerAction =
-  | 'deleteTeam' | 'deleteRole' | 'deleteProfile' | 'stopTeam'
+  | 'deleteTeam' | 'deleteRole' | 'deleteProfile' | 'stopTeam' | 'discardRow'
   | 'unlistProject' | 'revertDraft' | 'removeMember' | 'removeWorker' | 'removeTurn' | 'conflictRevert'
   | 'abortStart';
 
@@ -18,13 +18,14 @@ export const DANGER: Record<DangerAction, 'confirm' | 'undoable' | 'none'> = {
   deleteTeam: 'confirm', deleteRole: 'confirm', deleteProfile: 'confirm', stopTeam: 'confirm',
   unlistProject: 'undoable', revertDraft: 'undoable', removeMember: 'undoable', removeWorker: 'undoable',
   removeTurn: 'undoable', conflictRevert: 'undoable',
+  discardRow: 'confirm',
   abortStart: 'none',
 };
 
 export type DangerOptions = {
   run: () => void | Promise<void>;
   // confirm actions: the words the person reads (called only for 'confirm').
-  confirm?: ConfirmAsk;
+  confirm?: Omit<ConfirmAsk, 'run'>;
   // undoable actions: what to put back and where the notice stands.
   host?: HTMLElement | null;
   restore?: () => void;
@@ -40,5 +41,5 @@ export function runDanger(action: DangerAction, opts: DangerOptions): void {
     if (opts.restore) offerUndo({ said: opts.said || '実行しました', restore: opts.restore }, opts.host);
     return;
   }
-  if (opts.confirm) askConfirm(opts.confirm);
+  if (opts.confirm) askConfirm({ ...opts.confirm, run: opts.run });
 }

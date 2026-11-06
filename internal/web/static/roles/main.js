@@ -25,15 +25,16 @@ import {
   teamModel2
 } from "../chunk/nav-sk3m5qf3.js";
 import {
-  askConfirm,
   takeDraft2,
   setDirty2
 } from "../chunk/nav-tsc4shg2.js";
 import {
   token2,
-  parseOpen2
-} from "../chunk/nav-etg511c3.js";
-import"../chunk/nav-7hv17xqh.js";
+  parseOpen2,
+  runDanger
+} from "../chunk/nav-ba7tjw5e.js";
+import"../chunk/nav-28mg0k2z.js";
+import"../chunk/nav-e5rnwhtv.js";
 import {
   Measure,
   renameCarries2,
@@ -48,7 +49,7 @@ import {
   conflictOf,
   ConflictNotice,
   YamlTab2
-} from "../chunk/nav-j0c77ktd.js";
+} from "../chunk/nav-p3ncw2dt.js";
 import {
   roleEditor,
   roleProblems
@@ -1980,20 +1981,22 @@ function Panel({ r, l }) {
                     pressDiscard(r.uid, l);
                     return;
                   }
-                  askConfirm({ title: "入力した内容を捨てますか", body: /* @__PURE__ */ u("p", {
+                  runDanger("discardRow", { run: () => pressDiscard(r.uid, l), confirm: { title: "入力した内容を捨てますか", body: /* @__PURE__ */ u("p", {
                     children: [
                       "保存していない入力があります。",
                       /* @__PURE__ */ u("b", {
                         children: "取り消せません。"
                       })
                     ]
-                  }), label: "破棄する", run: () => pressDiscard(r.uid, l) });
+                  }), label: "破棄する" } });
                 },
                 children: "取り消し"
               }) : /* @__PURE__ */ u("button", {
                 class: "btn danger",
                 "data-act": "del",
-                onClick: () => askConfirm({
+                "data-danger": true,
+                "data-danger-act": "deleteRole",
+                onClick: () => runDanger("deleteRole", { run: () => doDelete(r.uid, l), confirm: {
                   title: `ロール ${d.name} を削除しますか`,
                   body: /* @__PURE__ */ u(S, {
                     children: [
@@ -2010,9 +2013,8 @@ function Panel({ r, l }) {
                       })
                     ]
                   }),
-                  label: `削除する${nread ? `（${nread} 人が読んでいる）` : ""}`,
-                  run: () => doDelete(r.uid, l)
-                }),
+                  label: `削除する${nread ? `（${nread} 人が読んでいる）` : ""}`
+                } }),
                 children: "削除"
               })
             ]

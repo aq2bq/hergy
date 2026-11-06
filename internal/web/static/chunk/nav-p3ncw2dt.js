@@ -9,13 +9,14 @@
 
 import {
   S,
-  R,
   d,
   h,
   A,
-  y,
   u
 } from "./nav-wtffyt4p.js";
+import {
+  offerUndo
+} from "./nav-28mg0k2z.js";
 import {
   check2,
   save2,
@@ -25,55 +26,6 @@ import {
 import {
   yamlDirty
 } from "./nav-8acs8rk4.js";
-
-// lib/undo.tsx
-var undo = y(null);
-var hostEl = null;
-function offerUndo(one, host) {
-  undo.value = one;
-  if (hostEl) {
-    R(null, hostEl);
-    hostEl.remove();
-    hostEl = null;
-  }
-  if (!host)
-    return;
-  hostEl = document.createElement("div");
-  hostEl.className = "undo-host";
-  host.appendChild(hostEl);
-  R(/* @__PURE__ */ u(UndoNotice, {}), hostEl);
-}
-function takeUndo() {
-  const one = undo.value;
-  undo.value = null;
-  if (hostEl) {
-    R(null, hostEl);
-    hostEl.remove();
-    hostEl = null;
-  }
-  if (one)
-    one.restore();
-}
-function UndoNotice() {
-  const one = undo.value;
-  if (!one)
-    return null;
-  return /* @__PURE__ */ u("div", {
-    class: "undo",
-    role: "status",
-    children: [
-      /* @__PURE__ */ u("span", {
-        children: one.said
-      }),
-      /* @__PURE__ */ u("button", {
-        type: "button",
-        class: "btn sm",
-        onClick: takeUndo,
-        children: "取り消す"
-      })
-    ]
-  });
-}
 
 // lib/conflict.tsx
 var str = (v) => typeof v === "string" ? v : "";
@@ -673,4 +625,4 @@ function YamlTab2(props) {
   });
 }
 
-export { offerUndo, conflictOf, ConflictNotice, checkText2, saveText2, tellDirty2, autosize2, insertTab2, YamlTab2 };
+export { conflictOf, ConflictNotice, checkText2, saveText2, tellDirty2, autosize2, insertTab2, YamlTab2 };

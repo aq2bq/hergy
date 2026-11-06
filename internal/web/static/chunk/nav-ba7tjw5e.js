@@ -32,6 +32,9 @@ import {
   setCount2,
   setActivity2
 } from "./nav-tsc4shg2.js";
+import {
+  offerUndo
+} from "./nav-28mg0k2z.js";
 
 // lib/band-counts.ts
 function applyCounts(counts) {
@@ -294,6 +297,37 @@ function startReads() {
     if (document.visibilityState === "visible")
       readRunning2();
   });
+}
+
+// lib/danger.ts
+var DANGER = {
+  deleteTeam: "confirm",
+  deleteRole: "confirm",
+  deleteProfile: "confirm",
+  stopTeam: "confirm",
+  unlistProject: "undoable",
+  revertDraft: "undoable",
+  removeMember: "undoable",
+  removeWorker: "undoable",
+  removeTurn: "undoable",
+  conflictRevert: "undoable",
+  discardRow: "confirm",
+  abortStart: "none"
+};
+function runDanger(action, opts) {
+  const kind = DANGER[action];
+  if (kind === "none") {
+    opts.run();
+    return;
+  }
+  if (kind === "undoable") {
+    opts.run();
+    if (opts.restore)
+      offerUndo({ said: opts.said || "実行しました", restore: opts.restore }, opts.host);
+    return;
+  }
+  if (opts.confirm)
+    askConfirm({ ...opts.confirm, run: opts.run });
 }
 
 // lib/hq/sheets.tsx
@@ -1489,7 +1523,11 @@ function stopSheet2(team) {
     workspace ? `ワークスペース ${workspace} は閉じません。` : "",
     project ? `${project} で` : ""
   ].filter(Boolean).join("");
-  askConfirm({
+  runDanger("stopTeam", { run: () => {
+    openSheet2(/* @__PURE__ */ u(StopSheet, {
+      team
+    }));
+  }, confirm: {
     title: `チーム ${team} を終了しますか`,
     body: /* @__PURE__ */ u(S, {
       children: [
@@ -1548,13 +1586,8 @@ function stopSheet2(team) {
         })
       ]
     }),
-    label: "終了する",
-    run: () => {
-      openSheet2(/* @__PURE__ */ u(StopSheet, {
-        team
-      }));
-    }
-  });
+    label: "終了する"
+  } });
 }
 function projectsSheet() {
   openSheet2(/* @__PURE__ */ u(ProjectsSheet, {}), "left");
@@ -1961,4 +1994,4 @@ async function send() {
   }
 }
 
-export { st, setRunning2, token2, parseOpen2, projectName2, runningFor, runningTeam2, lastWorkspaceOf, definitionOf2, bandActivity2, readCore2, readGroups2, readAll2, readRunning2, startReads, sheetOpen, closeSheet2, startSheet2, stopSheet2, projectsSheet, searchBoxOpen, closeBox, moveSel, mountSearch, resetSearch, searchHook, POLL, count, opened, answer, note, scope, chosen, teams, canApply, applyLabel, teamCount, toggle, readCount, readTeams, openSheet, close, send };
+export { st, setRunning2, token2, parseOpen2, projectName2, runningFor, runningTeam2, lastWorkspaceOf, definitionOf2, bandActivity2, readCore2, readGroups2, readAll2, readRunning2, startReads, runDanger, sheetOpen, closeSheet2, startSheet2, stopSheet2, projectsSheet, searchBoxOpen, closeBox, moveSel, mountSearch, resetSearch, searchHook, POLL, count, opened, answer, note, scope, chosen, teams, canApply, applyLabel, teamCount, toggle, readCount, readTeams, openSheet, close, send };

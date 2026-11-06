@@ -4,7 +4,7 @@
 // も変えずに移した構成を基に、編集操作を上部へそろえる。状態は state.js の signal を読み、押し込みは自分の
 // onClick / onInput / onKeyDown から state.js の関数を直接呼ぶ（5 章 1）。規則の
 // 文書の中は共有部品（lib/ruledoc.js）が描き、その押し込みも部品のもの。
-import { askConfirm } from '../lib/confirm.js';
+import { runDanger } from '../lib/danger.js';
 import { useEffect, useRef } from '../lib/preact.js';
 import { Measure } from '../lib/measure.js';
 import { Field } from '../lib/field.js';
@@ -260,14 +260,13 @@ function Panel({ r, l }: { r: RoleRow; l: Place }) {
             // goes; there is no template to compare with.
             const untouched = !r.born || !changedDirty(ROLE_DOC, r.born, { name: e.draft.name, title: e.draft.title || '', text: e.draft.text });
             if (untouched) { pressDiscard(r.uid, l); return; }
-            askConfirm({ title: '入力した内容を捨てますか', body: <p>保存していない入力があります。<b>取り消せません。</b></p>, label: '破棄する', run: () => pressDiscard(r.uid, l) });
+            runDanger('discardRow', { run: () => pressDiscard(r.uid, l), confirm: { title: '入力した内容を捨てますか', body: <p>保存していない入力があります。<b>取り消せません。</b></p>, label: '破棄する' } });
           }}>取り消し</button>
-            : <button class="btn danger" data-act="del" onClick={() => askConfirm({
+            : <button class="btn danger" data-act="del" data-danger data-danger-act="deleteRole" onClick={() => runDanger('deleteRole', { run: () => doDelete(r.uid, l), confirm: {
               title: `ロール ${d.name} を削除しますか`,
               body: <><p>{`${placeLabel} の roles/${d.name}.md を消します。`}{nread ? `${nread} 人が読んでいます。` : ''}</p><p><b>取り消せません。</b></p></>,
               label: `削除する${nread ? `（${nread} 人が読んでいる）` : ''}`,
-              run: () => doDelete(r.uid, l),
-            })}>削除</button>}
+            } })}>削除</button>}
         </span></header>
       <div class="pmain"><RuleDoc row={row} issues={issues} nameError={nameError} heading={{ kind: 'ロール', name: row.draft.name || '新しいロール', title: row.draft.title,
           id: `role-${r.uid}-${l}`, compact: true, path: `${placeLabel} · roles/${d.name}.md`, fullPath: pathOfRow(r, l, d), state: (n ? '未保存' : '保存済み') + (shadowed ? '（隠れている）' : ''), members: whoReads(row.draft.name, r.group).map((u) => `${u.t.id}: ${u.m.name}`).join('、') }}

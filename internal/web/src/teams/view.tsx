@@ -1,4 +1,4 @@
-import { askConfirm } from '../lib/confirm.js';
+import { runDanger } from '../lib/danger.js';
 import { ProjectView } from '../lib/project-view';
 // teams/view.tsx — チーム定義の画面の一覧とパネル（webui-preact-design 4 章）。
 //
@@ -280,12 +280,11 @@ function DtabsNav({ r }: { r: Rec }) {
 function Dacts({ r }: { r: Rec }) {
   // Deleting cannot be taken back: it is asked for in the shared dialog, away
   // from this button, so the same place pressed twice never deletes (r-d480).
-  const del = () => askConfirm({
+  const del = () => runDanger('deleteTeam', { run: () => pressDelYes(r), confirm: {
     title: `${teamLabel(r)} を削除しますか`,
     body: <><p>{`${placeName(r.place.value)} の ${r.name.value}/ から team.yaml と agreement.md を消します。`}</p><p><b>取り消せません。</b></p></>,
     label: '削除する（team.yaml と agreement.md）',
-    run: () => pressDelYes(r),
-  });
+  } });
   // The starter's words stand on the base the row was seeded with, so the same
   // rule as the other screens holds: nothing changed since it was made is thrown
   // away at once, and anything the person put in is asked for (r-d480).
@@ -294,12 +293,11 @@ function Dacts({ r }: { r: Rec }) {
   const touched = () => bornTouched(r);
   const discard = () => {
     if (!touched()) { pressDiscard(r); return; }
-    askConfirm({
+    runDanger('discardRow', { run: () => pressDiscard(r), confirm: {
       title: '入力した内容を捨てますか',
       body: <p>保存していない入力があります。<b>取り消せません。</b></p>,
       label: '破棄する',
-      run: () => pressDiscard(r),
-    });
+    } });
   };
   if (r.draftRow) return <button class="btn danger" data-act="discard" onClick={discard}>取り消し</button>;
   const o = other(r.place.value);
@@ -313,7 +311,7 @@ function Dacts({ r }: { r: Rec }) {
     <>
       <button class="btn" data-act="dup" onClick={() => pressDup(r)}>複製</button>
       {!(r.places || []).includes(o) && !copying ? <button class="btn" data-act="copy" onClick={() => pressCopy(r)}>{PLACE[o]}にコピー</button> : null}
-      <button class="btn danger" data-act="del" onClick={del}>削除</button>
+      <button class="btn danger" data-act="del" data-danger data-danger-act="deleteTeam" onClick={del}>削除</button>
     </>
   );
 }

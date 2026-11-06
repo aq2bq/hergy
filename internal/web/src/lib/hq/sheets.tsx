@@ -10,7 +10,7 @@
 import { render as draw, signal, computed, useEffect, useLayoutEffect, useRef, useState } from '../preact.js';
 import type { JSX } from 'preact';
 import { call, problemText } from '../api.js';
-import { askConfirm } from '../confirm.js';
+import { runDanger } from '../danger.js';
 import type { components, operations } from '../../../../apicontract/api-types';
 import {
   st, token, projectName, readJSONOr, readGroups, readCore, readRunning,
@@ -532,7 +532,7 @@ export function stopSheet(team: string): void {
     workspace ? `ワークスペース ${workspace} は閉じません。` : '',
     project ? `${project} で` : '',
   ].filter(Boolean).join('');
-  askConfirm({
+  runDanger('stopTeam', { run: () => { openSheet(<StopSheet team={team} />); }, confirm: {
     title: `チーム ${team} を終了しますか`,
     body: <>
       {t ? <dl class="hq-kv"><dt>プロジェクト</dt><dd><code>{project}</code></dd>{workspace ? <><dt>ワークスペース</dt><dd><code>{workspace}</code></dd></> : ''}
@@ -541,8 +541,7 @@ export function stopSheet(team: string): void {
       <p class="hq-err"><strong>会話は残りません。この操作は取り消せません。</strong></p>
     </>,
     label: '終了する',
-    run: () => { openSheet(<StopSheet team={team} />); },
-  });
+  } });
 }
 
 export function projectsSheet(): void {

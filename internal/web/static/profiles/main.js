@@ -17,7 +17,6 @@ import {
   u
 } from "../chunk/nav-wtffyt4p.js";
 import {
-  askConfirm,
   takeDraft2,
   setDirty2
 } from "../chunk/nav-tsc4shg2.js";
@@ -31,14 +30,16 @@ import {
 } from "../chunk/nav-sk3m5qf3.js";
 import {
   token2,
-  parseOpen2
-} from "../chunk/nav-etg511c3.js";
-import"../chunk/nav-7hv17xqh.js";
+  parseOpen2,
+  runDanger
+} from "../chunk/nav-ba7tjw5e.js";
+import"../chunk/nav-28mg0k2z.js";
+import"../chunk/nav-e5rnwhtv.js";
 import {
   conflictOf,
   ConflictNotice,
   YamlTab2
-} from "../chunk/nav-j0c77ktd.js";
+} from "../chunk/nav-p3ncw2dt.js";
 import {
   copyGroupOf,
   projectOfGroup,
@@ -1451,7 +1452,7 @@ function Panel({ panel }) {
       saved ? /* @__PURE__ */ u("button", {
         class: "btn danger",
         "data-act": "del",
-        onClick: () => askConfirm({
+        onClick: () => runDanger("deleteProfile", { run: () => pressDelYes(panel.key), confirm: {
           title: `プロファイル ${panel.draft.name || panel.saved?.name || ""} を削除しますか`,
           body: /* @__PURE__ */ u(S, {
             children: [
@@ -1468,9 +1469,8 @@ function Panel({ panel }) {
               })
             ]
           }),
-          label: `削除する${panel.users ? `（${panel.users} 人が使っている）` : ""}`,
-          run: () => pressDelYes(panel.key)
-        }),
+          label: `削除する${panel.users ? `（${panel.users} 人が使っている）` : ""}`
+        } }),
         children: "削除"
       }) : /* @__PURE__ */ u("button", {
         class: "btn danger",
@@ -1480,14 +1480,14 @@ function Panel({ panel }) {
             pressDiscard(panel.key);
             return;
           }
-          askConfirm({ title: "入力した内容を捨てますか", body: /* @__PURE__ */ u("p", {
+          runDanger("discardRow", { run: () => pressDiscard(panel.key), confirm: { title: "入力した内容を捨てますか", body: /* @__PURE__ */ u("p", {
             children: [
               "保存していない入力があります。",
               /* @__PURE__ */ u("b", {
                 children: "取り消せません。"
               })
             ]
-          }), label: "破棄する", run: () => pressDiscard(panel.key) });
+          }), label: "破棄する" } });
         },
         children: "取り消し"
       })
