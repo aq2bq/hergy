@@ -123,7 +123,7 @@ function Role({ r }: { r: RoleRow }) {
 }
 
 // unsaved is whether a row holds more than the files do.
-const unsaved = (r: RoleRow): boolean => PLACES.some((l) => r[l] && roleDirty(r[l]!));
+const unsaved = (r: RoleRow): boolean => PLACES.some((l) => r[l] && roleDirty(r[l]!, r.born));
 
 const readersCell = (r: RoleRow) => {
   if (!GROUPED) {
@@ -234,7 +234,7 @@ function Panel({ r, l }: { r: RoleRow; l: Place }) {
   // same answer until the next check speaks.
   const nameIssue = issues.find((m) => m.f === 'name' && m.sev === 'err');
   const nameError = nameIssue ? nameIssue.text : (refusal && refusal.at === 'name' ? refusal.text : '');
-  const n = roleDirty(e) ? 1 : 0;
+  const n = roleDirty(e, r.born) ? 1 : 0;
   const before = new Set((e.saved && e.__savedIssues ? e.__savedIssues : issues).filter((m) => m.sev === 'err').map((m) => m.text));
   const grew = issues.filter((m) => m.sev === 'err' && !before.has(m.text));
   const blocked = !!nameIssue || (!e.saved ? issues.some((m) => m.sev === 'err') : (grew.length > 0 || n === 0));

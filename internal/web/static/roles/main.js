@@ -44,12 +44,12 @@ import {
   Badge2,
   Vm2,
   RuleDoc2
-} from "../chunk/nav-6qg5snn7.js";
+} from "../chunk/nav-jz4pfhhj.js";
 import {
   conflictOf,
   ConflictNotice,
   YamlTab2
-} from "../chunk/nav-cjbdw4bh.js";
+} from "../chunk/nav-t1h70ydk.js";
 import {
   roleEditor,
   roleProblems
@@ -73,7 +73,7 @@ import {
   roleDirty,
   assignDirty,
   yamlDirty
-} from "../chunk/nav-ray0sjn8.js";
+} from "../chunk/nav-mh4t9ewy.js";
 
 // roles/state.ts
 var view = document.getElementById("view");
@@ -149,6 +149,8 @@ function rowsOf(model, group) {
     }
     if (r.mark)
       row.mark = r.mark;
+    if (r.noDoc && row.project)
+      row.born = snapshot({ name: row.project.draft.name, title: row.project.draft.title || "", text: row.project.draft.text });
     if (!row.project && !row.global)
       continue;
     if (r.noDoc)
@@ -872,7 +874,7 @@ async function doAssignSave(id) {
   saved2();
 }
 function dirty2() {
-  const rows = roles.value.some((r) => PLACES.some((l) => r[l] && roleDirty(r[l])));
+  const rows = roles.value.some((r) => PLACES.some((l) => r[l] && roleDirty(r[l], r.born)));
   const members = teams.value.some((t) => t.members.some((m) => assignDirty(m)));
   const ytexts = allEntries().some(({ e }) => yamlDirty(e.text || "", e.ytext));
   return rows || members || ytexts;
@@ -1592,7 +1594,7 @@ function Role({ r }) {
     ]
   });
 }
-var unsaved = (r) => PLACES.some((l) => r[l] && roleDirty(r[l]));
+var unsaved = (r) => PLACES.some((l) => r[l] && roleDirty(r[l], r.born));
 var readersCell = (r) => {
   if (!GROUPED) {
     const ids = [...new Set(whoReads(curName(r), r.group).map((x) => x.t.id))];
@@ -1929,7 +1931,7 @@ function Panel({ r, l }) {
   const hold = conflictAt(key);
   const nameIssue = issues.find((m) => m.f === "name" && m.sev === "err");
   const nameError = nameIssue ? nameIssue.text : refusal && refusal.at === "name" ? refusal.text : "";
-  const n = roleDirty(e) ? 1 : 0;
+  const n = roleDirty(e, r.born) ? 1 : 0;
   const before = new Set((e.saved && e.__savedIssues ? e.__savedIssues : issues).filter((m) => m.sev === "err").map((m) => m.text));
   const grew = issues.filter((m) => m.sev === "err" && !before.has(m.text));
   const blocked = !!nameIssue || (!e.saved ? issues.some((m) => m.sev === "err") : grew.length > 0 || n === 0);

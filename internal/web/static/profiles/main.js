@@ -39,7 +39,7 @@ import {
   conflictOf,
   ConflictNotice,
   YamlTab2
-} from "../chunk/nav-cjbdw4bh.js";
+} from "../chunk/nav-t1h70ydk.js";
 import {
   copyGroupOf,
   projectOfGroup,
@@ -60,7 +60,7 @@ import {
   assignDirty,
   yamlDirty,
   profileFlags
-} from "../chunk/nav-ray0sjn8.js";
+} from "../chunk/nav-mh4t9ewy.js";
 
 // profiles/state.ts
 function mustElement(id) {

@@ -144,8 +144,14 @@ export type RoleEntryLike = { saved: RoleDoc | null; draft: RoleDoc; problem?: s
 const docOf = (d: RoleDoc): RoleDoc => ({ name: d.name || '', title: d.title || '', text: d.text || '' });
 // roleDirty is whether the role's written document differs from the file's. A
 // document that cannot be read is never a change (r-1e9a).
-export function roleDirty(e: RoleEntryLike): boolean {
-  return dirty(ROLE_DOC, e.saved ? docOf(e.saved) : null, docOf(e.draft), !e.problem);
+export function roleDirty(e: RoleEntryLike, born?: RoleDoc | null): boolean {
+  if (e.problem) return false;
+  if (e.saved) return dirty(ROLE_DOC, docOf(e.saved), docOf(e.draft));
+  // A name only a member names opens as a new document (spec-roles 1.2.10). It
+  // is not a change until a person writes in it (d-60e5): compare with the
+  // document it was opened with. A row a person made has no born and is a
+  // change from the start.
+  return born ? dirty(ROLE_DOC, docOf(born), docOf(e.draft), !e.problem) : true;
 }
 
 // assignDirty is whether one member's role pick differs from the file's.

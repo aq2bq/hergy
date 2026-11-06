@@ -198,6 +198,7 @@ function rowsOf(model: RoleModel, group: string): RoleRow[] {
       } else { row[l] = null; }
     }
     if (r.mark) row.mark = r.mark;
+    if (r.noDoc && row.project) row.born = changedSnapshot({ name: row.project.draft.name, title: row.project.draft.title || '', text: row.project.draft.text });
     if (!row.project && !row.global) continue;
     if (r.noDoc) row.noDoc = true;
     if (r.isNew) row.isNew = true;
@@ -1024,7 +1025,7 @@ export async function doAssignSave(id: string): Promise<void> {
 // dirty is whether the screen holds something no save wrote yet: a row's draft,
 // a row a person added, a pick in the assign tab, or a YAML text.
 export function dirty(): boolean {
-  const rows = roles.value.some((r) => PLACES.some((l) => r[l] && roleDirty(r[l]!)));
+  const rows = roles.value.some((r) => PLACES.some((l) => r[l] && roleDirty(r[l]!, r.born)));
   const members = teams.value.some((t) => t.members.some((m) => assignDirty(m)));
   const ytexts = allEntries().some(({ e }) => yamlDirty(e.text || '', e.ytext));
   return rows || members || ytexts;

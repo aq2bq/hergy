@@ -109,8 +109,12 @@ function teamNow(w, ops) {
   return { from, purpose, profile };
 }
 var docOf = (d) => ({ name: d.name || "", title: d.title || "", text: d.text || "" });
-function roleDirty(e) {
-  return dirty(ROLE_DOC, e.saved ? docOf(e.saved) : null, docOf(e.draft), !e.problem);
+function roleDirty(e, born) {
+  if (e.problem)
+    return false;
+  if (e.saved)
+    return dirty(ROLE_DOC, docOf(e.saved), docOf(e.draft));
+  return born ? dirty(ROLE_DOC, docOf(born), docOf(e.draft), !e.problem) : true;
 }
 function assignDirty(m) {
   return dirty(PROFILE_ASSIGN, { picks: [{ member: m.name, role: m.saved }] }, { picks: [{ member: m.name, role: m.draft }] });
