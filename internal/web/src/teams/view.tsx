@@ -25,7 +25,7 @@ import { ConflictNotice } from '../lib/conflict.js';
 import { RunCell } from '../lib/hq/run.js';
 import { state as hq, projectName as hqProjectName } from '../lib/hq.js';
 import { copyGroupOf } from '../lib/copy.js';
-import { bringUnderBand } from '../lib/band.js';
+import { bringUnderBand } from '../lib/page-position.js';
 import {
   PLACES, PLACE, DIR, HQ, GROUPED, GROUPS, CURRENT, state, allRecs, groupRecs, rowsInGroup, placeGroups,
   dkey, currentProjectName, teamLabel, dtabOf, isOpenRow, missingOpen,

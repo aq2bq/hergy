@@ -3,7 +3,7 @@
 // mount と、住所・帯への受け渡しだけを持つ。描くのは view.js / assign.js / yaml.js、
 // 状態は state.js の signal、押し込みは部品が自分の onClick / onInput から
 // state.js の関数を直接呼ぶ。ここも DOM を書かない（5 章 1）。
-import { installWheel } from '../lib/wheel.js';
+import { installWheel } from '../lib/page-position.js';
 import { render } from '../lib/preact.js';
 import { view, tabsEl, dirty, lost, take, boot } from './state.js';
 import { Tabs, App } from './view.js';

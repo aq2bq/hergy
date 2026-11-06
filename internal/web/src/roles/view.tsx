@@ -17,7 +17,7 @@ import {
   doSave, doDelete, syncURL, conflictAt, pressOverwrite, pressRevertConflict, pressUndoConflict,
 } from './state.js';
 import { ConflictNotice } from '../lib/conflict.js';
-import { bringUnderBand } from '../lib/band.js';
+import { bringUnderBand } from '../lib/page-position.js';
 import { RuleDoc, Counts, Badge } from '../lib/ruledoc.js';
 import { dirty as changedDirty, lost as changedLost, roleDirty, ROLE_DOC } from '../lib/changed.js';
 import type { RuleIssue } from '../lib/ruledoc.js';

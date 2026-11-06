@@ -4,7 +4,7 @@
 // YAML）と canvas.tsx（トポロジー）、状態は state.ts の signal、押し込みは部品が
 // 自分の onClick / onInput / onKeyDown から state.ts の関数を直接呼ぶ（依頼書 2）。
 // ここも DOM を書かない（5 章 1）。
-import { installWheel } from '../lib/wheel.js';
+import { installWheel } from '../lib/page-position.js';
 import { effect, render as draw } from '../lib/preact.js';
 import { setDirty } from '../lib/nav.js';
 import {

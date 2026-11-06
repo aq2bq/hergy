@@ -8,7 +8,7 @@
 import { useEffect, useRef } from '../lib/preact.js';
 import { Field } from '../lib/field.js';
 import { ConflictNotice } from '../lib/conflict.js';
-import { bringUnderBand } from '../lib/band.js';
+import { bringUnderBand } from '../lib/page-position.js';
 import {
   rows, chips, shownRows, filterKind, query, groupName, GROUPS, placeGroups,
   panelFlags, writtenProfile, saveBlocked, rowUnsaved, classOf, otherKinds, BASE_KINDS,
