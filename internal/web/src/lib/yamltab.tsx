@@ -170,9 +170,13 @@ export function YamlTab(props: YamlTabProps) {
   const ta = useRef<HTMLTextAreaElement | null>(null);
   const gutter = useRef<HTMLPreElement | null>(null);
   const timer = useRef<number>(0);
+  const frame = useRef<number>(0);
   const alive = useRef(true);
   const seq = useRef(0);
   const base = useRef(text);
+  // The field is the person's after the first frame: a re-render (a check's
+  // answer) must not put the file's text back over what they typed.
+  const initial = useRef(text);
   const mine = useRef(hash || '');
 
   const [now, setNow] = useState<YamlWorkingState>({ text, problems: problems || [], baseProblems: problems || [] });
@@ -200,8 +204,16 @@ export function YamlTab(props: YamlTabProps) {
     const value = el.value;
     setNow((was: YamlWorkingState) => (was.text === value ? was : { ...was, text: value }));
     if (value !== base.current) setSaved(false);
-    tellDirty();
-    report();
+    // The typed text and the band are read once the frame has the latest value:
+    // two keys in one frame (x then Backspace) must leave one answer, the text
+    // that stands (r-1e9a).
+    if (frame.current) cancelAnimationFrame(frame.current);
+    frame.current = requestAnimationFrame(() => {
+      frame.current = 0;
+      if (!alive.current) return;
+      report();
+      tellDirty();
+    });
   }
 
   // report says what the part holds to a screen that keeps it as its own state.
@@ -379,7 +391,7 @@ export function YamlTab(props: YamlTabProps) {
   const marks = marksOf(now.problems);
   return <><header class="ph"><span class="ln">{label}</span><code class="path">{path}</code>{badge ? <span class={badge.cls}>{badge.text}</span> : ''}</header>
   <div class="ybody">
-    <div class={'code h' + heightOf(lines.length)}><pre class="gutter" aria-hidden="true" ref={gutter}>{lines.map((_: string, i: number) => <span class={marks[i + 1] || ''}>{i + 1}</span>)}</pre><textarea class="ytext" data-file={file || undefined} wrap="off" spellcheck={false} autocomplete="off" aria-label={path} ref={ta} onInput={() => { foot(); schedule(); }} onScroll={() => { if (gutter.current && ta.current) gutter.current.scrollTop = ta.current.scrollTop; }} onKeyDown={(e: KeyboardEvent) => { if (e.key === 'Tab' && !e.shiftKey) { const target = e.target; if (target instanceof HTMLTextAreaElement) { e.preventDefault(); insertTab(target); } } }}>{text}</textarea></div>
+    <div class={'code h' + heightOf(lines.length)}><pre class="gutter" aria-hidden="true" ref={gutter}>{lines.map((_: string, i: number) => <span class={marks[i + 1] || ''}>{i + 1}</span>)}</pre><textarea class="ytext" data-file={file || undefined} wrap="off" spellcheck={false} autocomplete="off" aria-label={path} ref={ta} onInput={() => { foot(); schedule(); }} onScroll={() => { if (gutter.current && ta.current) gutter.current.scrollTop = ta.current.scrollTop; }} onKeyDown={(e: KeyboardEvent) => { if (e.key === 'Tab' && !e.shiftKey) { const target = e.target; if (target instanceof HTMLTextAreaElement) { e.preventDefault(); insertTab(target); } } }}>{initial.current}</textarea></div>
     <div class="vlist"><div class="vhead"><span class="vt">設定の検査</span>{now.problems.length ? <span class="vcount">{errs ? <span class="sev err">問題 {errs}</span> : ''}{warns ? <span class="sev warn">警告 {warns}</span> : ''}</span> : <span class="vclean">✓ 問題なし</span>}</div>{now.problems.map((p: Problem) => <button class="vitem" data-act="yaml-jump" data-line={p.line} onClick={() => jump(p.line)}><span class={'sev ' + (p.sev === 'err' ? 'err' : 'warn')}>{p.sev === 'err' ? '問題' : '警告'}</span><span class="lno">{p.line} 行</span><span class="msg">{p.text}</span></button>)}</div>
   </div>
   {conflict ? <ConflictNotice c={conflict} mine={base.current} undone={undone} onOverwrite={overwrite} onRevert={readIn} onUndo={undoRead} /> : null}

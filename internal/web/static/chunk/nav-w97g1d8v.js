@@ -259,9 +259,11 @@ function YamlTab2(props) {
   const ta = A(null);
   const gutter = A(null);
   const timer = A(0);
+  const frame = A(0);
   const alive = A(true);
   const seq = A(0);
   const base = A(text);
+  const initial = A(text);
   const mine = A(hash || "");
   const [now, setNow] = d({ text, problems: problems || [], baseProblems: problems || [] });
   const [laid, setLaid] = d(text);
@@ -282,8 +284,15 @@ function YamlTab2(props) {
     setNow((was) => was.text === value ? was : { ...was, text: value });
     if (value !== base.current)
       setSaved(false);
-    tellDirty2();
-    report();
+    if (frame.current)
+      cancelAnimationFrame(frame.current);
+    frame.current = requestAnimationFrame(() => {
+      frame.current = 0;
+      if (!alive.current)
+        return;
+      report();
+      tellDirty2();
+    });
   }
   function report() {
     const el = ta.current;
@@ -515,7 +524,7 @@ function YamlTab2(props) {
                     }
                   }
                 },
-                children: text
+                children: initial.current
               })
             ]
           }),
