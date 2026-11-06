@@ -1200,8 +1200,8 @@ function AssignPage() {
 var keyOfYed = (r, l) => r.uid + l;
 function YamlFile({ file }) {
   const { r, l, e } = file;
-  const hid = l === "global" && live(r, "project");
-  const both = live(r, "project") && live(r, "global");
+  const hid = r.mark === "hidden" && l === "global";
+  const both = !!r.mark;
   const name = e.saved.name;
   return /* @__PURE__ */ u("section", {
     class: "yed",

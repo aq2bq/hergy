@@ -26,8 +26,10 @@ const keyOfYed = (r: RoleRow, l: Place): string => r.uid + l;
 // stands inside it, and reads the file and the hash as props.
 function YamlFile({ file }: { file: SavedFileEntry }) {
   const { r, l, e } = file;
-  const hid = l === 'global' && live(r, 'project');
-  const both = live(r, 'project') && live(r, 'global');
+  // The owner marks a name both layers hold (r-ea17); the section does not
+  // compare the two places itself.
+  const hid = r.mark === 'hidden' && l === 'global';
+  const both = !!r.mark;
   const name = e.saved.name;
   return <section class="yed" data-key={keyOfYed(r, l)} data-hash={e.hash || ''}>
     <YamlTab key={keyOfYed(r, l)} label={LNAME[l]} path={pathOf(l, e.saved)}

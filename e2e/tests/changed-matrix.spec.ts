@@ -38,6 +38,25 @@ test.describe('teams', () => {
   });
 });
 
+test.describe('teams figure member', () => {
+  test.use({ reads: 'teams' });
+  test('a member profile: change and back', async ({ page, app }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto(`${app.base}/teams?open=core`); await ready(page);
+    const row = page.locator('.tdef[data-name="core"]');
+    await row.locator('.cv-n.member[data-cv-n="lead"]').click();
+    const pick = row.locator('.cv-side [data-cv-f="m-profile"]');
+    const before = await pick.inputValue();
+    const options = await pick.locator('option').evaluateAll((os) => os.map((o) => (o as HTMLOptionElement).value));
+    const other = options.find((v) => v !== before) || before;
+    await expect(dot(page, 'teams')).toHaveCount(0);
+    await pick.selectOption(other);
+    await expect(dot(page, 'teams')).toHaveCount(1);
+    await pick.selectOption(before);
+    await expect(dot(page, 'teams')).toHaveCount(0);
+  });
+});
+
 test.describe('roles', () => {
   test.use({ reads: 'roles' });
   test('a role document: change, back, and the carried edit keeps the dot', async ({ page, app }) => {
@@ -148,9 +167,11 @@ for (const screen of ['teams', 'roles', 'profiles'] as const) {
       const area = page.locator('.ytext').first();
       const before = await area.inputValue();
       await expect(dot(page, screen)).toHaveCount(0);
-      await area.fill(before + '# x\n');
+      await area.click();
+      await area.press('End');
+      await area.pressSequentially('x');
       await expect(dot(page, screen)).toHaveCount(1);
-      await area.fill(before);
+      await area.press('Backspace');
       await expect(dot(page, screen)).toHaveCount(0);
     });
   });
