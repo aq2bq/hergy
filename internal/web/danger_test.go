@@ -72,3 +72,40 @@ func TestROLES_DangerLossNamesWhatDeleteTakes(t *testing.T) {
 		t.Errorf("an unused role names readers: %v", unused)
 	}
 }
+
+// TestTEAMS_DangerLossNamesWhatDeleteTakes: the loss names the files Delete
+// removes and, honestly, what stays in the folder (ac-ddb6).
+func TestTEAMS_DangerLossNamesWhatDeleteTakes(t *testing.T) {
+	f := newFixture(t)
+	server := f.server(t)
+	dir := filepath.Dir(f.teamYAML())
+	if err := os.WriteFile(filepath.Join(dir, "notes.txt"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	lines, refusal := server.dangerLossTeam(catalog.PlaceProject, "demo")
+	if refusal != nil {
+		t.Fatalf("the loss: %+v", refusal)
+	}
+	joined := strings.Join(lines, "\n")
+	if !strings.Contains(joined, "team.yaml") || !strings.Contains(joined, "notes.txt") {
+		t.Errorf("the loss does not name the files and what stays: %v", lines)
+	}
+	hash := source.Hash(readFile(t, f.teamYAML()))
+	agree := filepath.Join(dir, "agreement.md")
+	q := url.Values{}
+	q.Set("place", "project")
+	q.Set("hash", hash)
+	if _, err := os.Stat(agree); err == nil {
+		q.Set("agreement_hash", source.Hash(readFile(t, agree)))
+	}
+	resp, body := f.api(t, server, http.MethodDelete, "/api/team/demo?"+q.Encode(), nil)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("DELETE answers %d: %s", resp.StatusCode, body)
+	}
+	if _, err := os.Stat(f.teamYAML()); !os.IsNotExist(err) {
+		t.Errorf("team.yaml the loss named is still there")
+	}
+	if _, err := os.Stat(filepath.Join(dir, "notes.txt")); err != nil {
+		t.Errorf("the file the loss said stays is gone: %v", err)
+	}
+}

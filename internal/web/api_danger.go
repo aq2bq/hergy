@@ -2,6 +2,9 @@ package web
 
 import (
 	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/source"
@@ -24,6 +27,9 @@ func (s *Server) apiDanger(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
 	place := r.URL.Query().Get("place")
 	switch r.PathValue("kind") {
+	case "team":
+		lines, refusal := scoped.dangerLossTeam(place, name)
+		apiAnswer(w, apiDangerLoss{Lines: lines}, refusal)
 	case "role":
 		lines, refusal := scoped.dangerLossRole(place, name)
 		apiAnswer(w, apiDangerLoss{Lines: lines}, refusal)
@@ -106,6 +112,53 @@ func (s *Server) dangerLossRole(place, name string) ([]string, *apiErr) {
 	lines := []string{tf("danger.role_doc", s.cat.Display(path))}
 	if readers > 0 {
 		lines = append(lines, tf("danger.role_used", readers))
+	}
+	return lines, nil
+}
+
+// teamTargets is what deleting one definition takes: its team.yaml and the
+// agreement.md when one stands there, whether the folder goes (nothing else in
+// it), and what stays in the folder (ac-ddb6).
+func (s *Server) teamTargets(place, name string) (files, leftovers []string, dirRemoved, found bool) {
+	layer := catalog.Layer(place)
+	teamPath := s.cat.TeamYAML(name, layer)
+	agreePath := s.t2AgreeFile(name, layer)
+	for _, path := range []string{teamPath, agreePath} {
+		if there, _, _ := s.cat.FileState(path); there {
+			files = append(files, path)
+		}
+	}
+	if len(files) == 0 {
+		return nil, nil, false, false
+	}
+	dir := filepath.Dir(teamPath)
+	if entries, err := os.ReadDir(dir); err == nil {
+		for _, one := range entries {
+			path := filepath.Join(dir, one.Name())
+			if path != teamPath && path != agreePath {
+				leftovers = append(leftovers, one.Name())
+			}
+		}
+	}
+	return files, leftovers, len(leftovers) == 0, true
+}
+
+// dangerLossTeam is the team loss in the confirmation's words.
+func (s *Server) dangerLossTeam(place, name string) ([]string, *apiErr) {
+	files, leftovers, dirRemoved, found := s.teamTargets(place, name)
+	if !found {
+		return nil, refuse(http.StatusNotFound, t("web.error.not_found"))
+	}
+	shown := make([]string, 0, len(files))
+	for _, path := range files {
+		shown = append(shown, s.cat.Display(path))
+	}
+	lines := []string{tf("danger.team_files", strings.Join(shown, "、"))}
+	if dirRemoved {
+		lines = append(lines, t("danger.team_folder"))
+	}
+	if len(leftovers) > 0 {
+		lines = append(lines, tf("danger.team_left", strings.Join(leftovers, "、")))
 	}
 	return lines, nil
 }

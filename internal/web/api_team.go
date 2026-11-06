@@ -1085,9 +1085,14 @@ func (k apiTeam) savedAnswer(name, place string) apiSaved {
 // the screen is not removed.
 func (k apiTeam) Delete(name string, in apiIn) (any, *apiErr) {
 	s := k.s
-	layer := catalog.Layer(in.Place)
-	teamPath := s.cat.TeamYAML(name, layer)
-	agreePath := s.t2AgreeFile(name, layer)
+	files, _, _, _ := s.teamTargets(in.Place, name)
+	teamPath, agreePath := "", ""
+	if len(files) > 0 {
+		teamPath = files[0]
+	}
+	if len(files) > 1 {
+		agreePath = files[1]
+	}
 	for _, path := range []string{teamPath, agreePath} {
 		if bad := s.docUnreadableRefusal(path); bad != nil {
 			return nil, bad
@@ -1110,6 +1115,9 @@ func (k apiTeam) Delete(name string, in apiIn) (any, *apiErr) {
 		}
 	}
 	for _, path := range []string{teamPath, agreePath} {
+		if path == "" {
+			continue
+		}
 		if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return nil, refuse(http.StatusInternalServerError, err.Error())
 		}

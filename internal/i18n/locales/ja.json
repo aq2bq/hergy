@@ -612,5 +612,8 @@
   "danger.file_stays": "ファイルは残ります。",
   "danger.profile_users": "%d 人が使っています。",
   "danger.role_doc": "%s を消します。",
-  "danger.role_used": "%d 人が読んでいます。"
+  "danger.role_used": "%d 人が読んでいます。",
+  "danger.team_files": "%s を消します。",
+  "danger.team_folder": "フォルダも消えます。",
+  "danger.team_left": "フォルダには %s が残ります。"
 }

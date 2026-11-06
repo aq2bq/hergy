@@ -612,5 +612,8 @@
   "danger.file_stays": "The file stays.",
   "danger.profile_users": "%d people use it.",
   "danger.role_doc": "Delete %s.",
-  "danger.role_used": "%d people read it."
+  "danger.role_used": "%d people read it.",
+  "danger.team_files": "Delete %s.",
+  "danger.team_folder": "The folder goes too.",
+  "danger.team_left": "%s stays in the folder."
 }
