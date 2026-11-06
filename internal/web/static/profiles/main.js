@@ -41,7 +41,7 @@ import {
   conflictOf,
   ConflictNotice,
   YamlTab2
-} from "../chunk/nav-w97g1d8v.js";
+} from "../chunk/nav-j8vphwav.js";
 import {
   copyGroupOf,
   projectOfGroup,

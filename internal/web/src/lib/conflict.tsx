@@ -12,6 +12,7 @@
 // ファイルが消えていれば、上書きの代わりに 書いていた内容で作り直して保存する。
 // どの画面もこの 1 つの部品を出し、押されたときの保存と読み込みだけを自分で持つ。
 import { useState } from './preact.js';
+import { runDanger } from './danger.js';
 
 // Changed is the file a refusal is about, as the server answered it: where it
 // stands, whether it is there, the hash of the text it holds now, that text, the
@@ -136,7 +137,7 @@ export function ConflictNotice({ c, mine, busy, undone, onOverwrite, onRevert, o
       <div class="cf-acts">
         <button class="btn sm" data-act="cf-compare" aria-pressed={shown} onClick={() => setShown(!shown)}>{shown ? '見比べるのをやめる' : '見比べる'}</button>
         <button class="btn primary sm" data-act="cf-overwrite" disabled={!!busy} onClick={onOverwrite}>{c.file.exists ? '書いていた内容で上書きする' : '書いていた内容で作り直して保存する'}</button>
-        <button class="btn sm" data-act="cf-revert" disabled={!!busy} onClick={onRevert}>元に戻す</button>
+        <button class="btn sm" data-act="cf-revert" data-danger data-danger-act="conflictRevert" disabled={!!busy} onClick={(e: Event) => runDanger('conflictRevert', { run: onRevert, said: 'ファイルの今の内容に戻しました', host: (e.currentTarget as HTMLElement).closest('.panel') as HTMLElement | null })}>元に戻す</button>
       </div>
     </section>
   );

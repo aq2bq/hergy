@@ -41,6 +41,9 @@ import {
   problemText2
 } from "../chunk/nav-sk3m5qf3.js";
 import {
+  runDanger
+} from "../chunk/nav-b0v6p86y.js";
+import {
   num,
   documents,
   documentID,
@@ -58,9 +61,6 @@ import {
   RuleDoc2
 } from "../chunk/nav-nte0yehk.js";
 import {
-  runDanger
-} from "../chunk/nav-b0v6p86y.js";
-import {
   st,
   token2,
   parseOpen2,
@@ -73,7 +73,7 @@ import {
   conflictOf,
   ConflictNotice,
   YamlTab2
-} from "../chunk/nav-w97g1d8v.js";
+} from "../chunk/nav-j8vphwav.js";
 import {
   roleEditor,
   roleProblems
@@ -6230,6 +6230,8 @@ function Foot({ r, agree }) {
               children: /* @__PURE__ */ u("button", {
                 class: "btn",
                 "data-act": "revert",
+                "data-danger": true,
+                "data-danger-act": "revertDraft",
                 hidden: empty || !d,
                 onClick: (e) => pressRevert(r, e.currentTarget.closest(".panel")),
                 children: "元に戻す"
@@ -6263,6 +6265,8 @@ function Foot({ r, agree }) {
             children: /* @__PURE__ */ u("button", {
               class: "btn",
               "data-act": "t-revert",
+              "data-danger": true,
+              "data-danger-act": "revertDraft",
               hidden: !n,
               onClick: (e) => pressTRevert(r, e.currentTarget.closest(".panel")),
               children: "元に戻す"

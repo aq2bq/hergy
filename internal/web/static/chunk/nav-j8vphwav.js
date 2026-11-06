@@ -191,8 +191,10 @@ function ConflictNotice({ c, mine, busy, undone, onOverwrite, onRevert, onUndo }
           /* @__PURE__ */ u("button", {
             class: "btn sm",
             "data-act": "cf-revert",
+            "data-danger": true,
+            "data-danger-act": "conflictRevert",
             disabled: !!busy,
-            onClick: onRevert,
+            onClick: (e) => runDanger("conflictRevert", { run: onRevert, said: "ファイルの今の内容に戻しました", host: e.currentTarget.closest(".panel") }),
             children: "元に戻す"
           })
         ]
@@ -629,6 +631,8 @@ function YamlTab2(props) {
             children: /* @__PURE__ */ u("button", {
               class: "btn",
               "data-act": "yaml-revert",
+              "data-danger": true,
+              "data-danger-act": "revertDraft",
               hidden: !dirty,
               onClick: revert,
               children: "元に戻す"

@@ -398,7 +398,7 @@ export function YamlTab(props: YamlTabProps) {
   <footer class="pf">
     <button class="btn primary" data-act="yaml-save" disabled={!dirty || grew || !!problem} onClick={() => save()}>保存</button><span class="dirty">{dirty ? '変更あり' : ''}</span>
     {problem ? <span class="sev err refusal" role="alert">{problem}</span> : ''}{refusal ? <span class="sev err refusal">{refusal}</span> : ''}{saved ? <span class="ok">保存しました</span> : ''}
-    <span class="acts"><button class="btn" data-act="yaml-revert" hidden={!dirty} onClick={revert}>元に戻す</button></span>
+    <span class="acts"><button class="btn" data-act="yaml-revert" data-danger data-danger-act="revertDraft" hidden={!dirty} onClick={revert}>元に戻す</button></span>
   </footer></>;
 }
 
