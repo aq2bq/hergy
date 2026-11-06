@@ -15,6 +15,10 @@ type Activity interface {
 	// One is GET /api/activity/{team}: one team's opened part. ok is false for
 	// a team that is not running, which the handler answers as a 404.
 	One(name string) (ActivityDoc, bool)
+	// StopTargets is what stopping one team closes, as the stop itself closes it:
+	// the member names and the number of worker panes (r-ccf8, ac-ddb6). ok is
+	// false for a team that is not running.
+	StopTargets(name string) (members []string, workers int, ok bool)
 }
 
 // noActivity is the reading of a server built without one: nothing is running
@@ -28,6 +32,8 @@ func (noActivity) List() ActivityList {
 }
 
 func (noActivity) One(string) (ActivityDoc, bool) { return ActivityDoc{}, false }
+
+func (noActivity) StopTargets(string) ([]string, int, bool) { return nil, 0, false }
 
 // ActivityList is GET /api/activity's answer.
 type ActivityList struct {

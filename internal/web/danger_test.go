@@ -109,3 +109,24 @@ func TestTEAMS_DangerLossNamesWhatDeleteTakes(t *testing.T) {
 		t.Errorf("the file the loss said stays is gone: %v", err)
 	}
 }
+
+// TestSTOP_DangerLossNamesThePanesTheStopCloses: the confirmation's lines come
+// from Activity.StopTargets, the same answer Stop closes (ac-ddb6).
+func TestSTOP_DangerLossNamesThePanesTheStopCloses(t *testing.T) {
+	f := newFixture(t)
+	server := f.server(t)
+	server.act = fakeActivity{list: ActivityList{
+		Running: 1,
+		Items:   []ActivityItem{{Name: "core", Workspace: ActivitySpace{Label: "w1"}}},
+	}}
+	lines, refusal := server.dangerLossActivity("core")
+	if refusal != nil {
+		t.Fatalf("the loss: %+v", refusal)
+	}
+	joined := strings.Join(lines, "\n")
+	for _, want := range []string{"lead", "builder", "2 人のワーカー"} {
+		if !strings.Contains(joined, want) {
+			t.Errorf("the loss does not name %q: %v", want, lines)
+		}
+	}
+}

@@ -186,17 +186,13 @@ func (s *Server) dangerLossActivity(team string) ([]string, *apiErr) {
 	if item == nil {
 		return nil, refuse(http.StatusNotFound, t("web.error.not_found"))
 	}
-	doc, ok := s.activity().One(team)
+	members, workers, ok := s.activity().StopTargets(team)
 	if !ok {
 		return nil, refuse(http.StatusNotFound, t("web.error.not_found"))
 	}
-	names := make([]string, 0, len(doc.Nodes))
-	for _, node := range doc.Nodes {
-		names = append(names, node.Name)
-	}
-	lines := []string{tf("danger.stop_members", len(doc.Nodes), strings.Join(names, "、"))}
-	if len(doc.Hired) > 0 {
-		lines = append(lines, tf("danger.stop_workers", len(doc.Hired)))
+	lines := []string{tf("danger.stop_members", len(members), strings.Join(members, "、"))}
+	if workers > 0 {
+		lines = append(lines, tf("danger.stop_workers", workers))
 	}
 	if label := item.Workspace.Label; label != "" {
 		lines = append(lines, tf("danger.stop_workspace", label))

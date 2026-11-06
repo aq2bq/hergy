@@ -131,6 +131,14 @@ func (f fakeActivity) One(name string) (ActivityDoc, bool) {
 	return doc, ok
 }
 
+// StopTargets is the stop's one answer: the members and worker panes.
+func (f fakeActivity) StopTargets(name string) ([]string, int, bool) {
+	if f.list.Running == 0 {
+		return nil, 0, false
+	}
+	return []string{"lead", "builder"}, 2, true
+}
+
 // get runs one GET against the server's own handler, with the Host check passing
 // as it does for a browser.
 func (f *fixture) get(t *testing.T, server *Server, target string) (*http.Response, string) {

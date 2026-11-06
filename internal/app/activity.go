@@ -705,6 +705,28 @@ func sinceOf(t activity.Team, now time.Time) *web.ActivitySince {
 
 // One is GET /api/activity/{team}: one team's opened part. ok is false for a team
 // that is not running in this project, which the handler answers as a 404.
+// StopTargets is the stop's own answer, read without closing anything: the
+// members and worker panes Stop would close (r-ccf8).
+func (a *activityRead) StopTargets(name string) ([]string, int, bool) {
+	if a.hq == nil {
+		return nil, 0, false
+	}
+	read := a.hq.act.readHerdr(a.hq.act.clock())
+	one, found := a.hq.findRunning(read, name)
+	if !found {
+		return nil, 0, false
+	}
+	env, err := a.hq.act.envAt(one.Project)
+	if err != nil {
+		return nil, 0, false
+	}
+	target, err := a.hq.stopTargets(env, one, read)
+	if err != nil {
+		return nil, 0, false
+	}
+	return target.members, len(target.workers), true
+}
+
 func (a *activityRead) One(name string) (web.ActivityDoc, bool) {
 	now := a.clock()
 	read := a.readHerdr(now)
