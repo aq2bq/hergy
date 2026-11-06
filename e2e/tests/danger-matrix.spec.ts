@@ -147,7 +147,7 @@ test.describe('undo: one press takes it back where it was pressed', () => {
     await point.click();
     await page.keyboard.press('Delete');
     await expect(notice(page)).toBeVisible();
-    await expect(panel.locator('.undo')).toContainText('impl-b を外した');
+    await expect(panel.locator('.undo')).toContainText('impl-b を外しました');
     await expect(panel.locator('.undo button')).toHaveText('取り消す');
     await expect(point).toHaveCount(0);
     await panel.locator('.undo button').click();

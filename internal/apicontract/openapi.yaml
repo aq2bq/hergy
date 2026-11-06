@@ -3831,6 +3831,9 @@ components:
           items:
             $ref: '#/components/schemas/TeamPromptSegment'
           description: ワーカーに渡す初期プロンプト
+        prompt_team:
+          type: string
+          description: ワーカーの初期プロンプトを組み立てたチーム名（動いているチームか定義名）
         doc:
           allOf:
             - $ref: '#/components/schemas/TeamDocument'

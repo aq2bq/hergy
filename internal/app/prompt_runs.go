@@ -76,7 +76,7 @@ func promptRunsOf(live web.HQRunning, project, definition, place string) []web.P
 // PromptHistory is the recorded body of one member and the live state of the
 // team it was asked for. The team is chosen by the web owner now; this reads the
 // record and says whether the member is live.
-func (a *activityRead) PromptHistory(project, definition, place, member, running string) (web.PromptHistory, error) {
+func (a *activityRead) PromptHistory(_, definition, place, member, running string) (web.PromptHistory, error) {
 	out := web.PromptHistory{Runs: []web.PromptRun{}, Status: "missing", Reason: "このメンバーへ渡した本文の記録がありません"}
 	live := a.liveRunning()
 	if !live.Herdr.OK {

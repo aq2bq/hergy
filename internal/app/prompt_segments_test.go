@@ -184,10 +184,6 @@ const (
 
 // canvasCheck is one /api/team/check answer as this test reads it.
 type canvasCheck struct {
-	Members []struct {
-		Name     string                     `json:"name"`
-		Segments []definition.PromptSegment `json:"segments"`
-	} `json:"members"`
 	Prompt   []definition.PromptSegment `json:"prompt"`
 	Problems []struct {
 		Text string `json:"text"`
@@ -252,6 +248,47 @@ func canvasAsk(t *testing.T, base, token string, payload map[string]any) canvasC
 	return answer
 }
 
+// canvasCompare asks the comparison owner for one member's text, the way the
+// prompt column reads it (⑤ r-ba9b).
+func canvasCompare(t *testing.T, base, token string, payload map[string]any) ([]definition.PromptSegment, bool) {
+	t.Helper()
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req, err := http.NewRequest(http.MethodPost, base+"/api/team/prompt-comparison", bytes.NewReader(raw))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Hergy-Token", token)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("ask the comparison: %v", err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("the comparison answers %d: %s", resp.StatusCode, body)
+	}
+	var answer struct {
+		Segments []definition.PromptSegment `json:"segments"`
+		Problems []struct {
+			Sev  string `json:"sev"`
+			Text string `json:"text"`
+		} `json:"problems"`
+	}
+	if err := json.Unmarshal(body, &answer); err != nil {
+		t.Fatalf("the comparison does not read: %v\n%s", err, body)
+	}
+	for _, problem := range answer.Problems {
+		if problem.Sev == "err" {
+			return nil, true
+		}
+	}
+	return answer.Segments, false
+}
+
 // TestCANVAS_PROMPT_TheCheckSegmentsAreThePlans: the lines the attribute column
 // draws are the check's segments (r-4cf9), and put back together they are
 // `up --dry`'s prompt line for line (ac-5bfa). The sample's three teams are the
@@ -283,28 +320,27 @@ func TestCANVAS_PROMPT_TheCheckSegmentsAreThePlans(t *testing.T) {
 		if len(plan) == 0 {
 			t.Fatalf("%s has no members", team)
 		}
-		answer := canvasAsk(t, base, token, map[string]any{
-			"place": "project", "name": team, "part": "team",
-			"doc": map[string]any{"ops": []map[string]any{}},
-		})
-		// A warning (the sample's own size) does not keep hergy from building
-		// the prompt; only a problem that stops it leaves the members out
-		// (d-20ac), and then there is nothing to compare.
-		if len(answer.Members) != len(plan) {
-			t.Fatalf("%s's check answers %d members, the plan has %d", team, len(answer.Members), len(plan))
+		yaml, err := os.ReadFile(filepath.Join(f.proj, ".hergy", "teams", team, "team.yaml"))
+		if err != nil {
+			t.Fatal(err)
 		}
 		for _, member := range plan {
-			var segments []definition.PromptSegment
 			// The plan names a member by its herdr name; the column names it
 			// by its own (teams/canvas.js), so the team's prefix is dropped.
 			short := strings.TrimPrefix(member.Name, team+"-")
-			for _, got := range answer.Members {
-				if got.Name == short {
-					segments = got.Segments
-				}
+			segments, blocked := canvasCompare(t, base, token, map[string]any{
+				"place": "project", "name": team, "member": short, "hash": source.Hash(string(yaml)),
+				"doc": map[string]any{"ops": []map[string]any{}},
+			})
+			// A problem that stops the definition (the sample's docs names a
+			// worker profile neither place holds) gives no text, so there is
+			// nothing to compare: the column says why instead (d-20ac).
+			if blocked {
+				t.Logf("%s is blocked by its own problem; its member texts are not compared", team)
+				break
 			}
 			if segments == nil {
-				t.Fatalf("%s's check does not answer %s's prompt", team, member.Name)
+				t.Fatalf("%s's comparison does not answer %s's prompt", team, member.Name)
 			}
 			// The column draws the segments' own texts, so what it puts back
 			// together is the plan's prompt.

@@ -46,8 +46,7 @@ type PromptHistory struct {
 }
 type promptComparisonIn struct {
 	apiIn
-	Member      string `json:"member"`
-	RunningTeam string `json:"running_team"`
+	Member string `json:"member"`
 }
 type promptComparison struct {
 	PromptHistory
@@ -164,79 +163,112 @@ func (s *Server) promptsFor(ask promptAsk) (*promptBuilt, *apiErr) {
 			out.Names = selectPromptName(in.Name, runs, in.RunningTeam)
 		}
 	}
-	cat := ask.Cat
-	overlay := ask.Cat
-	def := ask.Def
-	if cat == nil {
-		if out.Names.Selected != nil && !sameProjectPath(out.Names.Selected.Project, project) {
-			scoped, refusal := s.withProject(out.Names.Selected.Project)
-			if refusal != nil {
-				return nil, refusal
-			}
-			s = scoped
-			project = s.cat.Base()
-			out.Project = project
-		}
-		base, refusal := s.promptCatalog(in)
-		if refusal != nil {
-			return nil, refusal
-		}
-		body, refusal := t2DecodeOps(in.apiIn)
-		if refusal != nil {
-			return nil, refusal
-		}
-		draft, failure := (apiTeam{s: &Server{cat: base}}).overlay(in.Name, in.Place, body.ops)
-		if failure != nil {
-			return nil, failure
-		}
-		cat, overlay = base, draft
+	basis, refusal := s.promptBasisFor(ask, project, out.Names)
+	if refusal != nil {
+		return nil, refusal
 	}
-	if def == nil && overlay != nil {
-		built, err := overlay.Definition(in.Name, catalog.Layer(in.Place))
-		if err != nil {
-			out.DefErr = err
-		} else {
-			def = built
-		}
-	}
-	out.Cat, out.Def = cat, def
-	if def == nil || def.Graph == nil {
+	out.Project, out.Cat, out.Def, out.DefErr = basis.project, basis.cat, basis.def, basis.defErr
+	if basis.def == nil || basis.def.Graph == nil {
 		return out, nil
 	}
 	if ask.Worker != nil {
-		lead, err := t2HiringMember(def, ask.Worker.Purpose, ask.Worker.From)
-		if err != nil {
-			out.WorkerErr = err
-			return out, nil
-		}
-		built, err := prompt.Worker(prompt.WorkerInput{
-			Team: out.Names.Team, Lead: out.Names.Team + "-" + lead.Name, LeadRole: lead.Role,
-			Purpose: ask.Worker.Purpose, Name: out.Names.Team + "-" + ask.Worker.Name, Task: ask.Worker.Task,
-		})
-		if err != nil {
-			out.WorkerErr = err
-			return out, nil
-		}
-		out.Worker = &promptText{Name: out.Names.Team + "-" + ask.Worker.Name, Text: built.Text, Segments: built.Segments}
+		out.Worker, out.WorkerErr = promptWorkerText(out.Names.Team, basis.def, ask.Worker)
 		return out, nil
 	}
+	out.Built = promptMemberTexts(out.Names.Team, out.Project, basis.overlay, basis.def, in.Member, out.Errors)
+	return out, nil
+}
+
+// promptBasis is what a prompt's text stands on: the catalog the caller's
+// problems are checked against, the overlay the text reads through, and the
+// definition itself.
+type promptBasis struct {
+	project      string
+	cat, overlay *catalog.Catalog
+	def          *definition.Definition
+	defErr       error
+}
+
+// promptBasisFor is the catalog and definition the name's prompt is built from.
+// The caller's own catalog is used when it has one (the check); otherwise the
+// comparison's catalog is read, in the project the chosen run stands in.
+func (s *Server) promptBasisFor(ask promptAsk, project string, names promptNames) (*promptBasis, *apiErr) {
+	if ask.Cat != nil {
+		basis := &promptBasis{project: project, cat: ask.Cat, overlay: ask.Cat, def: ask.Def}
+		basis.readDefinition(ask.In.Name, ask.In.Place)
+		return basis, nil
+	}
+	if names.Selected != nil && !sameProjectPath(names.Selected.Project, project) {
+		scoped, refusal := s.withProject(names.Selected.Project)
+		if refusal != nil {
+			return nil, refusal
+		}
+		s = scoped
+		project = s.cat.Base()
+	}
+	cat, refusal := s.promptCatalog(ask.In)
+	if refusal != nil {
+		return nil, refusal
+	}
+	body, refusal := t2DecodeOps(ask.In.apiIn)
+	if refusal != nil {
+		return nil, refusal
+	}
+	overlay, failure := (apiTeam{s: &Server{cat: cat}}).overlay(ask.In.Name, ask.In.Place, body.ops)
+	if failure != nil {
+		return nil, failure
+	}
+	basis := &promptBasis{project: project, cat: cat, overlay: overlay}
+	basis.readDefinition(ask.In.Name, ask.In.Place)
+	return basis, nil
+}
+
+// readDefinition reads the definition once, when the caller did not hand one in.
+func (b *promptBasis) readDefinition(name, place string) {
+	if b.def != nil || b.overlay == nil {
+		return
+	}
+	b.def, b.defErr = b.overlay.Definition(name, catalog.Layer(place))
+}
+
+// promptWorkerText builds the one worker's preview with the team name the
+// prompt is named by.
+func promptWorkerText(team string, def *definition.Definition, worker *apiWorkerIn) (*promptText, error) {
+	lead, err := t2HiringMember(def, worker.Purpose, worker.From)
+	if err != nil {
+		return nil, err
+	}
+	built, err := prompt.Worker(prompt.WorkerInput{
+		Team: team, Lead: team + "-" + lead.Name, LeadRole: lead.Role,
+		Purpose: worker.Purpose, Name: team + "-" + worker.Name, Task: worker.Task,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &promptText{Name: team + "-" + worker.Name, Text: built.Text, Segments: built.Segments}, nil
+}
+
+// promptMemberTexts builds every member's text, or the one the caller named. A
+// member whose text cannot be built is left out; the caller's problems say why.
+func promptMemberTexts(team, project string, overlay *catalog.Catalog, def *definition.Definition, member string, failures map[string]error) []promptText {
 	run := prompt.Run{
-		Team: out.Names.Team, Base: out.Project, Executable: promptExecutable(),
+		Team: team, Base: project, Executable: promptExecutable(),
 		Lang: i18n.Language(), Reader: overlay.Reader(), Sources: overlay, Display: overlay.Display,
 	}
+	var out []promptText
 	for i := range def.Graph.Members {
 		node := &def.Graph.Members[i]
-		if in.Member != "" && node.Name != in.Member {
+		if member != "" && node.Name != member {
 			continue
 		}
 		built, err := prompt.Member(def, node, run)
 		if err != nil {
-			out.Errors[node.Name] = err
+			failures[node.Name] = err
 			continue
 		}
-		out.Built = append(out.Built, promptText{Name: node.Name, Text: built.Text, Segments: built.Segments})
+		out = append(out, promptText{Name: node.Name, Text: built.Text, Segments: built.Segments})
 	}
-	return out, nil
+	return out
 }
 
 // promptRuns reads the live teams through the reader, or answers none when the

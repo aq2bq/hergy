@@ -3841,10 +3841,24 @@ function setRun(key, team) {
 }
 var pickedRun = (r) => runOf(dkey(r));
 var pickRun = (r, team) => setRun(dkey(r), team);
-function runningRevision(r) {
+function liveTeams(r) {
+  if (!st.running.value.herdr || !st.running.value.herdr.ok)
+    return [];
   const project = r.project && r.project !== "global" ? r.project : CURRENT;
-  const teams = (st.running.value.teams || []).filter((t) => t.definition === r.name.value && (t.place || "project") === r.place.value && (r.place.value === "global" || !project || t.project === project)).map((t) => [t.team, t.project || "", ...(t.members || []).map((m) => `${m.name}:${m.live ? "1" : "0"}`)].join("\x00")).sort();
-  return teams.join("\x01");
+  return (st.running.value.teams || []).filter((t) => t.definition === r.name.value && (t.place || "project") === r.place.value && (r.place.value === "global" || !project || t.project === project));
+}
+function runningRevision(r) {
+  return liveTeams(r).map((t) => [t.team, t.project || "", ...(t.members || []).map((m) => `${m.name}:${m.live ? "1" : "0"}`)].join("\x00")).sort().join("\x01");
+}
+function useKeepPick(r) {
+  const picked = pickedRun(r);
+  const revision = runningRevision(r);
+  h(() => {
+    if (!picked || !st.running.value.herdr || !st.running.value.herdr.ok)
+      return;
+    if (!liveTeams(r).some((one) => one.team === picked))
+      setRun(dkey(r), "");
+  }, [picked, revision]);
 }
 function promptKey(r, ask) {
   return [dkey(r), JSON.stringify(promptComparisonInput(r)), ask.member, pickedRun(r), runningRevision(r)].join("\x02");
@@ -3950,6 +3964,7 @@ function reloadPrompt(r, ask) {
   schedule(slot, promptKey(r, ask), body);
 }
 function usePrompt(r, ask) {
+  useKeepPick(r);
   const slot = memberSlotFor(r, ask);
   const key = promptKey(r, ask);
   const body = { ...promptComparisonInput(r), member: ask.member, running_team: pickedRun(r) };
@@ -3967,6 +3982,7 @@ function usePrompt(r, ask) {
   };
 }
 function useWorkerPrompt(r, i) {
+  useKeepPick(r);
   const w = r.draft.value.workers[i];
   const ok = !!(w && w.purpose && w.from);
   const slot = ok ? workerSlotFor(r, w.from, w.purpose) : null;
@@ -3981,6 +3997,7 @@ function useWorkerPrompt(r, i) {
   const answer = slot.shown.value;
   return {
     segments: answer ? answer.prompt || [] : [],
+    team: answer && answer.prompt_team || r.name.value,
     name: WORKER_NAME,
     task: WORKER_TASK,
     loading: slot.loading.value,
@@ -4526,7 +4543,7 @@ function WorkerPromptSection({ r, w, i }) {
     });
   else {
     const { lines, blocks } = promptBlocks(pv.segments);
-    const full = `${r.name.value}-${pv.name}`;
+    const full = `${pv.team}-${pv.name}`;
     const slotText = (t) => {
       const out = [];
       let s = String(t);
@@ -4539,7 +4556,7 @@ function WorkerPromptSection({ r, w, i }) {
         }
         out.push(s.slice(0, at));
         if (at === a) {
-          out.push(`${r.name.value}-`);
+          out.push(`${pv.team}-`);
           out.push(/* @__PURE__ */ u("span", {
             class: "cv-slot",
             "data-v": pv.name,
@@ -4807,7 +4824,7 @@ function del(r) {
   if (sel.type === "node" && sel.id !== "human") {
     const id = sel.id, nt = t.turns.filter(([a, b]) => a === id || b === id).length, nw = t.workers.filter((w) => w.from === id).length;
     selectPick(r, null);
-    remove(r, "removeMember", [{ kind: "removeMember", member: id }], { said: `${id} を外した（ターン ${nt} 本・ワーカー ${nw} 件も）`, undo: `${id} を外したのを取り消した` });
+    remove(r, "removeMember", [{ kind: "removeMember", member: id }], { said: `${id} を外しました（ターン ${nt} 本・ワーカー ${nw} 件も）`, undo: `${id} を外したのを取り消した` });
   } else if (sel.type === "edge") {
     const [a, b] = sel.k.split("|"), ops = [];
     if (hasTurn(t, a, b))
@@ -4824,7 +4841,7 @@ function del(r) {
     if (!w)
       return;
     selectPick(r, null);
-    remove(r, "removeWorker", [{ kind: "removeWorker", from: w.from, purpose: w.purpose }], { said: `ワーカー ${w.purpose || "（目的）"} を外した`, undo: "ワーカーを外したのを取り消した" });
+    remove(r, "removeWorker", [{ kind: "removeWorker", from: w.from, purpose: w.purpose }], { said: `ワーカー ${w.purpose || "（目的）"} を外しました`, undo: "ワーカーを外したのを取り消した" });
   }
 }
 var lastPress = null;
@@ -5041,7 +5058,7 @@ function onClick(r, e) {
     const w = t.workers[Number(b.dataset.i)];
     if (!w)
       return;
-    remove(r, "removeWorker", [{ kind: "removeWorker", from: w.from, purpose: w.purpose }], { said: `ワーカー ${w.purpose || "（目的）"} を外した`, undo: "ワーカーを外したのを取り消した" });
+    remove(r, "removeWorker", [{ kind: "removeWorker", from: w.from, purpose: w.purpose }], { said: `ワーカー ${w.purpose || "（目的）"} を外しました`, undo: "ワーカーを外したのを取り消した" });
     return;
   }
   if (a === "pick-w")

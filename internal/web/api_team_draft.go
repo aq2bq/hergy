@@ -354,7 +354,7 @@ func (k apiTeam) checkDraft(in apiIn) (any, *apiErr) {
 	}
 	return apiCheck{
 		Problems: problems,
-		Doc:      s.t2DocWithAgree(cat, in.Name, def, s.t2AgreeOfText(in.Name, row.Layer, row.Agree)),
+		Doc:      s.t2DocWithAgree(def, s.t2AgreeOfText(in.Name, row.Layer, row.Agree)),
 		Draft: &apiCheckDraft{
 			Name: in.Name, Place: in.Place, Starter: row.Starter, Path: display, Hash: source.Hash(""),
 			Writes: s.t2DraftWrites(row, in, in.Name, draft), HasRoles: hasRoles, HasProfiles: hasProfiles,

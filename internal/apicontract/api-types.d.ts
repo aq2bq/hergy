@@ -1992,6 +1992,8 @@ export interface components {
             size?: number;
             /** @description ワーカーに渡す初期プロンプト */
             prompt?: components["schemas"]["TeamPromptSegment"][];
+            /** @description ワーカーの初期プロンプトを組み立てたチーム名（動いているチームか定義名） */
+            prompt_team?: string;
             /** @description 保存前のチーム定義。保存済みの検査の答えには無い */
             doc?: components["schemas"]["TeamDocument"];
             /** @description まだ保存していない定義だけが持つ欄。保存済みの検査の答えには無い */

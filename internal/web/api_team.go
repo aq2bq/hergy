@@ -250,13 +250,13 @@ func (s *Server) t2FilesAt(name, place string) []apiFile {
 
 // t2DocOf is one place's team definition in the screen's shape.
 func (s *Server) t2DocOf(name, layer string, def *definition.Definition) apiTeamDoc {
-	return s.t2DocWithAgree(s.cat, name, def, s.t2AgreeOf(name, layer))
+	return s.t2DocWithAgree(def, s.t2AgreeOf(name, layer))
 }
 
 // t2DocWithAgree is t2DocOf with the agreement given rather than read: a
 // definition that is not there yet has no agreement.md to read, so its rules
 // come from the text the row stands on (spec-teams B2).
-func (s *Server) t2DocWithAgree(cat *catalog.Catalog, name string, def *definition.Definition, agree *apiTeamAgree) apiTeamDoc {
+func (s *Server) t2DocWithAgree(def *definition.Definition, agree *apiTeamAgree) apiTeamDoc {
 	out := apiTeamDoc{Agreement: agree}
 	if def == nil || def.Graph == nil {
 		out.Broken = true
@@ -578,7 +578,7 @@ func (k apiTeam) checkWorkerPrompt(in apiIn) (any, *apiErr) {
 	if built.Worker == nil {
 		return nil, refuse(http.StatusUnprocessableEntity, i18n.T("error.worker_prompt_required"))
 	}
-	return apiCheck{Prompt: built.Worker.Segments}, nil
+	return apiCheck{Prompt: built.Worker.Segments, PromptTeam: built.Names.Team}, nil
 }
 
 // t2HiringMember is the member a worker preview hires through: the one from:

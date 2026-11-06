@@ -30,14 +30,17 @@ type apiIn struct {
 	// Project names the listed project a read or write is about (d-73fc): the
 	// kind then reads and writes that project's .hergy/ instead of the project
 	// serve was started in. Empty keeps the old behaviour.
-	Project         string          `json:"project"`
-	Place           string          `json:"place"`
-	Name            string          `json:"name"`
-	Part            string          `json:"part"`
-	Original        string          `json:"original"`
-	Doc             json.RawMessage `json:"doc"`
-	Text            string          `json:"text"`
-	Hash            string          `json:"hash"`
+	Project  string          `json:"project"`
+	Place    string          `json:"place"`
+	Name     string          `json:"name"`
+	Part     string          `json:"part"`
+	Original string          `json:"original"`
+	Doc      json.RawMessage `json:"doc"`
+	Text     string          `json:"text"`
+	Hash     string          `json:"hash"`
+	// RunningTeam is the running team a screen picked for a prompt reading
+	// (⑤ r-ba9b): empty means it picked none.
+	RunningTeam     string          `json:"running_team"`
 	RenameUsers     bool            `json:"rename_users"`
 	RenameTo        *string         `json:"rename_to"`
 	RoleContext     string          `json:"role_context"`
@@ -308,8 +311,11 @@ type apiCheck struct {
 	// before anything is written. A saved definition's answer leaves it out.
 	Doc any `json:"doc,omitempty"`
 	// Prompt is one prompt's pieces, for a kind that answers a single prompt
-	// (the worker preview).
-	Prompt []definition.PromptSegment `json:"prompt,omitempty"`
+	// (the worker preview). PromptTeam is the name those pieces were built
+	// with: the running team's when one runs, the definition's otherwise
+	// (⑤ r-ba9b).
+	Prompt     []definition.PromptSegment `json:"prompt,omitempty"`
+	PromptTeam string                     `json:"prompt_team,omitempty"`
 }
 
 // apiSaved is the answer of PUT /api/{kind}/{name}: the one document as GET

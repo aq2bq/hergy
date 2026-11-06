@@ -192,7 +192,6 @@ func (r *runner) ownersGate() error {
 	if err != nil {
 		return err
 	}
-	findings = append(findings, changed...)
 	danger, err := r.dangerFindings(conf)
 	if err != nil {
 		return err
@@ -201,6 +200,13 @@ func (r *runner) ownersGate() error {
 	if err != nil {
 		return err
 	}
+	return ownersVerdict(conf, append(findings, changed...), danger, prompt)
+}
+
+// ownersVerdict prints what the sections found and fails the enforced ones.
+// Each section turns Hard on its own: a section still reporting prints its
+// findings and passes, and an enforced one fails (owners.yml).
+func ownersVerdict(conf ownersFile, findings, danger, prompt []string) error {
 	all := append(append(append([]string{}, findings...), danger...), prompt...)
 	if len(all) == 0 {
 		return nil
@@ -208,8 +214,6 @@ func (r *runner) ownersGate() error {
 	for _, finding := range all {
 		fmt.Println(finding)
 	}
-	// Each section turns Hard on its own: a section still reporting prints its
-	// findings and passes, and an enforced one fails (owners.yml).
 	failed := len(findings) > 0 && conf.Enforce || len(danger) > 0 && conf.DangerEnforce || len(prompt) > 0 && conf.PromptEnforce
 	if !failed {
 		which := ""
@@ -375,10 +379,6 @@ func (r *runner) promptFindings(conf ownersFile) ([]string, error) {
 			return nil, err
 		}
 		rel = filepath.ToSlash(rel)
-		raw, err := os.ReadFile(path)
-		if err != nil {
-			return nil, err
-		}
 		goFile := strings.HasSuffix(rel, ".go")
 		if goFile && strings.HasSuffix(rel, "_test.go") {
 			continue
@@ -386,41 +386,74 @@ func (r *runner) promptFindings(conf ownersFile) ([]string, error) {
 		if !goFile && !allowed(rel, []string{"internal/web/"}) {
 			continue // the WebUI's screens, not a generated contract or another kind
 		}
-		code := maskSpec(string(raw))
-		if goFile {
-			for _, rule := range promptGoRules {
-				if len(rule.scope) > 0 && !allowed(rel, rule.scope) {
-					continue
-				}
-				if allowed(rel, rule.files) || allowedBy(rel, conf.Allow, rule.name) {
-					continue
-				}
-				for _, line := range wordLines(code, rule.name) {
-					out = append(out, fmt.Sprintf("%s:%d: %s はここではなく %s に置いてください", rel, line, rule.name, promptBuilder))
-				}
-			}
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			return nil, err
 		}
-		for _, one := range promptWords {
-			if allowed(rel, one.files) || allowedBy(rel, conf.Allow, one.name) {
-				continue
-			}
-			for _, line := range wordLines(code, one.name) {
-				out = append(out, fmt.Sprintf("%s:%d: %s は %s に置いてください", rel, line, one.name, promptReader))
-			}
-		}
-		if goFile {
-			continue
-		}
-		for _, one := range promptStrings {
-			if allowed(rel, one.files) {
-				continue
-			}
-			for _, line := range stringLines(string(raw), one.text) {
-				out = append(out, fmt.Sprintf("%s:%d: %s を直に呼ばず %s を通してください", rel, line, one.text, promptReader))
-			}
-		}
+		out = append(out, promptFileFindings(rel, string(raw), goFile, conf)...)
 	}
 	return out, nil
+}
+
+// promptFileFindings reads one file for the prompt section's four kinds of
+// copy: a builder call, an old name, and the two addresses a screen may not
+// call itself.
+func promptFileFindings(rel, raw string, goFile bool, conf ownersFile) []string {
+	var out []string
+	code := maskSpec(raw)
+	if goFile {
+		out = append(out, promptBuilderFindings(rel, code, conf)...)
+	}
+	out = append(out, promptNameFindings(rel, code, conf)...)
+	if !goFile {
+		out = append(out, promptAddressFindings(rel, raw)...)
+	}
+	return out
+}
+
+// promptBuilderFindings is the builder's calls outside api_prompt.go.
+func promptBuilderFindings(rel, code string, conf ownersFile) []string {
+	var out []string
+	for _, rule := range promptGoRules {
+		if len(rule.scope) > 0 && !allowed(rel, rule.scope) {
+			continue
+		}
+		if allowed(rel, rule.files) || allowedBy(rel, conf.Allow, rule.name) {
+			continue
+		}
+		for _, line := range wordLines(code, rule.name) {
+			out = append(out, fmt.Sprintf("%s:%d: %s はここではなく %s に置いてください", rel, line, rule.name, promptBuilder))
+		}
+	}
+	return out
+}
+
+// promptNameFindings is the names the copies used, back again.
+func promptNameFindings(rel, code string, conf ownersFile) []string {
+	var out []string
+	for _, one := range promptWords {
+		if allowed(rel, one.files) || allowedBy(rel, conf.Allow, one.name) {
+			continue
+		}
+		for _, line := range wordLines(code, one.name) {
+			out = append(out, fmt.Sprintf("%s:%d: %s は %s に置いてください", rel, line, one.name, promptReader))
+		}
+	}
+	return out
+}
+
+// promptAddressFindings is the two addresses only the reader may name.
+func promptAddressFindings(rel, raw string) []string {
+	var out []string
+	for _, one := range promptStrings {
+		if allowed(rel, one.files) {
+			continue
+		}
+		for _, line := range stringLines(raw, one.text) {
+			out = append(out, fmt.Sprintf("%s:%d: %s を直に呼ばず %s を通してください", rel, line, one.text, promptReader))
+		}
+	}
+	return out
 }
 
 // wordLines is the 1-based lines where a whole word stands: the name with no

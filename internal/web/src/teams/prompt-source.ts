@@ -57,6 +57,7 @@ export type PromptState = {
 // of, and the two placeholders the screen draws as slots.
 export type WorkerPromptState = {
 	segments: PromptSegment[];
+	team: string;
 	name: string;
 	task: string;
 	loading: boolean;
@@ -90,17 +91,36 @@ export function setRun(key: string, team: string): void {
 export const pickedRun = (r: Rec): string => runOf(dkey(r));
 export const pickRun = (r: Rec, team: string): void => setRun(dkey(r), team);
 
+// liveTeams is the running teams of this definition, as herdr's last reading
+// named them. A reading that failed says nothing about the teams: it answers
+// none, and the pick is not cleared by it.
+export function liveTeams(r: Rec): { team: string; project?: string; members?: { name: string; live?: boolean }[] }[] {
+	if (!st.running.value.herdr || !st.running.value.herdr.ok) return [];
+	const project = r.project && r.project !== 'global' ? r.project : CURRENT;
+	return (st.running.value.teams || []).filter((t) => t.definition === r.name.value
+		&& (t.place || 'project') === r.place.value
+		&& (r.place.value === 'global' || !project || t.project === project));
+}
+
 // runningRevision is the live teams of this definition as one string: the part
 // of the key that makes a start, a stop or an alias a reason to read again.
 export function runningRevision(r: Rec): string {
-	const project = r.project && r.project !== 'global' ? r.project : CURRENT;
-	const teams = (st.running.value.teams || [])
-		.filter((t) => t.definition === r.name.value
-			&& (t.place || 'project') === r.place.value
-			&& (r.place.value === 'global' || !project || t.project === project))
+	return liveTeams(r)
 		.map((t) => [t.team, t.project || '', ...(t.members || []).map((m) => `${m.name}:${m.live ? '1' : '0'}`)].join('\u0000'))
-		.sort();
-	return teams.join('\u0001');
+		.sort()
+		.join('\u0001');
+}
+
+// useKeepPick lets a pick go when its team stops, whichever prompt is open: the
+// worker's preview follows the same pick, so it cannot wait for the member's
+// answer to clear it. A reading that failed clears nothing.
+function useKeepPick(r: Rec): void {
+	const picked = pickedRun(r);
+	const revision = runningRevision(r);
+	useEffect(() => {
+		if (!picked || !st.running.value.herdr || !st.running.value.herdr.ok) return;
+		if (!liveTeams(r).some((one) => one.team === picked)) setRun(dkey(r), '');
+	}, [picked, revision]);
 }
 
 // promptKey is everything a change of which makes a member's text another text.
@@ -210,6 +230,7 @@ export function reloadPrompt(r: Rec, ask: PromptAsk): void {
 
 // usePrompt reads one member's text and the note about its name.
 export function usePrompt(r: Rec, ask: PromptAsk): PromptState {
+	useKeepPick(r);
 	const slot = memberSlotFor(r, ask);
 	const key = promptKey(r, ask);
 	const body = { ...promptComparisonInput(r), member: ask.member, running_team: pickedRun(r) };
@@ -228,6 +249,7 @@ export function usePrompt(r: Rec, ask: PromptAsk): PromptState {
 // useWorkerPrompt reads one worker's preview. Null when the row is not a worker
 // with a purpose and a member that hires it.
 export function useWorkerPrompt(r: Rec, i: number): WorkerPromptState | null {
+	useKeepPick(r);
 	const w = r.draft.value.workers[i];
 	const ok = !!(w && w.purpose && w.from);
 	const slot = ok ? workerSlotFor(r, w.from, w.purpose) : null;
@@ -238,6 +260,7 @@ export function useWorkerPrompt(r: Rec, i: number): WorkerPromptState | null {
 	const answer = slot.shown.value;
 	return {
 		segments: answer ? answer.prompt || [] : [],
+		team: (answer && answer.prompt_team) || r.name.value,
 		name: WORKER_NAME,
 		task: WORKER_TASK,
 		loading: slot.loading.value,

@@ -125,7 +125,7 @@ export function WorkerPromptSection({ r, w, i }: { r: Rec; w: Worker; i: number 
   else if (pv.err) body = <span class="cv-note">{pv.err}</span>;
   else {
     const { lines, blocks } = promptBlocks(pv.segments);
-    const full = `${r.name.value}-${pv.name}`;
+    const full = `${pv.team}-${pv.name}`;
     // A worker's name and task are chosen at hire, so the lines show the slots
     // they stand in (<ワーカー名> / <依頼>) instead.
     const slotText = (t: string): ComponentChildren => {
@@ -137,7 +137,7 @@ export function WorkerPromptSection({ r, w, i }: { r: Rec; w: Worker; i: number 
         if (at < 0) { out.push(s); return out; }
         out.push(s.slice(0, at));
         if (at === a) {
-          out.push(`${r.name.value}-`);
+          out.push(`${pv.team}-`);
           out.push(<span class="cv-slot" data-v={pv.name}>{'<ワーカー名>'}</span>);
           s = s.slice(at + full.length);
         } else {

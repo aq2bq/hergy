@@ -8,6 +8,7 @@ import { layout, serve, settle } from './page.js';
 // in this file, and a short timer lets its promise and signals settle.
 const flush = async () => { await settle(); await new Promise((r) => setTimeout(r, 5)); await settle(); };
 import { checkAnswer, choose, click, island, memberSegments } from './teams-page.js';
+import { setRunning } from '../src/lib/hq/state.js';
 
 const aliasSegments = [
   { kind: 'template', text: 'あなたは core-hotfix チームの core-hotfix-lead です。\n', origin: { kind: 'hergy' } },
@@ -31,7 +32,14 @@ let mode = 'two';
 test('the note names the team the shown text was built with, in every case', async () => {
   history.replaceState({}, '', '/teams?open=core');
   layout('teams-data', island());
+  let liveState = { herdr: { ok: true }, teams: [] };
+  const live = (teams) => {
+    liveState = { herdr: { ok: true }, teams: teams.map((team) => ({ team, definition: 'core', place: 'project', project: '', members: [{ name: `${team}-lead`, live: true }] })) };
+    setRunning(liveState);
+  };
+  live(['core', 'core-hotfix']);
   const asked = serve((method, url, body) => {
+    if (url === '/api/hq/running') return liveState;
     if (url.startsWith('/api/team/prompt-comparison')) {
       if (mode === 'netfail') throw new Error('プロジェクトを読めません');
       const sent = (body && body.running_team) || '';
@@ -63,7 +71,6 @@ test('the note names the team the shown text was built with, in every case', asy
   const panel = () => row().querySelector('.cv-topology-prompt');
   const note = () => panel().querySelector('.cv-note').textContent;
   const roster = () => panel().querySelector('.cv-topology-section[data-kind=roster] pre').textContent;
-  const dialog = () => document.querySelector('.prompt-comparison');
   const openTab = async () => {
     click(row().querySelector('[data-cv-side="prompt"]')); await flush();
   };
@@ -106,6 +113,7 @@ test('the note names the team the shown text was built with, in every case', asy
 
   // One running team: its name is taken and shown.
   mode = 'one';
+  live(['core-hotfix']);
   await reread();
   expect(note()).toContain('実行中のチーム core-hotfix の名前で作っています。');
   expect(roster()).toContain('core-hotfix-builder');
@@ -113,6 +121,7 @@ test('the note names the team the shown text was built with, in every case', asy
   // The picked team stops: the owner lets the pick go, and the next read takes
   // the one team still running.
   mode = 'stale';
+  live(['core']);
   await reread();
   expect(note()).toContain('実行中のチーム core の名前で作っています。');
   const afterStale = asked.filter((one) => one.url.startsWith('/api/team/prompt-comparison'));
@@ -121,6 +130,7 @@ test('the note names the team the shown text was built with, in every case', asy
   // The pick was let go, so two running teams ask for a choice again (the owner
   // does not adopt the single team into the person's pick).
   mode = 'two';
+  live(['core', 'core-hotfix']);
   await reread();
   expect(note()).toContain('動いているチームが 2 つあるため、定義名 core で作っています。');
   await openDialog();

@@ -154,7 +154,7 @@ function del(r: Rec): void {
   if (sel.type === 'node' && sel.id !== 'human') {
     const id = sel.id, nt = t.turns.filter(([a, b]) => a === id || b === id).length, nw = t.workers.filter((w) => w.from === id).length;
     selectPick(r, null);
-    remove(r, 'removeMember', [{ kind: 'removeMember', member: id }], { said: `${id} を外した（ターン ${nt} 本・ワーカー ${nw} 件も）`, undo: `${id} を外したのを取り消した` });
+    remove(r, 'removeMember', [{ kind: 'removeMember', member: id }], { said: `${id} を外しました（ターン ${nt} 本・ワーカー ${nw} 件も）`, undo: `${id} を外したのを取り消した` });
   } else if (sel.type === 'edge') {
     const [a, b] = sel.k.split('|'), ops: Op[] = [];
     if (hasTurn(t, a, b)) ops.push({ kind: 'removeTurn', from: a, to: b });
@@ -168,7 +168,7 @@ function del(r: Rec): void {
     const w = t.workers[sel.i];
     if (!w) return;
     selectPick(r, null);
-    remove(r, 'removeWorker', [{ kind: 'removeWorker', from: w.from, purpose: w.purpose }], { said: `ワーカー ${w.purpose || '（目的）'} を外した`, undo: 'ワーカーを外したのを取り消した' });
+    remove(r, 'removeWorker', [{ kind: 'removeWorker', from: w.from, purpose: w.purpose }], { said: `ワーカー ${w.purpose || '（目的）'} を外しました`, undo: 'ワーカーを外したのを取り消した' });
   }
 }
 
@@ -350,7 +350,7 @@ export function onClick(r: Rec, e: MouseEvent): void {
   }
   if (a === 'w-del') {
     const w = t.workers[Number(b.dataset.i)]; if (!w) return;
-    remove(r, 'removeWorker', [{ kind: 'removeWorker', from: w.from, purpose: w.purpose }], { said: `ワーカー ${w.purpose || '（目的）'} を外した`, undo: 'ワーカーを外したのを取り消した' });
+    remove(r, 'removeWorker', [{ kind: 'removeWorker', from: w.from, purpose: w.purpose }], { said: `ワーカー ${w.purpose || '（目的）'} を外しました`, undo: 'ワーカーを外したのを取り消した' });
     return;
   }
   if (a === 'pick-w') selectPick(r, { type: 'worker', i: Number(b.dataset.i) }, 'attr');
