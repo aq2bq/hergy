@@ -22,12 +22,14 @@ test('a worker\'s prompt shows the slots its name and task stand in', async () =
     return undefined;
   });
   await import('../src/teams/main');
-  await settle();
+  const { PROMPT_READ } = await import('../src/teams/prompt-source.js'); PROMPT_READ.wait = 0;
+  const flush = async () => { await settle(); await new Promise((r) => setTimeout(r, 5)); await settle(); };
+  await flush();
 
   click(document.querySelector('.tdef[data-name="core"] .cv-n.worker'));
-  await settle();
+  await flush();
   click(document.querySelector('.tdef[data-name="core"] [data-cv-side="prompt"]'));
-  await settle();
+  await flush(); await flush();
 
   const box = document.querySelector('.tdef[data-name="core"] .cv-prompt');
   expect(box).not.toBe(null);

@@ -1,13 +1,13 @@
-// teams/prompt-source.ts — メンバーに渡る文を読む唯一のモジュール (⑤ r-ba9b,
-// d-002b).
+// teams/prompt-source.ts — 渡る文を読む唯一のモジュール (⑤ r-ba9b, d-002b).
 //
 // 規則:
-// - 画面はここを通してだけ渡る文を読む。比較 API の URL を直に呼ばない。
+// - 画面はここを通してだけ渡る文を読む。比較 API とワーカーの検査の URL を直に
+//   呼ばない。
 // - 読み直しは 1 つのキーで決める: dkey(r)・プロンプトの入力（place・name・hash・
-//   ops・new/base/carry）・読む相手・選んだ実行中のチーム・runningRevision(r)。
-//   runningRevision は st.running からこの定義のチームだけを取ったもの（チーム
-//   名・プロジェクト・メンバーの名前と live）。だから起動・終了・別名の増減でも
-//   キーが変わる（n-f6a0）。
+//   ops・new/base/carry）・読む相手（メンバー名 / ワーカーの from と purpose）・
+//   選んだ実行中のチーム・runningRevision(r)。runningRevision は st.running から
+//   この定義のチームだけを取ったもの（チーム名・プロジェクト・メンバーの名前と
+//   live）。だから起動・終了・別名の増減でもキーが変わる（n-f6a0）。
 // - 応答の順は lib/resource.ts が守る（新しい要求が前を取り消し、取り消し後の
 //   答えは採らない）。このモジュールも、答えを入れる前に「頼んだキー = 今の
 //   キー」を確かめ、違えば捨てる。読みが始まったら前の答えは捨てる（失敗しても
@@ -15,23 +15,32 @@
 // - 打つたびに読まない。読みは検査と同じ 260 ミリ秒のまとめで 1 回にする。
 // - 欄に出す「なぜこの名前か」の言葉は、このモジュールの noteOf だけが作る。
 // - 選んだチームはこのモジュールが持つ（プロンプトの欄と全文と差分で 1 つ）。
+// - ワーカーのプレビューもここが読む。名前と依頼は hire のときに決まるので、
+//   画面の仮の値（WORKER_NAME・WORKER_TASK）で組み、画面が <> で描く。
 import { signal, useEffect } from '../lib/preact.js';
-import { call, problemText } from '../lib/api.js';
+import { call, check, problemText } from '../lib/api.js';
 import type { Schemas } from '../lib/api.js';
 import { resource } from '../lib/resource.js';
+import type { Reading } from '../lib/resource.js';
 import { st } from '../lib/hq/state.js';
 import { CURRENT, dkey, promptComparisonInput } from './state.js';
 import type { PromptSegment, Rec } from './state.js';
 
 type Answer = Schemas['PromptComparison'];
 type Body = Schemas['PromptComparisonRequest'];
+type CheckAnswer = Schemas['TeamCheckAnswer'];
 
 // PROMPT_READ.wait is the pause before a read: the check's own 260 ms. The unit
 // tests set it to 0 (they drive every answer by hand and must not wait).
 export const PROMPT_READ = { wait: 260 };
 
-// PromptAsk is what a screen reads: a member's text. (The worker's preview uses
-// the check until its own owner step.)
+// The worker's name and task are chosen at hire; the preview uses values that
+// cannot be mistaken for the purpose or a line, and draws <> in their place.
+export const WORKER_NAME = 'zz-worker-name-0';
+export const WORKER_TASK = 'zzTaskPlaceholder0';
+
+// PromptAsk is what a screen reads: a member's text. (The worker's preview is
+// its own hook.)
 export type PromptAsk = { member: string };
 
 // PromptState is what a screen draws: the server's answer (or the last one while
@@ -44,18 +53,31 @@ export type PromptState = {
 	error: string;
 };
 
-type Store = {
-	runKey: string;
-	key: string;
-	payload: Body | null;
-	shown: { value: Answer | null };
-	loading: { value: boolean };
-	error: { value: string };
-	reading: { value: { value: Answer | null }; loading: { value: boolean }; error: { value: unknown }; run: (body: Body) => Promise<Answer | undefined>; abort: () => void };
-	timer: ReturnType<typeof setTimeout> | null;
+// WorkerPromptState is the worker preview: the segments the hire's text is made
+// of, and the two placeholders the screen draws as slots.
+export type WorkerPromptState = {
+	segments: PromptSegment[];
+	name: string;
+	task: string;
+	loading: boolean;
+	err: string;
 };
 
-const stores = new Map<string, Store>();
+// Slot is one read's state: the key it stands for, what the read was asked
+// with, and the answer it last showed. kick reads once for a key.
+type Slot<T> = {
+	runKey: string;
+	key: string;
+	payload: unknown;
+	timer: ReturnType<typeof setTimeout> | null;
+	shown: { value: T | null };
+	loading: { value: boolean };
+	error: { value: string };
+	kick: (key: string) => Promise<void>;
+};
+
+const members = new Map<string, Slot<Answer>>();
+const workers = new Map<string, Slot<CheckAnswer>>();
 
 // promptRun is the running team a person picked, per definition (r-0b69). Empty
 // means nothing was picked; the server then takes the only running team.
@@ -81,85 +103,145 @@ export function runningRevision(r: Rec): string {
 	return teams.join('\u0001');
 }
 
-// promptKey is everything a change of which makes the text another text.
+// promptKey is everything a change of which makes a member's text another text.
 export function promptKey(r: Rec, ask: PromptAsk): string {
-	return [dkey(r), JSON.stringify(promptComparisonInput(r)), ask.member, runOf(dkey(r)), runningRevision(r)].join('\u0002');
+	return [dkey(r), JSON.stringify(promptComparisonInput(r)), ask.member, pickedRun(r), runningRevision(r)].join('\u0002');
 }
 
-function storeFor(r: Rec, ask: PromptAsk): Store {
-	const k = dkey(r) + '|' + ask.member;
-	const had = stores.get(k);
-	if (had) return had;
-	const reading = resource<Answer, [Body]>(async (stop, body) => {
-		const answer = await call<Answer>('POST', '/api/team/prompt-comparison', body, { signal: stop });
-		if (!answer.json) throw new Error('本文の応答がありません');
-		return answer.json;
-	});
-	const made: Store = {
-		runKey: dkey(r), key: '', payload: null,
-		shown: signal<Answer | null>(null), loading: signal(false), error: signal(''),
-		reading, timer: null,
-	};
-	stores.set(k, made);
-	return made;
+// workerKey is the same for one worker: its from and purpose are the reader,
+// and a change of the definition (ops, hash, runs) or the picked team reads
+// again too.
+export function workerKey(r: Rec, from: string, purpose: string): string {
+	return [dkey(r), JSON.stringify(promptComparisonInput(r)), 'worker', from, purpose, pickedRun(r), runningRevision(r)].join('\u0002');
 }
 
-function schedule(store: Store, key: string, body: Body): void {
-	store.payload = body;
-	if (store.key === key) return;
-	store.key = key;
-	if (store.timer) clearTimeout(store.timer);
-	store.timer = setTimeout(() => {
-		store.timer = null;
-		if (store.key === key) void load(store, key);
+function schedule(slot: Slot<unknown>, key: string, body: unknown): void {
+	slot.payload = body;
+	if (slot.key === key) return;
+	slot.key = key;
+	if (slot.timer) clearTimeout(slot.timer);
+	slot.timer = setTimeout(() => {
+		slot.timer = null;
+		if (slot.key === key) void slot.kick(key);
 	}, PROMPT_READ.wait);
 }
 
-async function load(store: Store, key: string): Promise<void> {
-	const body = store.payload;
-	if (!body) return;
-	// The read starts: the text it replaces is not this key's any more.
-	store.shown.value = null;
-	store.error.value = '';
-	store.loading.value = true;
-	const answer = await store.reading.run(body);
-	if (store.key !== key) return; // the key moved again: this answer is not shown
-	store.loading.value = false;
-	if (answer) {
-		store.shown.value = answer;
+// makeSlot holds one reading through lib/resource.ts. read answers undefined on
+// a refusal; the error signal says why, and the slot says it in words.
+function makeSlot<T>(runKey: string, read: Reading<T, [unknown]>, after?: (answer: T) => void): Slot<T> {
+	const slot: Slot<T> = {
+		runKey, key: '', payload: null, timer: null,
+		shown: signal<T | null>(null), loading: signal(false), error: signal(''),
+		kick: async () => undefined,
+	};
+	slot.kick = async (key: string) => {
+		const body = slot.payload;
+		if (!body) return;
+		// The read starts: the text it replaces is not this key's any more.
+		slot.shown.value = null;
+		slot.error.value = '';
+		slot.loading.value = true;
+		const answer = await read.run(body);
+		if (slot.key !== key) return; // the key moved again: this answer is not shown
+		slot.loading.value = false;
+		if (answer !== undefined && answer !== null) {
+			slot.shown.value = answer;
+			if (after) after(answer);
+		} else if (read.error.value) slot.error.value = problemText(read.error.value, '本文を読めませんでした');
+	};
+	return slot;
+}
+
+function memberSlotFor(r: Rec, ask: PromptAsk): Slot<Answer> {
+	const k = dkey(r) + '|' + ask.member;
+	const had = members.get(k);
+	if (had) return had;
+	const reading = resource<Answer, [unknown]>(async (stop, body) => {
+		const answer = await call<Answer>('POST', '/api/team/prompt-comparison', body as Body, { signal: stop });
+		if (!answer.json) throw new Error('本文の応答がありません');
+		return answer.json;
+	});
+	const made = makeSlot<Answer>(dkey(r), reading, (answer) => {
 		// A pick that no longer runs is let go, so the next read takes the only
-		// team the server named (r-0b69, ⑤ r-ba9b). A reading that failed says
-		// nothing about which teams run: the pick stands until one that knows.
-		const picked = runOf(store.runKey);
-		if (answer.status !== 'error' && picked && !(answer.runs || []).some((run) => run.team === picked)) setRun(store.runKey, '');
-		return;
-	}
-	if (store.reading.error.value) store.error.value = problemText(store.reading.error.value, '本文を読めませんでした');
+		// team the server named (r-0b69). A failed reading says nothing about
+		// the runs: the pick stands until one that knows.
+		if (answer.status === 'error') return;
+		const picked = pickedRun(r);
+		if (picked && !(answer.runs || []).some((run) => run.team === picked)) setRun(dkey(r), '');
+	});
+	members.set(k, made);
+	return made;
+}
+
+function workerSlotFor(r: Rec, from: string, purpose: string): Slot<CheckAnswer> {
+	const k = dkey(r) + '|worker|' + from + '|' + purpose;
+	const had = workers.get(k);
+	if (had) return had;
+	const reading = resource<CheckAnswer, [unknown]>(async (stop, body) => {
+		const answer = await check('team', body as Schemas['TeamCheckRequest'], { signal: stop });
+		if (!answer.json) throw new Error('本文の応答がありません');
+		return answer.json;
+	});
+	const made = makeSlot<CheckAnswer>(dkey(r), reading);
+	workers.set(k, made);
+	return made;
+}
+
+// workerBody is the check the worker's preview sends: the draft, the picked
+// running team, and the placeholder name and task.
+function workerBody(r: Rec, from: string, purpose: string): Record<string, unknown> {
+	return {
+		...promptComparisonInput(r),
+		part: 'worker',
+		hash: r.hash.value,
+		running_team: pickedRun(r),
+		doc: { name: WORKER_NAME, purpose, task: WORKER_TASK, from, preview: true, ops: r.ops.value },
+	};
 }
 
 // reloadPrompt reads again now (the full panel's 再取得). It is a convenience:
 // the key's own changes read without it.
 export function reloadPrompt(r: Rec, ask: PromptAsk): void {
-	const store = storeFor(r, ask);
-	store.key = '';
+	const slot = memberSlotFor(r, ask);
 	const body = { ...promptComparisonInput(r), member: ask.member, running_team: pickedRun(r) };
-	schedule(store, promptKey(r, ask), body as Body);
+	slot.key = '';
+	schedule(slot, promptKey(r, ask), body);
 }
 
 // usePrompt reads one member's text and the note about its name.
 export function usePrompt(r: Rec, ask: PromptAsk): PromptState {
-	const store = storeFor(r, ask);
+	const slot = memberSlotFor(r, ask);
 	const key = promptKey(r, ask);
-	const body = { ...promptComparisonInput(r), member: ask.member, running_team: pickedRun(r) } as Body;
-	useEffect(() => { schedule(store, key, body); }, [store, key]);
-	const answer = store.shown.value;
-	const error = store.error.value;
+	const body = { ...promptComparisonInput(r), member: ask.member, running_team: pickedRun(r) };
+	useEffect(() => { schedule(slot, key, body); }, [slot, key]);
+	const answer = slot.shown.value;
+	const error = slot.error.value;
 	return {
 		answer,
 		segments: answer ? answer.segments : [],
 		note: noteOf(answer, r.name.value, error),
-		loading: store.loading.value,
+		loading: slot.loading.value,
 		error,
+	};
+}
+
+// useWorkerPrompt reads one worker's preview. Null when the row is not a worker
+// with a purpose and a member that hires it.
+export function useWorkerPrompt(r: Rec, i: number): WorkerPromptState | null {
+	const w = r.draft.value.workers[i];
+	const ok = !!(w && w.purpose && w.from);
+	const slot = ok ? workerSlotFor(r, w.from, w.purpose) : null;
+	const key = ok ? workerKey(r, w.from, w.purpose) : '';
+	const body = ok ? workerBody(r, w.from, w.purpose) : null;
+	useEffect(() => { if (slot) schedule(slot, key, body); }, [slot, key]);
+	if (!slot) return null;
+	const answer = slot.shown.value;
+	return {
+		segments: answer ? answer.prompt || [] : [],
+		name: WORKER_NAME,
+		task: WORKER_TASK,
+		loading: slot.loading.value,
+		err: slot.error.value,
 	};
 }
 

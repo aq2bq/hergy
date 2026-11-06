@@ -307,9 +307,6 @@ type apiCheck struct {
 	// Doc is the document a draft would save, for the screen that draws the row
 	// before anything is written. A saved definition's answer leaves it out.
 	Doc any `json:"doc,omitempty"`
-	// Members is each member's prompt as the pieces it was built from, for a
-	// team's check answer (r-4cf9).
-	Members []apiMemberPrompt `json:"members,omitempty"`
 	// Prompt is one prompt's pieces, for a kind that answers a single prompt
 	// (the worker preview).
 	Prompt []definition.PromptSegment `json:"prompt,omitempty"`

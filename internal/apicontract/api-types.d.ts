@@ -1932,13 +1932,6 @@ export interface components {
             /** @description 初期プロンプトに加わる行 */
             added: string[] | null;
         };
-        /** @description 1 人のメンバーの初期プロンプト。 */
-        TeamMemberPrompt: {
-            /** @description メンバー名 */
-            name: string;
-            /** @description 初期プロンプトを由来ごとに分けた部分 */
-            segments: components["schemas"]["TeamPromptSegment"][] | null;
-        };
         /** @description チームの規則をメンバーが読む Markdown の行。 */
         TeamProseMarkdown: {
             /** @description チームの規則から作った Markdown の行 */
@@ -1997,8 +1990,6 @@ export interface components {
             limit?: number;
             /** @description チーム定義またはチームの規則の文字数 */
             size?: number;
-            /** @description メンバーごとの初期プロンプト */
-            members?: components["schemas"]["TeamMemberPrompt"][];
             /** @description ワーカーに渡す初期プロンプト */
             prompt?: components["schemas"]["TeamPromptSegment"][];
             /** @description 保存前のチーム定義。保存済みの検査の答えには無い */

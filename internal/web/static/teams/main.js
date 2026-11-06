@@ -1022,8 +1022,6 @@ function recOf(init) {
     carry: y(init.carry),
     preview: y(init.preview),
     baseFindings: y(init.baseFindings),
-    prompts: y(init.prompts),
-    promptsReady: y(init.promptsReady),
     sel: y(init.sel),
     side: y(init.side),
     menu: y(init.menu),
@@ -1031,8 +1029,6 @@ function recOf(init) {
     flash: y(init.flash),
     lastAct: y(init.lastAct),
     renameNotes: y([]),
-    wprompts: y({}),
-    wpromptReq: {},
     placed: y({}),
     wide: y(false),
     moved: new Set,
@@ -1121,8 +1117,6 @@ function defOf(item, project) {
     carry: null,
     preview: { lines: [], diff: { added: [], removedBefore: [], removedAtEnd: false } },
     baseFindings: [],
-    prompts: [],
-    promptsReady: undefined,
     sel: null,
     side: "attr",
     menu: null,
@@ -1206,8 +1200,6 @@ function draftRecord(how, place, name, base, project) {
     carry: null,
     preview: { lines: [], diff: { added: [], removedBefore: [], removedAtEnd: false } },
     baseFindings: [],
-    prompts: [],
-    promptsReady: undefined,
     sel: null,
     side: "attr",
     menu: null,
@@ -1395,8 +1387,6 @@ function forgetChecks(r) {
 }
 function applyTeamAnswer(r, json, findings) {
   r.findings.value = findings;
-  r.prompts.value = Array.isArray(json.members) ? json.members : [];
-  r.promptsReady.value = !!(json.members && json.members.length);
   const pv = json.preview && "diff" in json.preview ? json.preview : r.preview.value;
   r.preview.value = pv;
   const draft = json.draft;
@@ -1745,7 +1735,6 @@ function forgetUndo(r) {
 function canvasAct(r, ops, o) {
   o = o || {};
   r.lastAct.value = ++actSeq;
-  r.promptsReady.value = undefined;
   clearOk(r);
   canvasUndoPoint(r, o.undo || "");
   (ops || []).forEach((op) => pushOp(r, op));
@@ -1759,7 +1748,6 @@ function canvasAct(r, ops, o) {
 function canvasTyping(r, op, field) {
   const k = dkey(r);
   r.lastAct.value = ++actSeq;
-  r.promptsReady.value = undefined;
   clearOk(r);
   if (ctyping.key !== k || ctyping.field !== field) {
     const label = { description: "説明を戻した", "m-name": "メンバー名を戻した", "w-purpose": "目的を戻した" }[field] || "元に戻した";
@@ -1779,7 +1767,6 @@ function canvasEndTyping(r) {
 }
 function canvasUndo(r) {
   const k = dkey(r), st = cundo.get(k);
-  r.promptsReady.value = undefined;
   clearOk(r);
   if (!st || !st.length)
     return;
@@ -1806,35 +1793,6 @@ function resetCanvas(r) {
   r.placed.value = {};
   r.moved.clear();
   seedPlaces(r);
-}
-var WRK_NAME = "zz-worker-name-0";
-var WRK_TASK = "zzTaskPlaceholder0";
-function workerPrompt(r, i, runningTeam) {
-  const w = r.draft.value.workers[i];
-  if (!w || !w.purpose || !w.from)
-    return null;
-  const k = w.from + "\x00" + w.purpose;
-  const got = r.wprompts.value[k];
-  if (got)
-    return got;
-  if (r.wpromptReq[k])
-    return null;
-  r.wpromptReq[k] = true;
-  check2("team", { ...teamIn(r), part: "worker", hash: r.hash.value, running_team: runningTeam, doc: { name: WRK_NAME, purpose: w.purpose, task: WRK_TASK, from: w.from, preview: true, ops: r.ops.value } }).then((res) => {
-    delete r.wpromptReq[k];
-    const ans = res.json;
-    r.wprompts.value = {
-      ...r.wprompts.value,
-      [k]: { segments: ans && ans.prompt || [], name: WRK_NAME, task: WRK_TASK }
-    };
-  }).catch((e) => {
-    delete r.wpromptReq[k];
-    r.wprompts.value = {
-      ...r.wprompts.value,
-      [k]: { segments: [], name: WRK_NAME, task: WRK_TASK, err: problemText2(e, "プロンプトを読めませんでした") }
-    };
-  });
-  return null;
 }
 var rowGroup = (r) => r ? r.project || (r.place.value === "global" ? "global" : CURRENT) : CURRENT;
 function rolesFor(r) {
@@ -1915,7 +1873,6 @@ function yamlSaved(file, answer) {
   setYdraft(file, undefined);
   setYc(file, undefined);
 }
-var promptBlockedOf = (r) => r.promptsReady.value === false;
 var teamLabel = (r) => r.name.value || "新しいチーム定義";
 var currentProjectName = () => {
   const p = HQ && HQ.projects || null;
@@ -3871,7 +3828,10 @@ function CurrentPrompt({ text, lines }) {
 
 // teams/prompt-source.ts
 var PROMPT_READ = { wait: 260 };
-var stores = new Map;
+var WORKER_NAME = "zz-worker-name-0";
+var WORKER_TASK = "zzTaskPlaceholder0";
+var members = new Map;
+var workers = new Map;
 var promptRun = y({});
 var runOf = (key) => promptRun.value[key] || "";
 function setRun(key, team) {
@@ -3887,11 +3847,60 @@ function runningRevision(r) {
   return teams.join("\x01");
 }
 function promptKey(r, ask) {
-  return [dkey(r), JSON.stringify(promptComparisonInput(r)), ask.member, runOf(dkey(r)), runningRevision(r)].join("\x02");
+  return [dkey(r), JSON.stringify(promptComparisonInput(r)), ask.member, pickedRun(r), runningRevision(r)].join("\x02");
 }
-function storeFor(r, ask) {
+function workerKey(r, from, purpose) {
+  return [dkey(r), JSON.stringify(promptComparisonInput(r)), "worker", from, purpose, pickedRun(r), runningRevision(r)].join("\x02");
+}
+function schedule(slot, key, body) {
+  slot.payload = body;
+  if (slot.key === key)
+    return;
+  slot.key = key;
+  if (slot.timer)
+    clearTimeout(slot.timer);
+  slot.timer = setTimeout(() => {
+    slot.timer = null;
+    if (slot.key === key)
+      slot.kick(key);
+  }, PROMPT_READ.wait);
+}
+function makeSlot(runKey, read, after) {
+  const slot = {
+    runKey,
+    key: "",
+    payload: null,
+    timer: null,
+    shown: y(null),
+    loading: y(false),
+    error: y(""),
+    kick: async () => {
+      return;
+    }
+  };
+  slot.kick = async (key) => {
+    const body = slot.payload;
+    if (!body)
+      return;
+    slot.shown.value = null;
+    slot.error.value = "";
+    slot.loading.value = true;
+    const answer = await read.run(body);
+    if (slot.key !== key)
+      return;
+    slot.loading.value = false;
+    if (answer !== undefined && answer !== null) {
+      slot.shown.value = answer;
+      if (after)
+        after(answer);
+    } else if (read.error.value)
+      slot.error.value = problemText2(read.error.value, "本文を読めませんでした");
+  };
+  return slot;
+}
+function memberSlotFor(r, ask) {
   const k = dkey(r) + "|" + ask.member;
-  const had = stores.get(k);
+  const had = members.get(k);
   if (had)
     return had;
   const reading = resource(async (stop, body) => {
@@ -3900,74 +3909,82 @@ function storeFor(r, ask) {
       throw new Error("本文の応答がありません");
     return answer.json;
   });
-  const made = {
-    runKey: dkey(r),
-    key: "",
-    payload: null,
-    shown: y(null),
-    loading: y(false),
-    error: y(""),
-    reading,
-    timer: null
-  };
-  stores.set(k, made);
+  const made = makeSlot(dkey(r), reading, (answer) => {
+    if (answer.status === "error")
+      return;
+    const picked = pickedRun(r);
+    if (picked && !(answer.runs || []).some((run) => run.team === picked))
+      setRun(dkey(r), "");
+  });
+  members.set(k, made);
   return made;
 }
-function schedule(store, key, body) {
-  store.payload = body;
-  if (store.key === key)
-    return;
-  store.key = key;
-  if (store.timer)
-    clearTimeout(store.timer);
-  store.timer = setTimeout(() => {
-    store.timer = null;
-    if (store.key === key)
-      load(store, key);
-  }, PROMPT_READ.wait);
+function workerSlotFor(r, from, purpose) {
+  const k = dkey(r) + "|worker|" + from + "|" + purpose;
+  const had = workers.get(k);
+  if (had)
+    return had;
+  const reading = resource(async (stop, body) => {
+    const answer = await check2("team", body, { signal: stop });
+    if (!answer.json)
+      throw new Error("本文の応答がありません");
+    return answer.json;
+  });
+  const made = makeSlot(dkey(r), reading);
+  workers.set(k, made);
+  return made;
 }
-async function load(store, key) {
-  const body = store.payload;
-  if (!body)
-    return;
-  store.shown.value = null;
-  store.error.value = "";
-  store.loading.value = true;
-  const answer = await store.reading.run(body);
-  if (store.key !== key)
-    return;
-  store.loading.value = false;
-  if (answer) {
-    store.shown.value = answer;
-    const picked = runOf(store.runKey);
-    if (answer.status !== "error" && picked && !(answer.runs || []).some((run) => run.team === picked))
-      setRun(store.runKey, "");
-    return;
-  }
-  if (store.reading.error.value)
-    store.error.value = problemText2(store.reading.error.value, "本文を読めませんでした");
+function workerBody(r, from, purpose) {
+  return {
+    ...promptComparisonInput(r),
+    part: "worker",
+    hash: r.hash.value,
+    running_team: pickedRun(r),
+    doc: { name: WORKER_NAME, purpose, task: WORKER_TASK, from, preview: true, ops: r.ops.value }
+  };
 }
 function reloadPrompt(r, ask) {
-  const store = storeFor(r, ask);
-  store.key = "";
+  const slot = memberSlotFor(r, ask);
   const body = { ...promptComparisonInput(r), member: ask.member, running_team: pickedRun(r) };
-  schedule(store, promptKey(r, ask), body);
+  slot.key = "";
+  schedule(slot, promptKey(r, ask), body);
 }
 function usePrompt(r, ask) {
-  const store = storeFor(r, ask);
+  const slot = memberSlotFor(r, ask);
   const key = promptKey(r, ask);
   const body = { ...promptComparisonInput(r), member: ask.member, running_team: pickedRun(r) };
   h(() => {
-    schedule(store, key, body);
-  }, [store, key]);
-  const answer = store.shown.value;
-  const error = store.error.value;
+    schedule(slot, key, body);
+  }, [slot, key]);
+  const answer = slot.shown.value;
+  const error = slot.error.value;
   return {
     answer,
     segments: answer ? answer.segments : [],
     note: noteOf(answer, r.name.value, error),
-    loading: store.loading.value,
+    loading: slot.loading.value,
     error
+  };
+}
+function useWorkerPrompt(r, i) {
+  const w = r.draft.value.workers[i];
+  const ok = !!(w && w.purpose && w.from);
+  const slot = ok ? workerSlotFor(r, w.from, w.purpose) : null;
+  const key = ok ? workerKey(r, w.from, w.purpose) : "";
+  const body = ok ? workerBody(r, w.from, w.purpose) : null;
+  h(() => {
+    if (slot)
+      schedule(slot, key, body);
+  }, [slot, key]);
+  if (!slot)
+    return null;
+  const answer = slot.shown.value;
+  return {
+    segments: answer ? answer.prompt || [] : [],
+    name: WORKER_NAME,
+    task: WORKER_TASK,
+    loading: slot.loading.value,
+    err: slot.error.value
   };
 }
 function noteOf(answer, name, error) {
@@ -4398,8 +4415,8 @@ var prange = (a, b) => b - a > 1 ? `${a + 1}–${b}` : `${a + 1}`;
 var PROMPT_BLOCKED = "このチーム定義には問題があるので、hergy はプロンプトを組みません（hergy up も止まります）。下の設定の検査の欄の問題を直すと、ここに出ます。";
 function MemberPrompt({ r, m }) {
   const [opened, setOpened] = d(false);
-  const blocked = promptBlockedOf(r);
   const prompt = usePrompt(r, { member: m.name });
+  const blocked = (prompt.answer?.problems || []).some((problem) => problem.sev === "err");
   const segments = prompt.segments;
   const note = prompt.note;
   return /* @__PURE__ */ u("section", {
@@ -4464,7 +4481,9 @@ function MemberPrompt({ r, m }) {
   });
 }
 function WorkerPromptSection({ r, w, i }) {
-  if (promptBlockedOf(r))
+  const pv = useWorkerPrompt(r, i);
+  const blocked = (r.findings.value || []).some((finding) => finding.sev === "err");
+  if (blocked)
     return /* @__PURE__ */ u("details", {
       class: "cv-sec cv-prompt",
       open: true,
@@ -4494,9 +4513,8 @@ function WorkerPromptSection({ r, w, i }) {
         })
       ]
     });
-  const pv = workerPrompt(r, i, pickedRun(r));
   let body;
-  if (!pv)
+  if (!pv || pv.loading && !pv.segments.length)
     body = /* @__PURE__ */ u("span", {
       class: "cv-note",
       children: "プロンプトを読んでいます。"
@@ -4507,7 +4525,7 @@ function WorkerPromptSection({ r, w, i }) {
       children: pv.err
     });
   else {
-    const { lines, blocks } = promptBlocks(pv.segments || []);
+    const { lines, blocks } = promptBlocks(pv.segments);
     const full = `${r.name.value}-${pv.name}`;
     const slotText = (t) => {
       const out = [];

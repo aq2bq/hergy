@@ -32,15 +32,11 @@ type t2TestProblem struct {
 
 // t2TestCheck is one check answer.
 type t2TestCheck struct {
-	Problems []t2TestProblem `json:"problems"`
-	Size     int             `json:"size"`
-	Limit    int             `json:"limit"`
-	Members  []struct {
-		Name     string                     `json:"name"`
-		Segments []definition.PromptSegment `json:"segments"`
-	} `json:"members"`
-	Prompt  []definition.PromptSegment `json:"prompt"`
-	Preview struct {
+	Problems []t2TestProblem            `json:"problems"`
+	Size     int                        `json:"size"`
+	Limit    int                        `json:"limit"`
+	Prompt   []definition.PromptSegment `json:"prompt"`
+	Preview  struct {
 		Lines []struct {
 			Text string `json:"text"`
 			At   string `json:"at"`
@@ -418,8 +414,11 @@ func TestTEAMS_PromptSegmentsThroughTheAPI(t *testing.T) {
 	f := newFixture(t)
 	server := f.server(t)
 
-	resp, body := f.api(t, server, http.MethodPost, "/api/team/check", map[string]any{
-		"place": "project", "name": "demo", "part": "team",
+	// A member's prompt is the comparison owner's answer, with the panel's ops
+	// applied (⑤ r-ba9b; the check no longer carries a second copy).
+	resp, body := f.api(t, server, http.MethodPost, "/api/team/prompt-comparison", map[string]any{
+		"place": "project", "name": "demo", "member": "ops",
+		"hash": source.Hash(readFile(t, f.teamYAML())),
 		"doc": map[string]any{"ops": []map[string]any{
 			{"kind": "addMember", "member": "ops", "role": "builder", "profile": "coder"},
 			{"kind": "addTurn", "from": "human", "to": "ops"},
@@ -427,20 +426,13 @@ func TestTEAMS_PromptSegmentsThroughTheAPI(t *testing.T) {
 		}},
 	})
 	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("the check answers %d: %s", resp.StatusCode, body)
+		t.Fatalf("the comparison answers %d: %s", resp.StatusCode, body)
 	}
-	check := teamsCheck(t, body)
-	var added *struct {
-		Name     string                     `json:"name"`
+	var added struct {
 		Segments []definition.PromptSegment `json:"segments"`
 	}
-	for i := range check.Members {
-		if check.Members[i].Name == "ops" {
-			added = &check.Members[i]
-		}
-	}
-	if added == nil {
-		t.Fatalf("the check does not answer the added member's prompt: %+v", check.Members)
+	if err := json.Unmarshal([]byte(body), &added); err != nil {
+		t.Fatalf("the comparison does not read: %v\n%s", err, body)
 	}
 	if len(added.Segments) == 0 {
 		t.Fatal("the added member has no prompt segments")

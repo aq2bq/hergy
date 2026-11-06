@@ -8,10 +8,10 @@ import type { ComponentChildren, JSX } from 'preact';
 import { useState } from '../../lib/preact.js';
 import { PromptComparison } from './prompt-comparison.js';
 import { topologySections } from './prompt-origins.js';
-import { memberOf, promptBlockedOf, workerPrompt } from '../state.js';
-import type { Member, PromptSegment, Rec, Worker, WorkerPrompt as WorkerPromptText } from '../state.js';
+import { memberOf } from '../state.js';
+import type { Member, PromptSegment, Rec, Worker } from '../state.js';
 import { selOf } from './shared.js';
-import { pickedRun, usePrompt } from '../prompt-source.js';
+import { usePrompt, useWorkerPrompt } from '../prompt-source.js';
 
 // lineAtMaker reads which line an offset of the whole prompt stands on.
 function lineAtMaker(full: string): (off: number) => number {
@@ -88,10 +88,11 @@ const PROMPT_BLOCKED = 'このチーム定義には問題があるので、hergy
 // and the name it used.
 export function MemberPrompt({ r, m }: { r: Rec; m: Member }): JSX.Element {
   const [opened, setOpened] = useState(false);
-  const blocked = promptBlockedOf(r);
   // The text is read by teams/prompt-source.ts: one key decides when, and one
-  // note function says which name it was built with (⑤ r-ba9b).
+  // note function says which name it was built with (⑤ r-ba9b). A definition
+  // the comparison cannot build (an err problem) is not given a text (d-20ac).
   const prompt = usePrompt(r, { member: m.name });
+  const blocked = (prompt.answer?.problems || []).some((problem) => problem.sev === 'err');
   const segments = prompt.segments;
   const note = prompt.note;
   return <section class="cv-sec cv-prompt cv-topology-prompt">
@@ -113,14 +114,17 @@ export function MemberPrompt({ r, m }: { r: Rec; m: Member }): JSX.Element {
 }
 
 export function WorkerPromptSection({ r, w, i }: { r: Rec; w: Worker; i: number }): JSX.Element {
-  if (promptBlockedOf(r)) return <details class="cv-sec cv-prompt" open><summary class="cv-sl">プロンプト（hire のときに渡る文）</summary><span class="cv-note">{PROMPT_BLOCKED}</span></details>;
+  // Read first, before any early return: a hook stands at the same place on
+  // every draw. A definition the check stops is not given a text (d-20ac).
+  const pv = useWorkerPrompt(r, i);
+  const blocked = (r.findings.value || []).some((finding) => finding.sev === 'err');
+  if (blocked) return <details class="cv-sec cv-prompt" open><summary class="cv-sl">プロンプト（hire のときに渡る文）</summary><span class="cv-note">{PROMPT_BLOCKED}</span></details>;
   if (!w.purpose) return <details class="cv-sec cv-prompt" open><summary class="cv-sl">プロンプト（hire のときに渡る文）</summary><span class="cv-note">目的を書くと、hire のときに渡る文が出ます。</span></details>;
-  const pv: WorkerPromptText | null = workerPrompt(r, i, pickedRun(r));
   let body: ComponentChildren;
-  if (!pv) body = <span class="cv-note">プロンプトを読んでいます。</span>;
+  if (!pv || (pv.loading && !pv.segments.length)) body = <span class="cv-note">プロンプトを読んでいます。</span>;
   else if (pv.err) body = <span class="cv-note">{pv.err}</span>;
   else {
-    const { lines, blocks } = promptBlocks(pv.segments || []);
+    const { lines, blocks } = promptBlocks(pv.segments);
     const full = `${r.name.value}-${pv.name}`;
     // A worker's name and task are chosen at hire, so the lines show the slots
     // they stand in (<ワーカー名> / <依頼>) instead.

@@ -3715,21 +3715,6 @@ components:
           items:
             type: string
           description: 初期プロンプトに加わる行
-    TeamMemberPrompt:
-      description: 1 人のメンバーの初期プロンプト。
-      type: object
-      additionalProperties: false
-      required: [name, segments]
-      properties:
-        name:
-          type: string
-          description: メンバー名
-        segments:
-          type: array
-          nullable: true
-          items:
-            $ref: '#/components/schemas/TeamPromptSegment'
-          description: 初期プロンプトを由来ごとに分けた部分
     TeamProseMarkdown:
       description: チームの規則をメンバーが読む Markdown の行。
       type: object
@@ -3841,11 +3826,6 @@ components:
         size:
           type: integer
           description: チーム定義またはチームの規則の文字数
-        members:
-          type: array
-          items:
-            $ref: '#/components/schemas/TeamMemberPrompt'
-          description: メンバーごとの初期プロンプト
         prompt:
           type: array
           items:

@@ -18,7 +18,6 @@ import (
 	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/profile"
-	"github.com/aq2bq/hergy/internal/prompt"
 	"github.com/aq2bq/hergy/internal/source"
 )
 
@@ -284,12 +283,6 @@ func promptExecutable() string {
 		return "hergy"
 	}
 	return path
-}
-
-// apiMemberPrompt is one member's prompt as the check answers it before a save.
-type apiMemberPrompt struct {
-	Name     string                     `json:"name"`
-	Segments []definition.PromptSegment `json:"segments"`
 }
 
 // t2SummaryOf is the list's columns for one definition.
@@ -668,33 +661,9 @@ func (k apiTeam) checkFigure(in apiIn) (any, *apiErr) {
 	if overlay, refusal := k.overlay(in.Name, in.Place, body.ops); refusal == nil {
 		if def, err := overlay.Definition(in.Name, layer); err == nil {
 			out.Size = check.TeamSizeChars(overlay, def)
-			out.Members = memberPrompts(overlay, def, in.Name)
 		}
 	}
 	return out, nil
-}
-
-// memberPrompts is every member's prompt in the overlaid definition, as the
-// segments the member's attribute shows (r-4cf9). A member whose prompt cannot
-// be built has none; the check's problems say why.
-func memberPrompts(cat *catalog.Catalog, def *definition.Definition, team string) []apiMemberPrompt {
-	if def == nil || def.Graph == nil {
-		return nil
-	}
-	run := prompt.Run{
-		Team: team, Executable: promptExecutable(), Base: cat.Base(),
-		Reader: cat.Reader(), Sources: cat, Display: cat.Display,
-	}
-	out := make([]apiMemberPrompt, 0, len(def.Graph.Members))
-	for i := range def.Graph.Members {
-		member := &def.Graph.Members[i]
-		built, err := prompt.Member(def, member, run)
-		if err != nil {
-			continue
-		}
-		out = append(out, apiMemberPrompt{Name: member.Name, Segments: built.Segments})
-	}
-	return out
 }
 
 // checkAgreement answers what is wrong with a team's agreement, checked with

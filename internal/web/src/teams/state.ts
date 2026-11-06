@@ -277,9 +277,7 @@ export type Check = { templateSize: number; issues: Issue[]; markdown: RuleMarkd
 // Pick is what the canvas has picked: a point of the figure, a worker, or a
 // line between two points.
 export type CanvasPick = { type: 'node'; id: string } | { type: 'worker'; i: number } | { type: 'edge'; k: string };
-export type WorkerPrompt = { segments: PromptSegment[]; name: string; task: string; err?: string };
 export type PromptSegment = Schemas['TeamPromptSegment'];
-export type MemberPrompt = { name: string; segments?: PromptSegment[] | null };
 // RuleDoc is the rules document the panel edits (lib/ruledoc makes it from the
 // server's answer): the sections, their rules, and the path it came from.
 export type Rule = { id?: string; _k: number; text?: string; note?: string; in_prompt?: boolean };
@@ -319,11 +317,9 @@ export type Rec = {
   starterRoles: Sig<boolean>; starterProfile: Sig<boolean>;
   carry: Sig<Carry | null>;
   preview: Sig<TeamPreview>; baseFindings: Sig<Finding[]>;
-  prompts: Sig<MemberPrompt[]>; promptsReady: Sig<boolean | undefined>;
   sel: Sig<CanvasPick | null>; side: Sig<string>; menu: Sig<CanvasMenu | null>; typed: Sig<CanvasTyped | null>; flash: Sig<string | null>;
   lastAct: Sig<number>;
   renameNotes: Sig<string[]>;
-  wprompts: Sig<Record<string, WorkerPrompt>>; wpromptReq: Record<string, boolean>;
   placed: Sig<Positions>; layout: Sig<Positions>;
   // wide is the figure laid out in rows rather than round the human: a ring too
   // tall for the screen is drawn this way (r-e39c). moved is the points a person
@@ -445,7 +441,6 @@ type RecInit = {
   hasRoles: boolean; hasProfiles: boolean; starterRoles: boolean; starterProfile: boolean;
   carry: Carry | null;
   preview: TeamPreview; baseFindings: Finding[];
-  prompts: MemberPrompt[]; promptsReady?: boolean;
   sel: CanvasPick | null; side: string; menu: CanvasMenu | null; typed: CanvasTyped | null; flash: string | null;
   lastAct: number;
 };
@@ -472,12 +467,8 @@ function recOf(init: RecInit): Rec {
     starterRoles: signal(init.starterRoles), starterProfile: signal(init.starterProfile),
     carry: signal(init.carry),
     preview: signal(init.preview), baseFindings: signal(init.baseFindings),
-    prompts: signal(init.prompts), promptsReady: signal(init.promptsReady),
     sel: signal(init.sel), side: signal(init.side), menu: signal(init.menu), typed: signal(init.typed), flash: signal(init.flash),
     lastAct: signal(init.lastAct), renameNotes: signal<string[]>([]),
-    // wprompts is the worker prompts the server answered, per worker; the request
-    // that is out is the drawing's own bookkeeping and is not a signal.
-    wprompts: signal<Record<string, WorkerPrompt>>({}), wpromptReq: {},
     // placed is where a person put a point down (a double press's menu, or a drag
     // that was let go), and layout is where the figure draws every point: the
     // places above and an automatic place for the rest. The drawing reads layout
@@ -569,7 +560,7 @@ function defOf(item: DefItem, project?: string): Rec {
     problems: item.problems || { err: 0, warn: 0 }, check: null, drawMark: 0,
     draftRow: false, how: '', base: null, seeded: true, writes: [], nameIssues: [],
     hasRoles: false, hasProfiles: false, starterRoles: false, starterProfile: false, carry: null,
-    preview: { lines: [], diff: { added: [], removedBefore: [], removedAtEnd: false } }, baseFindings: [], prompts: [], promptsReady: undefined,
+    preview: { lines: [], diff: { added: [], removedBefore: [], removedAtEnd: false } }, baseFindings: [],
     // The canvas's own picks for this row (webui-components 3 章): what is
     // picked, which column stands on the right, the blank space's menu, the
     // member name being typed, and the line that just lit up.
@@ -652,7 +643,7 @@ function draftRecord(how: string, place: Place, name: string, base: TeamBase | n
     size: 0, limit: 0,
     drawMark: 0, seeded: false, writes: [], nameIssues: [],
     hasRoles: false, hasProfiles: false, starterRoles: false, starterProfile: false, carry: null,
-    preview: { lines: [], diff: { added: [], removedBefore: [], removedAtEnd: false } }, baseFindings: [], prompts: [], promptsReady: undefined,
+    preview: { lines: [], diff: { added: [], removedBefore: [], removedAtEnd: false } }, baseFindings: [],
     sel: null, side: 'attr', menu: null, typed: null, flash: null,
     lastAct: 0,
   });
@@ -897,12 +888,6 @@ export function forgetChecks(r: Rec): void { teamChecks.delete(dkey(r)); }
 // applyTeamAnswer draws one check's answer into the row.
 function applyTeamAnswer(r: Rec, json: CheckAnswer, findings: Finding[]): void {
   r.findings.value = findings;
-  // Each member's prompt, cut into the pieces it was built from (r-4cf9),
-  // follows the ops the check was sent with: the 属性 column shows it without
-  // building a line of its own. A definition with a problem is not given any,
-  // and the column says why (d-20ac).
-  r.prompts.value = Array.isArray(json.members) ? json.members : [];
-  r.promptsReady.value = !!(json.members && json.members.length);
   // Both a saved definition and one that is not there yet get the topology
   // tab's own preview from the check (spec-teams B7).
   // The topology tab draws the team part's preview: the team.yaml's lines and the
@@ -1291,7 +1276,6 @@ export function forgetUndo(r: Rec) { cundo.delete(dkey(r)); }
 export function canvasAct(r: Rec, ops: Op[], o?: { undo?: string; focus?: string; message?: string }) {
   o = o || {};
   r.lastAct.value = ++actSeq;
-  r.promptsReady.value = undefined;
   clearOk(r);
   canvasUndoPoint(r, o.undo || '');
   (ops || []).forEach((op) => pushOp(r, op));
@@ -1303,7 +1287,6 @@ export function canvasAct(r: Rec, ops: Op[], o?: { undo?: string; focus?: string
 export function canvasTyping(r: Rec, op: Op, field: string) {
   const k = dkey(r);
   r.lastAct.value = ++actSeq;
-  r.promptsReady.value = undefined;
   clearOk(r);
   if (ctyping.key !== k || ctyping.field !== field) {
     const label = { description: '説明を戻した', 'm-name': 'メンバー名を戻した', 'w-purpose': '目的を戻した' }[field] || '元に戻した';
@@ -1319,7 +1302,6 @@ export function canvasEndTyping(r: Rec | null): void {
 }
 export function canvasUndo(r: Rec): void {
   const k = dkey(r), st = cundo.get(k);
-  r.promptsReady.value = undefined;
   clearOk(r);
   if (!st || !st.length) return;
   const point = st.pop();
@@ -1352,38 +1334,6 @@ export function resetCanvas(r: Rec): void {
   seedPlaces(r);
 }
 
-// The worker's prompt is the one hire --dry builds (r-4cf9). Its name and task
-// are chosen at hire, so the screen asks with values that cannot be mistaken
-// for the purpose or another line, and shows <ワーカー名> / <依頼> in their
-// place. The values are the walk's own too, so it can put them back.
-const WRK_NAME = 'zz-worker-name-0', WRK_TASK = 'zzTaskPlaceholder0';
-export function workerPrompt(r: Rec, i: number, runningTeam: string) {
-  const w = r.draft.value.workers[i];
-  if (!w || !w.purpose || !w.from) return null;
-  const k = w.from + '\u0000' + w.purpose;
-  const got = r.wprompts.value[k];
-  if (got) return got;
-  // The request that is out is the drawing's own bookkeeping, not something a
-  // part reads: it stands beside the drawing so asking again while drawing does
-  // not write a signal (5 章 1).
-  if (r.wpromptReq[k]) return null;
-  r.wpromptReq[k] = true;
-  apiCheck('team', { ...teamIn(r), part: 'worker', hash: r.hash.value, running_team: runningTeam, doc: { name: WRK_NAME, purpose: w.purpose, task: WRK_TASK, from: w.from, preview: true, ops: r.ops.value } }).then((res) => {
-    delete r.wpromptReq[k];
-    const ans = res.json;
-    r.wprompts.value = {
-      ...r.wprompts.value,
-      [k]: { segments: (ans && ans.prompt) || [], name: WRK_NAME, task: WRK_TASK },
-    };
-  }).catch((e) => {
-    delete r.wpromptReq[k];
-    r.wprompts.value = {
-      ...r.wprompts.value,
-      [k]: { segments: [], name: WRK_NAME, task: WRK_TASK, err: apiProblemText(e, 'プロンプトを読めませんでした') },
-    };
-  });
-  return null;
-}
 // rolesFor and profilesFor are the documents one row's member 属性 offers: the
 // row's own project's and the global layer's, so another project's definition
 // chooses from its own names (spec 4 章). Without a headquarters they are the
@@ -1481,12 +1431,6 @@ export function yamlSaved(file: string, answer: { json?: { text?: string; hash?:
   setYdraft(file, undefined);
   setYc(file, undefined);
 }
-
-// promptsOf is each member's prompt, cut into the pieces it was built from
-// (r-4cf9): the check answers it, and the column shows it without building a
-// line of its own. A definition with a problem is not given any (d-20ac).
-export const promptsOf = (r: Rec) => r.prompts.value;
-export const promptBlockedOf = (r: Rec) => r.promptsReady.value === false;
 
 // ---- 描くための小さな問い ----------------------------------------------
 export const teamLabel = (r: Rec) => r.name.value || '新しいチーム定義';
