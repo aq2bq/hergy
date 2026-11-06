@@ -731,7 +731,7 @@ var chips = O(() => {
 function dirty2() {
   const panels = allPanels().some(({ panel }) => profileDirty(panel));
   const ytexts = yamlTexts().some((one) => yamlDirty(one.base, one.text));
-  const picks = assignTeams().some((team) => (team.rows || []).some((row) => pickChanged(row)));
+  const picks = assignTeams().some((team) => (team.rows || []).some((row) => assignDirty({ name: row.key, saved: row.saved || "", draft: row.profile })));
   return panels || ytexts || picks;
 }
 function tellDirty() {
@@ -757,7 +757,7 @@ function take() {
   });
   assignTeams().forEach((team) => {
     (team.rows || []).forEach((row) => {
-      if (!pickChanged(row))
+      if (!assignDirty({ name: row.key, saved: row.saved || "", draft: row.profile }))
         return;
       out.picks.push({ team: team.name, hash: team.hash, key: row.key, profile: row.profile });
     });
@@ -768,7 +768,6 @@ var assign = y({ empty: false, teams: [] });
 function assignTeams() {
   return assign.value.teams || [];
 }
-var pickChanged = (row) => assignDirty({ name: row.key, saved: row.saved || "", draft: row.profile });
 var assignKind = y(params().get("kind"));
 function initAssign() {
   const card = ISLAND.assign;
@@ -806,7 +805,7 @@ function setPick(teamName, key, profile) {
   };
 }
 function teamDirty(team) {
-  return (team.rows || []).filter(pickChanged).length;
+  return (team.rows || []).filter((row) => assignDirty({ name: row.key, saved: row.saved || "", draft: row.profile })).length;
 }
 function teamMissing(team) {
   return (team.rows || []).filter((row) => row.missing).length;
@@ -815,7 +814,7 @@ async function saveTeam(name) {
   const team = assignTeams().find((t) => t.name === name);
   if (!team)
     return false;
-  const ops = (team.rows || []).filter(pickChanged).map((row) => row.key.startsWith("m") ? { kind: "memberProfile", member: row.name, profile: row.profile } : { kind: "workerProfile", from: row.role, purpose: row.name, profile: row.profile });
+  const ops = (team.rows || []).filter((row) => assignDirty({ name: row.key, saved: row.saved || "", draft: row.profile })).map((row) => row.key.startsWith("m") ? { kind: "memberProfile", member: row.name, profile: row.profile } : { kind: "workerProfile", from: row.role, purpose: row.name, profile: row.profile });
   try {
     const answer = await save2("team", team.name, { place: team.place || "project", doc: { ops }, hash: team.hash });
     const json = answer.json;
@@ -2092,7 +2091,7 @@ function Pick({ row, team }) {
   return /* @__PURE__ */ u("div", {
     class: "pick",
     children: [
-      pickChanged(row) ? /* @__PURE__ */ u("s", {
+      assignDirty({ name: row.key, saved: row.saved || "", draft: row.profile }) ? /* @__PURE__ */ u("s", {
         class: "was",
         children: row.saved
       }) : "",
@@ -2134,7 +2133,7 @@ function Pick({ row, team }) {
 function AssignRowView({ row, team }) {
   const dim = assignKind.value !== null && optionKind(row) !== assignKind.value;
   return /* @__PURE__ */ u("div", {
-    class: "arow" + (row.missing ? " missing" : "") + (dim ? " dim" : "") + (pickChanged(row) ? " changed" : ""),
+    class: "arow" + (row.missing ? " missing" : "") + (dim ? " dim" : "") + (assignDirty({ name: row.key, saved: row.saved || "", draft: row.profile }) ? " changed" : ""),
     "data-k": row.key,
     "data-saved": row.saved || "",
     children: [

@@ -5,7 +5,8 @@ import { ProjectView } from '../lib/project-view';
 // チーム定義ごとの札と、メンバー・ワーカーのプロファイルの選択を描く。押し込みは
 // 自分の onClick / onChange から actions.ts と state.ts の関数を直接呼ぶ
 // （webui-preact-design 5 章 1）。
-import { assign, assignKind, pickChanged, teamDirty, teamMissing, ISLAND, setPick, tellDirty, labelOf } from './state.js';
+import { assignDirty } from '../lib/changed.js';
+import { assign, assignKind, teamDirty, teamMissing, ISLAND, setPick, tellDirty, labelOf } from './state.js';
 import { pressKind, pressTeamSave } from './actions.js';
 import type { AssignRow, KindBar, OptionGroup, Team } from './types.js';
 
@@ -49,7 +50,7 @@ function Pick({ row, team }: { row: AssignRow; team: string }) {
   const kind = optionKind(row);
   return (
     <div class="pick">
-      {pickChanged(row) ? <s class="was">{row.saved}</s> : ''}
+      {assignDirty({ name: row.key, saved: row.saved || '', draft: row.profile }) ? <s class="was">{row.saved}</s> : ''}
       <i class={'sw ' + (kind ? 'k-' + kind : row.kindCls || '')}></i>
       <span class="sel">
         <select data-k={row.key} data-act="pick" aria-label={`${row.name} のプロファイル`} onChange={(e: Event) => { setPick(team, row.key, inputValue(e)); tellDirty(); }}>
@@ -64,7 +65,7 @@ function Pick({ row, team }: { row: AssignRow; team: string }) {
 function AssignRowView({ row, team }: { row: AssignRow; team: string }) {
   const dim = assignKind.value !== null && optionKind(row) !== assignKind.value;
   return (
-    <div class={'arow' + (row.missing ? ' missing' : '') + (dim ? ' dim' : '') + (pickChanged(row) ? ' changed' : '')} data-k={row.key} data-saved={row.saved || ''}>
+    <div class={'arow' + (row.missing ? ' missing' : '') + (dim ? ' dim' : '') + (assignDirty({ name: row.key, saved: row.saved || '', draft: row.profile }) ? ' changed' : '')} data-k={row.key} data-saved={row.saved || ''}>
       <div class="who">{row.kind === 'm'
         ? <><code>{row.name}</code><span class="role"><code>role {row.role}</code></span></>
         : <><span class="purpose">{row.name}</span><span class="role"><code>from {row.role}</code></span></>}</div>

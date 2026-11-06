@@ -94,3 +94,21 @@ func TestOwnersConfReadsTheRepositoryFile(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// TestChangedFindingsFlagsAComparatorOutsideItsOwner: the names the changed
+// owner replaced fail outside lib/changed.ts (r-1e9a).
+func TestChangedFindingsFlagsAComparatorOutsideItsOwner(t *testing.T) {
+	root := t.TempDir()
+	writeTree(t, root, "internal/web/src/roles/state.ts", "export const c = (r) => changeCount(r) > 0;\n")
+	writeTree(t, root, behaviorOwnerPath, "export const changeCount = (r) => 0;\n")
+	r := &runner{root: root}
+	findings, err := r.changedFindings(ownersFile{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(findings) != 1 || !strings.Contains(findings[0], "changeCount") {
+		t.Fatalf("findings = %v, want one for changeCount", findings)
+	}
+}
+
+const behaviorOwnerPath = "internal/web/src/lib/changed.ts"

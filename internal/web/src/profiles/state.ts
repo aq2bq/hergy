@@ -736,7 +736,7 @@ export const chips = computed(() => {
 export function dirty(): boolean {
   const panels = allPanels().some(({ panel }) => profileDirty(panel));
   const ytexts = yamlTexts().some((one) => yamlDirty(one.base, one.text));
-  const picks = assignTeams().some((team) => (team.rows || []).some((row) => pickChanged(row)));
+  const picks = assignTeams().some((team) => (team.rows || []).some((row) => assignDirty({ name: row.key, saved: row.saved || '', draft: row.profile })));
   return panels || ytexts || picks;
 }
 export function tellDirty(): void {
@@ -766,7 +766,7 @@ export function take(): Carried {
   });
   assignTeams().forEach((team) => {
     (team.rows || []).forEach((row) => {
-      if (!pickChanged(row)) return;
+      if (!assignDirty({ name: row.key, saved: row.saved || '', draft: row.profile })) return;
       out.picks.push({ team: team.name, hash: team.hash, key: row.key, profile: row.profile });
     });
   });
@@ -778,7 +778,6 @@ export function take(): Carried {
 // picks a person makes are this screen's.
 export const assign = signal<Assign>({ empty: false, teams: [] });
 export function assignTeams(): Team[] { return assign.value.teams || []; }
-export const pickChanged = (row: AssignRow): boolean => assignDirty({ name: row.key, saved: row.saved || '', draft: row.profile });
 export const assignKind = signal<string | null>(params().get('kind'));
 
 export function initAssign(): void {
@@ -823,7 +822,7 @@ export function setPick(teamName: string, key: string, profile: string): void {
 }
 
 export function teamDirty(team: Team): number {
-  return (team.rows || []).filter(pickChanged).length;
+  return (team.rows || []).filter((row) => assignDirty({ name: row.key, saved: row.saved || '', draft: row.profile })).length;
 }
 export function teamMissing(team: Team): number {
   return (team.rows || []).filter((row) => row.missing).length;
@@ -832,7 +831,7 @@ export function teamMissing(team: Team): number {
 export async function saveTeam(name: string): Promise<boolean> {
   const team = assignTeams().find((t) => t.name === name);
   if (!team) return false;
-  const ops = (team.rows || []).filter(pickChanged).map((row) => (row.key.startsWith('m')
+  const ops = (team.rows || []).filter((row) => assignDirty({ name: row.key, saved: row.saved || '', draft: row.profile })).map((row) => (row.key.startsWith('m')
     ? { kind: 'memberProfile', member: row.name, profile: row.profile }
     : { kind: 'workerProfile', from: row.role, purpose: row.name, profile: row.profile }));
   try {
