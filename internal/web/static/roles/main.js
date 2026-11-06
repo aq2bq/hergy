@@ -203,7 +203,6 @@ var state = y({
   filter: null,
   q: "",
   roleHi: null,
-  confirm: {},
   ok: {},
   yfile: null,
   pmode: {},
@@ -656,9 +655,6 @@ function canCopy(r, l) {
   return !roles.value.some((x) => groupOfRow(x) === group && x[to] && x[to].draft.name === e.saved.name);
 }
 function pressDiscard(id, l) {
-  const next = { ...state.value.confirm };
-  delete next[id + l];
-  patch({ confirm: next });
   const r = byUid(id);
   if (!r)
     return;

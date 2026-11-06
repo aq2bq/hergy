@@ -172,7 +172,6 @@ export type State = {
   tab: 'list' | 'yaml';
   open: Set<string>;
   dtab: Record<string, string>;
-  confirm: Record<string, number>;
   ok: Record<string, number>;
   yfile: string | null;
   ytext: Record<string, string | undefined>;
@@ -192,7 +191,7 @@ type ConflictHold = { c: Conflict; undone?: boolean; before?: RowBefore };
 const put = (patch: Partial<State>) => { state.value = { ...state.value, ...patch }; };
 export const state = signal<State>({
   tab: (view && view.dataset.tab) === 'yaml' ? 'yaml' : 'list',
-  open: new Set(), dtab: {}, confirm: {},
+  open: new Set(), dtab: {},
   ok: {}, yfile: null, ytext: {}, yc: {}, pmode: {}, wantRule: null,
   // refusal is the server's sentence on one row's foot (the shape tab's or the
   // rules tab's), and toast the words the canvas says at the bottom.
@@ -247,7 +246,6 @@ function setConflict(r: Rec, which: string, hold: ConflictHold | null): void {
 }
 const setDtab = (dom: string, t: string) => { put({ dtab: { ...state.value.dtab, [dom]: t } }); };
 const dropDtab = (dom: string) => { const m = { ...state.value.dtab }; delete m[dom]; put({ dtab: m }); };
-const setConfirm = (key: string, on: boolean) => { const m: Record<string, number> = { ...state.value.confirm }; if (on) m[key] = 1; else delete m[key]; put({ confirm: m }); };
 const debounceTimers: Record<string, ReturnType<typeof setTimeout> | undefined> = {};
 export const debounce = (k: string, fn: () => void, ms = 260) => { clearTimeout(debounceTimers[k]); debounceTimers[k] = setTimeout(fn, ms); };
 
@@ -748,7 +746,6 @@ export function dropDraft(r: Rec): void {
   recs.value = recs.value.filter((x) => x !== r);
   withOpen(r.dom, false);
   dropDtab(r.dom);
-  setConfirm('del' + dkey(r), false);
   resetCanvas(r);
 }
 
@@ -1126,7 +1123,7 @@ async function saveFolder(r: Rec) {
   // joins the two places into one row (spec-teams B4).
   const gone = recs.value.filter((x) => x.dom === dom);
   recs.value = recs.value.filter((x) => x.dom !== dom);
-  gone.forEach((x) => { setConfirm('del' + dkey(x), false); resetCanvas(x); });
+  gone.forEach((x) => resetCanvas(x));
   setProblems(json.items, group);
   const raw = (json.items || []).find((it) => it.name === name);
   if (!raw) { withOpen(dom, false); dropDtab(dom); return; }
@@ -1157,7 +1154,7 @@ export async function doDelete(r: Rec) {
   const at = firstIndexOf((x) => x.dom === r.dom);
   const gone = recs.value.filter((x) => x.dom === r.dom);
   recs.value = recs.value.filter((x) => x.dom !== r.dom);
-  gone.forEach((x) => { setConfirm('del' + dkey(x), false); resetCanvas(x); });
+  gone.forEach((x) => resetCanvas(x));
   setProblems(json.items, groupOfRecord(r));
   const item = (json.items || []).find((it) => it.name === name);
   if (item) {
@@ -1694,8 +1691,6 @@ export async function pressPlace(r: Rec, place: Place) {
 export function pressDiscard(r: Rec) {
   if (r) dropDraft(r);
 }
-export function pressDel(r: Rec) { setConfirm('del' + dkey(r), true); }
-export function pressDelNo(r: Rec) { setConfirm('del' + dkey(r), false); }
 export async function pressDelYes(r: Rec) { if (r) await doDelete(r); }
 // pressName is a definition that is not there yet being named: the name is
 // checked, and the files a save would write are read again: the server owns
@@ -1786,7 +1781,6 @@ export function pressTRevert(r: Rec, host?: HTMLElement | null) {
   setOps(r, []);
   resetCanvas(r);
   forgetUndo(r);
-  put({ confirm: {} });
   syncTeam(r);
   tellDirty();
   offerUndo({ said: '保存した内容に戻しました', restore: () => { r.ops.value = ops; syncTeam(r); tellDirty(); } }, host);

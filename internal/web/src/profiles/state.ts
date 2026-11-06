@@ -225,7 +225,6 @@ function panelOf(p: ProfilePanel, group: string | undefined, rowKey: string): Pa
     mark: p.mark || '',
     refusal: '',
     conflict: null,
-    confirming: false,
     rename: true,
     layerSwitch: false,
   };
@@ -373,7 +372,7 @@ export function closeRow(key: string): void {
 }
 
 export function closeAllConfirm(): void {
-  updateRow((row) => ({ ...row, panels: row.panels.map((p) => (p.confirming ? { ...p, confirming: false } : p)) }));
+  updateRow((row) => ({ ...row, panels: row.panels.map((p) => p) }));
 }
 
 // newRow is a row a person is adding under one place's head: it opens at once,
@@ -616,7 +615,7 @@ export function pressUndoConflict(key: string): void {
 export async function deletePanel(key: string): Promise<void> {
   const panel = panelByKey(key);
   if (!panel || !panel.saved) return;
-  patchPanel(key, { refusal: '', confirming: false });
+  patchPanel(key, { refusal: '' });
   try {
     // The hash is the one the file of this panel's group was read with: a listed
     // project's file is not this serve's (r-57d8).

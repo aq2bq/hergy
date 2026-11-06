@@ -222,7 +222,6 @@ function panelOf(p, group, rowKey) {
     mark: p.mark || "",
     refusal: "",
     conflict: null,
-    confirming: false,
     rename: true,
     layerSwitch: false
   };
@@ -630,7 +629,7 @@ async function deletePanel(key) {
   const panel = panelByKey(key);
   if (!panel || !panel.saved)
     return;
-  patchPanel(key, { refusal: "", confirming: false });
+  patchPanel(key, { refusal: "" });
   try {
     const answer = await del2("profile", panel.saved.name, panel.file, panel.hash || fileHashOf(panel.group, panel.file), undefined, projectOf(panel));
     applySaved(panel, answer.json);

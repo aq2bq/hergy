@@ -103,7 +103,6 @@ export type Panel = {
   // conflict stands where a save was refused because the file moved: the file as
   // the answer showed it, and the panel before 元に戻す (r-3c77).
   conflict: PanelConflict | null;
-  confirming: boolean;
   rename: boolean;
   layerSwitch: boolean;
 };

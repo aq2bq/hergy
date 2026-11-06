@@ -145,14 +145,7 @@ export function reorderArgs(key: string, order: string[]): void {
   tellDirty();
 }
 
-export function pressDel(key: string): void {
-  patchPanel(key, { confirming: true });
-  askFocus(key, 'del-yes', 0, false);
-}
 
-export function pressDelNo(key: string): void {
-  patchPanel(key, { confirming: false });
-}
 
 export function pressDelYes(key: string): Promise<void> {
   return deletePanel(key);

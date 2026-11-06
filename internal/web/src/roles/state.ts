@@ -78,7 +78,6 @@ type RoleState = {
   filter: 'issues' | null;
   q: string;
   roleHi: string | null;
-  confirm: Record<string, 1>;
   ok: Record<string, 1>;
   yfile: string | null;
   pmode: Record<string, string>;
@@ -263,7 +262,7 @@ const FIRST = initialRoles();
 export const roles = signal<RoleRow[]>(FIRST);
 export const state = signal<RoleState>({
   tab: 'roles', open: new Set(), filter: null, q: '', roleHi: null,
-  confirm: {}, ok: {}, yfile: null, pmode: {}, refusals: {}, teamErrors: {}, conflicts: {},
+  ok: {}, yfile: null, pmode: {}, refusals: {}, teamErrors: {}, conflicts: {},
 });
 export const checks = signal<Record<string, CheckState>>({});
 export const ychecks = signal<Record<string, components['schemas']['Problem'][] | undefined>>({});
@@ -753,23 +752,9 @@ export function canCopy(r: RoleRow, l: Place): boolean {
   return !roles.value.some((x) => groupOfRow(x) === group && x[to] && x[to]!.draft.name === e.saved!.name);
 }
 
-export function pressDel(id: number | string, l: Place): void {
-  patch({ confirm: { ...state.value.confirm, [id + l]: 1 } });
-  askFocus(id, '[data-act=del-yes]');
-  touch();
-}
 
-export function pressDelNo(id: number | string, l: Place): void {
-  const next = { ...state.value.confirm };
-  delete next[id + l];
-  patch({ confirm: next });
-  touch();
-}
 
 export function pressDiscard(id: number | string, l: Place): void {
-  const next = { ...state.value.confirm };
-  delete next[id + l];
-  patch({ confirm: next });
   const r = byUid(id);
   if (!r) return;
   const entry = r[l];

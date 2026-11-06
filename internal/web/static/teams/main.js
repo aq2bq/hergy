@@ -764,7 +764,6 @@ var state = y({
   tab: (view && view.dataset.tab) === "yaml" ? "yaml" : "list",
   open: new Set,
   dtab: {},
-  confirm: {},
   ok: {},
   yfile: null,
   ytext: {},
@@ -840,14 +839,6 @@ var dropDtab = (dom) => {
   const m = { ...state.value.dtab };
   delete m[dom];
   put({ dtab: m });
-};
-var setConfirm = (key, on) => {
-  const m = { ...state.value.confirm };
-  if (on)
-    m[key] = 1;
-  else
-    delete m[key];
-  put({ confirm: m });
 };
 var debounceTimers = {};
 var debounce = (k, fn, ms = 260) => {
@@ -1261,7 +1252,6 @@ function dropDraft(r) {
   recs.value = recs.value.filter((x) => x !== r);
   withOpen(r.dom, false);
   dropDtab(r.dom);
-  setConfirm("del" + dkey(r), false);
   resetCanvas(r);
 }
 var convProblems = (_doc, list) => (list || []).map((p) => ({
@@ -1566,10 +1556,7 @@ async function saveFolder(r) {
   const at = firstIndexOf((x) => x === r);
   const gone = recs.value.filter((x) => x.dom === dom);
   recs.value = recs.value.filter((x) => x.dom !== dom);
-  gone.forEach((x) => {
-    setConfirm("del" + dkey(x), false);
-    resetCanvas(x);
-  });
+  gone.forEach((x) => resetCanvas(x));
   setProblems(json.items, group);
   const raw = (json.items || []).find((it) => it.name === name);
   if (!raw) {
@@ -1597,10 +1584,7 @@ async function doDelete(r) {
   const at = firstIndexOf((x) => x.dom === r.dom);
   const gone = recs.value.filter((x) => x.dom === r.dom);
   recs.value = recs.value.filter((x) => x.dom !== r.dom);
-  gone.forEach((x) => {
-    setConfirm("del" + dkey(x), false);
-    resetCanvas(x);
-  });
+  gone.forEach((x) => resetCanvas(x));
   setProblems(json.items, groupOfRecord(r));
   const item = (json.items || []).find((it) => it.name === name);
   if (item) {
@@ -2166,7 +2150,6 @@ function pressTRevert(r, host) {
   setOps(r, []);
   resetCanvas(r);
   forgetUndo(r);
-  put({ confirm: {} });
   syncTeam(r);
   tellDirty();
   offerUndo({ said: "保存した内容に戻しました", restore: () => {
