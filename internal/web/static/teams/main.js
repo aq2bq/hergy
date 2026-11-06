@@ -55,7 +55,7 @@ import {
   Counts2,
   Vm2,
   RuleDoc2
-} from "../chunk/nav-jz4pfhhj.js";
+} from "../chunk/nav-gyepqzgw.js";
 import {
   st,
   token2,
@@ -72,7 +72,7 @@ import {
   conflictOf,
   ConflictNotice,
   YamlTab2
-} from "../chunk/nav-t1h70ydk.js";
+} from "../chunk/nav-j0c77ktd.js";
 import {
   roleEditor,
   roleProblems
@@ -98,9 +98,8 @@ import {
   TEAM,
   TEAM_AGREEMENT,
   YAML_TEXT,
-  teamNow,
   roleDirty
-} from "../chunk/nav-mh4t9ewy.js";
+} from "../chunk/nav-8acs8rk4.js";
 
 // teams/rule-selection.ts
 var ruleSelection = y({});
@@ -1315,7 +1314,7 @@ var writtenTeam = (r) => ({
   description: r.draft.value.description,
   turns: r.draft.value.turns,
   members: r.draft.value.members,
-  workers: (r.draft.value.workers || []).map((w) => teamNow(w, r.ops.value || []) || w)
+  workers: (r.draft.value.workers || []).map((w) => ({ ...w }))
 });
 var savedTeam = (s) => ({ description: s.description, turns: s.turns, members: s.members, workers: s.workers || [] });
 var teamChanges = (r) => diff(TEAM, savedTeam(r.saved.value), writtenTeam(r), !(r.broken.value || r.problem.value)).length;

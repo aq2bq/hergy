@@ -93,21 +93,6 @@ var PROFILE_ASSIGN = { fields: [
 var YAML_TEXT = { fields: [
   { key: "text", label: "本文", get: (v) => v.text }
 ] };
-function teamNow(w, ops) {
-  let { from, purpose, profile } = w;
-  for (let i = ops.length - 1;i >= 0; i--) {
-    const op = ops[i];
-    if (op.kind === "workerPurpose" && op.from === from && op.new === purpose)
-      purpose = op.old;
-    else if (op.kind === "workerProfile" && op.from === from && op.purpose === purpose)
-      profile = op.profile;
-    else if (op.kind === "moveWorker" && op.to === from && op.purpose === purpose)
-      from = op.from;
-    else if (op.kind === "addWorker" && op.from === from && op.purpose === purpose)
-      return null;
-  }
-  return { from, purpose, profile };
-}
 var docOf = (d) => ({ name: d.name || "", title: d.title || "", text: d.text || "" });
 function roleDirty(e, born) {
   if (e.problem)
@@ -139,4 +124,4 @@ function profileFlags(saved, draft, readable = true) {
   return out;
 }
 
-export { snapshot, dirty, diff, ROLE_DOC, TEAM, TEAM_AGREEMENT, PROFILE, YAML_TEXT, teamNow, roleDirty, assignDirty, yamlDirty, profileFlags };
+export { snapshot, dirty, diff, ROLE_DOC, TEAM, TEAM_AGREEMENT, PROFILE, YAML_TEXT, roleDirty, assignDirty, yamlDirty, profileFlags };

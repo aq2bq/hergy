@@ -57,6 +57,48 @@ test.describe('teams figure member', () => {
   });
 });
 
+test.describe('teams figure worker', () => {
+  test.use({ reads: 'teams' });
+  test('a worker purpose: type and take it back', async ({ page, app }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto(`${app.base}/teams?open=core`); await ready(page);
+    const row = page.locator('.tdef[data-name="core"]');
+    await row.locator('.cv-n.worker').first().click();
+    const field = row.locator('[data-cv-f="w-purpose"]');
+    await field.click();
+    await field.press('End');
+    await expect(dot(page, 'teams')).toHaveCount(0);
+    await field.pressSequentially('x');
+    await expect(dot(page, 'teams')).toHaveCount(1);
+    await field.press('Backspace');
+    await expect(dot(page, 'teams')).toHaveCount(0);
+  });
+});
+
+test.describe('teams rules', () => {
+  test.use({ reads: 'teams' });
+  test('a rule change, and 元に戻す → 取り消す', async ({ page, app }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto(`${app.base}/teams?open=core`); await ready(page);
+    const row = page.locator('.tdef[data-name="core"]');
+    await row.locator('.dtab[data-t="agree"]').click();
+    const area = row.locator('.panel.agree-p textarea').last();
+    const before = await area.inputValue();
+    await area.click();
+    await area.press('End');
+    await expect(dot(page, 'teams')).toHaveCount(0);
+    await area.pressSequentially('x');
+    await expect(dot(page, 'teams')).toHaveCount(1);
+    await area.press('Backspace');
+    await expect(dot(page, 'teams')).toHaveCount(0);
+    // 元に戻す goes at once and its 取り消す stands in the rules panel.
+    await area.pressSequentially('y');
+    await row.locator('.panel.agree-p [data-act="revert"]').click();
+    await expect(area).toHaveValue(before);
+    await expect(row.locator('.panel.agree-p .undo')).toContainText('取り消す');
+  });
+});
+
 test.describe('roles', () => {
   test.use({ reads: 'roles' });
   test('a role document: change, back, and the carried edit keeps the dot', async ({ page, app }) => {

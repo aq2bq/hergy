@@ -44,12 +44,12 @@ import {
   Badge2,
   Vm2,
   RuleDoc2
-} from "../chunk/nav-jz4pfhhj.js";
+} from "../chunk/nav-gyepqzgw.js";
 import {
   conflictOf,
   ConflictNotice,
   YamlTab2
-} from "../chunk/nav-t1h70ydk.js";
+} from "../chunk/nav-j0c77ktd.js";
 import {
   roleEditor,
   roleProblems
@@ -73,7 +73,7 @@ import {
   roleDirty,
   assignDirty,
   yamlDirty
-} from "../chunk/nav-mh4t9ewy.js";
+} from "../chunk/nav-8acs8rk4.js";
 
 // roles/state.ts
 var view = document.getElementById("view");

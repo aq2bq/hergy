@@ -29,7 +29,7 @@ import {
   fromJSON, toDoc, clone,
 } from '../lib/ruledoc.js';
 import { parseOpen, token as roleToken } from '../lib/hq.js';
-import { TEAM as CHANGED_TEAM, TEAM_AGREEMENT as CHANGED_AGREEMENT, YAML_TEXT as CHANGED_YAML, diff as changedDiff, dirty as changedDirty, snapshot as changedSnapshot, teamNow as changedTeamNow } from '../lib/changed.js';
+import { TEAM as CHANGED_TEAM, TEAM_AGREEMENT as CHANGED_AGREEMENT, YAML_TEXT as CHANGED_YAML, diff as changedDiff, dirty as changedDirty, snapshot as changedSnapshot, } from '../lib/changed.js';
 import type { Shape } from '../lib/changed.js';
 import type { TeamWritten } from '../lib/changed.js';
 import { copyGroupOf, groupPlace, projectOfGroup } from '../lib/copy';
@@ -812,7 +812,7 @@ export const writtenTeam = (r: Rec): TeamWritten => ({
   description: r.draft.value.description,
   turns: r.draft.value.turns,
   members: r.draft.value.members,
-  workers: (r.draft.value.workers || []).map((w) => changedTeamNow(w, r.ops.value || []) || w),
+  workers: (r.draft.value.workers || []).map((w) => ({ ...w })),
 });
 const savedTeam = (s: Team): TeamWritten => ({ description: s.description, turns: s.turns, members: s.members, workers: s.workers || [] });
 
