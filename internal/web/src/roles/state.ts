@@ -843,6 +843,11 @@ export function setYfile(key: string | null): void {
   patch({ yfile: key });
 }
 
+// setYtext writes one entry's typed YAML text where the rows hold it: the
+// YAML tab's files are copies, so the text must go back through the row.
+export function setYtext(r: RoleRow, l: Place, text: string): void {
+  withEntry(r.uid, l, (e) => ({ ...e, ytext: text }));
+}
 export function pressYamlRevert(r: RoleRow | null | undefined, l: Place): void {
   // The text goes back to the saved one, and the shared part checks the text it
   // now shows: a result for the thrown-away text must not stay.

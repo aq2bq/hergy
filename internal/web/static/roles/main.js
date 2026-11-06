@@ -714,6 +714,9 @@ function pressYfile(key) {
 function setYfile(key) {
   patch({ yfile: key });
 }
+function setYtext(r, l, text) {
+  withEntry(r.uid, l, (e) => ({ ...e, ytext: text }));
+}
 function pressYamlRevert(r, l) {
   if (r && r[l]) {
     withEntry(r.uid, l, (e) => {
@@ -1218,7 +1221,8 @@ function YamlFile({ file }) {
       onProblems: (probs) => setYchecks(l, name, probs),
       onRevert: () => pressYamlRevert(r, l),
       onState: ({ text }) => {
-        e.ytext = text;
+        setYtext(r, l, text);
+        tellDirty();
       },
       onSaved: (answer) => {
         const json = answer.json;

@@ -12,7 +12,7 @@ import { YamlTab } from '../lib/yamltab.js';
 import { fromJSON, Badge } from '../lib/ruledoc.js';
 import {
   PLACES, LNAME, DIR, state, filesList, live, issuesOf,
-  ychecksOf, setYchecks, docText, pathOf, clone, pressYamlRevert, pressTab, pressYfile, setYfile,
+  ychecksOf, setYchecks, docText, pathOf, clone, setYtext, pressYamlRevert, pressTab, pressYfile, setYfile, tellDirty,
 } from './state.js';
 import type { Place, RoleRow, SavedFileEntry } from './state.js';
 import type { EditableDocument, RuleIssue } from '../lib/ruledoc.js';
@@ -36,7 +36,7 @@ function YamlFile({ file }: { file: SavedFileEntry }) {
       problems={ychecksOf(l, name) || []} problem={e.problem || ''}
       onProblems={(probs: components['schemas']['Problem'][]) => setYchecks(l, name, probs)}
       onRevert={() => pressYamlRevert(r, l)}
-      onState={({ text }: { text: string }) => { e.ytext = text; }}
+      onState={({ text }: { text: string }) => { setYtext(r, l, text); tellDirty(); }}
       onSaved={(answer: Parameters<NonNullable<YamlTabProps['onSaved']>>[0]) => {
         const json = answer.json;
         if (!json) return;

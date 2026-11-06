@@ -1,6 +1,6 @@
 import { test, expect } from './fixtures';
 import { ready } from './helpers';
-import { chmodSync } from 'node:fs';
+import { chmodSync, mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
 // r-1e9a: one owner decides 「変えたか」. The band's dot, the row's 未保存/N か所,
@@ -55,6 +55,28 @@ test.describe('roles', () => {
     await page.locator('a.scr[data-screen="roles"]').click(); await ready(page);
     await expect(dot(page, 'roles')).toHaveCount(1);
     await page.locator('#rows .role.open [data-f="name"]').first().fill(before);
+    await expect(dot(page, 'roles')).toHaveCount(0);
+  });
+});
+
+test.describe('roles ghost', () => {
+  test.use({ reads: 'roles' });
+  test('a name only a member names is not a change until a person writes', async ({ page, app }) => {
+    mkdirSync(path.join(app.proj, '.hergy/teams/matrix-ghost'), { recursive: true });
+    writeFileSync(path.join(app.proj, '.hergy/teams/matrix-ghost/team.yaml'),
+      'version: 1\nmembers:\n  - name: a\n    role: ghost2\n    profile: coder\n');
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto(`${app.base}/roles`); await ready(page);
+    await expect(dot(page, 'roles')).toHaveCount(0);
+    const ghost = page.locator('#rows .role').filter({ has: page.locator('.c-name .nm', { hasText: /^ghost2$/ }) });
+    await expect(ghost).toHaveCount(1);
+    await expect(ghost).not.toHaveClass(/unsaved/);
+    await ghost.locator('.sum').click();
+    const field = page.locator('#rows .role.open [data-f="name"]').first();
+    await field.fill('ghost2x');
+    await expect(dot(page, 'roles')).toHaveCount(1);
+    await expect(page.locator('#rows .role.open')).toHaveClass(/unsaved/);
+    await field.fill('ghost2');
     await expect(dot(page, 'roles')).toHaveCount(0);
   });
 });
@@ -117,7 +139,7 @@ test.describe('the revert and its undo, in the field', () => {
 
 // The YAML tab on every screen: typing marks it, typing the file's text back
 // clears every mark.
-for (const screen of ['teams', 'profiles'] as const) {
+for (const screen of ['teams', 'roles', 'profiles'] as const) {
   test.describe(`yaml ${screen}`, () => {
     test.use({ reads: screen });
     test('a change and the same text back', async ({ page, app }) => {
