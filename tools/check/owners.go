@@ -142,6 +142,28 @@ var promptStrings = []struct {
 	{`part: "worker"`, []string{promptReader}},
 }
 
+// The selection section (⑥ r-3d54): the pick and the right column are written
+// by teams/selection.ts alone, and the table that decides where the column goes
+// is selection-table.ts. A screen reads the pick through pickOf and the column
+// through sideOf; the old writer (selectPick) and the old reads (livePick,
+// selOf) stand nowhere, and sideOf is defined only in the owner.
+const (
+	selectionOwner = "internal/web/src/teams/selection.ts"
+	selectionTable = "internal/web/src/teams/selection-table.ts"
+)
+
+// selectionRemoved are the names the owner replaced: a screen that brings one
+// back is the copy this section exists for.
+var selectionRemoved = []string{"selectPick", "livePick", "selOf"}
+
+// selectionWrite matches a write of the two fields on any record: r.sel.value =
+// and r.side.value =. A comparison (===) is a read, not a write.
+var selectionWrite = regexp.MustCompile(`\.(sel|side)\.value\s*=(?:[^=]|$)`)
+
+// sideOfDefinition matches where sideOf is defined, not where it is called: the
+// screens may call it, the definition stands in the owner.
+var sideOfDefinition = regexp.MustCompile(`\b(function\s+sideOf|const\s+sideOf\s*[=:])`)
+
 // changedOwner is the one module that decides 「変えたか」 (r-1e9a).
 const changedOwner = "internal/web/src/lib/changed.ts"
 
@@ -163,11 +185,12 @@ type ownerAllow struct {
 
 // ownersFile is tools/check/owners.yml.
 type ownersFile struct {
-	Enforce        bool         `yaml:"enforce"`
-	ChangedEnforce bool         `yaml:"changed_enforce"`
-	DangerEnforce  bool         `yaml:"danger_enforce"`
-	PromptEnforce  bool         `yaml:"prompt_enforce"`
-	Allow          []ownerAllow `yaml:"allow"`
+	Enforce          bool         `yaml:"enforce"`
+	ChangedEnforce   bool         `yaml:"changed_enforce"`
+	DangerEnforce    bool         `yaml:"danger_enforce"`
+	PromptEnforce    bool         `yaml:"prompt_enforce"`
+	SelectionEnforce bool         `yaml:"selection_enforce"`
+	Allow            []ownerAllow `yaml:"allow"`
 }
 
 // ownersGate reports (and, once enforced, refuses) a name outside its owner.
@@ -200,21 +223,26 @@ func (r *runner) ownersGate() error {
 	if err != nil {
 		return err
 	}
-	return ownersVerdict(conf, append(findings, changed...), danger, prompt)
+	selection, err := r.selectionFindings(conf)
+	if err != nil {
+		return err
+	}
+	return ownersVerdict(conf, append(findings, changed...), danger, prompt, selection)
 }
 
 // ownersVerdict prints what the sections found and fails the enforced ones.
 // Each section turns Hard on its own: a section still reporting prints its
 // findings and passes, and an enforced one fails (owners.yml).
-func ownersVerdict(conf ownersFile, findings, danger, prompt []string) error {
-	all := append(append(append([]string{}, findings...), danger...), prompt...)
+func ownersVerdict(conf ownersFile, findings, danger, prompt, selection []string) error {
+	all := append(append(append(append([]string{}, findings...), danger...), prompt...), selection...)
 	if len(all) == 0 {
 		return nil
 	}
 	for _, finding := range all {
 		fmt.Println(finding)
 	}
-	failed := len(findings) > 0 && conf.Enforce || len(danger) > 0 && conf.DangerEnforce || len(prompt) > 0 && conf.PromptEnforce
+	failed := len(findings) > 0 && conf.Enforce || len(danger) > 0 && conf.DangerEnforce ||
+		len(prompt) > 0 && conf.PromptEnforce || len(selection) > 0 && conf.SelectionEnforce
 	if !failed {
 		which := ""
 		if len(findings) > 0 && !conf.Enforce {
@@ -226,10 +254,13 @@ func ownersVerdict(conf ownersFile, findings, danger, prompt []string) error {
 		if len(prompt) > 0 && !conf.PromptEnforce {
 			which += " prompt_enforce"
 		}
+		if len(selection) > 0 && !conf.SelectionEnforce {
+			which += " selection_enforce"
+		}
 		fmt.Printf("owners: %d 件（報告のみ。tools/check/owners.yml の%s を true にする前に、持ち主へ寄せるか許可リストに理由と決定を添えてください）\n", len(all), which)
 		return nil
 	}
-	return fmt.Errorf("持ち主の外で帯の件数を書く・一覧の行を決める・危ない操作の確認や取り消しを書く・渡る文を組み立てる場所が %d 件", len(all))
+	return fmt.Errorf("持ち主の外で帯の件数を書く・一覧の行を決める・危ない操作の確認や取り消しを書く・渡る文を組み立てる・選んだものと右の列を書く場所が %d 件", len(all))
 }
 
 func (r *runner) ownersConf() (ownersFile, error) {
@@ -479,6 +510,70 @@ func stringLines(text, want string) []int {
 		out = append(out, lineOf(text, i+j))
 		i += j + len(want)
 	}
+}
+
+// selectionFindings is the selection section: a write of the pick or the right
+// column outside the owner, an old writer or reader back again, and sideOf
+// defined anywhere but the owner.
+func (r *runner) selectionFindings(conf ownersFile) ([]string, error) {
+	files, err := r.sourceFiles()
+	if err != nil {
+		return nil, err
+	}
+	var out []string
+	for _, path := range files {
+		rel, err := filepath.Rel(r.root, path)
+		if err != nil {
+			return nil, err
+		}
+		rel = filepath.ToSlash(rel)
+		if !strings.HasSuffix(rel, ".ts") && !strings.HasSuffix(rel, ".tsx") {
+			continue
+		}
+		if rel == selectionOwner || rel == selectionTable {
+			continue
+		}
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			return nil, err
+		}
+		code := maskSpec(string(raw))
+		out = append(out, selectionFileFindings(rel, code, conf)...)
+	}
+	sort.Strings(out)
+	return out, nil
+}
+
+// selectionFileFindings reads one file outside the owner: the two writes, the
+// names the owner replaced, and a second definition of sideOf.
+func selectionFileFindings(rel, code string, conf ownersFile) []string {
+	var out []string
+	for i, line := range strings.Split(code, "\n") {
+		field := selectionWrite.FindStringSubmatch(line)
+		if field == nil || allowedBy(rel, conf.Allow, "r."+field[1]+".value") {
+			continue
+		}
+		out = append(out, fmt.Sprintf("%s:%d: r.%s を書くのは持ち主（%s）だけです。何が起きたかを select に渡してください。寄せられない場合は %s の allow に理由と決定を添えてください",
+			rel, i+1, field[1], selectionOwner, ownersPath))
+	}
+	for _, name := range selectionRemoved {
+		if allowedBy(rel, conf.Allow, name) {
+			continue
+		}
+		for _, line := range wordLines(code, name) {
+			out = append(out, fmt.Sprintf("%s:%d: %s は持ち主（%s）に置いてください。寄せられない場合は %s の allow に理由と決定を添えてください",
+				rel, line, name, selectionOwner, ownersPath))
+		}
+	}
+	if allowedBy(rel, conf.Allow, "sideOf") {
+		return out
+	}
+	for i, line := range strings.Split(code, "\n") {
+		if sideOfDefinition.MatchString(line) {
+			out = append(out, fmt.Sprintf("%s:%d: sideOf の定義は持ち主（%s）に 1 つだけ置いてください（呼ぶのは自由です）", rel, i+1, selectionOwner))
+		}
+	}
+	return out
 }
 
 // dangerFindings is the danger section's four rules: the old confirmation names

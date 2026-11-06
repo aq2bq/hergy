@@ -13,6 +13,10 @@ danger_enforce: true
 # The prompt section: 渡る文 is built by promptsFor (internal/web/api_prompt.go)
 # and read by teams/prompt-source.ts, and nowhere else (⑤ r-ba9b, d-002b).
 prompt_enforce: true
+# The selection section: the pick and the right column are written by
+# teams/selection.ts alone, the table is selection-table.ts, and the old writer
+# and reads (selectPick, livePick, selOf) stand nowhere (⑥ r-3d54).
+selection_enforce: true
 enforce: true
 #
 # Every entry needs the path, the name, why the owner is not the place for it,

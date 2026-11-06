@@ -337,3 +337,84 @@ func TestOwnersPromptSectionIsHard(t *testing.T) {
 		t.Fatal("an enforced prompt section passed with a builder outside its owner")
 	}
 }
+
+// TestSelectionFindingsFlagsTheOldWriterAndReader: a screen that writes the pick
+// or the column itself, or brings back the names the owner replaced, is the copy
+// ⑥ r-3d54 removed.
+func TestSelectionFindingsFlagsTheOldWriterAndReader(t *testing.T) {
+	root := t.TempDir()
+	writeTree(t, root, "internal/web/src/teams/canvas/act.ts",
+		"export function clear(r) { r.sel.value = null; }\n"+
+			"const back = () => selectPick(r, null);\n"+
+			"const old = () => selOf(r);\n")
+	r := &runner{root: root}
+	findings, err := r.selectionFindings(ownersFile{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(findings) != 3 {
+		t.Fatalf("read %d findings, want 3:\n%s", len(findings), strings.Join(findings, "\n"))
+	}
+	joined := strings.Join(findings, "\n")
+	for _, want := range []string{"r.sel", "selectPick", "selOf"} {
+		if !strings.Contains(joined, want) {
+			t.Errorf("findings = %v, want %s named", findings, want)
+		}
+	}
+	if !strings.Contains(joined, "internal/web/src/teams/canvas/act.ts:1:") {
+		t.Errorf("findings = %v, want the write's line named", findings)
+	}
+}
+
+// TestSelectionFindingsFlagsASecondSideOf: sideOf's definition stands in the
+// owner alone; a screen may call it, and reading the column through it passes.
+func TestSelectionFindingsFlagsASecondSideOf(t *testing.T) {
+	root := t.TempDir()
+	writeTree(t, root, "internal/web/src/teams/canvas/shared.ts",
+		"export const sideOf = (r) => r.side.value || 'attr';\n")
+	r := &runner{root: root}
+	findings, err := r.selectionFindings(ownersFile{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(findings) != 1 || !strings.Contains(findings[0], "sideOf の定義") {
+		t.Fatalf("findings = %v, want one for the second definition", findings)
+	}
+}
+
+// TestSelectionFindingsLetsTheOwnerThrough: the owner writes the pick and the
+// column and defines sideOf, the table passes, and a screen that calls sideOf
+// passes.
+func TestSelectionFindingsLetsTheOwnerThrough(t *testing.T) {
+	root := t.TempDir()
+	writeTree(t, root, selectionOwner,
+		"export function sideOf(r) { return r.side.value; }\n"+
+			"export function select(r, e) { r.sel.value = null; r.side.value = 'attr'; }\n")
+	writeTree(t, root, selectionTable, "export const SIDE_RULES = [];\n")
+	writeTree(t, root, "internal/web/src/teams/canvas.tsx",
+		"import { sideOf } from '../selection.js';\nconst s = () => sideOf(r);\n")
+	r := &runner{root: root}
+	findings, err := r.selectionFindings(ownersFile{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(findings) != 0 {
+		t.Fatalf("read %d findings, want none:\n%s", len(findings), strings.Join(findings, "\n"))
+	}
+}
+
+// TestOwnersSelectionSectionIsHard: the selection section reports while its flag
+// is false and fails once selection_enforce is true.
+func TestOwnersSelectionSectionIsHard(t *testing.T) {
+	root := t.TempDir()
+	writeTree(t, root, "internal/web/src/x.ts", "export const f = (r) => { r.sel.value = null; };\n")
+	writeTree(t, root, ownersPath, "selection_enforce: false\nallow: []\n")
+	r := &runner{root: root}
+	if err := r.ownersGate(); err != nil {
+		t.Fatalf("a report run failed: %v", err)
+	}
+	writeTree(t, root, ownersPath, "selection_enforce: true\nallow: []\n")
+	if err := r.ownersGate(); err == nil {
+		t.Fatal("an enforced selection section passed with a writer outside its owner")
+	}
+}
