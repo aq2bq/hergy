@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/aq2bq/hergy/internal/definition"
+	"github.com/aq2bq/hergy/internal/source"
 )
 
 // promptPlan reads the --dry --json plan's members: the prompt and the pieces
@@ -317,8 +318,12 @@ func TestCANVAS_PROMPT_TheCheckSegmentsAreThePlans(t *testing.T) {
 
 	// The worker: the screen asks with the two values it shows as slots, so the
 	// same values through hire --dry give the same prompt.
+	coreYAML, err := os.ReadFile(filepath.Join(f.proj, ".hergy", "teams", "core", "team.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
 	answer := canvasAsk(t, base, token, map[string]any{
-		"place": "project", "name": "core", "part": "worker",
+		"place": "project", "name": "core", "part": "worker", "hash": source.Hash(string(coreYAML)),
 		"doc": map[string]any{
 			"name": canvasWorkerName, "purpose": "依存の更新", "task": canvasWorkerTask, "from": "lead",
 		},

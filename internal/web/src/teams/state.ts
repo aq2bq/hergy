@@ -34,6 +34,7 @@ import type { Shape } from '../lib/changed.js';
 import type { TeamWritten } from '../lib/changed.js';
 import { copyGroupOf, groupPlace, projectOfGroup } from '../lib/copy';
 import { roleEntries } from './role-modal.js';
+import { runOf } from './canvas/prompt-run.js';
 import { runDanger } from '../lib/danger.js';
 import { dropUndo } from '../lib/undo.js';
 import { roleDirty } from '../lib/changed.js';
@@ -1368,7 +1369,7 @@ export function workerPrompt(r: Rec, i: number) {
   // not write a signal (5 章 1).
   if (r.wpromptReq[k]) return null;
   r.wpromptReq[k] = true;
-  apiCheck('team', { place: r.place.value, name: r.name.value, part: 'worker', ...projectIn(r.project), doc: { name: WRK_NAME, purpose: w.purpose, task: WRK_TASK, from: w.from, preview: true } }).then((res) => {
+  apiCheck('team', { ...teamIn(r), part: 'worker', hash: r.hash.value, running_team: runOf(dkey(r)), doc: { name: WRK_NAME, purpose: w.purpose, task: WRK_TASK, from: w.from, preview: true, ops: r.ops.value } }).then((res) => {
     delete r.wpromptReq[k];
     const ans = res.json;
     r.wprompts.value = {

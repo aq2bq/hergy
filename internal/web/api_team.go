@@ -71,9 +71,6 @@ type apiTeamMember struct {
 	Name    string `json:"name"`
 	Role    string `json:"role"`
 	Profile string `json:"profile"`
-	// Segments is the member's prompt cut into the pieces it was built from,
-	// in order; joining their texts gives the prompt exactly (r-4cf9).
-	Segments []definition.PromptSegment `json:"segments,omitempty"`
 }
 
 // apiTeamWorker is one worker a member may hire.
@@ -91,7 +88,6 @@ type apiTeamDoc struct {
 	Members     []apiTeamMember `json:"members"`
 	Workers     []apiTeamWorker `json:"workers"`
 	Turns       []t2Turn        `json:"turns"`
-	Prompt      t2Prompt        `json:"prompt"`
 	Agreement   *apiTeamAgree   `json:"agreement,omitempty"`
 	Broken      bool            `json:"broken,omitempty"`
 }
@@ -268,23 +264,14 @@ func (s *Server) t2DocWithAgree(cat *catalog.Catalog, name string, def *definiti
 		return out
 	}
 	out.Description = def.Description
-	run := prompt.Run{
-		Team: name, Executable: promptExecutable(), Base: cat.Base(),
-		Reader: cat.Reader(), Sources: cat, Display: cat.Display,
-	}
 	for i := range def.Graph.Members {
 		member := &def.Graph.Members[i]
-		entry := apiTeamMember{Name: member.Name, Role: member.Role, Profile: member.Profile}
-		if built, err := prompt.Member(def, member, run); err == nil {
-			entry.Segments = built.Segments
-		}
-		out.Members = append(out.Members, entry)
+		out.Members = append(out.Members, apiTeamMember{Name: member.Name, Role: member.Role, Profile: member.Profile})
 	}
 	for _, w := range def.Graph.Workers {
 		out.Workers = append(out.Workers, apiTeamWorker{From: w.From, Purpose: w.Purpose, Profile: w.Profile})
 	}
 	out.Turns = t2TurnsOf(def)
-	out.Prompt = t2PromptOf(def, name)
 	return out
 }
 
@@ -566,8 +553,8 @@ type apiWorkerIn struct {
 }
 
 // checkWorkerPrompt answers one worker's prompt as segments, before the hire
-// (r-4cf9). It is the same prompt hire --dry builds, for the screen that shows
-// what a worker would receive.
+// (r-4cf9): the same text hire --dry builds, with the draft's unsaved edits and
+// the running team's name (⑤ r-ba9b, d-002b).
 func (k apiTeam) checkWorkerPrompt(in apiIn) (any, *apiErr) {
 	if in.Name == "" || (in.Place != catalog.PlaceProject && in.Place != catalog.PlaceGlobal) {
 		return nil, refuse(http.StatusUnprocessableEntity, i18n.T("web.error.not_found"))
@@ -579,29 +566,26 @@ func (k apiTeam) checkWorkerPrompt(in apiIn) (any, *apiErr) {
 	if body.Name == "" || body.Purpose == "" || body.Task == "" {
 		return nil, refuse(http.StatusUnprocessableEntity, i18n.T("error.worker_prompt_required"))
 	}
-	layer := catalog.Layer(in.Place)
-	def, err := k.s.cat.Definition(in.Name, layer)
-	if err != nil {
-		return nil, refuse(http.StatusUnprocessableEntity, err.Error())
+	built, refusal := k.s.promptsFor(promptAsk{In: promptComparisonIn{apiIn: in}, WithRuns: true, Worker: &body})
+	if refusal != nil {
+		return nil, refusal
 	}
-	lead, err := t2HiringMember(def, body.Purpose, body.From)
-	if err != nil {
-		return nil, refuse(http.StatusUnprocessableEntity, err.Error())
+	if built.DefErr != nil {
+		return nil, refuse(http.StatusUnprocessableEntity, built.DefErr.Error())
 	}
-	herdr := in.Name + "-" + body.Name
+	herdr := built.Names.Team + "-" + body.Name
 	// The hire's own naming rule stands as it was; a preview's placeholders are
 	// not a name anyone is hired under (r-933c).
 	if !body.Preview && !profile.NamePattern.MatchString(herdr) {
 		return nil, refuse(http.StatusUnprocessableEntity, i18n.Tf("error.herdr_name_pattern", herdr))
 	}
-	built, err := prompt.Worker(prompt.WorkerInput{
-		Team: in.Name, Lead: in.Name + "-" + lead.Name, LeadRole: lead.Role,
-		Purpose: body.Purpose, Name: herdr, Task: body.Task,
-	})
-	if err != nil {
-		return nil, refuse(http.StatusUnprocessableEntity, err.Error())
+	if built.WorkerErr != nil {
+		return nil, refuse(http.StatusUnprocessableEntity, built.WorkerErr.Error())
 	}
-	return apiCheck{Prompt: built.Segments}, nil
+	if built.Worker == nil {
+		return nil, refuse(http.StatusUnprocessableEntity, i18n.T("error.worker_prompt_required"))
+	}
+	return apiCheck{Prompt: built.Worker.Segments}, nil
 }
 
 // t2HiringMember is the member a worker preview hires through: the one from:

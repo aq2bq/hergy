@@ -100,6 +100,8 @@ type promptAsk struct {
 	// owner assembles with them instead of reading the definition again.
 	Cat *catalog.Catalog
 	Def *definition.Definition
+	// Worker asks for one worker's preview (a hire's text) instead of members.
+	Worker *apiWorkerIn
 }
 
 // promptNames is which name the text carries, and why (⑤ r-ba9b, d-002b): the
@@ -125,14 +127,18 @@ type promptText struct {
 // the catalog and definition the caller may need for its own readings (the
 // comparison's problem gate).
 type promptBuilt struct {
-	Names    promptNames
-	Built    []promptText
-	Problems []apiProblem
-	Project  string
-	Cat      *catalog.Catalog
-	Def      *definition.Definition
-	DefErr   error
-	Errors   map[string]error
+	Names promptNames
+	Built []promptText
+	// Worker is the one worker's text when the ask named a worker, and WorkerErr
+	// is why it could not be built (no member hires for that purpose, and so on).
+	Worker    *promptText
+	WorkerErr error
+	Problems  []apiProblem
+	Project   string
+	Cat       *catalog.Catalog
+	Def       *definition.Definition
+	DefErr    error
+	Errors    map[string]error
 }
 
 // promptsFor is the one place a member's or worker's text is built (⑤ r-ba9b):
@@ -195,6 +201,23 @@ func (s *Server) promptsFor(ask promptAsk) (*promptBuilt, *apiErr) {
 	}
 	out.Cat, out.Def = cat, def
 	if def == nil || def.Graph == nil {
+		return out, nil
+	}
+	if ask.Worker != nil {
+		lead, err := t2HiringMember(def, ask.Worker.Purpose, ask.Worker.From)
+		if err != nil {
+			out.WorkerErr = err
+			return out, nil
+		}
+		built, err := prompt.Worker(prompt.WorkerInput{
+			Team: out.Names.Team, Lead: out.Names.Team + "-" + lead.Name, LeadRole: lead.Role,
+			Purpose: ask.Worker.Purpose, Name: out.Names.Team + "-" + ask.Worker.Name, Task: ask.Worker.Task,
+		})
+		if err != nil {
+			out.WorkerErr = err
+			return out, nil
+		}
+		out.Worker = &promptText{Name: out.Names.Team + "-" + ask.Worker.Name, Text: built.Text, Segments: built.Segments}
 		return out, nil
 	}
 	run := prompt.Run{

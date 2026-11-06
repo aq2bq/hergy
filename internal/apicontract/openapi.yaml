@@ -3444,11 +3444,6 @@ components:
         profile:
           type: string
           description: メンバーが使うプロファイル名
-        segments:
-          type: array
-          items:
-            $ref: '#/components/schemas/TeamPromptSegment'
-          description: メンバーの初期プロンプトを由来ごとに分けた部分
     TeamWorker:
       description: チーム定義に書くワーカー。
       type: object
@@ -3468,7 +3463,7 @@ components:
       description: team.yaml から読むチーム定義。
       type: object
       additionalProperties: false
-      required: [description, members, workers, turns, prompt]
+      required: [description, members, workers, turns]
       properties:
         description:
           type: string
@@ -3491,10 +3486,6 @@ components:
           items:
             $ref: '#/components/schemas/TeamTurn'
           description: メンバーがターンを渡す先
-        prompt:
-          allOf:
-            - $ref: '#/components/schemas/TeamPrompt'
-          description: 初期プロンプトに書くターンとワーカー
         agreement:
           allOf:
             - $ref: '#/components/schemas/TeamAgreement'
@@ -3514,30 +3505,6 @@ components:
         to:
           type: string
           description: ターンを受け取る先のノード名
-    TeamPrompt:
-      description: ノードごとに初期プロンプトへ書くターンとワーカー。
-      type: object
-      additionalProperties: false
-      required: [turns, workers]
-      properties:
-        turns:
-          type: object
-          nullable: true
-          additionalProperties:
-            type: array
-            items:
-              type: string
-            description: ターンを渡す先のメンバー名
-          description: ノード名ごとのターンを渡す先
-        workers:
-          type: object
-          nullable: true
-          additionalProperties:
-            type: array
-            items:
-              type: string
-            description: 起動できるワーカーの行
-          description: メンバー名ごとのワーカー
     TeamAgreement:
       description: チーム定義に属するチームの規則。
       type: object
@@ -4125,6 +4092,12 @@ components:
         name:
           type: string
           description: 検査するチーム定義名
+        hash:
+          type: string
+          description: 読み取った team.yaml のハッシュ。比較とワーカーのプレビューが使う
+        running_team:
+          type: string
+          description: 選んだ実行中のチーム名。空なら選んでいない
         part:
           type: string
           description: 検査する対象。team、agreement、worker のいずれか
@@ -4364,6 +4337,12 @@ components:
         preview:
           type: boolean
           description: 画面が hire の前に読むプレビュー。名前と依頼は仮の値なので、herdr 名の長さの検査をしない（r-933c）。
+        ops:
+          type: array
+          nullable: true
+          items:
+            $ref: '#/components/schemas/TeamOperation'
+          description: プレビューを頼むときの、保存していない編集
     TeamProseDocument:
       description: Markdown の本文をそのまま保持する文書。
       type: object

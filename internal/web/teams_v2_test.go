@@ -216,17 +216,8 @@ func TestTEAMS_S3_ListCarriesTheTable(t *testing.T) {
 	if place.Doc.Description != "demo の説明" || len(place.Doc.Members) != 2 || len(place.Doc.Workers) != 3 || len(place.Doc.Turns) != 3 {
 		t.Errorf("the project's reading reads %+v", place.Doc)
 	}
-	if len(place.Doc.Members) == 0 || len(place.Doc.Members[0].Segments) == 0 {
-		t.Errorf("the saved document carries no prompt segments: %+v", place.Doc.Members)
-	}
 	if !place.Doc.Agreement.Has || place.Doc.Agreement.Rules != 0 {
 		t.Errorf("the agreement reads %+v, want the one rule", place.Doc.Agreement)
-	}
-	// The prompt's own line for what lead hands to builder (X3): the screen
-	// never builds this string itself.
-	want := tf("turns.member_item", "demo-builder", "builder")
-	if !containsLine(place.Doc.Prompt.Turns["lead"], want) {
-		t.Errorf("lead's turn lines read %v, want %q", place.Doc.Prompt.Turns["lead"], want)
 	}
 	// The YAML tab's files: the definition's team.yaml and its agreement.
 	kinds := map[string]bool{}
@@ -472,7 +463,7 @@ func TestTEAMS_PromptSegmentsThroughTheAPI(t *testing.T) {
 
 	// The worker prompt: one prompt's segments, with the task it was hired for.
 	resp, body = f.api(t, server, http.MethodPost, "/api/team/check", map[string]any{
-		"place": "project", "name": "demo", "part": "worker",
+		"place": "project", "name": "demo", "part": "worker", "hash": source.Hash(readFile(t, f.teamYAML())),
 		"doc": map[string]any{"name": "helper", "purpose": "試作", "task": "read the thing"},
 	})
 	if resp.StatusCode != http.StatusOK {
@@ -1580,6 +1571,7 @@ func TestTEAMS_WorkerPreviewIgnoresThePlaceholderLength(t *testing.T) {
 		}
 		return f.api(t, server, http.MethodPost, "/api/team/check", map[string]any{
 			"place": "project", "name": long, "part": "worker", "doc": doc,
+			"hash": source.Hash(readFile(t, filepath.Join(f.proj, ".hergy", "teams", long, "team.yaml"))),
 		})
 	}
 	resp, body := ask(true)

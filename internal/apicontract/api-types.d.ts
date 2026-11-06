@@ -1780,8 +1780,6 @@ export interface components {
             role: string;
             /** @description メンバーが使うプロファイル名 */
             profile: string;
-            /** @description メンバーの初期プロンプトを由来ごとに分けた部分 */
-            segments?: components["schemas"]["TeamPromptSegment"][];
         };
         /** @description チーム定義に書くワーカー。 */
         TeamWorker: {
@@ -1802,8 +1800,6 @@ export interface components {
             workers: components["schemas"]["TeamWorker"][] | null;
             /** @description メンバーがターンを渡す先 */
             turns: components["schemas"]["TeamTurn"][] | null;
-            /** @description 初期プロンプトに書くターンとワーカー */
-            prompt: components["schemas"]["TeamPrompt"];
             /** @description チーム定義に属するチームの規則 */
             agreement?: components["schemas"]["TeamAgreement"];
             /** @description team.yaml をチーム定義として読めなかったか */
@@ -1815,17 +1811,6 @@ export interface components {
             from: string;
             /** @description ターンを受け取る先のノード名 */
             to: string;
-        };
-        /** @description ノードごとに初期プロンプトへ書くターンとワーカー。 */
-        TeamPrompt: {
-            /** @description ノード名ごとのターンを渡す先 */
-            turns: {
-                [key: string]: string[];
-            } | null;
-            /** @description メンバー名ごとのワーカー */
-            workers: {
-                [key: string]: string[];
-            } | null;
         };
         /** @description チーム定義に属するチームの規則。 */
         TeamAgreement: {
@@ -2155,6 +2140,10 @@ export interface components {
             place?: string;
             /** @description 検査するチーム定義名 */
             name?: string;
+            /** @description 読み取った team.yaml のハッシュ。比較とワーカーのプレビューが使う */
+            hash?: string;
+            /** @description 選んだ実行中のチーム名。空なら選んでいない */
+            running_team?: string;
             /** @description 検査する対象。team、agreement、worker のいずれか */
             part?: string;
             /** @description 雛形から作るチーム定義か */
@@ -2290,6 +2279,8 @@ export interface components {
             from?: string;
             /** @description 画面が hire の前に読むプレビュー。名前と依頼は仮の値なので、herdr 名の長さの検査をしない（r-933c）。 */
             preview?: boolean;
+            /** @description プレビューを頼むときの、保存していない編集 */
+            ops?: components["schemas"]["TeamOperation"][] | null;
         };
         /** @description Markdown の本文をそのまま保持する文書。 */
         TeamProseDocument: {

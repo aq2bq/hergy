@@ -184,3 +184,64 @@ func TestPromptsForChoosesTheName(t *testing.T) {
 		})
 	}
 }
+
+// TestWorkerPreviewUsesTheRunningNameAndTheDraft: ⑤ r-ba9b — the worker's
+// preview is the text hire --dry builds: the running team's name when one runs,
+// and the draft's unsaved edits.
+func TestWorkerPreviewUsesTheRunningNameAndTheDraft(t *testing.T) {
+	f := newFixture(t)
+	hash := source.Hash(readFile(t, f.teamYAML()))
+	ask := func(doc string) apiIn {
+		return apiIn{Name: "demo", Place: "project", Hash: hash, Doc: json.RawMessage(doc)}
+	}
+	preview := func(t *testing.T, s *Server, doc string) string {
+		t.Helper()
+		answer, refusal := (apiTeam{s: s}).checkWorkerPrompt(ask(doc))
+		if refusal != nil {
+			t.Fatal(refusal)
+		}
+		var text strings.Builder
+		for _, segment := range answer.(apiCheck).Prompt {
+			text.WriteString(segment.Text)
+		}
+		return text.String()
+	}
+	want := func(t *testing.T, team, leadRole, purpose string) string {
+		t.Helper()
+		built, err := prompt.Worker(prompt.WorkerInput{
+			Team: team, Lead: team + "-lead", LeadRole: leadRole,
+			Purpose: purpose, Name: team + "-helper", Task: "作る",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return built.Text
+	}
+	const plain = `{"name":"helper","purpose":"試作","task":"作る","from":"lead","preview":true}`
+	cases := []struct {
+		name string
+		runs []PromptRun
+		team string
+	}{
+		{"no running team", nil, "demo"},
+		{"one running team", []PromptRun{{Team: "demo", Project: ""}}, "demo"},
+		{"an alias", []PromptRun{{Team: "demo-hotfix", Project: ""}}, "demo-hotfix"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			s := f.server(t)
+			s.act = promptReaderFixture{runs: tc.runs}
+			if got, expected := preview(t, s, plain), want(t, tc.team, "lead", "試作"); got != expected {
+				t.Errorf("the preview is not the hire's text for %s", tc.team)
+			}
+		})
+	}
+	t.Run("unsaved edits", func(t *testing.T) {
+		s := f.server(t)
+		const draft = `{"name":"helper","purpose":"新しい目的","task":"作る","from":"lead","preview":true,` +
+			`"ops":[{"kind":"memberRole","member":"lead","role":"builder"},{"kind":"addWorker","from":"lead","purpose":"新しい目的","profile":"coder"}]}`
+		if got, expected := preview(t, s, draft), want(t, "demo", "builder", "新しい目的"); got != expected {
+			t.Error("the preview does not carry the draft's role and purpose")
+		}
+	})
+}

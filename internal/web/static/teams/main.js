@@ -591,6 +591,27 @@ function Editor({ session, onScanned, visible }) {
   });
 }
 
+// teams/canvas/prompt-run.ts
+var promptRun = y({});
+var runOf = (key) => promptRun.value[key] || "";
+function setRun(key, team) {
+  if (runOf(key) === team)
+    return;
+  promptRun.value = { ...promptRun.value, [key]: team };
+}
+function keepRun(key, answer) {
+  if (answer.status === "error")
+    return;
+  const runs = answer.runs || [];
+  const picked = runOf(key);
+  if (picked && !runs.some((run) => run.team === picked)) {
+    setRun(key, "");
+    return;
+  }
+  if (!picked && answer.selected)
+    setRun(key, answer.selected.team);
+}
+
 // teams/place.ts
 var textW = (s, mono) => [...String(s)].reduce((w, c) => w + (/[\u3000-\u9fff\uff00-\uffef]/.test(c) ? 13 : mono ? 8.4 : 7.4), 0);
 function boxOf(id, t) {
@@ -1820,7 +1841,7 @@ function workerPrompt(r, i) {
   if (r.wpromptReq[k])
     return null;
   r.wpromptReq[k] = true;
-  check2("team", { place: r.place.value, name: r.name.value, part: "worker", ...projectIn(r.project), doc: { name: WRK_NAME, purpose: w.purpose, task: WRK_TASK, from: w.from, preview: true } }).then((res) => {
+  check2("team", { ...teamIn(r), part: "worker", hash: r.hash.value, running_team: runOf(dkey(r)), doc: { name: WRK_NAME, purpose: w.purpose, task: WRK_TASK, from: w.from, preview: true, ops: r.ops.value } }).then((res) => {
     delete r.wpromptReq[k];
     const ans = res.json;
     r.wprompts.value = {
@@ -3868,27 +3889,6 @@ function CurrentPrompt({ text, lines }) {
       })
     ]
   });
-}
-
-// teams/canvas/prompt-run.ts
-var promptRun = y({});
-var runOf = (key) => promptRun.value[key] || "";
-function setRun(key, team) {
-  if (runOf(key) === team)
-    return;
-  promptRun.value = { ...promptRun.value, [key]: team };
-}
-function keepRun(key, answer) {
-  if (answer.status === "error")
-    return;
-  const runs = answer.runs || [];
-  const picked = runOf(key);
-  if (picked && !runs.some((run) => run.team === picked)) {
-    setRun(key, "");
-    return;
-  }
-  if (!picked && answer.selected)
-    setRun(key, answer.selected.team);
 }
 
 // teams/canvas/prompt-comparison.tsx

@@ -4,19 +4,11 @@ import (
 	"fmt"
 
 	"github.com/aq2bq/hergy/internal/definition"
-	"github.com/aq2bq/hergy/internal/prompt"
 )
 
 // This file holds the team screen's own words (r-0f8c): one edit as a panel
-// sends it, and the prompt's own lines the figure's cards show. The screen draws
-// these; it builds no sentence that a check would say (spec-teams X1).
-
-// t2Prompt is the prompt's own lines for what a node hands to whom, and what a
-// member may hire. The screen never builds these strings (spec-teams X3).
-type t2Prompt struct {
-	Turns   map[string][]string `json:"turns"`
-	Workers map[string][]string `json:"workers"`
-}
+// sends it. The screen draws these; it builds no sentence that a check would say
+// (spec-teams X1).
 
 // t2Op is one edit a panel sends. It is the JSON shape of a definition.Op.
 type t2Op struct {
@@ -101,32 +93,6 @@ func t2TurnsOf(def *definition.Definition) []t2Turn {
 	out := make([]t2Turn, 0, len(def.Graph.Turns))
 	for _, edge := range def.Graph.Turns {
 		out = append(out, t2Turn{From: edge.From.String(), To: edge.To.String()})
-	}
-	return out
-}
-
-// t2PromptOf is the prompt's own lines for the figure's cards.
-func t2PromptOf(def *definition.Definition, team string) t2Prompt {
-	out := t2Prompt{Turns: map[string][]string{}, Workers: map[string][]string{}}
-	if def == nil || def.Graph == nil {
-		return out
-	}
-	for _, edge := range def.Graph.Out((definition.Human{}).ID()) {
-		if edge.To.Kind == definition.KindMember {
-			out.Turns["human"] = append(out.Turns["human"], edge.To.Name)
-		}
-	}
-	for _, member := range def.Graph.Members {
-		for _, turn := range prompt.TurnsOf(def, member.Name, team) {
-			if turn.Name == "" {
-				out.Turns[member.Name] = append(out.Turns[member.Name], tf("turns.human_item"))
-				continue
-			}
-			out.Turns[member.Name] = append(out.Turns[member.Name], tf("turns.member_item", turn.Name, turn.Role))
-		}
-		for _, worker := range prompt.WorkersOf(def, member.Name) {
-			out.Workers[member.Name] = append(out.Workers[member.Name], tf("workers.allowed_item", worker.Purpose, worker.Profile))
-		}
 	}
 	return out
 }
