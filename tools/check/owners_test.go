@@ -548,3 +548,38 @@ func TestOwnersPagePositionSectionIsHard(t *testing.T) {
 		t.Fatal("an enforced page-position section passed with a page moved outside its owner")
 	}
 }
+
+// TestPagePositionFindingsSeesThePanelScrollAfterADot: a field written through
+// another field (body.current.scrollTop) and a += move are the panel's own
+// scroll, and the page-position section must see them (⑦, d-b608).
+func TestPagePositionFindingsSeesThePanelScrollAfterADot(t *testing.T) {
+	root := t.TempDir()
+	writeTree(t, root, "internal/web/src/teams/canvas/prompt-comparison.tsx",
+		"useEffect(() => { if (body.current) body.current.scrollTop = 0; }, [view]);\n"+
+			"const go = () => { if (host && first) host.scrollTop += first.top - 8; };\n")
+	r := &runner{root: root}
+	findings, err := r.pagePositionFindings(ownersFile{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(findings) != 2 || !strings.Contains(strings.Join(findings, "\n"), ".scrollTop の代入") {
+		t.Fatalf("findings = %v, want the two panel writes", findings)
+	}
+}
+
+// TestAddressFindingsFlagsARowMatchOutsideItsOwner: the rule that says which rows
+// an address names stands in lib/address.ts; a screen that matches refs itself is
+// the copy ⑥-2 removed.
+func TestAddressFindingsFlagsARowMatchOutsideItsOwner(t *testing.T) {
+	root := t.TempDir()
+	writeTree(t, root, "internal/web/src/teams/state.ts",
+		"const rowsOfRef = (ref) => rows.filter((r) => sameRow(ref, r));\n")
+	r := &runner{root: root}
+	findings, err := r.addressFindings(ownersFile{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(findings) != 2 || !strings.Contains(strings.Join(findings, "\n"), "rowsFor") {
+		t.Fatalf("findings = %v, want the two names", findings)
+	}
+}

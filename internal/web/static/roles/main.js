@@ -65,8 +65,8 @@ import {
 import {
   readOpen2,
   writeOpen2,
-  groupPlace2
-} from "../chunk/nav-1wefkymt.js";
+  rowsFor
+} from "../chunk/nav-hr74m0fy.js";
 import {
   snapshot,
   dirty,
@@ -259,15 +259,8 @@ var byUid = (id) => roles.value.find((r) => r.uid === Number(id));
 var live = (r, l) => !!(r && r[l] && r[l].saved);
 var eff = (r) => live(r, "project") ? "project" : live(r, "global") ? "global" : r.project ? "project" : "global";
 var rowGroup = (r) => GROUPED ? r.group : eff(r);
-var rowsOfRef = (name, group) => {
-  const named = roles.value.filter((x) => curName(x) === name);
-  if (group)
-    return named.filter((x) => GROUPED ? rowGroup(x) === group : groupPlace2(group, CURRENT) === eff(x));
-  if (!GROUPED)
-    return named;
-  const both = named.filter((x) => rowGroup(x) === CURRENT || rowGroup(x) === "global");
-  return both.length ? both : named.slice(0, 1);
-};
+var rowRef = (x) => ({ name: curName(x), group: rowGroup(x) });
+var here = HQ && HQ.projects && HQ.projects.current ? HQ.projects.current.path || "" : GROUPED ? CURRENT : "";
 var cur = (r) => r[eff(r)].draft;
 var curName = (r) => r.markdown ? r.name || "" : (r[eff(r)].saved || r[eff(r)].draft).name;
 var savedRoles = () => roles.value.filter((r) => live(r, "project") || live(r, "global"));
@@ -417,7 +410,7 @@ function parseURL() {
     next.q = qs.get("q") || "";
     const open = new Set(state.value.open);
     readOpen2(qs).forEach(({ name, group: g }) => {
-      rowsOfRef(name, g).forEach((r) => {
+      rowsFor({ name, group: g }, roles.value, rowRef, here).forEach((r) => {
         open.add(r.uid);
         if (r.noDoc)
           openNewPanel(r);

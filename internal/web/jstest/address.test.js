@@ -2,7 +2,7 @@
 // address it reads back. A name alone is the old link: it names every row of
 // that name, so a screen opens both sides of it.
 import { describe, expect, test } from 'bun:test';
-import { groupPlace, parseOpen, readOpen, token, writeOpen } from '../src/lib/address';
+import { groupPlace, parseOpen, readOpen, rowsFor, token, writeOpen } from '../src/lib/address';
 
 describe('the address', () => {
   test('a name and its place, written and read back', () => {
@@ -37,4 +37,39 @@ describe('the address', () => {
     expect(groupPlace('global', '/work/alpha')).toBe('global');
     expect(groupPlace('/work/beta', '/work/alpha')).toBe(null);
   });
+});
+
+// The same three readings on the three screens: a place opens that row alone, an
+// old name with no place opens this project's and the global row, and a name
+// neither holds keeps the first row of that name (d-a143 and its note).
+describe('which rows an address names', () => {
+  const HERE = '/work/alpha';
+  const row = (n, g) => ({ n, g });
+  const screens = [
+    {
+      name: 'team definitions and roles (one-project view)',
+      rows: [row('core', 'project'), row('core', 'global'), row('beta-only', '/work/beta')],
+      of: (one) => ({ name: one.n, group: one.g }),
+    },
+    {
+      name: 'profiles (the project row is the empty group)',
+      rows: [row('core', ''), row('core', 'global'), row('beta-only', '/work/beta')],
+      of: (one) => ({ name: one.n, group: one.g === '' ? 'project' : one.g }),
+    },
+  ];
+  for (const screen of screens) {
+    test(`${screen.name}: a place names its row alone`, () => {
+      const named = (ref) => rowsFor(ref, screen.rows, screen.of, HERE).map((one) => screen.of(one).group);
+      expect(named({ name: 'core', group: 'project' })).toEqual(['project']);
+      expect(named({ name: 'core', group: HERE })).toEqual(['project']);
+      expect(named({ name: 'core', group: 'global' })).toEqual(['global']);
+      expect(named({ name: 'core', group: '/work/beta' })).toEqual([]);
+    });
+    test(`${screen.name}: the old name opens both, or the first row elsewhere`, () => {
+      const named = (ref) => rowsFor(ref, screen.rows, screen.of, HERE).map((one) => screen.of(one).group);
+      expect(named({ name: 'core', group: '' })).toEqual(['project', 'global']);
+      expect(named({ name: 'beta-only', group: '' })).toEqual(['/work/beta']);
+      expect(named({ name: 'absent', group: '' })).toEqual([]);
+    });
+  }
 });

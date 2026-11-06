@@ -10,7 +10,7 @@ import { PROFILE_ASSIGN, ROLE_DOC, YAML_TEXT, assignDirty, lost as changedLost, 
 import { signal } from '../lib/preact.js';
 import { roleEditor, roleProblems } from '../lib/role-editor.js';
 import { takeDraft, setDirty } from '../lib/nav.js';
-import { groupPlace, readOpen, writeOpen } from '../lib/address.js';
+import { readOpen, rowsFor, writeOpen } from '../lib/address.js';
 import { copyGroupOf, projectOfGroup } from '../lib/copy';
 import {
   save as apiSave, del as apiDel, saved as apiSaved,
@@ -315,18 +315,9 @@ export const eff = (r: RoleRow): Place => (live(r, 'project') ? 'project' : live
 // a screen with projects listed, and this project's side (`project`/`global`)
 // on the one-project screen (⑥-2, d-a143).
 const rowGroup = (r: RoleRow): string => (GROUPED ? r.group : eff(r));
-// rowsOfRef is every row an address names: an address with no place names both
-// rows of that name (d-a143).
-const rowsOfRef = (name: string, group: string): RoleRow[] => {
-  const named = roles.value.filter((x) => curName(x) === name);
-  if (group) return named.filter((x) => (GROUPED ? rowGroup(x) === group : groupPlace(group, CURRENT) === eff(x)));
-  // The old link names both sides of this project's row: the project's and the
-  // global layer's (d-a143). A name only another project holds keeps the old
-  // reading of the first row of that name.
-  if (!GROUPED) return named;
-  const both = named.filter((x) => rowGroup(x) === CURRENT || rowGroup(x) === 'global');
-  return both.length ? both : named.slice(0, 1);
-};
+// rowRef reads a row the way the address writes it (⑥-2, d-a143).
+const rowRef = (x: RoleRow): { name: string; group: string } => ({ name: curName(x), group: rowGroup(x) });
+const here = HQ && HQ.projects && HQ.projects.current ? (HQ.projects.current.path || '') : (GROUPED ? CURRENT : '');
 export const cur = (r: RoleRow): EditableDocument => r[eff(r)]!.draft;
 export const curName = (r: RoleRow): string => (r.markdown ? r.name || '' : (r[eff(r)]!.saved || r[eff(r)]!.draft).name);
 export const savedRoles = (): RoleRow[] => roles.value.filter((r) => live(r, 'project') || live(r, 'global'));
@@ -492,7 +483,7 @@ export function parseURL(): void {  const path = location.pathname;
     // An address with no place (the old link) names both rows of that name: the
     // project's and the global one (d-a143). A place opens its own row only.
     readOpen(qs).forEach(({ name, group: g }) => {
-      rowsOfRef(name, g).forEach((r) => {
+      rowsFor({ name, group: g }, roles.value, rowRef, here).forEach((r) => {
         open.add(r.uid);
         if (r.noDoc) openNewPanel(r);
       });

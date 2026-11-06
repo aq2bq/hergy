@@ -34,11 +34,11 @@ import {
   stopSheet2,
   teamCount,
   openSheet
-} from "../chunk/nav-1da86991.js";
+} from "../chunk/nav-de7ddh25.js";
 import {
   TeamFigure2,
   exports_hq
-} from "../chunk/nav-y3sytsqb.js";
+} from "../chunk/nav-x141ayc9.js";
 import {
   movePage,
   installWheel,
@@ -49,7 +49,7 @@ import {
   readOpen2,
   writeOpen2,
   placeGroup
-} from "../chunk/nav-1wefkymt.js";
+} from "../chunk/nav-hr74m0fy.js";
 
 // activity/state.ts
 var POLL = 1e4;

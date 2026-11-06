@@ -68,10 +68,10 @@ import {
 import {
   st,
   projectName2
-} from "../chunk/nav-1da86991.js";
+} from "../chunk/nav-de7ddh25.js";
 import {
   RunCell2
-} from "../chunk/nav-y3sytsqb.js";
+} from "../chunk/nav-x141ayc9.js";
 import {
   roleEditor,
   roleProblems
@@ -95,8 +95,8 @@ import {
   parseOpen2,
   readOpen2,
   writeOpen2,
-  groupPlace2
-} from "../chunk/nav-1wefkymt.js";
+  rowsFor
+} from "../chunk/nav-hr74m0fy.js";
 import {
   snapshot,
   dirty,
@@ -918,19 +918,13 @@ function setYc(key, list) {
   put({ yc: m });
 }
 var urlGroup = (r) => GROUPED ? groupOfRecord(r) : r.place.value;
-var sameRow = (ref, r) => {
-  if (ref.name !== r.name.value)
-    return false;
-  if (!ref.group)
-    return !GROUPED || groupOfRecord(r) === CURRENT || groupOfRecord(r) === "global";
-  return GROUPED ? groupOfRecord(r) === ref.group : groupPlace2(ref.group, CURRENT) === r.place.value;
-};
-var rowsOfRef = (ref) => recs.value.filter((r) => sameRow(ref, r));
+var here = CURRENT;
+var rowRef = (r) => ({ name: r.name.value, group: urlGroup(r) });
 var withOpen = (r, on) => {
   const s = new Set(state.value.open);
   s.forEach((one) => {
     const ref = parseOpen2(one)[0];
-    if (ref && sameRow(ref, r))
+    if (ref && rowsFor(ref, [r], rowRef, here).length)
       s.delete(one);
   });
   if (on)
@@ -939,7 +933,7 @@ var withOpen = (r, on) => {
 };
 var isOpenRow = (r) => [...state.value.open].some((one) => {
   const ref = parseOpen2(one)[0];
-  return !!ref && sameRow(ref, r);
+  return !!ref && rowsFor(ref, [r], rowRef, here).length > 0;
 });
 var dtabOf = (r) => state.value.dtab[r.dom] || "shape";
 var pmodeOf = (r) => state.value.pmode[dkey(r)] || "edit";
@@ -1223,7 +1217,7 @@ var byKey = (k) => recs.value.find((r) => r.key.value === k) || null;
 var byName = (n) => recs.value.find((r) => r.dom === n) || null;
 var recordOfRef = (ref) => {
   const one = parseOpen2(ref)[0];
-  return one ? rowsOfRef(one)[0] || null : null;
+  return one ? rowsFor(one, recs.value, rowRef, here)[0] || null : null;
 };
 var byRealName = (name) => recs.value.find((r) => r.name.value === name && (r.project === CURRENT || r.project === "")) || recs.value.find((r) => r.name.value === name) || null;
 var groupOfRecord = (r) => r.project || (r.place.value === "global" ? "global" : GROUPED ? CURRENT : "");
@@ -1962,7 +1956,7 @@ function syncURL() {
     if (s.yfile)
       params.set("file", s.yfile);
   } else {
-    const rows = [...s.open].map((one) => rowsOfRef(parseOpen2(one)[0]).find((r) => !r.draftRow)).filter((r) => !!r);
+    const rows = [...s.open].map((one) => rowsFor(parseOpen2(one)[0], recs.value, rowRef, here).find((r) => !r.draftRow)).filter((r) => !!r);
     writeOpen2(params, rows.map((r) => ({ name: r.name.value, group: urlGroup(r) })));
     const agrees = rows.filter((r) => dtabOf(r) === "agree").map((r) => token2(r.name.value, urlGroup(r)));
     if (agrees.length)
@@ -1977,7 +1971,7 @@ function readURL() {
   const refs = new Set(state.value.open);
   const missing = [];
   readOpen2(p).forEach((ref) => {
-    const rows = rowsOfRef(ref);
+    const rows = rowsFor(ref, recs.value, rowRef, here);
     if (!rows.length)
       missing.push(ref.name);
     rows.forEach((r) => refs.add(token2(r.name.value, urlGroup(r))));

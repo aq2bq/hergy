@@ -30,12 +30,33 @@ function writeOpen2(params, refs) {
     params.delete("open");
 }
 var placeGroup = (place) => place;
-function groupPlace2(group, current) {
+function groupPlace(group, current) {
   if (group === "global")
     return "global";
   if (group === "project" || current !== "" && group === current)
     return "project";
   return null;
 }
+function rowsFor(ref, rows, of, current) {
+  const named = rows.filter((row) => of(row).name === ref.name);
+  if (ref.group) {
+    const place = groupPlace(ref.group, current);
+    return named.filter((row) => {
+      const group = of(row).group;
+      if (group === ref.group)
+        return true;
+      if (place === "project")
+        return group === "project" || group === current;
+      if (place === "global")
+        return group === "global";
+      return false;
+    });
+  }
+  const both = named.filter((row) => {
+    const group = of(row).group;
+    return group === current || group === "project" || group === "global";
+  });
+  return both.length ? both : named.slice(0, 1);
+}
 
-export { token2, parseOpen2, readOpen2, writeOpen2, placeGroup, groupPlace2 };
+export { token2, parseOpen2, readOpen2, writeOpen2, placeGroup, rowsFor };

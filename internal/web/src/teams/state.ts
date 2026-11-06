@@ -30,7 +30,7 @@ type TeamCheckBody = Request<'team', 'check'>;
 import {
   fromJSON, toDoc, clone,
 } from '../lib/ruledoc.js';
-import { groupPlace as placeOfGroup, parseOpen, readOpen, token, writeOpen } from '../lib/address.js';
+import { parseOpen, readOpen, rowsFor, token, writeOpen } from '../lib/address.js';
 import { ROLE_DOC as CHANGED_ROLE, TEAM as CHANGED_TEAM, TEAM_AGREEMENT as CHANGED_AGREEMENT, YAML_TEXT as CHANGED_YAML, diff as changedDiff, dirty as changedDirty, lost as changedLost, snapshot as changedSnapshot, } from '../lib/changed.js';
 import type { Shape } from '../lib/changed.js';
 import type { TeamWritten } from '../lib/changed.js';
@@ -238,29 +238,21 @@ function setYc(key: string, list: Schemas['Problem'][] | undefined): void {
 // urlGroup is the place a row is written in: the project's path (or `project`)
 // on the side the row stands in, and `global` for the global layer.
 const urlGroup = (r: Rec): string => (GROUPED ? groupOfRecord(r) : r.place.value);
-// sameRow is whether an address names one row: the name, and, when the address
-// carries a place, the side it stands in. An address with no place (the old link)
-// names every row of that name (d-a143).
-const sameRow = (ref: { name: string; group: string }, r: Rec): boolean => {
-  if (ref.name !== r.name.value) return false;
-  // The old link names both sides of this project's row (d-a143).
-  if (!ref.group) return !GROUPED || groupOfRecord(r) === CURRENT || groupOfRecord(r) === 'global';
-  return GROUPED ? groupOfRecord(r) === ref.group : placeOfGroup(ref.group, CURRENT) === r.place.value;
-};
-// rowsOfRef is every row an address names: one, or both of a name the old link
-// left without a place.
-const rowsOfRef = (ref: { name: string; group: string }): Rec[] => recs.value.filter((r) => sameRow(ref, r));
+// here is the place this screen writes for its own project, and rowRef reads a
+// row the way the address writes it (⑥-2, d-a143).
+const here = CURRENT;
+const rowRef = (r: Rec): { name: string; group: string } => ({ name: r.name.value, group: urlGroup(r) });
 // withOpen opens or closes one row by the address it stands at: every spelling
 // that names the row goes (the old name-only one included), and the qualified
 // address is put in its place (d-a143).
 const withOpen = (r: Rec, on: boolean) => {
   const s = new Set(state.value.open);
-  s.forEach((one) => { const ref = parseOpen(one)[0]; if (ref && sameRow(ref, r)) s.delete(one); });
+  s.forEach((one) => { const ref = parseOpen(one)[0]; if (ref && rowsFor(ref, [r], rowRef, here).length) s.delete(one); });
   if (on) s.add(token(r.name.value, urlGroup(r)));
   put({ open: s });
 };
 export const isOpenRow = (r: Rec): boolean => [...state.value.open]
-  .some((one) => { const ref = parseOpen(one)[0]; return !!ref && sameRow(ref, r); });
+  .some((one) => { const ref = parseOpen(one)[0]; return !!ref && rowsFor(ref, [r], rowRef, here).length > 0; });
 export const dtabOf = (r: Rec): string => state.value.dtab[r.dom] || 'shape';
 export const pmodeOf = (r: Rec): string => state.value.pmode[dkey(r)] || 'edit';
 export const okOf = (key: string): boolean => !!state.value.ok[key];
@@ -597,7 +589,7 @@ export const byName = (n: string): Rec | null => recs.value.find((r: Rec) => r.d
 // missing-row notice need, one row at a time.
 const recordOfRef = (ref: string): Rec | null => {
   const one = parseOpen(ref)[0];
-  return one ? rowsOfRef(one)[0] || null : null;
+  return one ? rowsFor(one, recs.value, rowRef, here)[0] || null : null;
 };
 // byRealName is the first row of a name, the project's own first: a link the
 // older screens wrote names a definition, not a group.
@@ -1455,7 +1447,7 @@ export function syncURL() {
     // The rows the screen has open, as the address names them: the row's name
     // and the place it stands in, never a bare name (d-a143).
     const rows = [...s.open]
-      .map((one) => rowsOfRef(parseOpen(one)[0]).find((r) => !r.draftRow))
+      .map((one) => rowsFor(parseOpen(one)[0], recs.value, rowRef, here).find((r) => !r.draftRow))
       .filter((r): r is Rec => !!r);
     writeOpen(params, rows.map((r) => ({ name: r.name.value, group: urlGroup(r) })));
     const agrees = rows.filter((r) => dtabOf(r) === 'agree').map((r) => token(r.name.value, urlGroup(r)));
@@ -1470,7 +1462,7 @@ export function readURL() {
   const refs = new Set(state.value.open);
   const missing: string[] = [];
   readOpen(p).forEach((ref) => {
-    const rows = rowsOfRef(ref);
+    const rows = rowsFor(ref, recs.value, rowRef, here);
     if (!rows.length) missing.push(ref.name);
     // An address with no place opens both rows of that name: the old link names
     // a definition, and the screen cannot tell which side it meant (d-a143).

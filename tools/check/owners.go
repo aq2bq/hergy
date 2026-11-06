@@ -173,6 +173,11 @@ const addressOwner = "internal/web/src/lib/address.ts"
 // set and read. Both quote kinds; the receiver's name does not matter.
 var addressKey = regexp.MustCompile(`\.(set|get)\(\s*['"]open['"]`)
 
+// addressRows are the names the screens used to match an address to their rows:
+// the rule belongs to address.ts's rowsFor, so the names stand nowhere else
+// (⑥-2, d-a143).
+var addressRows = []string{"rowsOfRef", "sameRow"}
+
 // changedOwner is the one module that decides 「変えたか」 (r-1e9a).
 const changedOwner = "internal/web/src/lib/changed.ts"
 
@@ -637,6 +642,14 @@ func (r *runner) addressFindings(conf ownersFile) ([]string, error) {
 			}
 			out = append(out, fmt.Sprintf("%s:%d: open を自分で書いたり読んだりせず、持ち主（%s）の writeOpen・readOpen を通してください。寄せられない場合は %s の allow に理由と決定を添えてください",
 				rel, i+1, addressOwner, ownersPath))
+		}
+		for _, name := range addressRows {
+			if allowedBy(rel, conf.Allow, name) {
+				continue
+			}
+			for _, line := range wordLines(maskSpec(string(raw)), name) {
+				out = append(out, fmt.Sprintf("%s:%d: %s は持ち主（%s）の rowsFor に置いてください", rel, line, name, addressOwner))
+			}
 		}
 	}
 	sort.Strings(out)

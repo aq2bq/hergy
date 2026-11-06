@@ -52,8 +52,8 @@ import {
 import {
   readOpen2,
   writeOpen2,
-  groupPlace2
-} from "../chunk/nav-1wefkymt.js";
+  rowsFor
+} from "../chunk/nav-hr74m0fy.js";
 import {
   snapshot,
   dirty,
@@ -198,16 +198,15 @@ function learnFiles(group, list) {
 }
 var params = () => new URLSearchParams(location.search);
 var OPEN_ROWS = readOpen2(params());
-var isOpenRow = (row) => OPEN_ROWS.some((t) => {
-  if (t.name !== row.name)
-    return false;
-  if (!t.group)
-    return !GROUPED || !row.group || row.group === CURRENT || row.group === "global";
-  return GROUPED ? (row.group || "") === t.group : groupPlace2(t.group, CURRENT) === (row.group === "global" ? "global" : "project");
+var rowRef = (row) => ({
+  name: row.name || "",
+  group: GROUPED ? row.group || "" : row.group === "global" ? "global" : "project"
 });
+var here = GROUPED ? CURRENT : "";
+var isOpenRow = (row) => OPEN_ROWS.some((t) => rowsFor({ name: t.name, group: t.group || "" }, [row], rowRef, here).length > 0);
 var filterKind = y(TAB === "profiles" ? params().get("kind") || "" : "");
 var query = y(TAB === "profiles" ? params().get("q") || "" : "");
-var keyGroup = (group) => GROUPED ? group : groupPlace2(group, CURRENT) === "global" ? "global" : "";
+var keyGroup = (group) => GROUPED ? group : group === "global" ? "global" : "";
 var openKeys = y(new Set(OPEN_ROWS.map((t) => t.name + "|" + keyGroup(t.group || ""))));
 var nextId = 1;
 var newKey = () => "new-" + nextId++;

@@ -8,7 +8,7 @@ import { signal, computed } from '../lib/preact.js';
 import { resource, type Reading } from '../lib/resource';
 import { profileModel, check as apiCheck, save as apiSave, del as apiDel, list as apiList, problemText, bases, type Answer, type Place, type ProfilePanel, type ProfileRow, type Schemas } from '../lib/api.js';
 import { conflictOf } from '../lib/conflict.js';
-import { groupPlace, readOpen, writeOpen } from '../lib/address.js';
+import { readOpen, rowsFor, writeOpen } from '../lib/address.js';
 import { copyGroupOf, projectOfGroup } from '../lib/copy';
 import { PROFILE, PROFILE_ASSIGN, YAML_TEXT, assignDirty, yamlDirty, diff as changedDiff, dirty as changedDirty, lost as changedLost, profileFlags, snapshot as changedSnapshot } from '../lib/changed.js';
 import { setDirty } from '../lib/nav.js';
@@ -190,21 +190,20 @@ function learnFiles(group: string, list: ProfileList | null): void {
 // starts from.
 const params = (): URLSearchParams => new URLSearchParams(location.search);
 const OPEN_ROWS: OpenTarget[] = readOpen(params());
-// rowPlace is the place an address names this row by: the project's path or
-// `global` on a screen with projects listed, and `project`/`global` on the
-// one-project screen (⑥-2).
-const isOpenRow = (row: { name: string; group?: string }): boolean => OPEN_ROWS.some((t) => {
-  if (t.name !== row.name) return false;
-  if (!t.group) return !GROUPED || !row.group || row.group === CURRENT || row.group === 'global';
-  return GROUPED ? (row.group || '') === t.group : groupPlace(t.group, CURRENT) === (row.group === 'global' ? 'global' : 'project');
+// rowRef reads a row the way the address writes it (⑥-2, d-a143).
+const rowRef = (row: { name: string; group?: string }): { name: string; group: string } => ({
+  name: row.name || '', group: GROUPED ? row.group || '' : row.group === 'global' ? 'global' : 'project',
 });
+const here = GROUPED ? CURRENT : '';
+const isOpenRow = (row: { name: string; group?: string }): boolean =>
+  OPEN_ROWS.some((t) => rowsFor({ name: t.name, group: t.group || '' }, [row], rowRef, here).length > 0);
 
 
 export const filterKind = signal(TAB === 'profiles' ? (params().get('kind') || '') : '');
 export const query = signal(TAB === 'profiles' ? (params().get('q') || '') : '');
 // The key a row is opened by: its name and the group the rows draw in (the
 // project's own key is '', the global layer's 'global' on the one-project screen).
-const keyGroup = (group: string): string => (GROUPED ? group : groupPlace(group, CURRENT) === 'global' ? 'global' : '');
+const keyGroup = (group: string): string => (GROUPED ? group : group === 'global' ? 'global' : '');
 export const openKeys = signal(new Set<string>(OPEN_ROWS.map((t) => t.name + '|' + keyGroup(t.group || ''))));
 
 // ---- the list's rows ----------------------------------------------------
