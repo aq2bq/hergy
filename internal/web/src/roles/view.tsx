@@ -15,7 +15,6 @@ import {
   focusAsk, withEntry, clone, pressToggle, pressFilter, pressNew, pressPmode,
   pressDup, pressCopy, pressDiscard, pressSearch, pressTab, pressGoto, canCopy,
   doSave, doDelete, syncURL, conflictAt, pressOverwrite, pressRevertConflict, pressUndoConflict,
-  addressOpen,
 } from './state.js';
 import { ConflictNotice } from '../lib/conflict.js';
 import { movePage } from '../lib/page-position.js';
@@ -92,12 +91,6 @@ function groupHeader(g: RoleGroup) {
 function Role({ r }: { r: RoleRow }) {
   const open = filtering() || state.value.open.has(r.uid);
   const el = useRef<HTMLDivElement | null>(null);
-  useEffect(() => {
-    const named = addressOpen.delete(r.uid);
-    if (!named || !open || !el.current) return;
-    if (document.querySelector('.role.open') !== el.current) return;
-    requestAnimationFrame(() => movePage('openByURL', el.current));
-  }, [open]);
   useEffect(() => {
     const ask = focusAsk.value;
     if (!ask || ask.uid !== r.uid || !el.current) return;

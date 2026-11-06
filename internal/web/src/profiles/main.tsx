@@ -34,6 +34,11 @@ Object.assign(window, { hergyPage: page });
 view.replaceChildren();
 render(<App />, view);
 
+// The address opened a row: bring the first one into the screen before the page
+// says it is settled (d-c5ce, decision 2).
+const openedRow = view.querySelector<HTMLElement>('.row.open');
+if (openedRow) movePage('openByURL', openedRow, { instant: true });
+
 if (TAB === 'assign') {
   initAssign();
   syncAssignURL();

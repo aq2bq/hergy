@@ -253,40 +253,43 @@ func (r *runner) ownersGate() error {
 // Each section turns Hard on its own: a section still reporting prints its
 // findings and passes, and an enforced one fails (owners.yml).
 func ownersVerdict(conf ownersFile, findings, danger, prompt, selection, address, page []string) error {
-	all := append(append(append(append(append(append([]string{}, findings...), danger...), prompt...), selection...), address...), page...)
+	sections := []struct {
+		findings []string
+		enforce  bool
+		name     string
+	}{
+		{findings, conf.Enforce, "enforce"},
+		{danger, conf.DangerEnforce, "danger_enforce"},
+		{prompt, conf.PromptEnforce, "prompt_enforce"},
+		{selection, conf.SelectionEnforce, "selection_enforce"},
+		{address, conf.AddressEnforce, "address_enforce"},
+		{page, conf.PagePositionEnforce, "page_position_enforce"},
+	}
+	var all []string
+	which := ""
+	failed := false
+	for _, one := range sections {
+		if len(one.findings) == 0 {
+			continue
+		}
+		all = append(all, one.findings...)
+		if one.enforce {
+			failed = true
+		} else {
+			which += " " + one.name
+		}
+	}
 	if len(all) == 0 {
 		return nil
 	}
 	for _, finding := range all {
 		fmt.Println(finding)
 	}
-	failed := len(findings) > 0 && conf.Enforce || len(danger) > 0 && conf.DangerEnforce ||
-		len(prompt) > 0 && conf.PromptEnforce || len(selection) > 0 && conf.SelectionEnforce ||
-		len(address) > 0 && conf.AddressEnforce || len(page) > 0 && conf.PagePositionEnforce
-	if !failed {
-		which := ""
-		if len(findings) > 0 && !conf.Enforce {
-			which += " enforce"
-		}
-		if len(danger) > 0 && !conf.DangerEnforce {
-			which += " danger_enforce"
-		}
-		if len(prompt) > 0 && !conf.PromptEnforce {
-			which += " prompt_enforce"
-		}
-		if len(selection) > 0 && !conf.SelectionEnforce {
-			which += " selection_enforce"
-		}
-		if len(address) > 0 && !conf.AddressEnforce {
-			which += " address_enforce"
-		}
-		if len(page) > 0 && !conf.PagePositionEnforce {
-			which += " page_position_enforce"
-		}
-		fmt.Printf("owners: %d 件（報告のみ。tools/check/owners.yml の%s を true にする前に、持ち主へ寄せるか許可リストに理由と決定を添えてください）\n", len(all), which)
-		return nil
+	if failed {
+		return fmt.Errorf("持ち主の外で帯の件数を書く・一覧の行を決める・危ない操作の確認や取り消しを書く・渡る文を組み立てる・選んだものと右の列を書く・開いている行の住所を書く・ページを動かす場所が %d 件", len(all))
 	}
-	return fmt.Errorf("持ち主の外で帯の件数を書く・一覧の行を決める・危ない操作の確認や取り消しを書く・渡る文を組み立てる・選んだものと右の列を書く・開いている行の住所を書く・ページを動かす場所が %d 件", len(all))
+	fmt.Printf("owners: %d 件（報告のみ。tools/check/owners.yml の%s を true にする前に、持ち主へ寄せるか許可リストに理由と決定を添えてください）\n", len(all), which)
+	return nil
 }
 
 func (r *runner) ownersConf() (ownersFile, error) {
@@ -757,15 +760,15 @@ func focusLines(code string) []int {
 		}
 		at := i + j
 		open := at + len(".focus")
-		close := closingParen(code, open)
-		if close < 0 {
+		end := closingParen(code, open)
+		if end < 0 {
 			i = open + 1
 			continue
 		}
-		if !strings.Contains(code[open:close+1], "preventScroll") {
+		if !strings.Contains(code[open:end+1], "preventScroll") {
 			out = append(out, lineOf(code, at))
 		}
-		i = close + 1
+		i = end + 1
 	}
 }
 

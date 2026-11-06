@@ -6,6 +6,7 @@
 // ここも DOM を書かない（5 章 1）。
 import { installWheel } from '../lib/page-position.js';
 import { effect, render as draw } from '../lib/preact.js';
+import { movePage } from '../lib/page-position.js';
 import { setDirty } from '../lib/nav.js';
 import {
   view, tabsEl, state, boot, take, dirty, lost, tellDirty, setStick, readAddress,
@@ -60,7 +61,13 @@ if (view) {
   boot().catch(() => {
     // A screen that could not read its documents draws what it has: the walk
     // says what is missing where it looks for it.
-  }).finally(() => { page.settled = true; });
+  }).finally(() => {
+    // The address opened a row: bring the first one into the screen before the
+    // page says it is settled, so nothing a person does is moved under it.
+    const opened = view?.querySelector<HTMLElement>('.tdef.open');
+    if (opened) movePage('openByURL', opened, { instant: true });
+    page.settled = true;
+  });
 }
 
 // The wheel over an input nobody is typing in sends the page (r-ddb7).

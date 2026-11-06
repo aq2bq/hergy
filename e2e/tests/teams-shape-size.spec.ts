@@ -102,6 +102,12 @@ const fails = (s: Awaited<ReturnType<typeof shape>>) => {
 async function opened(page: Page, name: string): Promise<Locator> {
   const row = page.locator(`.tdef[data-name="${name}"]`);
   await row.locator(':scope > .sum').click();
+  // Opening a row keeps the page where it was (d-2b33), so the walk sends it to
+  // the row the way a person would.
+  await page.evaluate((name) => {
+    const el = document.querySelector<HTMLElement>(`.tdef[data-name="${name}"]`);
+    if (el) window.scrollTo({ top: el.getBoundingClientRect().top + scrollY - 70, behavior: 'instant' });
+  }, name);
   await expect(row.locator('.cv-canvas svg')).toBeVisible();
   return row;
 }

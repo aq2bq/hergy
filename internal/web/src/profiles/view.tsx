@@ -12,7 +12,7 @@ import { movePage } from '../lib/page-position.js';
 import {
   rows, chips, shownRows, filterKind, query, groupName, GROUPS, placeGroups,
   panelFlags, writtenProfile, saveBlocked, rowUnsaved, classOf, otherKinds, BASE_KINDS,
-  focusAsk, panelByKey, HQ, canCopy, files, openedByAddress,
+  focusAsk, panelByKey, HQ, canCopy, files,
   pressOverwrite, pressRevertConflict, pressUndoConflict,
 } from './state.js';
 import {
@@ -99,13 +99,6 @@ function PlacePills({ row }: { row: Row }) {
 export function Row({ row }: { row: Row }) {
   const detail = useRef<HTMLDivElement>(null);
   const sum = useRef<HTMLButtonElement>(null);
-  const fromAddress = useRef(openedByAddress(row));
-  useEffect(() => {
-    if (!fromAddress.current) return;
-    fromAddress.current = false;
-    if (document.querySelector('.row.open') !== detail.current?.closest('.row')) return;
-    requestAnimationFrame(() => movePage('openByURL', detail.current && detail.current.closest('.row')));
-  }, []);
 
   const first = row.panels[0];
   const name = row.isNew && first ? first.draft.name : row.name;

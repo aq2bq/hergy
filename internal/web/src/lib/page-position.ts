@@ -43,7 +43,7 @@ export const PAGE_POSITION: Record<PageAction, { at: PageAt; why: string; d: str
   switchDoc: { at: 'stay', why: '並べる・文書名・すべて表示は表示の切り替え', d: 'ac-c66a' },
   switchView: { at: 'stay', why: '全文・今の文・差。欄の中だけ先頭へ戻す (d-a9ed)', d: 'd-a9ed' },
   problemLine: { at: 'stay', why: '行き先は欄の中。欄の持ち主が欄の中だけ動かす', d: 'd-c5ce' },
-  filter: { at: 'stay', why: '絞り込み・検索は表示の切り替え', d: 'd-c5ce' },
+  filter: { at: 'stay', why: '絞り込み・探すことは表示の切り替え', d: 'd-c5ce' },
   reread: { at: 'stay', why: '読み直し・検査の答え・保存の答え・10 秒の読み', d: 'd-c5ce' },
   saveAnswer: { at: 'stay', why: '保存の答えは表示の切り替え', d: 'd-c5ce' },
   theme: { at: 'stay', why: '明暗の切り替えは表示の切り替え', d: 'd-c5ce' },
@@ -51,10 +51,10 @@ export const PAGE_POSITION: Record<PageAction, { at: PageAt; why: string; d: str
 };
 
 // movePage は表を引いて、'stay' なら何もしない。
-export function movePage(act: PageAction, el: Element | null, opts?: { extra?: number }): void {
+export function movePage(act: PageAction, el: Element | null, opts?: { extra?: number; instant?: boolean }): void {
   const at = PAGE_POSITION[act].at;
   if (at === 'stay' || !el) return;
-  const quiet = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const quiet = !!opts?.instant || (typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
   if (at === 'band') {
     const stick = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--stick')) || 62;
     const delta = el.getBoundingClientRect().top - stick - (opts?.extra ?? 0);

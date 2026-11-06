@@ -124,7 +124,7 @@ function BoardRows(): JSX.Element {
     const tile = Array.from(document.querySelectorAll<HTMLElement>('.hq-tile[data-team]')).find((el) => el.dataset.team === fromAddress.current);
     if (!tile) return;
     fromAddress.current = '';
-    requestAnimationFrame(() => movePage('openByURL', tile));
+    movePage('openByURL', tile, { instant: true });
   }, [rows]);
   if (!rows.length) return <p class="gone">{n.ok ? noneText : n.text}</p>;
   if (!n.ok) return <p class="gone">{n.text}</p>;

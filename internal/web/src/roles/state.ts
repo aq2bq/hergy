@@ -480,11 +480,6 @@ export function openNewPanel(r: RoleRow): void {
   if (!checks.value[keyOf(r, l)]) askCheck(r, l, () => touch());
 }
 
-// addressOpen is the rows the address opened: the first draw after the boot
-// brings the first of them into the screen (d-c5ce, decision 2). A press opens
-// a row without moving the page (d-2b33).
-export const addressOpen = new Set<number>();
-
 export function parseURL(): void {  const path = location.pathname;
   const tab: RoleState['tab'] = /\/roles\/assign$/.test(path) ? 'assign' : /\/roles\/yaml$/.test(path) ? 'yaml' : 'roles';
   const qs = new URLSearchParams(location.search);
@@ -499,7 +494,6 @@ export function parseURL(): void {  const path = location.pathname;
     readOpen(qs).forEach(({ name, group: g }) => {
       rowsOfRef(name, g).forEach((r) => {
         open.add(r.uid);
-        addressOpen.add(r.uid);
         if (r.noDoc) openNewPanel(r);
       });
     });

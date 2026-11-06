@@ -28,7 +28,7 @@ import { copyGroupOf } from '../lib/copy.js';
 import { movePage } from '../lib/page-position.js';
 import {
   PLACES, PLACE, DIR, HQ, GROUPED, GROUPS, CURRENT, state, allRecs, groupRecs, rowsInGroup, placeGroups,
-  dkey, currentProjectName, teamLabel, dtabOf, isOpenRow, missingOpen, addressOpen,
+  dkey, currentProjectName, teamLabel, dtabOf, isOpenRow, missingOpen,
   rowIssues, dirtyDef, writtenTeam, teamIssues, agreeIssues, agreementChanged, teamChanges, vlistParts,
   rowOfPanel, okOf, refusalOf, pmodeOf, yfiles, fileOf, yamlChanged, yIssues,
   chosenFile, scheduleAgree, syncURL, focusAsk, groupOfRecord,
@@ -121,12 +121,6 @@ function PlaceHead({ g }: { g: TeamGroup }) {
 function Row({ r }: { r: Rec }) {
   const open = isOpenRow(r);
   const el = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const named = addressOpen.delete(r.dom);
-    if (!named || !open || !el.current) return;
-    if (document.querySelector('.tdef.open') !== el.current) return;
-    requestAnimationFrame(() => movePage('openByURL', el.current));
-  }, [open]);
   useEffect(() => {
     const ask = focusAsk.value;
     if (!ask || ask.dom !== r.dom || !el.current) return;
