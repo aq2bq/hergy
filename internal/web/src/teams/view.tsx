@@ -28,7 +28,7 @@ import { copyGroupOf } from '../lib/copy.js';
 import { bringUnderBand } from '../lib/band.js';
 import {
   PLACES, PLACE, DIR, HQ, GROUPED, GROUPS, CURRENT, state, allRecs, groupRecs, rowsInGroup, placeGroups,
-  dkey, currentProjectName, teamLabel, dtabOf, isOpen, missingOpen,
+  dkey, currentProjectName, teamLabel, dtabOf, isOpenRow, missingOpen,
   rowIssues, dirtyDef, writtenTeam, teamIssues, agreeIssues, agreementChanged, teamChanges, vlistParts,
   rowOfPanel, okOf, refusalOf, pmodeOf, yfiles, fileOf, yamlChanged, yIssues,
   chosenFile, scheduleAgree, syncURL, focusAsk, groupOfRecord,
@@ -119,7 +119,7 @@ function PlaceHead({ g }: { g: TeamGroup }) {
 // under itself (spec-teams B1). The field a press asked for is put in place after
 // the draw, by the row itself (5 章 5): nobody puts the focus back later.
 function Row({ r }: { r: Rec }) {
-  const open = isOpen(r.dom, r.place.value);
+  const open = isOpenRow(r);
   const el = useRef<HTMLDivElement>(null);
   const wasOpen = useRef(false);
   useEffect(() => {

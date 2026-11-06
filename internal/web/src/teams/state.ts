@@ -30,7 +30,7 @@ type TeamCheckBody = Request<'team', 'check'>;
 import {
   fromJSON, toDoc, clone,
 } from '../lib/ruledoc.js';
-import { parseOpen, token as roleToken } from '../lib/hq.js';
+import { groupPlace as placeOfGroup, parseOpen, readOpen, token, writeOpen } from '../lib/address.js';
 import { ROLE_DOC as CHANGED_ROLE, TEAM as CHANGED_TEAM, TEAM_AGREEMENT as CHANGED_AGREEMENT, YAML_TEXT as CHANGED_YAML, diff as changedDiff, dirty as changedDirty, lost as changedLost, snapshot as changedSnapshot, } from '../lib/changed.js';
 import type { Shape } from '../lib/changed.js';
 import type { TeamWritten } from '../lib/changed.js';
@@ -235,16 +235,32 @@ function setYc(key: string, list: Schemas['Problem'][] | undefined): void {
   if (list === undefined) delete m[key]; else m[key] = list;
   put({ yc: m });
 }
-const withOpen = (dom: string, on: boolean) => {
+// urlGroup is the place a row is written in: the project's path (or `project`)
+// on the side the row stands in, and `global` for the global layer.
+const urlGroup = (r: Rec): string => (GROUPED ? groupOfRecord(r) : r.place.value);
+// sameRow is whether an address names one row: the name, and, when the address
+// carries a place, the side it stands in. An address with no place (the old link)
+// names every row of that name (d-a143).
+const sameRow = (ref: { name: string; group: string }, r: Rec): boolean => {
+  if (ref.name !== r.name.value) return false;
+  // The old link names both sides of this project's row (d-a143).
+  if (!ref.group) return !GROUPED || groupOfRecord(r) === CURRENT || groupOfRecord(r) === 'global';
+  return GROUPED ? groupOfRecord(r) === ref.group : placeOfGroup(ref.group, CURRENT) === r.place.value;
+};
+// rowsOfRef is every row an address names: one, or both of a name the old link
+// left without a place.
+const rowsOfRef = (ref: { name: string; group: string }): Rec[] => recs.value.filter((r) => sameRow(ref, r));
+// withOpen opens or closes one row by the address it stands at: every spelling
+// that names the row goes (the old name-only one included), and the qualified
+// address is put in its place (d-a143).
+const withOpen = (r: Rec, on: boolean) => {
   const s = new Set(state.value.open);
-  // Ordinary operations keep their existing dom-wide opening/closing. Remove
-  // qualified URL references too, so a row opened by an address can be closed.
-  s.forEach((ref) => { if (openDom(ref) === dom) s.delete(ref); });
-  if (on) s.add(dom);
+  s.forEach((one) => { const ref = parseOpen(one)[0]; if (ref && sameRow(ref, r)) s.delete(one); });
+  if (on) s.add(token(r.name.value, urlGroup(r)));
   put({ open: s });
 };
-export const isOpen = (dom: string, place?: Place): boolean => [...state.value.open].some((ref) =>
-  openDom(ref) === dom && (!place || ref === dom || recordOfRef(ref)?.place.value === place));
+export const isOpenRow = (r: Rec): boolean => [...state.value.open]
+  .some((one) => { const ref = parseOpen(one)[0]; return !!ref && sameRow(ref, r); });
 export const dtabOf = (r: Rec): string => state.value.dtab[r.dom] || 'shape';
 export const pmodeOf = (r: Rec): string => state.value.pmode[dkey(r)] || 'edit';
 export const okOf = (key: string): boolean => !!state.value.ok[key];
@@ -577,20 +593,11 @@ function defOf(item: DefItem, project?: string): Rec {
 export const allRecs = () => recs.value;
 export const byKey = (k: string): Rec | null => recs.value.find((r: Rec) => r.key.value === k) || null;
 export const byName = (n: string): Rec | null => recs.value.find((r: Rec) => r.dom === n) || null;
-// byRef is the record one address names: the row of one group, or, with no
-// group, the row the screen wrote before the headquarters (its name alone).
-const byRef = (name: string, group?: string): Rec | null => {
-  if (!group) return byName(name) || byRealName(name);
-  if (GROUPED) return byName(domOf(name, group));
-  const place = group === 'global' ? 'global' : group === CURRENT ? 'project' : null;
-  return recs.value.find((r) => r.name.value === name && r.place.value === place && !r.draftRow) || null;
-};
-// Only URL opening state carries qualified references in the one-project view.
-// The records and all editing state keep their existing dom/dkey identities.
-const openDom = (ref: string): string => GROUPED ? ref : (parseOpen(ref)[0]?.name || ref);
+// recordOfRef is the first row an address names: what the rules tab and the
+// missing-row notice need, one row at a time.
 const recordOfRef = (ref: string): Rec | null => {
   const one = parseOpen(ref)[0];
-  return one ? byRef(one.name, one.group) : null;
+  return one ? rowsOfRef(one)[0] || null : null;
 };
 // byRealName is the first row of a name, the project's own first: a link the
 // older screens wrote names a definition, not a group.
@@ -736,7 +743,7 @@ export async function addDraft(how: string, place: Place, name: string, base: Te
     at = i >= 0 ? i + 1 : at;
   }
   orderRows(r, at);
-  withOpen(r.dom, true);
+  withOpen(r, true);
   setDtab(r.dom, 'shape');
   // The name a copy already holds is chosen, so the first letter a person
   // types replaces it rather than landing beside it (監査 R8).
@@ -747,7 +754,7 @@ export async function addDraft(how: string, place: Place, name: string, base: Te
 // (spec-teams B2).
 export function dropDraft(r: Rec): void {
   recs.value = recs.value.filter((x) => x !== r);
-  withOpen(r.dom, false);
+  withOpen(r, false);
   dropDtab(r.dom);
   resetCanvas(r);
 }
@@ -849,7 +856,7 @@ export const vlistParts = (r: Rec) => {
     void ROLES_REV.value;
     const project = r.project && r.project !== 'global' ? r.project : CURRENT;
     const group = (ROLES_BY[project] || []).some((role) => role.name === m.role) ? project : 'global';
-    const q = new URLSearchParams({ open: roleToken(m.role, group) });
+    const q = new URLSearchParams({ open: token(m.role, group) });
     if (project) q.set('project', project);
     return `/roles?${q}`;
   };
@@ -1110,7 +1117,7 @@ async function saveFolder(r: Rec) {
   });
   const json = await answered(r, 't', apiSave('team', r.name.value, body), '保存できませんでした');
   if (!json) return;
-  const name = r.name.value, dom = r.dom, dtab = dtabOf(r), opens = isOpen(dom);
+  const name = r.name.value, dom = r.dom, dtab = dtabOf(r), opens = isOpenRow(r);
   const group = groupOfRecord(r);
   // The row stands where the row a person was looking at stood: the first
   // reading of this name keeps its place, and a copy's save stays on the side
@@ -1123,10 +1130,10 @@ async function saveFolder(r: Rec) {
   gone.forEach((x) => resetCanvas(x));
   setProblems(json.items, group);
   const raw = (json.items || []).find((it) => it.name === name);
-  if (!raw) { withOpen(dom, false); dropDtab(dom); return; }
+  if (!raw) { withOpen(r, false); dropDtab(dom); return; }
   const nr = defOf(itemInGroup(raw, group), group);
   orderRows(nr, at);
-  if (opens) withOpen(nr.dom, true);
+  if (opens) withOpen(nr, true);
   setDtab(nr.dom, dtab);
   // The definition the save wrote holds its own checks now: the figure's and
   // the rules' are read again from the file it wrote (spec-boundary 5). The
@@ -1167,7 +1174,7 @@ export async function renamed(r: Rec, name: string, json: Schemas['TeamSaved']):
   const old = r.name.value, group = groupOfRecord(r), tab = dtabOf(r), at = firstIndexOf((x) => x === r);
   forgetChecks(r);
   resetCanvas(r);
-  withOpen(r.dom, false);
+  withOpen(r, false);
   recs.value = recs.value.filter((x) => x !== r);
   const item = (json.items || []).find((x) => x.name === name);
   if (!item) throw new Error('保存したチーム定義を読めませんでした。画面を読み直してください');
@@ -1185,7 +1192,7 @@ export async function renamed(r: Rec, name: string, json: Schemas['TeamSaved']):
   }
 
   orderRows(next, at);
-  withOpen(next.dom, true);
+  withOpen(next, true);
   setDtab(next.dom, tab);
   const files = (json.files || []).filter((f) => f.place === r.place.value && f.name === name);
   yfiles.value = yfiles.value.filter((f) => !(f.place === r.place.value && f.name === old)).concat(files.map((f): YFile => ({
@@ -1319,7 +1326,7 @@ export function canvasUndo(r: Rec): void {
 // The row the newest operation stands on: ⌘Z acts on it even when nothing is
 // picked (監査 1-1).
 export function undoRow() {
-  return recs.value.filter((x) => isOpen(x.dom, x.place.value) && (cundo.get(dkey(x)) || []).length)
+  return recs.value.filter((x) => isOpenRow(x) && (cundo.get(dkey(x)) || []).length)
     .sort((a, b) => (b.lastAct.value || 0) - (a.lastAct.value || 0))[0] || null;
 }
 // resetCanvas forgets the canvas's picks and places for one row (a save, a
@@ -1445,11 +1452,14 @@ export function syncURL() {
   const params = new URLSearchParams();
   if (s.tab === 'yaml') { if (s.yfile) params.set('file', s.yfile); }
   else {
-    const opens = [...s.open].filter((n) => { const r = recordOfRef(n); return r && !r.draftRow; });
-    if (opens.length) params.set('open', opens.join(','));
-    const agrees = opens.filter((n) => { const r = recordOfRef(n); return r && dtabOf(r) === 'agree'; });
+    // The rows the screen has open, as the address names them: the row's name
+    // and the place it stands in, never a bare name (d-a143).
+    const rows = [...s.open]
+      .map((one) => rowsOfRef(parseOpen(one)[0]).find((r) => !r.draftRow))
+      .filter((r): r is Rec => !!r);
+    writeOpen(params, rows.map((r) => ({ name: r.name.value, group: urlGroup(r) })));
+    const agrees = rows.filter((r) => dtabOf(r) === 'agree').map((r) => token(r.name.value, urlGroup(r)));
     if (agrees.length) params.set('agree', agrees.join(','));
-
   }
   const path = s.tab === 'yaml' ? '/teams/yaml' : '/teams';
   const q = params.toString();
@@ -1457,17 +1467,17 @@ export function syncURL() {
 }
 export function readURL() {
   const p = new URLSearchParams(location.search);
-  const open = p.get('open');
-  missingOpen.value = (parseOpen(open || '') || []).filter(({ name, group }) => !byRef(name, group)).map(({ name }) => name);
-  if (open) {
-    const rows = parseOpen(open) || [];
-    const refs = new Set(state.value.open);
-    rows.forEach(({ name, group }) => {
-      const r = byRef(name, group);
-      if (r) refs.add(!GROUPED && group ? roleToken(name, group) : r.dom);
-    });
-    put({ open: refs });
-  }
+  const refs = new Set(state.value.open);
+  const missing: string[] = [];
+  readOpen(p).forEach((ref) => {
+    const rows = rowsOfRef(ref);
+    if (!rows.length) missing.push(ref.name);
+    // An address with no place opens both rows of that name: the old link names
+    // a definition, and the screen cannot tell which side it meant (d-a143).
+    rows.forEach((r) => refs.add(token(r.name.value, urlGroup(r))));
+  });
+  missingOpen.value = missing;
+  put({ open: refs });
   const agree = p.get('agree');
   if (agree) {
     const m = { ...state.value.dtab };
@@ -1484,7 +1494,7 @@ export function readURL() {
     if (i < 0) return;
     const r = byRealName(spec.slice(0, i));
     if (!r) return;
-    withOpen(r.dom, true);
+    withOpen(r, true);
     setDtab(r.dom, 'agree');
   });
   const file = p.get('file');
@@ -1599,7 +1609,7 @@ export function pressTab(t: 'list' | 'yaml') {
   syncURL();
 }
 export function pressToggle(r: Rec) {
-  withOpen(r.dom, !isOpen(r.dom));
+  withOpen(r, !isOpenRow(r));
   syncURL();
 }
 export async function pressNew(group?: string) {
@@ -1652,7 +1662,7 @@ export async function pressCopy(r: Rec) {
   const group = copyGroupOf(to, groupOfRecord(r), GROUPED ? CURRENT : '');
   // The row the person pressed closes: the copy under the other place's head is
   // the one open row they read (d-022a).
-  withOpen(r.dom, false);
+  withOpen(r, false);
   const copy = await addDraft('copy', to, r.name.value, baseOf(r, r.place.value), group);
   // The copy is off the screen when the other place's head is below it: the row
   // comes to the band with its name chosen (d-022a).
@@ -1663,7 +1673,12 @@ export async function pressCopy(r: Rec) {
 export async function pressPlace(r: Rec, place: Place) {
   if (!r || !r.draftRow || r.place.value === place) return;
   const at = firstIndexOf((x) => x === r);
+  // The address follows the row: a row a person has open stays open at the
+  // place it moved to (⑥-2).
+  const open = isOpenRow(r);
+  withOpen(r, false);
   r.place.value = place;
+  if (open) withOpen(r, true);
   orderRows(r, at);
   resetCanvas(r);
   // The base is read again: the other place's role documents and profile are
@@ -1683,7 +1698,12 @@ export async function pressDelYes(r: Rec) { if (r) await doDelete(r); }
 // both (spec-teams B2). The field keeps its place and its cursor while the
 // person types.
 export function pressName(r: Rec, value: string) {
+  // A row that is not there yet is addressed by the name it shows: the address
+  // follows the letters a person types (⑥-2).
+  const open = isOpenRow(r);
+  withOpen(r, false);
   r.name.value = value;
+  if (open) withOpen(r, true);
   debounce('n' + r.dom, () => checkTeam(r));
 }
 // pressDescription is the row's own description field: it writes one operation and asks
@@ -1879,7 +1899,7 @@ export function boot() {
 // openAgree puts a row on its 規則 tab and asks the rules' check: the same
 // step the tab's press takes, for a part that names the tab without a press.
 export function openAgree(r: Rec) {
-  withOpen(r.dom, true);
+  withOpen(r, true);
   setDtab(r.dom, 'agree');
   checkAgree(r);
   syncURL();

@@ -32,11 +32,6 @@ import {
   setDirty2
 } from "../chunk/nav-k13q4569.js";
 import {
-  token2,
-  parseOpen2
-} from "../chunk/nav-cw6bzy6k.js";
-import"../chunk/nav-hzt37z80.js";
-import {
   Measure,
   renameCarries2,
   fromJSON2,
@@ -67,6 +62,11 @@ import {
 import {
   installWheel
 } from "../chunk/nav-47tvawmc.js";
+import {
+  readOpen2,
+  writeOpen2,
+  groupPlace2
+} from "../chunk/nav-1wefkymt.js";
 import {
   snapshot,
   dirty,
@@ -258,6 +258,14 @@ var nextUid = () => {
 var byUid = (id) => roles.value.find((r) => r.uid === Number(id));
 var live = (r, l) => !!(r && r[l] && r[l].saved);
 var eff = (r) => live(r, "project") ? "project" : live(r, "global") ? "global" : r.project ? "project" : "global";
+var rowGroup = (r) => GROUPED ? r.group : eff(r);
+var rowsOfRef = (name, group) => roles.value.filter((x) => {
+  if (curName(x) !== name)
+    return false;
+  if (group)
+    return GROUPED ? rowGroup(x) === group : groupPlace2(group, CURRENT) === eff(x);
+  return !GROUPED || rowGroup(x) === CURRENT || rowGroup(x) === "global";
+});
 var cur = (r) => r[eff(r)].draft;
 var curName = (r) => r.markdown ? r.name || "" : (r[eff(r)].saved || r[eff(r)].draft).name;
 var savedRoles = () => roles.value.filter((r) => live(r, "project") || live(r, "global"));
@@ -405,16 +413,13 @@ function parseURL() {
     const f = qs.get("filter");
     next.filter = f === "issues" ? f : null;
     next.q = qs.get("q") || "";
-    const openedRaw = qs.get("open") || "";
-    const openedRows = parseOpen2(openedRaw) || [];
     const open = new Set(state.value.open);
-    openedRows.forEach(({ name, group: g }) => {
-      const r = roles.value.find((x) => curName(x) === name && (!g || x.group === g)) || roles.value.find((x) => curName(x) === name);
-      if (!r)
-        return;
-      open.add(r.uid);
-      if (r.noDoc)
-        openNewPanel(r);
+    readOpen2(qs).forEach(({ name, group: g }) => {
+      rowsOfRef(name, g).forEach((r) => {
+        open.add(r.uid);
+        if (r.noDoc)
+          openNewPanel(r);
+      });
     });
     next.open = open;
   } else if (tab === "assign") {
@@ -457,12 +462,9 @@ function syncURL(push) {
       q.set("filter", s.filter);
     if (s.q)
       q.set("q", s.q);
-    const open = [...s.open].map((u) => {
-      const r = byUid(u);
-      return r ? GROUPED ? token2(curName(r), r.group) : curName(r) : "";
-    }).filter(Boolean);
+    const open = [...s.open].map((u) => byUid(u)).filter((r) => !!r).map((r) => ({ name: curName(r), group: rowGroup(r) }));
     if (open.length)
-      q.set("open", open.join(","));
+      writeOpen2(q, open);
   }
   const url = path + (q.toString() ? "?" + q.toString() : "");
   if (push)

@@ -66,18 +66,6 @@ export const groupDisplay = (g: AnyGroup): string | undefined => (g && g.global 
 // the project's path, or "global".
 export const projectOfGroup = (g: AnyGroup): string => (g && g.global ? 'global' : (g.project ? g.project.path : ''));
 
-// token joins a row's name and its group for the address: a name alone is the one
-// the screen was opened at (the old way), and a name with a group says which
-// project's row it is (spec 4 章).
-export const token = (name: string, group: string | undefined): string => (group ? name + '|' + group : name);
-export function parseOpen(value: string | null | undefined): { name: string; group: string }[] {
-  return String(value || '').split(',').filter(Boolean).map((one) => {
-    const i = one.lastIndexOf('|');
-    if (i < 0) return { name: one, group: '' };
-    return { name: one.slice(0, i), group: one.slice(i + 1) };
-  });
-}
-
 export const projectName = (path: string): string => {
   if (!path) return '';
   const found = ((st.projects.value && st.projects.value.projects) || []).find((p) => p.path === path);

@@ -10,7 +10,7 @@ import { PROFILE_ASSIGN, ROLE_DOC, YAML_TEXT, assignDirty, lost as changedLost, 
 import { signal } from '../lib/preact.js';
 import { roleEditor, roleProblems } from '../lib/role-editor.js';
 import { takeDraft, setDirty } from '../lib/nav.js';
-import { parseOpen, token as hqToken } from '../lib/hq.js';
+import { groupPlace, readOpen, writeOpen } from '../lib/address.js';
 import { copyGroupOf, projectOfGroup } from '../lib/copy';
 import {
   save as apiSave, del as apiDel, saved as apiSaved,
@@ -311,6 +311,19 @@ export const nextUid = (): number => { uid += 1; return uid; };
 export const byUid = (id: number | string): RoleRow | undefined => roles.value.find((r) => r.uid === Number(id));
 export const live = (r: RoleRow | null | undefined, l: Place): boolean => !!(r && r[l] && r[l].saved);
 export const eff = (r: RoleRow): Place => (live(r, 'project') ? 'project' : live(r, 'global') ? 'global' : (r.project ? 'project' : 'global'));
+// rowGroup is the place a row is written in: the project's path (or `global`) on
+// a screen with projects listed, and this project's side (`project`/`global`)
+// on the one-project screen (⑥-2, d-a143).
+const rowGroup = (r: RoleRow): string => (GROUPED ? r.group : eff(r));
+// rowsOfRef is every row an address names: an address with no place names both
+// rows of that name (d-a143).
+const rowsOfRef = (name: string, group: string): RoleRow[] => roles.value.filter((x) => {
+  if (curName(x) !== name) return false;
+  if (group) return GROUPED ? rowGroup(x) === group : groupPlace(group, CURRENT) === eff(x);
+  // The old link names both sides of this project's row: the project's and the
+  // global layer's (d-a143).
+  return !GROUPED || rowGroup(x) === CURRENT || rowGroup(x) === 'global';
+});
 export const cur = (r: RoleRow): EditableDocument => r[eff(r)]!.draft;
 export const curName = (r: RoleRow): string => (r.markdown ? r.name || '' : (r[eff(r)]!.saved || r[eff(r)]!.draft).name);
 export const savedRoles = (): RoleRow[] => roles.value.filter((r) => live(r, 'project') || live(r, 'global'));
@@ -473,17 +486,14 @@ export function parseURL(): void {
     const f = qs.get('filter');
     next.filter = (f === 'issues') ? f : null;
     next.q = qs.get('q') || '';
-    const openedRaw = (qs.get('open') || '');
-    const openedRows = parseOpen(openedRaw) || [];
     const open = new Set(state.value.open);
-    openedRows.forEach(({ name, group: g }) => {
-      // A row is found by the name it shows and, from a search result, by the
-      // project it stands in: a saved name, a written one, or the name of a
-      // document only Markdown holds (spec-roles 2 節, spec 3 章).
-      const r = roles.value.find((x) => curName(x) === name && (!g || x.group === g)) || roles.value.find((x) => curName(x) === name);
-      if (!r) return;
-      open.add(r.uid);
-      if (r.noDoc) openNewPanel(r);
+    // An address with no place (the old link) names both rows of that name: the
+    // project's and the global one (d-a143). A place opens its own row only.
+    readOpen(qs).forEach(({ name, group: g }) => {
+      rowsOfRef(name, g).forEach((r) => {
+        open.add(r.uid);
+        if (r.noDoc) openNewPanel(r);
+      });
     });
     next.open = open;
   } else if (tab === 'assign') {
@@ -515,8 +525,8 @@ export function syncURL(push: boolean): void {
   } else {
     if (s.filter) q.set('filter', s.filter);
     if (s.q) q.set('q', s.q);
-    const open = [...s.open].map((u) => { const r = byUid(u); return r ? (GROUPED ? hqToken(curName(r), r.group) : curName(r)) : ''; }).filter(Boolean);
-    if (open.length) q.set('open', open.join(','));
+    const open = [...s.open].map((u) => byUid(u)).filter((r): r is RoleRow => !!r).map((r) => ({ name: curName(r), group: rowGroup(r) }));
+    if (open.length) writeOpen(q, open);
 
   }
   const url = path + (q.toString() ? '?' + q.toString() : '');

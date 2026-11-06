@@ -12,8 +12,9 @@ import type { JSX } from 'preact';
 import { call, problemText } from '../api.js';
 import { runDanger } from '../danger.js';
 import type { components, operations } from '../../../../apicontract/api-types';
+import { token } from '../address.js';
 import {
-  st, token, projectName, readJSONOr, readGroups, readCore, readRunning,
+  st, projectName, readJSONOr, readGroups, readCore, readRunning,
   noteStarting, definitionDoc, listProject, unlistProject, groupOf, projectOfGroup,
   groupLabel, runningTeam,
 } from './state.js';

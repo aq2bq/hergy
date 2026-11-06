@@ -8,7 +8,7 @@ import { signal, computed } from '../lib/preact.js';
 import { resource, type Reading } from '../lib/resource';
 import { profileModel, check as apiCheck, save as apiSave, del as apiDel, list as apiList, problemText, bases, type Answer, type Place, type ProfilePanel, type ProfileRow, type Schemas } from '../lib/api.js';
 import { conflictOf } from '../lib/conflict.js';
-import { parseOpen, token as hqToken } from '../lib/hq.js';
+import { groupPlace, readOpen, writeOpen } from '../lib/address.js';
 import { copyGroupOf, projectOfGroup } from '../lib/copy';
 import { PROFILE, PROFILE_ASSIGN, YAML_TEXT, assignDirty, yamlDirty, diff as changedDiff, dirty as changedDirty, lost as changedLost, profileFlags, snapshot as changedSnapshot } from '../lib/changed.js';
 import { setDirty } from '../lib/nav.js';
@@ -189,14 +189,22 @@ function learnFiles(group: string, list: ProfileList | null): void {
 // and the search stand in the address, and the address is where the screen
 // starts from.
 const params = (): URLSearchParams => new URLSearchParams(location.search);
-const OPEN = (params().get('open') || '').split(',').filter(Boolean);
-const OPEN_ROWS: OpenTarget[] = parseOpen(OPEN.join(',')) || [];
-const isOpenRow = (row: { name: string; group?: string }): boolean =>
-  OPEN_ROWS.some((t) => t.name === row.name && (!t.group || t.group === row.group));
+const OPEN_ROWS: OpenTarget[] = readOpen(params());
+// rowPlace is the place an address names this row by: the project's path or
+// `global` on a screen with projects listed, and `project`/`global` on the
+// one-project screen (⑥-2).
+const isOpenRow = (row: { name: string; group?: string }): boolean => OPEN_ROWS.some((t) => {
+  if (t.name !== row.name) return false;
+  if (!t.group) return !GROUPED || !row.group || row.group === CURRENT || row.group === 'global';
+  return GROUPED ? (row.group || '') === t.group : groupPlace(t.group, CURRENT) === (row.group === 'global' ? 'global' : 'project');
+});
 
 export const filterKind = signal(TAB === 'profiles' ? (params().get('kind') || '') : '');
 export const query = signal(TAB === 'profiles' ? (params().get('q') || '') : '');
-export const openKeys = signal(new Set<string>(OPEN_ROWS.map((t) => t.name + '|' + (t.group || ''))));
+// The key a row is opened by: its name and the group the rows draw in (the
+// project's own key is '', the global layer's 'global' on the one-project screen).
+const keyGroup = (group: string): string => (GROUPED ? group : groupPlace(group, CURRENT) === 'global' ? 'global' : '');
+export const openKeys = signal(new Set<string>(OPEN_ROWS.map((t) => t.name + '|' + keyGroup(t.group || ''))));
 
 // ---- the list's rows ----------------------------------------------------
 let nextId = 1;
@@ -699,11 +707,13 @@ export function syncURL(): void {
   const params = new URLSearchParams();
   if (filterKind.value) params.set('kind', filterKind.value);
   if (query.value) params.set('q', query.value);
+  // The row's name and the place it stands in. A screen with projects listed
+  // writes the project's path (or `global`); the one-project screen writes
+  // `project`/`global`, never a bare name (⑥-2, d-a143).
   const open = rows.value
-    .filter((row) => row.open && !row.isNew)
-    .map((row) => (GROUPED && row.group ? hqToken(row.name, row.group) : row.name))
-    .filter(Boolean);
-  if (open.length) params.set('open', open.join(','));
+    .filter((row) => row.open && !row.isNew && row.name)
+    .map((row) => ({ name: row.name, group: GROUPED && row.group ? row.group : (row.group === 'global' ? 'global' : 'project') }));
+  writeOpen(params, open);
   const search = params.toString();
   history.replaceState(null, '', location.pathname + (search ? '?' + search : ''));
 }

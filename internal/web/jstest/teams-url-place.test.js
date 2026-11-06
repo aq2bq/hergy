@@ -48,16 +48,19 @@ test('qualified addresses open only the named place and retain it through tabs a
     await address(ref, ref);
     expect(opened()).toEqual([`core.${place}`]);
     expect(S.dtabOf(S.byKey(`core.${place}`))).toBe('agree');
+    // The one-project screen writes its own side as `project`; the global row
+    // keeps `global` (⑥-2, decision 2).
+    const written = group === 'global' ? 'core|global' : 'core|project';
     S.syncURL();
-    expect(new URLSearchParams(location.search).get('open')).toBe(ref);
-    expect(new URLSearchParams(location.search).get('agree')).toBe(ref);
+    expect(new URLSearchParams(location.search).get('open')).toBe(written);
+    expect(new URLSearchParams(location.search).get('agree')).toBe(written);
     S.readAddress();
     await settle();
     expect(opened()).toEqual([`core.${place}`]);
     S.pressDtab(S.byKey(`core.${place}`), 'shape');
     await settle();
     expect(opened()).toEqual([`core.${place}`]);
-    expect(new URLSearchParams(location.search).get('open')).toBe(ref);
+    expect(new URLSearchParams(location.search).get('open')).toBe(written);
     expect(new URLSearchParams(location.search).has('agree')).toBe(false);
   }
 });
@@ -86,15 +89,17 @@ test('unqualified addresses and normal toggles retain shared opening and close q
   expect(S.state.value.open.size).toBe(0);
   S.pressToggle(S.byKey('core.project'));
   await settle();
-  expect(opened()).toEqual(['core.project', 'core.global']);
-  expect(new URLSearchParams(location.search).get('open')).toBe('core');
+  // The row a person pressed opens alone, and the address names its place:
+  // the old bare name opened both rows of that name (d-a143).
+  expect(opened()).toEqual(['core.project']);
+  expect(new URLSearchParams(location.search).get('open')).toBe('core|project');
 });
 
 test('two qualified references survive together and editing keeps place and hash identities', async () => {
   await address(`core|global,core|${project}`);
   expect(opened()).toEqual(['core.project', 'core.global']);
   S.syncURL();
-  expect(new URLSearchParams(location.search).get('open')).toBe(`core|global,core|${project}`);
+  expect(new URLSearchParams(location.search).get('open')).toBe('core|global,core|project');
   for (const place of ['project', 'global']) {
     const r = S.byKey(`core.${place}`);
     expect(r.dom).toBe('core');
@@ -116,11 +121,12 @@ test('copying a URL-opened row closes its reference and keeps a draft open acros
   const copy = S.allRecs().find((r) => r.draftRow);
   expect(copy.base).toEqual({ place: 'global', name: 'core', project: undefined });
   expect(copy.place.value).toBe('project');
-  expect(S.isOpen('core')).toBe(false);
-  expect(S.isOpen(copy.dom, 'project')).toBe(true);
+  expect(S.isOpenRow(S.byKey('core.global'))).toBe(false);
+  expect(S.isOpenRow(copy)).toBe(true);
   await S.pressPlace(copy, 'global');
-  expect(S.isOpen(copy.dom, 'global')).toBe(true);
-  expect(S.isOpen(copy.dom, 'project')).toBe(true); // draft dom stays stable
+  // The address follows the row to the place it moved to.
+  expect(S.isOpenRow(copy)).toBe(true);
+  expect(new URLSearchParams(location.search).get('open')).toBe('core|global');
   expect(asked.filter((q) => q.url.startsWith('/api/team/check')).at(-1).body).toMatchObject({ place: 'global', name: 'core', base: { place: 'global', name: 'core' } });
   S.pressDiscard(copy);
 });

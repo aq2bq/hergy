@@ -11,6 +11,9 @@ test('qualified team URLs open one place and keep it across tabs, reload and bac
   const project = realpathSync(app.proj);
   for (const [group, place] of [['global', 'global'], [project, 'project']]) {
     const ref = `core|${group}`;
+    // The one-project screen writes its own side as `project`; the global row
+    // keeps `global` (⑥-2, decision 2). A path reads as this project.
+    const written = group === 'global' ? 'core|global' : 'core|project';
     await page.goto(`${app.base}/teams?${new URLSearchParams({ open: ref })}`);
     await ready(page);
     const opened = page.locator('.tdef.open');
@@ -18,12 +21,12 @@ test('qualified team URLs open one place and keep it across tabs, reload and bac
     await expect(opened).toHaveAttribute('data-key', `core.${place}`);
     await expect(page.getByText(/チーム定義 .* が見つかりません/)).toHaveCount(0);
     await opened.getByRole('tab', { name: /^規則/ }).click();
-    await expect(page).toHaveURL((url) => url.searchParams.get('open') === ref && url.searchParams.get('agree') === ref);
+    await expect(page).toHaveURL((url) => url.searchParams.get('open') === written && url.searchParams.get('agree') === written);
     await page.reload();
     await ready(page);
     await expect(opened).toHaveAttribute('data-key', `core.${place}`);
     await opened.getByRole('tab', { name: /^トポロジー/ }).click();
-    await expect(page).toHaveURL((url) => url.searchParams.get('open') === ref && !url.searchParams.has('agree'));
+    await expect(page).toHaveURL((url) => url.searchParams.get('open') === written && !url.searchParams.has('agree'));
     await page.goto(`${app.base}/profiles`);
     await page.goBack();
     await ready(page);

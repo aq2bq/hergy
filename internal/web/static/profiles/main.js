@@ -32,11 +32,6 @@ import {
   setDirty2
 } from "../chunk/nav-k13q4569.js";
 import {
-  token2,
-  parseOpen2
-} from "../chunk/nav-cw6bzy6k.js";
-import"../chunk/nav-hzt37z80.js";
-import {
   conflictOf,
   ConflictNotice,
   YamlTab2
@@ -54,6 +49,11 @@ import {
   installWheel,
   resource
 } from "../chunk/nav-47tvawmc.js";
+import {
+  readOpen2,
+  writeOpen2,
+  groupPlace2
+} from "../chunk/nav-1wefkymt.js";
 import {
   snapshot,
   dirty,
@@ -197,12 +197,18 @@ function learnFiles(group, list) {
   fileHashes.value = next;
 }
 var params = () => new URLSearchParams(location.search);
-var OPEN = (params().get("open") || "").split(",").filter(Boolean);
-var OPEN_ROWS = parseOpen2(OPEN.join(",")) || [];
-var isOpenRow = (row) => OPEN_ROWS.some((t) => t.name === row.name && (!t.group || t.group === row.group));
+var OPEN_ROWS = readOpen2(params());
+var isOpenRow = (row) => OPEN_ROWS.some((t) => {
+  if (t.name !== row.name)
+    return false;
+  if (!t.group)
+    return !GROUPED || !row.group || row.group === CURRENT || row.group === "global";
+  return GROUPED ? (row.group || "") === t.group : groupPlace2(t.group, CURRENT) === (row.group === "global" ? "global" : "project");
+});
 var filterKind = y(TAB === "profiles" ? params().get("kind") || "" : "");
 var query = y(TAB === "profiles" ? params().get("q") || "" : "");
-var openKeys = y(new Set(OPEN_ROWS.map((t) => t.name + "|" + (t.group || ""))));
+var keyGroup = (group) => GROUPED ? group : groupPlace2(group, CURRENT) === "global" ? "global" : "";
+var openKeys = y(new Set(OPEN_ROWS.map((t) => t.name + "|" + keyGroup(t.group || ""))));
 var nextId = 1;
 var newKey = () => "new-" + nextId++;
 function panelOf(p, group, rowKey) {
@@ -704,9 +710,8 @@ function syncURL() {
     params.set("kind", filterKind.value);
   if (query.value)
     params.set("q", query.value);
-  const open = rows.value.filter((row) => row.open && !row.isNew).map((row) => GROUPED && row.group ? token2(row.name, row.group) : row.name).filter(Boolean);
-  if (open.length)
-    params.set("open", open.join(","));
+  const open = rows.value.filter((row) => row.open && !row.isNew && row.name).map((row) => ({ name: row.name, group: GROUPED && row.group ? row.group : row.group === "global" ? "global" : "project" }));
+  writeOpen2(params, open);
   const search = params.toString();
   history.replaceState(null, "", location.pathname + (search ? "?" + search : ""));
 }

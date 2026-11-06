@@ -61,19 +61,17 @@ import {
   RuleDoc2
 } from "../chunk/nav-mx44ftta.js";
 import {
-  st,
-  token2,
-  parseOpen2,
-  projectName2
-} from "../chunk/nav-cw6bzy6k.js";
-import {
-  RunCell2
-} from "../chunk/nav-hzt37z80.js";
-import {
   conflictOf,
   ConflictNotice,
   YamlTab2
 } from "../chunk/nav-spr6q0xs.js";
+import {
+  st,
+  projectName2
+} from "../chunk/nav-ezsfmbrd.js";
+import {
+  RunCell2
+} from "../chunk/nav-c4wtdkjx.js";
 import {
   roleEditor,
   roleProblems
@@ -92,6 +90,13 @@ import {
   installWheel,
   resource
 } from "../chunk/nav-47tvawmc.js";
+import {
+  token2,
+  parseOpen2,
+  readOpen2,
+  writeOpen2,
+  groupPlace2
+} from "../chunk/nav-1wefkymt.js";
 import {
   snapshot,
   dirty,
@@ -912,17 +917,30 @@ function setYc(key, list) {
     m[key] = list;
   put({ yc: m });
 }
-var withOpen = (dom, on) => {
+var urlGroup = (r) => GROUPED ? groupOfRecord(r) : r.place.value;
+var sameRow = (ref, r) => {
+  if (ref.name !== r.name.value)
+    return false;
+  if (!ref.group)
+    return !GROUPED || groupOfRecord(r) === CURRENT || groupOfRecord(r) === "global";
+  return GROUPED ? groupOfRecord(r) === ref.group : groupPlace2(ref.group, CURRENT) === r.place.value;
+};
+var rowsOfRef = (ref) => recs.value.filter((r) => sameRow(ref, r));
+var withOpen = (r, on) => {
   const s = new Set(state.value.open);
-  s.forEach((ref) => {
-    if (openDom(ref) === dom)
-      s.delete(ref);
+  s.forEach((one) => {
+    const ref = parseOpen2(one)[0];
+    if (ref && sameRow(ref, r))
+      s.delete(one);
   });
   if (on)
-    s.add(dom);
+    s.add(token2(r.name.value, urlGroup(r)));
   put({ open: s });
 };
-var isOpen = (dom, place) => [...state.value.open].some((ref) => openDom(ref) === dom && (!place || ref === dom || recordOfRef(ref)?.place.value === place));
+var isOpenRow = (r) => [...state.value.open].some((one) => {
+  const ref = parseOpen2(one)[0];
+  return !!ref && sameRow(ref, r);
+});
 var dtabOf = (r) => state.value.dtab[r.dom] || "shape";
 var pmodeOf = (r) => state.value.pmode[dkey(r)] || "edit";
 var okOf = (key) => !!state.value.ok[key];
@@ -1203,18 +1221,9 @@ function defOf(item, project) {
 var allRecs = () => recs.value;
 var byKey = (k) => recs.value.find((r) => r.key.value === k) || null;
 var byName = (n) => recs.value.find((r) => r.dom === n) || null;
-var byRef = (name, group) => {
-  if (!group)
-    return byName(name) || byRealName(name);
-  if (GROUPED)
-    return byName(domOf(name, group));
-  const place = group === "global" ? "global" : group === CURRENT ? "project" : null;
-  return recs.value.find((r) => r.name.value === name && r.place.value === place && !r.draftRow) || null;
-};
-var openDom = (ref) => GROUPED ? ref : parseOpen2(ref)[0]?.name || ref;
 var recordOfRef = (ref) => {
   const one = parseOpen2(ref)[0];
-  return one ? byRef(one.name, one.group) : null;
+  return one ? rowsOfRef(one)[0] || null : null;
 };
 var byRealName = (name) => recs.value.find((r) => r.name.value === name && (r.project === CURRENT || r.project === "")) || recs.value.find((r) => r.name.value === name) || null;
 var groupOfRecord = (r) => r.project || (r.place.value === "global" ? "global" : GROUPED ? CURRENT : "");
@@ -1338,14 +1347,14 @@ async function addDraft(how, place, name, base, project) {
     at = i >= 0 ? i + 1 : at;
   }
   orderRows(r, at);
-  withOpen(r.dom, true);
+  withOpen(r, true);
   setDtab(r.dom, "shape");
   focusAsk.value = { dom: r.dom, sel: ".in-name" };
   return r;
 }
 function dropDraft(r) {
   recs.value = recs.value.filter((x) => x !== r);
-  withOpen(r.dom, false);
+  withOpen(r, false);
   dropDtab(r.dom);
   resetCanvas(r);
 }
@@ -1644,7 +1653,7 @@ async function saveFolder(r) {
   const json = await answered(r, "t", save2("team", r.name.value, body), "保存できませんでした");
   if (!json)
     return;
-  const name = r.name.value, dom = r.dom, dtab = dtabOf(r), opens = isOpen(dom);
+  const name = r.name.value, dom = r.dom, dtab = dtabOf(r), opens = isOpenRow(r);
   const group = groupOfRecord(r);
   const at = firstIndexOf((x) => x === r);
   const gone = recs.value.filter((x) => x.dom === dom);
@@ -1653,14 +1662,14 @@ async function saveFolder(r) {
   setProblems(json.items, group);
   const raw = (json.items || []).find((it) => it.name === name);
   if (!raw) {
-    withOpen(dom, false);
+    withOpen(r, false);
     dropDtab(dom);
     return;
   }
   const nr = defOf(itemInGroup(raw, group), group);
   orderRows(nr, at);
   if (opens)
-    withOpen(nr.dom, true);
+    withOpen(nr, true);
   setDtab(nr.dom, dtab);
   await checkTeam(nr);
   if (nr.agreeSaved.value)
@@ -1692,7 +1701,7 @@ async function renamed(r, name, json) {
   const old = r.name.value, group = groupOfRecord(r), tab = dtabOf(r), at = firstIndexOf((x) => x === r);
   forgetChecks(r);
   resetCanvas(r);
-  withOpen(r.dom, false);
+  withOpen(r, false);
   recs.value = recs.value.filter((x) => x !== r);
   const item = (json.items || []).find((x) => x.name === name);
   if (!item)
@@ -1715,7 +1724,7 @@ async function renamed(r, name, json) {
     }
   }
   orderRows(next, at);
-  withOpen(next.dom, true);
+  withOpen(next, true);
   setDtab(next.dom, tab);
   const files = (json.files || []).filter((f) => f.place === r.place.value && f.name === name);
   yfiles.value = yfiles.value.filter((f) => !(f.place === r.place.value && f.name === old)).concat(files.map((f) => ({
@@ -1850,7 +1859,7 @@ function canvasUndo(r) {
   canvasToast(r, point.label || "元に戻しました", false);
 }
 function undoRow() {
-  return recs.value.filter((x) => isOpen(x.dom, x.place.value) && (cundo.get(dkey(x)) || []).length).sort((a, b) => (b.lastAct.value || 0) - (a.lastAct.value || 0))[0] || null;
+  return recs.value.filter((x) => isOpenRow(x) && (cundo.get(dkey(x)) || []).length).sort((a, b) => (b.lastAct.value || 0) - (a.lastAct.value || 0))[0] || null;
 }
 function resetCanvas(r) {
   if (!r)
@@ -1953,16 +1962,9 @@ function syncURL() {
     if (s.yfile)
       params.set("file", s.yfile);
   } else {
-    const opens = [...s.open].filter((n) => {
-      const r = recordOfRef(n);
-      return r && !r.draftRow;
-    });
-    if (opens.length)
-      params.set("open", opens.join(","));
-    const agrees = opens.filter((n) => {
-      const r = recordOfRef(n);
-      return r && dtabOf(r) === "agree";
-    });
+    const rows = [...s.open].map((one) => rowsOfRef(parseOpen2(one)[0]).find((r) => !r.draftRow)).filter((r) => !!r);
+    writeOpen2(params, rows.map((r) => ({ name: r.name.value, group: urlGroup(r) })));
+    const agrees = rows.filter((r) => dtabOf(r) === "agree").map((r) => token2(r.name.value, urlGroup(r)));
     if (agrees.length)
       params.set("agree", agrees.join(","));
   }
@@ -1972,18 +1974,16 @@ function syncURL() {
 }
 function readURL() {
   const p = new URLSearchParams(location.search);
-  const open = p.get("open");
-  missingOpen.value = (parseOpen2(open || "") || []).filter(({ name, group }) => !byRef(name, group)).map(({ name }) => name);
-  if (open) {
-    const rows = parseOpen2(open) || [];
-    const refs = new Set(state.value.open);
-    rows.forEach(({ name, group }) => {
-      const r = byRef(name, group);
-      if (r)
-        refs.add(!GROUPED && group ? token2(name, group) : r.dom);
-    });
-    put({ open: refs });
-  }
+  const refs = new Set(state.value.open);
+  const missing = [];
+  readOpen2(p).forEach((ref) => {
+    const rows = rowsOfRef(ref);
+    if (!rows.length)
+      missing.push(ref.name);
+    rows.forEach((r) => refs.add(token2(r.name.value, urlGroup(r))));
+  });
+  missingOpen.value = missing;
+  put({ open: refs });
   const agree = p.get("agree");
   if (agree) {
     const m = { ...state.value.dtab };
@@ -2003,7 +2003,7 @@ function readURL() {
       const r = byRealName(spec.slice(0, i));
       if (!r)
         return;
-      withOpen(r.dom, true);
+      withOpen(r, true);
       setDtab(r.dom, "agree");
     });
   const file = p.get("file");
@@ -2110,7 +2110,7 @@ function pressTab(t) {
   syncURL();
 }
 function pressToggle(r) {
-  withOpen(r.dom, !isOpen(r.dom));
+  withOpen(r, !isOpenRow(r));
   syncURL();
 }
 async function pressNew(group) {
@@ -2144,7 +2144,7 @@ async function pressDup(r) {
 async function pressCopy(r) {
   const to = other(r.place.value);
   const group = copyGroupOf(to, groupOfRecord(r), GROUPED ? CURRENT : "");
-  withOpen(r.dom, false);
+  withOpen(r, false);
   const copy = await addDraft("copy", to, r.name.value, baseOf(r, r.place.value), group);
   focusAsk.value = { dom: copy.dom, sel: ".in-name", scroll: true };
 }
@@ -2157,7 +2157,11 @@ async function pressDelYes(r) {
     await doDelete(r);
 }
 function pressName(r, value) {
+  const open = isOpenRow(r);
+  withOpen(r, false);
   r.name.value = value;
+  if (open)
+    withOpen(r, true);
   debounce("n" + r.dom, () => checkTeam(r));
 }
 function pressDtab(r, t) {
@@ -2356,7 +2360,7 @@ function boot() {
   return Promise.allSettled([...later, ...checks]);
 }
 function openAgree(r) {
-  withOpen(r.dom, true);
+  withOpen(r, true);
   setDtab(r.dom, "agree");
   checkAgree(r);
   syncURL();
@@ -5735,7 +5739,7 @@ function PlaceHead({ g }) {
   });
 }
 function Row({ r }) {
-  const open = isOpen(r.dom, r.place.value);
+  const open = isOpenRow(r);
   const el = A(null);
   const wasOpen = A(false);
   h(() => {

@@ -34,6 +34,9 @@ import {
   setCount2,
   setActivity2
 } from "./nav-k13q4569.js";
+import {
+  token2
+} from "./nav-1wefkymt.js";
 
 // lib/band-counts.ts
 function applyCounts(counts) {
@@ -60,15 +63,6 @@ function setRunning2(running) {
 }
 var groupLabel = (g) => g && g.global ? "グローバル" : g.project ? g.project.name : "";
 var projectOfGroup = (g) => g && g.global ? "global" : g.project ? g.project.path : "";
-var token2 = (name, group) => group ? name + "|" + group : name;
-function parseOpen2(value) {
-  return String(value || "").split(",").filter(Boolean).map((one) => {
-    const i = one.lastIndexOf("|");
-    if (i < 0)
-      return { name: one, group: "" };
-    return { name: one.slice(0, i), group: one.slice(i + 1) };
-  });
-}
 var projectName2 = (path) => {
   if (!path)
     return "";
@@ -1944,4 +1938,4 @@ async function send() {
   }
 }
 
-export { st, setRunning2, token2, parseOpen2, projectName2, runningFor, runningTeam2, lastWorkspaceOf, definitionOf2, bandActivity2, readCore2, readGroups2, readAll2, readRunning2, startReads, sheetOpen, closeSheet2, startSheet2, stopSheet2, projectsSheet, searchBoxOpen, closeBox, moveSel, mountSearch, resetSearch, searchHook, POLL, count, opened, answer, note, scope, chosen, teams, canApply, applyLabel, teamCount, toggle, readCount, readTeams, openSheet, close, send };
+export { st, setRunning2, projectName2, runningFor, runningTeam2, lastWorkspaceOf, definitionOf2, bandActivity2, readCore2, readGroups2, readAll2, readRunning2, startReads, sheetOpen, closeSheet2, startSheet2, stopSheet2, projectsSheet, searchBoxOpen, closeBox, moveSel, mountSearch, resetSearch, searchHook, POLL, count, opened, answer, note, scope, chosen, teams, canApply, applyLabel, teamCount, toggle, readCount, readTeams, openSheet, close, send };

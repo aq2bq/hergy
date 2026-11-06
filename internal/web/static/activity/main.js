@@ -24,8 +24,6 @@ import"../chunk/nav-gs311eny.js";
 import"../chunk/nav-k13q4569.js";
 import {
   setRunning2,
-  token2,
-  parseOpen2,
   projectName2,
   runningTeam2,
   definitionOf2,
@@ -34,15 +32,21 @@ import {
   stopSheet2,
   teamCount,
   openSheet
-} from "../chunk/nav-cw6bzy6k.js";
+} from "../chunk/nav-ezsfmbrd.js";
 import {
   TeamFigure2,
   exports_hq
-} from "../chunk/nav-hzt37z80.js";
+} from "../chunk/nav-c4wtdkjx.js";
 import {
   installWheel,
   resource
 } from "../chunk/nav-47tvawmc.js";
+import {
+  token2,
+  parseOpen2,
+  writeOpen2,
+  placeGroup
+} from "../chunk/nav-1wefkymt.js";
 
 // activity/state.ts
 var POLL = 1e4;
@@ -159,7 +163,7 @@ function pick(name) {
   const t = teams.value.find((x) => x.name === name);
   if (t && exports_hq) {
     const q = new URLSearchParams(location.search);
-    q.set("open", token2(name, t.project));
+    writeOpen2(q, [{ name, group: t.project || placeGroup("project") }]);
     history.replaceState(null, "", location.pathname + "?" + q.toString());
   }
 }
