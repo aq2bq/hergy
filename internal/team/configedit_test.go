@@ -286,3 +286,79 @@ func TestABlockGoesBackWithItsComment(t *testing.T) {
 		t.Errorf("the file changed:\nbefore:\n%s\nafter:\n%s", before, text)
 	}
 }
+
+// TestTheFirstAndLastProjectGoBackWhereTheyStood: a restore at the head of the
+// list stands before the next item's own comment, and one at the end stands
+// after the last item (d-2cce). The head is position 0, which an answer that
+// dropped it (omitempty) left the screen unable to name.
+func TestTheFirstAndLastProjectGoBackWhereTheyStood(t *testing.T) {
+	root := t.TempDir()
+	env := Env{GlobalDir: filepath.Join(root, "hergy")}
+	dirs := []string{filepath.Join(root, "a"), filepath.Join(root, "b"), filepath.Join(root, "c")}
+	resolved := make([]string, len(dirs))
+	for i, dir := range dirs {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		resolved[i], _ = filepath.EvalSymlinks(dir)
+	}
+	before := "# the projects\nversion: 1\nprojects:\n  # first\n  - " + resolved[0] + "\n  # second\n  - " + resolved[1] + "\n  # last\n  - " + resolved[2] + "\n# after\nlang: ja\n"
+	cases := []struct {
+		name string
+		path string
+		at   int
+	}{
+		{"first", resolved[0], 0},
+		{"last", resolved[2], 2},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			write(t, env.ConfigPath(), before)
+			at, block, err := env.RemoveProjectBlock(tc.path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if at != tc.at {
+				t.Fatalf("the removal answered %d, want %d", at, tc.at)
+			}
+			if err := env.AddProjectBlock(at, block); err != nil {
+				t.Fatal(err)
+			}
+			text, err := os.ReadFile(env.ConfigPath())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(text) != before {
+				t.Errorf("the file changed:\nbefore:\n%s\nafter:\n%s", before, text)
+			}
+		})
+	}
+}
+
+// TestTheNewFirstProjectGoesAboveTheComment: adding at the head without the
+// removed lines (the fallback a screen takes) also stands above the comment the
+// first item keeps, so a comment never parts from its item.
+func TestTheNewFirstProjectGoesAboveTheComment(t *testing.T) {
+	root := t.TempDir()
+	env := Env{GlobalDir: filepath.Join(root, "hergy")}
+	dirs := []string{filepath.Join(root, "a"), filepath.Join(root, "b")}
+	resolved := make([]string, len(dirs))
+	for i, dir := range dirs {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		resolved[i], _ = filepath.EvalSymlinks(dir)
+	}
+	write(t, env.ConfigPath(), "version: 1\nprojects:\n  # second\n  - "+resolved[1]+"\n")
+	if _, err := env.AddProjectAt(dirs[0], 0); err != nil {
+		t.Fatal(err)
+	}
+	text, err := os.ReadFile(env.ConfigPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "version: 1\nprojects:\n  - " + resolved[0] + "\n  # second\n  - " + resolved[1] + "\n"
+	if string(text) != want {
+		t.Errorf("the entry went between the comment and its item:\n%s", text)
+	}
+}

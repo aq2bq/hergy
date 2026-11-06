@@ -32,7 +32,9 @@ export type DangerOptions = {
   confirm?: { title: string; label: string; body?: unknown };
   // undoable actions: what to put back and where the notice stands.
   host?: HTMLElement | null;
-  restore?: () => void;
+  // restore puts the thing back; a restore that asks the server answers with
+  // the sentence it was refused with, or empty when it went through (d-2cce).
+  restore?: () => void | Promise<string | null>;
   said?: string;
   // loss names the thing whose loss the server answers; the confirmation's body
   // is the server's lines, not the screen's words (r-ccf8, ac-ddb6).

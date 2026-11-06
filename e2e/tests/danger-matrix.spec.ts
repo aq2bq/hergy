@@ -8,7 +8,7 @@
 import { test, expect } from './fixtures';
 import type { Locator, Page } from '@playwright/test';
 import { ready } from './helpers';
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
@@ -223,36 +223,80 @@ test.describe('undo: one press takes it back where it was pressed', () => {
 test.describe('undo: the headquarters takes a project out of the list', () => {
   test.use({ reads: 'hq' });
 
-  const listed = (page: Page) => page.locator('.hq-sheet .hq-sec .hq-li .hq-pn');
+  const listed = (page: Page) => page.locator('.hq-sheet .hq-sec').first().locator('.hq-li .hq-pn');
+  const cfgFile = (app: { cfg: string }) => path.join(app.cfg, 'hergy', 'config.yaml');
+  // launched writes the launch record the sample does not have: a project that
+  // leaves the list stays on the sheet as a candidate, and that row is where
+  // 取り消す stands (d-aeeb). The path is the directory as the machine spells it
+  // (a symlinked temporary home would otherwise name the same project twice).
+  const launched = (app: { state: string; home: string }): void => {
+    const dir = path.join(app.state, 'hergy', 'launches');
+    mkdirSync(dir, { recursive: true });
+    const line = (name: string): string => JSON.stringify({
+      time: '2026-11-01T00:00:00Z', command: 'up', hergy: 'e2e',
+      project: realpathSync(path.join(app.home, 'src', name)),
+    });
+    writeFileSync(path.join(dir, 'log.jsonl'), ['alpha', 'beta', 'gamma'].map(line).join('\n') + '\n');
+  };
+  // The lead's own shape: a comment above every project, so a restore that
+  // slips between a comment and its item is caught (d-2cce).
+  const BEFORE = 'version: 1\nlang: ja\nprojects:\n  # 一つ目\n  - ~/src/alpha\n  # 二つ目\n  - ~/src/beta\n  # 三つ目\n  - ~/src/gamma\n';
 
-  for (const comments of [false, true] as const) {
-    test(`the middle project comes back where it stood${comments ? ', comments and all' : ''}`, async ({ page, app }) => {
-      const file = path.join(app.cfg, 'hergy', 'config.yaml');
-      if (comments) {
-        writeFileSync(file, 'version: 1\nlang: ja\nprojects:\n  # 先に並べた\n  - ~/src/alpha\n  # 真ん中\n  - ~/src/beta\n  - ~/src/gamma\n');
-      }
-      const before = text(file);
+  const cases = [
+    { name: 'alpha', where: 'first', rest: ['beta', 'gamma'] },
+    { name: 'beta', where: 'middle', rest: ['alpha', 'gamma'] },
+    { name: 'gamma', where: 'last', rest: ['alpha', 'beta'] },
+  ];
+  for (const one of cases) {
+    test(`the ${one.where} project comes back where it stood, comments and all`, async ({ page, app }) => {
+      launched(app);
+      const file = cfgFile(app);
+      writeFileSync(file, BEFORE);
       await page.goto(`${app.base}/teams`); await ready(page);
       await page.locator('[data-hq="projects"]').click();
       const sheet = page.locator('.hq-sheet');
       await expect(sheet).toBeVisible();
       await expect(listed(page)).toHaveText(['alpha', 'beta', 'gamma']);
-      const row = sheet.locator('.hq-li').filter({ hasText: 'beta' });
+      const row = sheet.locator('.hq-li').filter({ hasText: one.name });
       await row.locator('[data-hq="unlist"]').click();
-      await expect(listed(page)).toHaveText(['alpha', 'gamma']);
-      // The notice stands where the row stood, with the way back.
-      await expect(sheet.locator('.undo')).toContainText('並びから外しました');
-      await expect(sheet.locator('.undo button')).toHaveText('取り消す');
-      for (const scheme of ['light', 'dark'] as const) {
-        await page.emulateMedia({ colorScheme: scheme });
-        await sheet.screenshot({ path: path.join(OUT, `unlist-undo-${scheme}.png`) });
+      await expect(listed(page)).toHaveText(one.rest);
+      // The notice stands in the row that names that project now (the side it
+      // moved to), not in the row the next project took over (d-aeeb).
+      const moved = sheet.locator('.hq-li').filter({ hasText: one.name });
+      await expect(moved.locator('.undo')).toContainText('並びから外しました');
+      await expect(moved.locator('.undo button')).toHaveText('取り消す');
+      await expect(sheet.locator('.hq-li').filter({ hasText: one.rest[0] }).locator('.undo')).toHaveCount(0);
+      if (one.name === 'beta') {
+        for (const scheme of ['light', 'dark'] as const) {
+          await page.emulateMedia({ colorScheme: scheme });
+          await sheet.screenshot({ path: path.join(OUT, `unlist-undo-${scheme}.png`) });
+        }
+        await page.emulateMedia({ colorScheme: 'light' });
       }
-      await page.emulateMedia({ colorScheme: 'light' });
-      await sheet.locator('.undo button').click();
+      await moved.locator('.undo button').click();
       await expect(listed(page)).toHaveText(['alpha', 'beta', 'gamma']);
-      expect(text(file), 'config.yaml came back different').toBe(before);
+      expect(text(file), 'config.yaml came back different').toBe(BEFORE);
     });
   }
+
+  test('a restore the server refuses says why it could not', async ({ page, app }) => {
+    launched(app);
+    const file = cfgFile(app);
+    writeFileSync(file, BEFORE);
+    await page.goto(`${app.base}/teams`); await ready(page);
+    await page.locator('[data-hq="projects"]').click();
+    const sheet = page.locator('.hq-sheet');
+    await expect(listed(page)).toHaveText(['alpha', 'beta', 'gamma']);
+    await sheet.locator('.hq-li').filter({ hasText: 'beta' }).locator('[data-hq="unlist"]').click();
+    await expect(listed(page)).toHaveText(['alpha', 'gamma']);
+    // The file it must put the lines back in is broken under it: the way back
+    // cannot be taken, and the notice says why instead of closing as if it had.
+    writeFileSync(file, 'projects: [\n');
+    await sheet.locator('.hq-li').filter({ hasText: 'beta' }).locator('.undo button').click();
+    await expect(sheet.locator('.undo[role="alert"]')).toContainText('config.yaml');
+    await expect(sheet.locator('.undo[role="alert"]')).toContainText('読み取れません');
+    expect(text(file), 'a refused restore changed config.yaml').toBe('projects: [\n');
+  });
 });
 
 // ---- table 1: the ways a person answers, and what each does ---------------

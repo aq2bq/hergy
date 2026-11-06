@@ -278,6 +278,11 @@ func TestHQRemoveProjectReadsPath(t *testing.T) {
 	if !strings.Contains(rec.Body.String(), `"mode"`) {
 		t.Errorf("the answer is not the project list: %s", rec.Body.String())
 	}
+	// Position 0 is a position: an answer that dropped it left 取り消す unable to
+	// put the first project back at the head (d-2cce).
+	if !strings.Contains(rec.Body.String(), `"removed_at":0`) {
+		t.Errorf("the answer does not name the head as the position: %s", rec.Body.String())
+	}
 }
 
 // TestHQBandCountsEveryGroup: the band's three numbers are the listed projects'

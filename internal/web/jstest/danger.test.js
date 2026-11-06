@@ -45,3 +45,30 @@ describe('lost', () => {
     closeConfirm();
   });
 });
+
+describe('undo', () => {
+  test('a restore the server refuses keeps the notice and says why', async () => {
+    const { offerUndo, takeUndo, dropUndo } = await import('../src/lib/undo.js');
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    offerUndo({ said: '並びから外しました', restore: () => Promise.resolve('元に戻せませんでした') }, host);
+    expect(host.textContent).toContain('並びから外しました');
+    takeUndo();
+    await new Promise((done) => setTimeout(done, 0));
+    expect(host.querySelector('.undo[role="alert"]')?.textContent).toContain('元に戻せませんでした');
+    expect(host.querySelector('button')).toBeNull();
+    dropUndo();
+    host.remove();
+  });
+  test('a restore that goes through closes the notice', async () => {
+    const { offerUndo, takeUndo } = await import('../src/lib/undo.js');
+    let back = false;
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    offerUndo({ said: '外しました', restore: () => { back = true; } }, host);
+    takeUndo();
+    expect(back).toBe(true);
+    expect(host.querySelector('.undo')).toBeNull();
+    host.remove();
+  });
+});

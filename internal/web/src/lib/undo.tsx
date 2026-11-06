@@ -4,7 +4,7 @@
 import type { JSX } from 'preact';
 import { render, signal } from './preact.js';
 
-export type Undoable = { said: string; restore: () => void };
+export type Undoable = { said: string; restore: () => void | Promise<string | null> };
 export const undo = signal<Undoable | null>(null);
 let hostEl: HTMLElement | null = null;
 // offerUndo shows the one notice in the field that was pressed (d-021e): the
@@ -18,16 +18,35 @@ export function offerUndo(one: Undoable, host?: HTMLElement | null): void {
   host.appendChild(hostEl);
   render(<UndoNotice />, hostEl);
 }
+// takeUndo takes the one offer back. A restore that has to ask the server
+// answers with the sentence it was refused with (or empty when it went
+// through): the notice then says why it could not go back, instead of closing
+// as though it had (r-ccf8, d-2cce).
 export function takeUndo(): void {
   const one = undo.value;
-  dropUndo();
-  if (one) one.restore();
+  if (!one) return;
+  undo.value = null;
+  const host = hostEl;
+  const done = one.restore();
+  if (!done || typeof (done as Promise<unknown>).then !== 'function') { closeHost(host); return; }
+  void (done as Promise<string | null>).then((no) => {
+    if (no && host && host.isConnected) {
+      if (hostEl === host) render(<div class="undo" role="alert"><span>{no}</span></div>, host);
+      return;
+    }
+    closeHost(host);
+  });
+}
+function closeHost(host: HTMLElement | null): void {
+  if (hostEl === host) hostEl = null;
+  if (host) { render(null, host); host.remove(); }
 }
 // dropUndo closes the notice without taking anything back: the operation it
 // offered is already undone, or a newer one stands in its place (④ 段 4b-2).
 export function dropUndo(): void {
-  undo.value = null;
-  if (hostEl) { render(null, hostEl); hostEl.remove(); hostEl = null; }
+  const host = hostEl;
+  hostEl = null;
+  if (host) { render(null, host); host.remove(); }
 }
 export function UndoNotice(): JSX.Element | null {
   const one = undo.value;

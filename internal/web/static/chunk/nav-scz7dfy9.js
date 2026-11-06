@@ -120,16 +120,44 @@ function offerUndo(one, host) {
 }
 function takeUndo() {
   const one = undo.value;
-  dropUndo();
-  if (one)
-    one.restore();
+  if (!one)
+    return;
+  undo.value = null;
+  const host = hostEl;
+  const done = one.restore();
+  if (!done || typeof done.then !== "function") {
+    closeHost(host);
+    return;
+  }
+  done.then((no) => {
+    if (no && host && host.isConnected) {
+      if (hostEl === host)
+        R(/* @__PURE__ */ u("div", {
+          class: "undo",
+          role: "alert",
+          children: /* @__PURE__ */ u("span", {
+            children: no
+          })
+        }), host);
+      return;
+    }
+    closeHost(host);
+  });
+}
+function closeHost(host) {
+  if (hostEl === host)
+    hostEl = null;
+  if (host) {
+    R(null, host);
+    host.remove();
+  }
 }
 function dropUndo() {
-  undo.value = null;
-  if (hostEl) {
-    R(null, hostEl);
-    hostEl.remove();
-    hostEl = null;
+  const host = hostEl;
+  hostEl = null;
+  if (host) {
+    R(null, host);
+    host.remove();
   }
 }
 function UndoNotice() {

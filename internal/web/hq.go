@@ -49,8 +49,11 @@ func (e *HQError) Error() string { return e.Text }
 // HQProjects is GET /api/hq/projects: the current project, the listed ones, the
 // launch record's candidates, and the global layer's counts.
 type HQProjects struct {
-	// RemovedAt is where a delete took the project out (d-2cce).
-	RemovedAt int    `json:"removed_at,omitempty"`
+	// RemovedAt is where a delete took the project out (d-2cce). It is a
+	// pointer so that the first position (0) is written in the answer: a plain
+	// int with omitempty would drop it and the screen could not put the project
+	// back at the head of the list.
+	RemovedAt *int   `json:"removed_at,omitempty"`
 	Config    string `json:"config"`
 	// Mode is "listed" (config.yaml names projects:) or "current" (it does not,
 	// and serve shows the project it was started in, as it always did).
@@ -648,7 +651,7 @@ func (s *Server) hqRemoveProject(w http.ResponseWriter, r *http.Request) {
 	}
 	projects, at, err := s.hq.RemoveProject(r.URL.Query().Get("path"))
 	if err == nil {
-		projects.RemovedAt = at
+		projects.RemovedAt = &at
 	}
 	answerHQ(w, projects, err)
 }

@@ -20,7 +20,7 @@ import {
 } from "./nav-zn7g81kr.js";
 import {
   runDanger
-} from "./nav-e790zkg1.js";
+} from "./nav-scz7dfy9.js";
 import {
   Refusal2,
   call2,
@@ -33,7 +33,7 @@ import {
 import {
   setCount2,
   setActivity2
-} from "./nav-v4xn9m8v.js";
+} from "./nav-jd45pmr3.js";
 
 // lib/band-counts.ts
 function applyCounts(counts) {
@@ -271,9 +271,10 @@ async function postProject(path, at) {
   }
 }
 function unlistProject(path, host) {
-  let at = -1;
   return new Promise((resolve) => {
-    runDanger("unlistProject", {
+    let at = -1;
+    const section = host && host.closest(".hq-sec");
+    const opts = {
       run: async () => {
         try {
           const answer = await call2("DELETE", "/api/hq/projects?path=" + encodeURIComponent(String(path)));
@@ -282,19 +283,36 @@ function unlistProject(path, host) {
             at = json.removed_at ?? -1;
             st.projects.value = json;
           }
+          opts.host = await rowOfProject(path, host ?? null) ?? section ?? host ?? null;
           resolve(null);
         } catch (e) {
           resolve(problemText2(e, "外せませんでした"));
         }
       },
-      restore: () => {
-        if (at >= 0)
-          postProject(path, at);
-      },
+      restore: () => at >= 0 ? postProject(path, at) : Promise.resolve("外した位置が分からず、並びに戻せませんでした"),
       said: "並びから外しました",
       host
-    });
+    };
+    runDanger("unlistProject", opts);
   });
+}
+async function rowOfProject(path, pressed) {
+  let last = null;
+  for (let tries = 0;tries < 12; tries++) {
+    const rows = [...document.querySelectorAll(".hq-sheet .hq-li[data-path]")].filter((row) => row.dataset.path === path);
+    if (rows.length)
+      last = rows[rows.length - 1];
+    const fresh = rows.find((row) => row !== pressed);
+    if (fresh)
+      return fresh;
+    await new Promise((done) => {
+      if (typeof requestAnimationFrame === "function")
+        requestAnimationFrame(() => done());
+      else
+        setTimeout(done, 0);
+    });
+  }
+  return last;
 }
 async function listProject(path) {
   const p = st.projects.value;
@@ -428,6 +446,7 @@ function ProjectsSheet() {
   };
   const row = (project) => /* @__PURE__ */ u("div", {
     class: "hq-li",
+    "data-path": project.path,
     children: [
       /* @__PURE__ */ u("span", {
         class: "hq-pn",
@@ -465,9 +484,10 @@ function ProjectsSheet() {
         })
       })
     ]
-  });
+  }, project.path);
   const cand = (project) => /* @__PURE__ */ u("div", {
     class: "hq-li cand",
+    "data-path": project.path,
     children: [
       /* @__PURE__ */ u("span", {
         class: "hq-pn",
@@ -498,9 +518,10 @@ function ProjectsSheet() {
         })
       })
     ]
-  });
+  }, project.path);
   const currentRow = currentOnly ? /* @__PURE__ */ u("div", {
     class: "hq-li",
+    "data-path": current.path,
     children: [
       /* @__PURE__ */ u("span", {
         class: "hq-pn",
@@ -531,9 +552,10 @@ function ProjectsSheet() {
         })
       })
     ]
-  }) : "";
+  }, current.path) : "";
   const unlisted = p.mode === "listed" && !current.listed ? /* @__PURE__ */ u("div", {
     class: "hq-li cand",
+    "data-path": current.path,
     children: [
       /* @__PURE__ */ u("span", {
         class: "hq-pn",
@@ -559,7 +581,7 @@ function ProjectsSheet() {
         })
       })
     ]
-  }) : "";
+  }, current.path) : "";
   const others = candidates.filter((x) => x.path !== current.path).map(cand);
   const alreadyListed = (want) => {
     const trim = (one) => String(one || "").replace(/\/+$/, "");

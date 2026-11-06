@@ -133,20 +133,20 @@ function ProjectsSheet(): JSX.Element {
     if (no) { setError(no); return; }
     location.reload();
   };
-  const row = (project: HQProject): JSX.Element => <div class="hq-li"><span class="hq-pn">{project.name}</span><span class="hq-pp">{project.display}</span>
+  const row = (project: HQProject): JSX.Element => <div class="hq-li" key={project.path} data-path={project.path}><span class="hq-pn">{project.name}</span><span class="hq-pp">{project.display}</span>
       <span class="hq-pc">チーム定義 {project.definitions || 0} · 動いているチーム {project.running || 0}</span>
       <span class="hq-act"><button type="button" class="hq-btn sm" data-hq="unlist" data-path={project.path} onClick={async (e: Event) => { const host = (e.currentTarget as HTMLElement).closest('.hq-li') as HTMLElement | null; const no = await unlistProject(project.path, host); if (no) setError(no); }} data-danger data-danger-act="unlistProject">外す</button></span></div>;
-  const cand = (project: HQProject): JSX.Element => <div class="hq-li cand"><span class="hq-pn">{project.name}</span><span class="hq-pp">{project.display}</span>
+  const cand = (project: HQProject): JSX.Element => <div class="hq-li cand" key={project.path} data-path={project.path}><span class="hq-pn">{project.name}</span><span class="hq-pp">{project.display}</span>
       <span class="hq-pc">最後の起動 {mmdd(project.last_launch)} · チーム定義 {project.definitions || 0}</span>
       <span class="hq-act"><button type="button" class="hq-btn sm" data-hq="list" data-path={project.path} onClick={rewrite(listProject, project.path)}>並べる</button></span></div>;
   // Without projects:, the project serve was started in is not listed yet. It
   // stands in the sheet with 並べる, and listing anything lists it first, so the
   // teams a person is looking at do not fall out of the screen (r-5b96 audit 7).
   const currentRow = currentOnly
-    ? <div class="hq-li"><span class="hq-pn">{current.name}</span><span class="hq-pp">{current.display}</span><span class="hq-pc">チーム定義 {current.definitions || 0} · 動いているチーム {current.running || 0}</span><span class="hq-act"><button type="button" class="hq-btn sm" data-hq="list" data-path={current.path} onClick={rewrite(listProject, current.path)}>並べる</button></span></div>
+    ? <div class="hq-li" key={current.path} data-path={current.path}><span class="hq-pn">{current.name}</span><span class="hq-pp">{current.display}</span><span class="hq-pc">チーム定義 {current.definitions || 0} · 動いているチーム {current.running || 0}</span><span class="hq-act"><button type="button" class="hq-btn sm" data-hq="list" data-path={current.path} onClick={rewrite(listProject, current.path)}>並べる</button></span></div>
     : '';
   const unlisted = p.mode === 'listed' && !current.listed
-    ? <div class="hq-li cand"><span class="hq-pn">{current.name}</span><span class="hq-pp">{current.display}</span><span class="hq-pc">この serve を起動したプロジェクト（並んでいない）</span><span class="hq-act"><button type="button" class="hq-btn sm" data-hq="list" data-path={current.path} onClick={rewrite(listProject, current.path)}>並べる</button></span></div>
+    ? <div class="hq-li cand" key={current.path} data-path={current.path}><span class="hq-pn">{current.name}</span><span class="hq-pp">{current.display}</span><span class="hq-pc">この serve を起動したプロジェクト（並んでいない）</span><span class="hq-act"><button type="button" class="hq-btn sm" data-hq="list" data-path={current.path} onClick={rewrite(listProject, current.path)}>並べる</button></span></div>
     : '';
   const others = candidates.filter((x) => x.path !== current.path).map(cand);
   // alreadyListed is the listed project a typed path names, if one: the same

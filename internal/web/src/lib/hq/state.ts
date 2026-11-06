@@ -9,6 +9,7 @@
 // lib/hq/run.js（チーム定義の一覧の「動き」の欄）。入口は lib/hq.js で、
 // 画面は lib/hq.js から import して読む。
 import { runDanger } from '../danger.js';
+import type { DangerOptions } from '../danger.js';
 import { signal } from '../preact.js';
 import { read, call, problemText } from '../api.js';
 import { applyCounts, applyActivity } from '../band-counts.js';
@@ -328,11 +329,16 @@ export async function postProject(path: string, at?: number): Promise<string | n
 }
 // unlistProject takes one project out and leaves 取り消す in its row: the notice
 // puts it back at the position the answer named (d-2cce). The screen does not
-// reload; the reading is the answer's.
+// reload; the reading is the answer's. The notice follows the project's own row:
+// the pressed row's element stands for the next project once the list is drawn
+// again, so the row is found by path after the redraw (d-aeeb).
 export function unlistProject(path: string, host?: HTMLElement | null): Promise<string | null> {
-  let at = -1;
   return new Promise((resolve) => {
-    runDanger('unlistProject', {
+    let at = -1;
+    // The section the pressed row stands in: where the notice goes when the
+    // project leaves the screen as well as the list (no launch record).
+    const section = (host && host.closest('.hq-sec')) as HTMLElement | null;
+    const opts: DangerOptions = {
       run: async () => {
         try {
           const answer = await call<HQProjects>('DELETE', '/api/hq/projects?path=' + encodeURIComponent(String(path)));
@@ -341,14 +347,40 @@ export function unlistProject(path: string, host?: HTMLElement | null): Promise<
             at = json.removed_at ?? -1;
             st.projects.value = json;
           }
+          opts.host = (await rowOfProject(path, host ?? null)) ?? section ?? host ?? null;
           resolve(null);
         } catch (e) { resolve(problemText(e, '外せませんでした')); }
       },
-      restore: () => { if (at >= 0) void postProject(path, at); },
+      // The server names the position, 0 included; a position it did not name
+      // is said, not passed over.
+      restore: () => at >= 0
+        ? postProject(path, at)
+        : Promise.resolve('外した位置が分からず、並びに戻せませんでした'),
       said: '並びから外しました',
       host,
-    });
+    };
+    runDanger('unlistProject', opts);
   });
+}
+// rowOfProject is the row that names one project once the list has been drawn
+// again, so the notice stands in that project's row wherever it moved. The row
+// that was pressed may be the one drawn before the answer (the list is redrawn a
+// turn later), and a moved row is a new element: the pressed one is passed over
+// until the redrawn row stands (a bounded wait), and position is never used.
+async function rowOfProject(path: string, pressed: HTMLElement | null): Promise<HTMLElement | null> {
+  let last: HTMLElement | null = null;
+  for (let tries = 0; tries < 12; tries++) {
+    const rows = [...document.querySelectorAll<HTMLElement>('.hq-sheet .hq-li[data-path]')]
+      .filter((row) => row.dataset.path === path);
+    if (rows.length) last = rows[rows.length - 1];
+    const fresh = rows.find((row) => row !== pressed);
+    if (fresh) return fresh;
+    await new Promise<void>((done) => {
+      if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => done());
+      else setTimeout(done, 0);
+    });
+  }
+  return last;
 }
 // listProject lists one project. Without projects:, the project serve was started
 // in is listed first, so listing another one does not drop the teams a person is

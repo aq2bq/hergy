@@ -14,7 +14,7 @@ import {
 import {
   ConfirmDialog,
   runDanger
-} from "./nav-e790zkg1.js";
+} from "./nav-scz7dfy9.js";
 
 // lib/dialogs.tsx
 function Dialogs() {

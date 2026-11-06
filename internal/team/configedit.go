@@ -182,7 +182,9 @@ func (a addProject) apply(src *yamledit.Source, root, projects *yaml.Node) ([]st
 	}
 	line := place.AfterLast
 	if a.at >= 0 && a.at < len(projects.Content) && projects.Content[a.at].Line > 0 {
-		line = projects.Content[a.at].Line - 1
+		// Before the comment lines the item keeps above it, not between them
+		// and the item: the comment belongs to the item that follows.
+		line = src.ItemStartLine(projects.Content[a.at]) - 1
 	}
 	src.Insert(line, yamledit.Spaces(place.DashCol)+"- "+yamledit.ScalarLiteral(a.written, 0))
 	all := append([]string{}, items...)
@@ -366,7 +368,9 @@ func (a addProjectBlock) apply(src *yamledit.Source, root, projects *yaml.Node) 
 	line := len(src.Bytes()) // unused fallback
 	_ = line
 	if projects != nil && a.at >= 0 && a.at < len(projects.Content) {
-		src.Insert(projects.Content[a.at].Line-1, a.lines...)
+		// Before the comment lines the item keeps above it: a restore must not
+		// slip between an item and its comment.
+		src.Insert(src.ItemStartLine(projects.Content[a.at])-1, a.lines...)
 	} else {
 		place, err := yamledit.BlockPlace(src, root, "projects", projects)
 		if err != nil {
