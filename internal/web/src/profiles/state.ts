@@ -199,10 +199,11 @@ const isOpenRow = (row: { name: string; group?: string }): boolean => OPEN_ROWS.
   return GROUPED ? (row.group || '') === t.group : groupPlace(t.group, CURRENT) === (row.group === 'global' ? 'global' : 'project');
 });
 
-// addressOpen is the rows the address opened, by name and place: the first draw
-// brings the first of them into the screen (d-c5ce, decision 2). A press opens a
-// row without moving the page (d-2b33).
-export const addressOpen = new Set(OPEN_ROWS.map((t) => t.name + '|' + (t.group || '')));
+// openedByAddress is whether the address named this row: the first draw brings
+// the first of the named rows into the screen (d-c5ce, decision 2). A press
+// opens a row without moving the page (d-2b33).
+export const openedByAddress = (row: { name: string; group?: string }): boolean =>
+  isOpenRow(row);
 
 export const filterKind = signal(TAB === 'profiles' ? (params().get('kind') || '') : '');
 export const query = signal(TAB === 'profiles' ? (params().get('q') || '') : '');
