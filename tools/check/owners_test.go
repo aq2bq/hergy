@@ -112,3 +112,111 @@ func TestChangedFindingsFlagsAComparatorOutsideItsOwner(t *testing.T) {
 }
 
 const behaviorOwnerPath = "internal/web/src/lib/changed.ts"
+
+// TestDangerFindingsFlagsTheOldConfirmationState: the confirmation state the
+// screens held (setConfirm and its callers) fails outside the owner (r-ccf8).
+func TestDangerFindingsFlagsTheOldConfirmationState(t *testing.T) {
+	root := t.TempDir()
+	writeTree(t, root, "internal/web/src/teams/state.ts",
+		"const setConfirm = (key: string, on: boolean) => {};\n"+
+			"export function pressDel(r: object) { setConfirm('del', true); }\n")
+	writeTree(t, root, dangerOwnerForTest, "export const DANGER = { removeMember: 'undoable' };\n")
+	r := &runner{root: root}
+	findings, err := r.dangerFindings(ownersFile{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(findings) != 2 {
+		t.Fatalf("read %d findings, want 2 (setConfirm and pressDel):\n%s", len(findings), strings.Join(findings, "\n"))
+	}
+	if !strings.Contains(strings.Join(findings, "\n"), "setConfirm") || !strings.Contains(strings.Join(findings, "\n"), "pressDel") {
+		t.Errorf("findings = %v, want setConfirm and pressDel named", findings)
+	}
+}
+
+// TestDangerFindingsLetsTheOwnerAndTheDefinitionsThrough: the owner calls
+// askConfirm and offerUndo; their own files define them; the dialog is mounted
+// once, in lib/dialogs.tsx.
+func TestDangerFindingsLetsTheOwnerAndTheDefinitionsThrough(t *testing.T) {
+	root := t.TempDir()
+	writeTree(t, root, dangerOwnerForTest, "export const DANGER = { removeMember: 'undoable' };\nexport function runDanger(a: string, o: object): void { askConfirm(o); offerUndo(o); }\n")
+	writeTree(t, root, dangerDialogForTest, "export const askConfirm = (ask: object): void => {};\n")
+	writeTree(t, root, dangerNoticeForTest, "export function offerUndo(one: object): void {}\n")
+	writeTree(t, root, dangerMountedForTest, "export function Dialogs() { return <ConfirmDialog />; }\n")
+	r := &runner{root: root}
+	findings, err := r.dangerFindings(ownersFile{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(findings) != 0 {
+		t.Fatalf("read %d findings, want none:\n%s", len(findings), strings.Join(findings, "\n"))
+	}
+}
+
+// TestDangerFindingsFlagsASecondDialogMount: <ConfirmDialog stands in one place
+// (d-2cce); a screen that mounts it again fails.
+func TestDangerFindingsFlagsASecondDialogMount(t *testing.T) {
+	root := t.TempDir()
+	writeTree(t, root, dangerMountedForTest, "export function Dialogs() { return <ConfirmDialog />; }\n")
+	writeTree(t, root, "internal/web/src/roles/view.tsx", "export function Screen() { return <div><ConfirmDialog /></div>; }\n")
+	r := &runner{root: root}
+	findings, err := r.dangerFindings(ownersFile{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(findings) != 1 || !strings.Contains(findings[0], "roles/view.tsx:1") {
+		t.Fatalf("findings = %v, want one for the second <ConfirmDialog", findings)
+	}
+}
+
+// TestDangerFindingsChecksTheDangerButtons: a button with data-danger says which
+// action it runs, and the name is one the table knows (d-2cce).
+func TestDangerFindingsChecksTheDangerButtons(t *testing.T) {
+	root := t.TempDir()
+	writeTree(t, root, dangerOwnerForTest, "export const DANGER = { removeMember: 'undoable', stopTeam: 'confirm' };\n")
+	writeTree(t, root, "internal/web/src/teams/canvas/attr.tsx",
+		"export const A = () => <button data-danger data-danger-act=\"removeMember\">外す</button>;\n")
+	r := &runner{root: root}
+	findings, err := r.dangerFindings(ownersFile{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(findings) != 0 {
+		t.Fatalf("a marked button failed:\n%s", strings.Join(findings, "\n"))
+	}
+
+	writeTree(t, root, "internal/web/src/teams/canvas/attr.tsx",
+		"export const A = () => <button data-danger>外す</button>;\n"+
+			"export const B = () => <button data-danger data-danger-act=\"removeEverything\">外す</button>;\n")
+	findings, err = r.dangerFindings(ownersFile{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(findings) != 2 {
+		t.Fatalf("read %d findings, want 2 (no act, unknown act):\n%s", len(findings), strings.Join(findings, "\n"))
+	}
+}
+
+// TestDangerGateIsAReportUntilEnforced: the danger section prints its findings
+// while danger_enforce is false and fails once it is true.
+func TestDangerGateIsAReportUntilEnforced(t *testing.T) {
+	root := t.TempDir()
+	writeTree(t, root, "internal/web/src/teams/state.ts", "export function f(): void { setConfirm('del', true); }\n")
+	writeTree(t, root, dangerOwnerForTest, "export const DANGER = { removeMember: 'undoable' };\n")
+	r := &runner{root: root}
+	writeTree(t, root, ownersPath, "enforce: true\ndanger_enforce: false\n")
+	if err := r.ownersGate(); err != nil {
+		t.Fatalf("a reporting danger section failed the gate: %v", err)
+	}
+	writeTree(t, root, ownersPath, "enforce: true\ndanger_enforce: true\n")
+	if err := r.ownersGate(); err == nil {
+		t.Fatal("an enforced danger section passed with a screen holding its own confirmation state")
+	}
+}
+
+const (
+	dangerOwnerForTest   = "internal/web/src/lib/danger.ts"
+	dangerDialogForTest  = "internal/web/src/lib/confirm.tsx"
+	dangerNoticeForTest  = "internal/web/src/lib/undo.tsx"
+	dangerMountedForTest = "internal/web/src/lib/dialogs.tsx"
+)

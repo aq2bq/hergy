@@ -7,6 +7,9 @@
 # report (JSON.stringify in a comparison, .draft !== .saved) is listed here as
 # its findings are merged or allowed.
 changed_enforce: true
+# The danger section: the confirmation and the undo notice have one owner each,
+# and every danger button says which action it runs (r-ccf8, d-2cce, d-aeeb).
+danger_enforce: true
 enforce: true
 #
 # Every entry needs the path, the name, why the owner is not the place for it,
@@ -29,3 +32,15 @@ allow:
     name: JSON.stringify
     why: 転送する文の下書きの比較で、「変えたか」の概念ではない（r-0b69）
     decision: d-f14b
+  # ブラウザの window.confirm は、画面が持っていた古い確認の状態（confirm /
+  # setConfirm）ではない。保存していない変更を捨てるかの確認で、④ が扱う
+  # 取り返せない操作の確認（共通ダイアログ）とは別の概念。共通ダイアログへ
+  # 移すのはこの段の外。
+  - path: internal/web/src/lib/nav.ts
+    name: confirm
+    why: タブを移るときに保存していない変更を捨てるかをブラウザに聞く window.confirm。画面の確認の状態ではない
+    decision: d-2cce
+  - path: internal/web/src/teams/role-modal.tsx
+    name: confirm
+    why: ロールの下書きを閉じる・読み直すときに捨てるかをブラウザに聞く window.confirm。画面の確認の状態ではない
+    decision: d-2cce

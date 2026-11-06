@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -61,6 +62,31 @@ var ownerRules = []ownerRule{
 	{name: "navRoles", where: "go", files: []string{"internal/catalog/"}},
 }
 
+// The danger section: the one table of what a dangerous action does, and the one
+// place the confirmation and the undo notice stand (r-ccf8, d-2cce, d-aeeb). A
+// screen calls runDanger and marks its button; it keeps no confirmation state of
+// its own and builds no notice of its own.
+const (
+	dangerOwner   = "internal/web/src/lib/danger.ts"
+	dangerDialog  = "internal/web/src/lib/confirm.tsx" // askConfirm's definition
+	dangerNotice  = "internal/web/src/lib/undo.tsx"    // offerUndo's definition
+	dangerMounted = "internal/web/src/lib/dialogs.tsx" // the one <ConfirmDialog
+)
+
+// dangerNameRules are the old confirmation names and the two calls only the
+// owner makes. confirm is the browser's window.confirm when it stands in a
+// screen, which is not the state this section replaced: owners.yml allows those
+// two places, with why.
+var dangerNameRules = []ownerRule{
+	{name: "confirm", where: "ts", files: []string{dangerOwner}},
+	{name: "setConfirm", where: "ts", files: []string{dangerOwner}},
+	{name: "pressDel", where: "ts", files: []string{dangerOwner}},
+	{name: "pressDelNo", where: "ts", files: []string{dangerOwner}},
+	{name: "confirming", where: "ts", files: []string{dangerOwner}},
+	{name: "askConfirm", where: "ts", files: []string{dangerOwner, dangerDialog}},
+	{name: "offerUndo", where: "ts", files: []string{dangerOwner, dangerNotice}},
+}
+
 // changedOwner is the one module that decides 「変えたか」 (r-1e9a).
 const changedOwner = "internal/web/src/lib/changed.ts"
 
@@ -84,6 +110,7 @@ type ownerAllow struct {
 type ownersFile struct {
 	Enforce        bool         `yaml:"enforce"`
 	ChangedEnforce bool         `yaml:"changed_enforce"`
+	DangerEnforce  bool         `yaml:"danger_enforce"`
 	Allow          []ownerAllow `yaml:"allow"`
 }
 
@@ -110,17 +137,31 @@ func (r *runner) ownersGate() error {
 		return err
 	}
 	findings = append(findings, changed...)
-	if len(findings) == 0 {
+	danger, err := r.dangerFindings(conf)
+	if err != nil {
+		return err
+	}
+	if len(findings)+len(danger) == 0 {
 		return nil
 	}
-	for _, finding := range findings {
+	for _, finding := range append(append([]string{}, findings...), danger...) {
 		fmt.Println(finding)
 	}
-	if !conf.Enforce {
-		fmt.Printf("owners: %d 件（報告のみ。tools/check/owners.yml の enforce を true にする前に、持ち主へ寄せるか許可リストに理由と決定を添えてください）\n", len(findings))
+	// Each section turns Hard on its own: a section still reporting prints its
+	// findings and passes, and an enforced one fails (owners.yml).
+	failed := len(findings) > 0 && conf.Enforce || len(danger) > 0 && conf.DangerEnforce
+	if !failed {
+		which := ""
+		if len(findings) > 0 && !conf.Enforce {
+			which += " enforce"
+		}
+		if len(danger) > 0 && !conf.DangerEnforce {
+			which += " danger_enforce"
+		}
+		fmt.Printf("owners: %d 件（報告のみ。tools/check/owners.yml の%s を true にする前に、持ち主へ寄せるか許可リストに理由と決定を添えてください）\n", len(findings)+len(danger), which)
 		return nil
 	}
-	return fmt.Errorf("持ち主の外で帯の件数を書く・一覧の行を決める場所が %d 件", len(findings))
+	return fmt.Errorf("持ち主の外で帯の件数を書く・一覧の行を決める・危ない操作の確認や取り消しを書く場所が %d 件", len(findings)+len(danger))
 }
 
 func (r *runner) ownersConf() (ownersFile, error) {
@@ -250,6 +291,187 @@ func callLines(code, name string) []int {
 		i = at + len(name)
 	}
 	return out
+}
+
+// dangerFindings is the danger section's four rules: the old confirmation names
+// and the owner's two calls outside their files, a confirmation dialog mounted
+// anywhere but the one place, and a danger button without an act the table
+// knows.
+func (r *runner) dangerFindings(conf ownersFile) ([]string, error) {
+	files, err := r.sourceFiles()
+	if err != nil {
+		return nil, err
+	}
+	acts, err := r.dangerActs()
+	if err != nil {
+		return nil, err
+	}
+	var out []string
+	for _, path := range files {
+		rel, err := filepath.Rel(r.root, path)
+		if err != nil {
+			return nil, err
+		}
+		rel = filepath.ToSlash(rel)
+		if !strings.HasSuffix(rel, ".ts") && !strings.HasSuffix(rel, ".tsx") {
+			continue
+		}
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			return nil, err
+		}
+		code := maskSpec(string(raw))
+		for _, rule := range dangerNameRules {
+			if allowed(rel, rule.files) || allowedBy(rel, conf.Allow, rule.name) {
+				continue
+			}
+			for _, line := range callLines(code, rule.name) {
+				out = append(out, fmt.Sprintf("%s:%d: %s は持ち主（%s）に置いてください。寄せられない場合は %s の allow に理由と決定を添えてください",
+					rel, line, rule.name, dangerOwner, ownersPath))
+			}
+		}
+		if rel != dangerMounted {
+			for i, line := range strings.Split(code, "\n") {
+				if strings.Contains(line, "<ConfirmDialog") {
+					out = append(out, fmt.Sprintf("%s:%d: <ConfirmDialog は %s の 1 か所だけに置いてください", rel, i+1, dangerMounted))
+				}
+			}
+		}
+		out = append(out, dangerAttrFindings(rel, string(raw), acts)...)
+	}
+	sort.Strings(out)
+	return out, nil
+}
+
+// dangerActs is the actions lib/danger.ts's DANGER table names: the only values
+// a danger button may carry.
+func (r *runner) dangerActs() (map[string]bool, error) {
+	raw, err := os.ReadFile(filepath.Join(r.root, dangerOwner))
+	if os.IsNotExist(err) {
+		// A tree without the owner has no table to hold a button to.
+		return map[string]bool{}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	s := string(raw)
+	at := strings.Index(s, "const DANGER")
+	if at < 0 {
+		return nil, fmt.Errorf("%s: DANGER の表がありません", dangerOwner)
+	}
+	open := strings.IndexByte(s[at:], '{')
+	if open < 0 {
+		return nil, fmt.Errorf("%s: DANGER の表がありません", dangerOwner)
+	}
+	open += at
+	depth := 0
+	for i := open; i < len(s); i++ {
+		switch s[i] {
+		case '{':
+			depth++
+		case '}':
+			depth--
+			if depth == 0 {
+				out := map[string]bool{}
+				for _, one := range regexp.MustCompile(`([A-Za-z_][A-Za-z0-9_]*)\s*:`).FindAllStringSubmatch(s[open+1:i], -1) {
+					out[one[1]] = true
+				}
+				if len(out) == 0 {
+					return nil, fmt.Errorf("%s: DANGER の表に操作がありません", dangerOwner)
+				}
+				return out, nil
+			}
+		}
+	}
+	return nil, fmt.Errorf("%s: DANGER の表が閉じていません", dangerOwner)
+}
+
+// dangerAttrFindings is the danger buttons' own rule: a button carrying
+// data-danger says which action it runs (data-danger-act), and the name is one
+// the table knows. The attribute is read from the tag it stands in, braces and
+// strings skipped, so a button's onClick does not end the tag early.
+func dangerAttrFindings(rel, raw string, acts map[string]bool) []string {
+	var out []string
+	for i := 0; ; {
+		j := strings.Index(raw[i:], "data-danger")
+		if j < 0 {
+			break
+		}
+		at := i + j
+		end := at + len("data-danger")
+		// data-danger-act is the act itself, not a button without one.
+		if end < len(raw) && raw[end] == '-' {
+			i = end
+			continue
+		}
+		start := strings.LastIndexByte(raw[:at], '<')
+		stop := jsxTagEnd(raw, at)
+		if start < 0 || stop < 0 {
+			i = end
+			continue
+		}
+		line := lineOf(raw, at)
+		if value, ok := jsxAttr(raw[start:stop], "data-danger-act"); !ok {
+			out = append(out, fmt.Sprintf("%s:%d: data-danger のボタンに data-danger-act がありません。%s の DANGER にある操作の名前を書いてください", rel, line, dangerOwner))
+		} else if !acts[value] {
+			out = append(out, fmt.Sprintf("%s:%d: data-danger-act の %q は %s の DANGER にありません", rel, line, value, dangerOwner))
+		}
+		i = stop
+	}
+	return out
+}
+
+// jsxTagEnd is where the tag holding at ends: the > outside braces and strings.
+func jsxTagEnd(raw string, at int) int {
+	depth := 0
+	for i := at; i < len(raw); i++ {
+		switch raw[i] {
+		case '{':
+			depth++
+		case '}':
+			if depth > 0 {
+				depth--
+			}
+		case '\'', '"', '`':
+			quote := raw[i]
+			for i++; i < len(raw); i++ {
+				if raw[i] == '\\' {
+					i++
+					continue
+				}
+				if raw[i] == quote {
+					break
+				}
+			}
+		case '>':
+			if depth == 0 {
+				return i + 1
+			}
+		}
+	}
+	return -1
+}
+
+// jsxAttr is one attribute's string value in a tag, as data-danger-act writes it.
+func jsxAttr(tag, name string) (string, bool) {
+	at := strings.Index(tag, name)
+	if at < 0 {
+		return "", false
+	}
+	rest := tag[at+len(name):]
+	eq := strings.IndexByte(rest, '=')
+	if eq < 0 {
+		return "", false
+	}
+	rest = strings.TrimLeft(rest[eq+1:], " \t")
+	if rest == "" || rest[0] != '"' && rest[0] != '\'' {
+		return "", false
+	}
+	quote := rest[0]
+	if close := strings.IndexByte(rest[1:], quote); close >= 0 {
+		return rest[1 : 1+close], true
+	}
+	return "", false
 }
 
 // changedFindings is the names and the comparisons the changed owner replaced.
