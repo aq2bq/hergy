@@ -170,7 +170,6 @@ export function YamlTab(props: YamlTabProps) {
   const ta = useRef<HTMLTextAreaElement | null>(null);
   const gutter = useRef<HTMLPreElement | null>(null);
   const timer = useRef<number>(0);
-  const frame = useRef<number>(0);
   const alive = useRef(true);
   const seq = useRef(0);
   const base = useRef(text);
@@ -204,16 +203,11 @@ export function YamlTab(props: YamlTabProps) {
     const value = el.value;
     setNow((was: YamlWorkingState) => (was.text === value ? was : { ...was, text: value }));
     if (value !== base.current) setSaved(false);
-    // The typed text and the band are read once the frame has the latest value:
-    // two keys in one frame (x then Backspace) must leave one answer, the text
-    // that stands (r-1e9a).
-    if (frame.current) cancelAnimationFrame(frame.current);
-    frame.current = requestAnimationFrame(() => {
-      frame.current = 0;
-      if (!alive.current) return;
-      report();
-      tellDirty();
-    });
+    // The screen hears the typed text now: a press that comes in the same frame
+    // (leaving the screen, switching the project) must see the change it would
+    // throw away (r-1e9a, d-021e).
+    report();
+    tellDirty();
   }
 
   // report says what the part holds to a screen that keeps it as its own state.
@@ -365,16 +359,14 @@ export function YamlTab(props: YamlTabProps) {
   }, []);
 
   // A text the band carried here is the field's, not the file's: it is put in
-  // once when the part opens, and the part checks it as if it had been typed
-  // (spec-nav 1.5). What this part reports comes back as carried (the screen
-  // keeps it as its ytext), and that is not put in again: a re-render that
-  // lands after a key would write the key's text back into the field (r-1e9a).
-  const carriedIn = useRef(false);
+  // once and the part checks it as if it had been typed (spec-nav 1.5). What the
+  // part reports is the screen's own text, not a draft to put in again — a
+  // re-render that landed after a key would write the key's text back into the
+  // field (r-1e9a). The screen carries the draft apart from the typed text.
   useEffect(() => {
-    if (carriedIn.current) return;
-    carriedIn.current = true;
+    if (carried == null) return;
     const el = ta.current;
-    if (carried == null || !el || el.value === carried) return;
+    if (!el || el.value === carried) return;
     el.value = carried;
     autosize(el);
     layout(now.problems);

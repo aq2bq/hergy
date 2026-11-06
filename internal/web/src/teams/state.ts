@@ -29,7 +29,7 @@ import {
   fromJSON, toDoc, clone,
 } from '../lib/ruledoc.js';
 import { parseOpen, token as roleToken } from '../lib/hq.js';
-import { TEAM as CHANGED_TEAM, TEAM_AGREEMENT as CHANGED_AGREEMENT, YAML_TEXT as CHANGED_YAML, diff as changedDiff, dirty as changedDirty, snapshot as changedSnapshot, } from '../lib/changed.js';
+import { ROLE_DOC as CHANGED_ROLE, TEAM as CHANGED_TEAM, TEAM_AGREEMENT as CHANGED_AGREEMENT, YAML_TEXT as CHANGED_YAML, diff as changedDiff, dirty as changedDirty, lost as changedLost, snapshot as changedSnapshot, } from '../lib/changed.js';
 import type { Shape } from '../lib/changed.js';
 import type { TeamWritten } from '../lib/changed.js';
 import { copyGroupOf, groupPlace, projectOfGroup } from '../lib/copy';
@@ -176,6 +176,10 @@ export type State = {
   ok: Record<string, number>;
   yfile: string | null;
   ytext: Record<string, string | undefined>;
+  // ydraft is the YAML text the band carried into this screen for one file: the
+  // part puts it in when it opens, and the part's own reports clear it (a
+  // report is the screen's ytext, not a draft to put in again) (spec-nav 1.5).
+  ydraft: Record<string, string | undefined>;
   yc: Record<string, Schemas['Problem'][] | undefined>;
   pmode: Record<string, string>;
   wantRule: { name: string; k: number } | null;
@@ -193,7 +197,7 @@ const put = (patch: Partial<State>) => { state.value = { ...state.value, ...patc
 export const state = signal<State>({
   tab: (view && view.dataset.tab) === 'yaml' ? 'yaml' : 'list',
   open: new Set(), dtab: {},
-  ok: {}, yfile: null, ytext: {}, yc: {}, pmode: {}, wantRule: null,
+  ok: {}, yfile: null, ytext: {}, ydraft: {}, yc: {}, pmode: {}, wantRule: null,
   // refusal is the server's sentence on one row's foot (the shape tab's or the
   // rules tab's), and toast the words the canvas says at the bottom.
   refusal: {}, conflicts: {}, toast: null,
@@ -218,6 +222,11 @@ function setYtext(key: string, text: string | undefined): void {
   const m = { ...state.value.ytext };
   if (text === undefined) delete m[key]; else m[key] = text;
   put({ ytext: m });
+}
+function setYdraft(key: string, text: string | undefined): void {
+  const m = { ...state.value.ydraft };
+  if (text === undefined) delete m[key]; else m[key] = text;
+  put({ ydraft: m });
 }
 function setYc(key: string, list: Schemas['Problem'][] | undefined): void {
   const m = { ...state.value.yc };
@@ -1451,12 +1460,15 @@ export function pressYfile(file: string) {
 export function yamlState(file: string, st: { text: string }) {
   const f = fileOf(file);
   setYtext(file, f && st.text === f.text ? undefined : st.text);
+  // The part holds the text now: the draft that was carried here is spent.
+  setYdraft(file, undefined);
 }
 export function yamlProblems(file: string, list: Schemas['Problem'][]) {
   setYc(file, list);
 }
 export function yamlRevert(file: string) {
   setYtext(file, undefined);
+  setYdraft(file, undefined);
 }
 export function yamlSaved(file: string, answer: { json?: { text?: string; hash?: string } | null } | null): void {
   const json: { text?: string; hash?: string } = (answer && answer.json) || {};
@@ -1466,6 +1478,7 @@ export function yamlSaved(file: string, answer: { json?: { text?: string; hash?:
   const text = typeof json.text === 'string' ? json.text : (typed !== undefined ? typed : f.text);
   yfiles.value = yfiles.value.map((x) => (x.file === file ? { ...x, hash: json.hash || x.hash, text } : x));
   setYtext(file, undefined);
+  setYdraft(file, undefined);
   setYc(file, undefined);
 }
 
@@ -1563,6 +1576,27 @@ export function dirty() {
   for (const f of yfiles.value) if (yamlChanged(f.file)) return true;
   return false;
 }
+// lost names what leaving the page now would throw away: changed's words for
+// each row that differs, in the order the screen holds them (r-1e9a, d-021e).
+export function lost(): string[] {
+  const out: string[] = [];
+  for (const e of roleEntries()) if (roleDirty(e)) out.push(...changedLost(CHANGED_ROLE, e.saved, e.draft));
+  for (const r of recs.value) {
+    const readable = !(r.broken.value || r.problem.value);
+    const from = savedTeam(r.saved.value), to = writtenTeam(r);
+    if (changedDirty(CHANGED_TEAM, from, to, readable)) out.push(...changedLost(CHANGED_TEAM, from, to, readable));
+    if (agreementChanged(r)) {
+      const saved = r.agreeSaved.value ? { text: r.agreeSaved.value.text } : null;
+      out.push(...changedLost(CHANGED_AGREEMENT, saved, { text: r.agreeDraft.value.text }));
+    }
+  }
+  for (const f of yfiles.value) {
+    if (!yamlChanged(f.file)) continue;
+    const text = (fileOf(f.file) || {}).text || '';
+    out.push(...changedLost(CHANGED_YAML, { text }, { text: state.value.ytext[f.file] ?? text }));
+  }
+  return [...new Set(out)];
+}
 // tellDirty says it again now, for a part that changed something without a
 // value the screen can watch (lib/yamltab.js asks for it).
 export function tellDirty() {
@@ -1601,6 +1635,7 @@ export function restore(carried: Carried) {
     const f = fileOf(c.file);
     if (!f || (c.hash && f.hash !== c.hash)) return;
     setYtext(c.file, c.text);
+    setYdraft(c.file, c.text);
   });
 }
 

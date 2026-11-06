@@ -220,3 +220,49 @@ const (
 	dangerNoticeForTest  = "internal/web/src/lib/undo.tsx"
 	dangerMountedForTest = "internal/web/src/lib/dialogs.tsx"
 )
+
+// TestDangerFindingsFlagsTheBrowsersConfirmOutsideItsOwner: the browser's own
+// confirmation is the same concept and stands in the owner alone (d-021e).
+func TestDangerFindingsFlagsTheBrowsersConfirmOutsideItsOwner(t *testing.T) {
+	root := t.TempDir()
+	writeTree(t, root, dangerOwnerForTest, "export const DANGER = { leaveWithDraft: 'confirm' };\nexport function ask(): void { window.confirm('move?'); }\n")
+	writeTree(t, root, "internal/web/src/lib/nav.ts", "export function leave(): boolean { return window.confirm('move?'); }\n")
+	r := &runner{root: root}
+	findings, err := r.dangerFindings(ownersFile{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(findings) != 1 || !strings.Contains(findings[0], "nav.ts:1") || !strings.Contains(findings[0], "window.confirm") {
+		t.Fatalf("findings = %v, want one for the browser's confirm in nav.ts", findings)
+	}
+}
+
+// TestDangerFindingsFlagsTheClosingWarning: the browser's beforeunload stands in
+// a string, which the code's mask hides, so the raw line is read; only the owner
+// or an allowlist entry holds it (d-3a42).
+func TestDangerFindingsFlagsTheClosingWarning(t *testing.T) {
+	root := t.TempDir()
+	writeTree(t, root, dangerOwnerForTest, "export const DANGER = { leaveWithDraft: 'confirm' };\n")
+	writeTree(t, root, "internal/web/src/lib/prose-transfer-view.tsx",
+		"export function hold(): void { window.addEventListener('beforeunload', warn); }\n"+
+			"// a comment that names beforeunload is not a listener\n")
+	r := &runner{root: root}
+	findings, err := r.dangerFindings(ownersFile{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(findings) != 1 || !strings.Contains(findings[0], "prose-transfer-view.tsx:1") {
+		t.Fatalf("findings = %v, want one for the closing warning", findings)
+	}
+	conf := ownersFile{Allow: []ownerAllow{{
+		Path: "internal/web/src/lib/prose-transfer-view.tsx", Name: "beforeunload",
+		Why: "the browser's own words only", Decision: "d-3a42",
+	}}}
+	findings, err = r.dangerFindings(conf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(findings) != 0 {
+		t.Fatalf("an allowed closing warning failed:\n%s", strings.Join(findings, "\n"))
+	}
+}

@@ -10,15 +10,96 @@
 import {
   k,
   R,
+  h,
+  A,
   y,
   u
 } from "./nav-zn7g81kr.js";
 import {
-  askConfirm
-} from "./nav-cxc0561z.js";
-import {
   read2
 } from "./nav-sk3m5qf3.js";
+
+// lib/confirm.tsx
+var confirmAsk = y(null);
+var askConfirm = (ask) => {
+  confirmAsk.value = ask;
+};
+var closeConfirm = () => {
+  confirmAsk.value = null;
+};
+var takeBack = () => {
+  confirmAsk.value = null;
+};
+function ConfirmDialog() {
+  const ask = confirmAsk.value;
+  const dialog = A(null);
+  const cancel = A(null);
+  const last = A(null);
+  const ran = A(false);
+  h(() => {
+    if (ask) {
+      last.current = ask;
+      ran.current = false;
+      return;
+    }
+    const one = last.current;
+    last.current = null;
+    if (one && one.cancel && !ran.current)
+      one.cancel();
+  }, [ask]);
+  h(() => {
+    const node = dialog.current;
+    if (!ask || !node)
+      return;
+    if (!node.open)
+      node.showModal();
+    cancel.current?.focus();
+    return;
+  }, [ask]);
+  if (!ask)
+    return null;
+  return /* @__PURE__ */ u("dialog", {
+    class: "confirm",
+    ref: dialog,
+    "aria-labelledby": "confirm-title",
+    onCancel: (event) => {
+      event.preventDefault();
+      takeBack();
+    },
+    children: [
+      /* @__PURE__ */ u("h2", {
+        id: "confirm-title",
+        children: ask.title
+      }),
+      /* @__PURE__ */ u("div", {
+        class: "confirm-body",
+        children: ask.body
+      }),
+      /* @__PURE__ */ u("footer", {
+        children: [
+          /* @__PURE__ */ u("button", {
+            class: "btn",
+            type: "button",
+            ref: cancel,
+            onClick: takeBack,
+            children: "やめる"
+          }),
+          /* @__PURE__ */ u("button", {
+            class: "btn danger solid",
+            type: "button",
+            onClick: () => {
+              const run = ask.run;
+              ran.current = true;
+              closeConfirm();
+              run();
+            },
+            children: ask.label
+          })
+        ]
+      })
+    ]
+  });
+}
 
 // lib/undo.tsx
 var undo = y(null);
@@ -84,6 +165,8 @@ var DANGER = {
   removeWorker: "undoable",
   removeTurn: "undoable",
   conflictRevert: "undoable",
+  leaveWithDraft: "confirm",
+  discardRoleEdit: "confirm",
   discardRow: "confirm",
   abortStart: "none"
 };
@@ -107,7 +190,7 @@ function runDanger(action, opts) {
   }
   if (!opts.confirm)
     return;
-  const ask = { ...opts.confirm };
+  const ask = { ...opts.confirm, cancel: opts.cancel };
   if (opts.loss) {
     const loss = opts.loss;
     const q = new URLSearchParams;
@@ -133,4 +216,4 @@ function runDanger(action, opts) {
   askConfirm({ ...ask, body: ask.body ?? k("div", {}), run: opts.run });
 }
 
-export { dropUndo, runDanger };
+export { ConfirmDialog, dropUndo, runDanger };

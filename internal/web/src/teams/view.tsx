@@ -631,7 +631,7 @@ function YamlFile({ f }: { f: YFile }) {
     <section class="yed" data-key={keyOfFile(f)} data-hash={f.hash}>
       <YamlTab label={f.label} path={f.path}
         badge={both ? { cls: 'state ' + (mark === 'hidden' ? 'off' : 'on'), text: mark === 'hidden' ? '隠れている' : '効いている' } : null}
-        text={f.text} carried={state.value.ytext[f.file]} hash={f.hash} kind="team" place={f.place} name={f.name} extra={{ part: f.kind }}
+        text={f.text} carried={state.value.ydraft[f.file] ?? null} hash={f.hash} kind="team" place={f.place} name={f.name} extra={{ part: f.kind }}
         problems={yIssues(f.file)} problem={f.problem || ''}
         onProblems={(probs: Schemas['Problem'][]) => yamlProblems(f.file, probs)}
         onRevert={() => yamlRevert(f.file)}

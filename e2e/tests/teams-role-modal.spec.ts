@@ -61,8 +61,8 @@ test('a failed usage read holds saving and keeps entered prose', async ({ page, 
   const { column } = await open(page, app.base);
   await column.getByRole('textbox', { name: '規則の全文' }).fill('# 残す編集\n');
   await page.route('**/api/role/*/context?**', route => route.fulfill({ status: 503, json: { text: '使用先を確認できません' } }));
-  page.once('dialog', question => question.accept());
   await column.getByRole('button', { name: 'ファイルからリロード' }).click();
+  await page.locator('.confirm .btn.danger.solid').click();
   await expect(column.getByRole('alert').filter({ hasText: '使用先を確認できません' })).toBeVisible();
   await expect(column.getByRole('button', { name: '保存', exact: true })).toBeDisabled();
   await expect(column.getByRole('textbox', { name: '規則の全文' })).toHaveValue('# 残す編集\n');
@@ -189,17 +189,16 @@ test('file reload asks to discard drafts and reloads both text and usage', async
   const input = column.getByRole('textbox', { name: '規則の全文' });
   const reload = column.getByRole('button', { name: 'ファイルからリロード' });
   await input.fill('# 保存していない編集\n');
-  page.once('dialog', async question => {
-    expect(question.message()).toBe('保存していない変更を捨てて、ファイルからリロードしますか？');
-    await question.dismiss();
-  });
   await reload.click();
+  const ask = page.locator('.confirm');
+  await expect(ask).toContainText('保存していない変更を捨てて、ファイルからリロードしますか？');
+  await ask.getByRole('button', { name: 'やめる', exact: true }).click();
   await expect(input).toHaveValue('# 保存していない編集\n');
   const file = path.join(app.proj, '.hergy/roles/builder.md');
   writeFileSync(file, '# ファイルの新しい内容\n');
-  page.once('dialog', question => question.accept());
   const context = page.waitForResponse(response => response.url().includes('/api/role/builder/context?') && response.request().method() === 'GET');
   await reload.click();
+  await ask.locator('.btn.danger.solid').click();
   await context;
   await expect(input).toHaveValue('# ファイルの新しい内容\n');
   await expect(column.getByRole('button', { name: '保存', exact: true })).toBeDisabled();

@@ -20,9 +20,8 @@ import {
   read2,
   problemText2
 } from "../chunk/nav-sk3m5qf3.js";
-import"../chunk/nav-cxc0561z.js";
-import"../chunk/nav-qhjzcfn0.js";
-import"../chunk/nav-vxv4rttp.js";
+import"../chunk/nav-e790zkg1.js";
+import"../chunk/nav-v4xn9m8v.js";
 import {
   setRunning2,
   token2,
@@ -35,11 +34,11 @@ import {
   stopSheet2,
   teamCount,
   openSheet
-} from "../chunk/nav-39jkzqwr.js";
+} from "../chunk/nav-x75cm7a2.js";
 import {
   TeamFigure2,
   exports_hq
-} from "../chunk/nav-v0y32ezc.js";
+} from "../chunk/nav-vr986xc6.js";
 import {
   installWheel,
   resource

@@ -7,7 +7,7 @@ import { installWheel } from '../lib/wheel.js';
 import { render } from '../lib/preact.js';
 import { takeDraft } from '../lib/nav.js';
 import {
-  view, TAB, rows, dirty, take, tellDirty, restore, syncAssignURL, initAssign, initYaml,
+  view, TAB, rows, dirty, lost, take, tellDirty, restore, syncAssignURL, initAssign, initYaml,
 } from './state.js';
 import { initPanel } from './actions.js';
 import { List } from './view.js';
@@ -23,7 +23,7 @@ function App() {
 // The page says what it is through window.hergyPage (nav.js reads it, 5 章 7).
 // settled is true once the first reading is drawn: this screen's reading comes
 // with the page, so it is true at once and stays true.
-const page = { screen: 'profiles', dirty, take, tellDirty, settled: true };
+const page = { screen: 'profiles', dirty, lost, take, tellDirty, settled: true };
 Object.assign(window, { hergyPage: page });
 
 // ---- mounting -----------------------------------------------------------

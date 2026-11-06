@@ -85,6 +85,9 @@ var dangerNameRules = []ownerRule{
 	{name: "confirming", where: "ts", files: []string{dangerOwner}},
 	{name: "askConfirm", where: "ts", files: []string{dangerOwner, dangerDialog}},
 	{name: "offerUndo", where: "ts", files: []string{dangerOwner, dangerNotice}},
+	// The browser's own confirmation is the same concept: it asks too, and it
+	// is asked for by the owner alone (d-021e).
+	{name: "window.confirm", where: "ts", files: []string{dangerOwner}},
 }
 
 // changedOwner is the one module that decides 「変えたか」 (r-1e9a).
@@ -325,7 +328,7 @@ func (r *runner) dangerFindings(conf ownersFile) ([]string, error) {
 			if allowed(rel, rule.files) || allowedBy(rel, conf.Allow, rule.name) {
 				continue
 			}
-			for _, line := range callLines(code, rule.name) {
+			for _, line := range plainCallLines(code, rule.name) {
 				out = append(out, fmt.Sprintf("%s:%d: %s は持ち主（%s）に置いてください。寄せられない場合は %s の allow に理由と決定を添えてください",
 					rel, line, rule.name, dangerOwner, ownersPath))
 			}
@@ -334,6 +337,15 @@ func (r *runner) dangerFindings(conf ownersFile) ([]string, error) {
 			for i, line := range strings.Split(code, "\n") {
 				if strings.Contains(line, "<ConfirmDialog") {
 					out = append(out, fmt.Sprintf("%s:%d: <ConfirmDialog は %s の 1 か所だけに置いてください", rel, i+1, dangerMounted))
+				}
+			}
+		}
+		// The browser's closing warning stands in a string, which maskSpec blanks:
+		// it is read from the text, and only the owner or an allowlist may hold it.
+		if !allowed(rel, []string{dangerOwner}) && !allowedBy(rel, conf.Allow, "beforeunload") {
+			for i, line := range strings.Split(string(raw), "\n") {
+				if strings.Contains(line, "beforeunload") && strings.Contains(line, "EventListener(") {
+					out = append(out, fmt.Sprintf("%s:%d: ブラウザの確認（beforeunload）は持ち主（%s）の外に置かず、%s の allow に理由と決定を添えてください", rel, i+1, dangerOwner, ownersPath))
 				}
 			}
 		}
@@ -472,6 +484,33 @@ func jsxAttr(tag, name string) (string, bool) {
 		return rest[1 : 1+close], true
 	}
 	return "", false
+}
+
+// plainCallLines is callLines for a name a screen owns itself: a member of
+// something else (window.confirm) is not that name (d-021e).
+func plainCallLines(code, name string) []int {
+	var out []int
+	for i := 0; i < len(code); {
+		j := strings.Index(code[i:], name)
+		if j < 0 {
+			break
+		}
+		at := i + j
+		before := byte(' ')
+		if at > 0 {
+			before = code[at-1]
+		}
+		after := byte(' ')
+		end := at + len(name)
+		if end < len(code) {
+			after = code[end]
+		}
+		if !isIdentByte(before) && before != '.' && (after == '(' || after == '=') {
+			out = append(out, lineOf(code, at))
+		}
+		i = at + len(name)
+	}
+	return out
 }
 
 // changedFindings is the names and the comparisons the changed owner replaced.

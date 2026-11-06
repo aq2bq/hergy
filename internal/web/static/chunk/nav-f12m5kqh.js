@@ -16,7 +16,7 @@ import {
 } from "./nav-zn7g81kr.js";
 import {
   runDanger
-} from "./nav-qhjzcfn0.js";
+} from "./nav-e790zkg1.js";
 import {
   check2,
   save2,
@@ -25,7 +25,7 @@ import {
 } from "./nav-sk3m5qf3.js";
 import {
   yamlDirty
-} from "./nav-2d57d34b.js";
+} from "./nav-36f6dmhj.js";
 
 // lib/conflict.tsx
 var str = (v) => typeof v === "string" ? v : "";
@@ -261,7 +261,6 @@ function YamlTab2(props) {
   const ta = A(null);
   const gutter = A(null);
   const timer = A(0);
-  const frame = A(0);
   const alive = A(true);
   const seq = A(0);
   const base = A(text);
@@ -286,15 +285,8 @@ function YamlTab2(props) {
     setNow((was) => was.text === value ? was : { ...was, text: value });
     if (value !== base.current)
       setSaved(false);
-    if (frame.current)
-      cancelAnimationFrame(frame.current);
-    frame.current = requestAnimationFrame(() => {
-      frame.current = 0;
-      if (!alive.current)
-        return;
-      report();
-      tellDirty2();
-    });
+    report();
+    tellDirty2();
   }
   function report() {
     const el = ta.current;
@@ -445,13 +437,11 @@ function YamlTab2(props) {
       clearTimeout(timer.current);
     };
   }, []);
-  const carriedIn = A(false);
   h(() => {
-    if (carriedIn.current)
+    if (carried == null)
       return;
-    carriedIn.current = true;
     const el = ta.current;
-    if (carried == null || !el || el.value === carried)
+    if (!el || el.value === carried)
       return;
     el.value = carried;
     autosize2(el);

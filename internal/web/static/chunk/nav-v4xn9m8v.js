@@ -12,8 +12,9 @@ import {
   u
 } from "./nav-zn7g81kr.js";
 import {
-  ConfirmDialog
-} from "./nav-cxc0561z.js";
+  ConfirmDialog,
+  runDanger
+} from "./nav-e790zkg1.js";
 
 // lib/dialogs.tsx
 function Dialogs() {
@@ -191,18 +192,34 @@ if (band) {
     decorate();
   }
 }
-function confirmLeave2() {
-  return !page()?.dirty?.() || window.confirm("保存していない変更があります。変更を破棄して移動しますか？");
+function confirmLeave2(run, cancel) {
+  const p = page();
+  if (!p?.dirty?.())
+    return false;
+  runDanger("leaveWithDraft", {
+    run,
+    cancel,
+    lost: p.lost ? p.lost() : [],
+    confirm: { title: "保存していない変更があります。変更を破棄して移動しますか？", label: "破棄して移動する" }
+  });
+  return true;
 }
 document.addEventListener("click", (e) => {
   const project = new URLSearchParams(location.search).get("project");
   const link = e.target instanceof Element ? e.target.closest("a[href]") : null;
   if (!link)
     return;
-  if (link.closest("#tabs") && !confirmLeave2()) {
+  const follow = () => {
+    const url = new URL(link.href, location.href);
+    if (project && url.origin === location.origin && /^\/(activity|teams|roles|profiles)(?:\/|$)/.test(url.pathname) && !url.searchParams.has("project")) {
+      url.searchParams.set("project", project);
+    }
+    location.assign(url.href);
+  };
+  const tabs = link.closest("#tabs");
+  if (tabs && confirmLeave2(follow, () => tabs.querySelector('[aria-selected="true"]')?.focus())) {
     e.preventDefault();
     e.stopImmediatePropagation();
-    link.closest("#tabs")?.querySelector('[aria-selected="true"]')?.focus();
     return;
   }
   if (!project)

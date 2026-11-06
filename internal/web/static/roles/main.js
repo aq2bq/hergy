@@ -24,19 +24,18 @@ import {
   roleModel2,
   teamModel2
 } from "../chunk/nav-sk3m5qf3.js";
-import"../chunk/nav-cxc0561z.js";
+import {
+  runDanger
+} from "../chunk/nav-e790zkg1.js";
 import {
   takeDraft2,
   setDirty2
-} from "../chunk/nav-vxv4rttp.js";
-import {
-  runDanger
-} from "../chunk/nav-qhjzcfn0.js";
+} from "../chunk/nav-v4xn9m8v.js";
 import {
   token2,
   parseOpen2
-} from "../chunk/nav-39jkzqwr.js";
-import"../chunk/nav-v0y32ezc.js";
+} from "../chunk/nav-x75cm7a2.js";
+import"../chunk/nav-vr986xc6.js";
 import {
   Measure,
   renameCarries2,
@@ -46,12 +45,12 @@ import {
   Badge2,
   Vm2,
   RuleDoc2
-} from "../chunk/nav-nte0yehk.js";
+} from "../chunk/nav-mx44ftta.js";
 import {
   conflictOf,
   ConflictNotice,
   YamlTab2
-} from "../chunk/nav-q8zbgc80.js";
+} from "../chunk/nav-f12m5kqh.js";
 import {
   roleEditor,
   roleProblems
@@ -61,7 +60,7 @@ import {
   projectOfGroup,
   bringUnderBand,
   ProjectView
-} from "../chunk/nav-yctmvyzg.js";
+} from "../chunk/nav-98gyjnn8.js";
 import {
   Field
 } from "../chunk/nav-9htrbyn7.js";
@@ -73,10 +72,12 @@ import {
   dirty,
   lost,
   ROLE_DOC,
+  PROFILE_ASSIGN,
+  YAML_TEXT,
   roleDirty,
   assignDirty,
   yamlDirty
-} from "../chunk/nav-2d57d34b.js";
+} from "../chunk/nav-36f6dmhj.js";
 
 // roles/state.ts
 var view = document.getElementById("view");
@@ -883,6 +884,28 @@ function dirty2() {
 }
 function tellDirty() {
   setDirty2(dirty2());
+}
+function lost2() {
+  const out = [];
+  for (const r of roles.value)
+    for (const l of PLACES) {
+      const e = r[l];
+      if (!e || !roleDirty(e, r.born))
+        continue;
+      out.push(...lost(ROLE_DOC, e.saved || r.born || null, e.draft, !e.problem));
+    }
+  for (const t of teams.value)
+    for (const m of t.members) {
+      if (!assignDirty(m))
+        continue;
+      out.push(...lost(PROFILE_ASSIGN, { picks: [{ member: m.name, role: m.saved }] }, { picks: [{ member: m.name, role: m.draft }] }));
+    }
+  for (const { e } of allEntries()) {
+    if (!yamlDirty(e.text || "", e.ytext))
+      continue;
+    out.push(...lost(YAML_TEXT, { text: e.text || "" }, { text: e.ytext ?? (e.text || "") }));
+  }
+  return [...new Set(out)];
 }
 function take() {
   const rows = [], ytexts = [], members = [];
@@ -2066,7 +2089,7 @@ function Panel({ r, l }) {
 
 // roles/main.tsx
 if (view) {
-  const page = { screen: "roles", dirty: dirty2, take, settled: false };
+  const page = { screen: "roles", dirty: dirty2, lost: lost2, take, settled: false };
   window.hergyPage = page;
   R(/* @__PURE__ */ u(Tabs, {}), tabsEl);
   R(/* @__PURE__ */ u(App, {}), view);

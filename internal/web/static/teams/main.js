@@ -21,12 +21,10 @@ import {
   x,
   u
 } from "../chunk/nav-zn7g81kr.js";
-import"../chunk/nav-cxc0561z.js";
 import {
-  carryTo2,
-  takeDraft2,
-  setDirty2
-} from "../chunk/nav-vxv4rttp.js";
+  dropUndo,
+  runDanger
+} from "../chunk/nav-e790zkg1.js";
 import {
   call2,
   read2,
@@ -41,9 +39,10 @@ import {
   problemText2
 } from "../chunk/nav-sk3m5qf3.js";
 import {
-  dropUndo,
-  runDanger
-} from "../chunk/nav-qhjzcfn0.js";
+  carryTo2,
+  takeDraft2,
+  setDirty2
+} from "../chunk/nav-v4xn9m8v.js";
 import {
   num,
   documents,
@@ -60,21 +59,21 @@ import {
   Counts2,
   Vm2,
   RuleDoc2
-} from "../chunk/nav-nte0yehk.js";
+} from "../chunk/nav-mx44ftta.js";
 import {
   st,
   token2,
   parseOpen2,
   projectName2
-} from "../chunk/nav-39jkzqwr.js";
+} from "../chunk/nav-x75cm7a2.js";
 import {
   RunCell2
-} from "../chunk/nav-v0y32ezc.js";
+} from "../chunk/nav-vr986xc6.js";
 import {
   conflictOf,
   ConflictNotice,
   YamlTab2
-} from "../chunk/nav-q8zbgc80.js";
+} from "../chunk/nav-f12m5kqh.js";
 import {
   roleEditor,
   roleProblems
@@ -85,7 +84,7 @@ import {
   projectOfGroup,
   bringUnderBand,
   ProjectView
-} from "../chunk/nav-yctmvyzg.js";
+} from "../chunk/nav-98gyjnn8.js";
 import {
   Field
 } from "../chunk/nav-9htrbyn7.js";
@@ -98,11 +97,12 @@ import {
   dirty,
   diff,
   lost,
+  ROLE_DOC,
   TEAM,
   TEAM_AGREEMENT,
   YAML_TEXT,
   roleDirty
-} from "../chunk/nav-2d57d34b.js";
+} from "../chunk/nav-36f6dmhj.js";
 
 // teams/rule-selection.ts
 var ruleSelection = y({});
@@ -270,7 +270,20 @@ function Editor({ session, onScanned, visible }) {
   }, [session]);
   const { editor, entry } = model;
   const dirty = () => !!entry.value && roleDirty(entry.value);
-  const canDiscard = (message) => !editor.saving.value && (!dirty() || window.confirm(message));
+  const askDiscard = (message, label, run) => {
+    if (editor.saving.value)
+      return;
+    if (!dirty()) {
+      run();
+      return;
+    }
+    const cur = entry.value;
+    runDanger("discardRoleEdit", {
+      run,
+      lost: cur ? lost(ROLE_DOC, cur.saved, cur.draft) : [],
+      confirm: { title: message, label }
+    });
+  };
   async function check(resetBaseline = false) {
     const e = entry.value, ctx = model.context.value.value;
     if (!e || !ctx)
@@ -371,10 +384,20 @@ function Editor({ session, onScanned, visible }) {
   if (model.project)
     query.set("project", model.project);
   function leave(event) {
-    if (!canDiscard("ロールに保存していない変更があります。変更を破棄して閉じますか？"))
+    if (editor.saving.value) {
       event.preventDefault();
-    else
+      return;
+    }
+    if (!dirty()) {
       carryTo2("roles", model.project);
+      return;
+    }
+    event.preventDefault();
+    const href = event.currentTarget.href;
+    askDiscard("ロールに保存していない変更があります。変更を破棄して閉じますか？", "破棄して閉じる", () => {
+      carryTo2("roles", model.project);
+      location.assign(href);
+    });
   }
   const transfer = e && ctx?.state === "readable" ? {
     id: documentID("role", session.name, ctx.place, model.project || CURRENT),
@@ -544,10 +567,9 @@ function Editor({ session, onScanned, visible }) {
                 title: "ファイルからリロード",
                 "aria-label": "ファイルからリロード",
                 disabled: editor.saving.value,
-                onClick: () => {
-                  if (canDiscard("保存していない変更を捨てて、ファイルからリロードしますか？"))
-                    load();
-                },
+                onClick: () => askDiscard("保存していない変更を捨てて、ファイルからリロードしますか？", "破棄して読み直す", () => {
+                  load();
+                }),
                 children: [
                   /* @__PURE__ */ u("svg", {
                     viewBox: "0 0 24 24",
@@ -769,6 +791,7 @@ var state = y({
   ok: {},
   yfile: null,
   ytext: {},
+  ydraft: {},
   yc: {},
   pmode: {},
   wantRule: null,
@@ -800,6 +823,14 @@ function setYtext(key, text) {
   else
     m[key] = text;
   put({ ytext: m });
+}
+function setYdraft(key, text) {
+  const m = { ...state.value.ydraft };
+  if (text === undefined)
+    delete m[key];
+  else
+    m[key] = text;
+  put({ ydraft: m });
 }
 function setYc(key, list) {
   const m = { ...state.value.yc };
@@ -1863,12 +1894,14 @@ function pressYfile(file) {
 function yamlState(file, st) {
   const f = fileOf(file);
   setYtext(file, f && st.text === f.text ? undefined : st.text);
+  setYdraft(file, undefined);
 }
 function yamlProblems(file, list) {
   setYc(file, list);
 }
 function yamlRevert(file) {
   setYtext(file, undefined);
+  setYdraft(file, undefined);
 }
 function yamlSaved(file, answer) {
   const json = answer && answer.json || {};
@@ -1879,6 +1912,7 @@ function yamlSaved(file, answer) {
   const text = typeof json.text === "string" ? json.text : typed !== undefined ? typed : f.text;
   yfiles.value = yfiles.value.map((x) => x.file === file ? { ...x, hash: json.hash || x.hash, text } : x);
   setYtext(file, undefined);
+  setYdraft(file, undefined);
   setYc(file, undefined);
 }
 var promptsOf = (r) => r.prompts.value;
@@ -1982,6 +2016,29 @@ function dirty2() {
       return true;
   return false;
 }
+function lost2() {
+  const out = [];
+  for (const e of roleEntries())
+    if (roleDirty(e))
+      out.push(...lost(ROLE_DOC, e.saved, e.draft));
+  for (const r of recs.value) {
+    const readable = !(r.broken.value || r.problem.value);
+    const from = savedTeam(r.saved.value), to = writtenTeam(r);
+    if (dirty(TEAM, from, to, readable))
+      out.push(...lost(TEAM, from, to, readable));
+    if (agreementChanged(r)) {
+      const saved = r.agreeSaved.value ? { text: r.agreeSaved.value.text } : null;
+      out.push(...lost(TEAM_AGREEMENT, saved, { text: r.agreeDraft.value.text }));
+    }
+  }
+  for (const f of yfiles.value) {
+    if (!yamlChanged(f.file))
+      continue;
+    const text = (fileOf(f.file) || {}).text || "";
+    out.push(...lost(YAML_TEXT, { text }, { text: state.value.ytext[f.file] ?? text }));
+  }
+  return [...new Set(out)];
+}
 function tellDirty() {
   setDirty2(dirty2());
 }
@@ -2007,6 +2064,7 @@ function restore(carried) {
     if (!f || c.hash && f.hash !== c.hash)
       return;
     setYtext(c.file, c.text);
+    setYdraft(c.file, c.text);
   });
 }
 function take() {
@@ -6613,7 +6671,7 @@ function YamlFile({ f }) {
       path: f.path,
       badge: both ? { cls: "state " + (mark === "hidden" ? "off" : "on"), text: mark === "hidden" ? "隠れている" : "効いている" } : null,
       text: f.text,
-      carried: state.value.ytext[f.file],
+      carried: state.value.ydraft[f.file] ?? null,
       hash: f.hash,
       kind: "team",
       place: f.place,
@@ -6650,7 +6708,7 @@ function CanvasToast() {
 
 // teams/main.tsx
 if (view) {
-  const page = { screen: "teams", dirty: dirty2, settled: false, take, tellDirty };
+  const page = { screen: "teams", dirty: dirty2, lost: lost2, settled: false, take, tellDirty };
   Object.assign(window, { hergyPage: page });
   if (tabsEl)
     R(/* @__PURE__ */ u(Tabs, {}), tabsEl);

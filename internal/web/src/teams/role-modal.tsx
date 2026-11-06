@@ -1,4 +1,5 @@
-import { roleDirty } from '../lib/changed.js';
+import { ROLE_DOC, lost as changedLost, roleDirty } from '../lib/changed.js';
+import { runDanger } from '../lib/danger.js';
 import { showOnly } from './rule-selection.js';
 import { transferTargets } from './prose-transfer.js';
 import { documentID, documents } from '../lib/prose-transfer.js';
@@ -89,7 +90,18 @@ function Editor({ session, onScanned, visible }: { session: Session; onScanned: 
   }, [session]);
   const { editor, entry } = model;
   const dirty = () => !!entry.value && roleDirty(entry.value);
-  const canDiscard = (message: string) => !editor.saving.value && (!dirty() || window.confirm(message));
+  // askDiscard asks before an edit goes (d-021e): the words are changed's
+  // answer for this document, not the screen's. A clean document goes at once.
+  const askDiscard = (message: string, label: string, run: () => void) => {
+    if (editor.saving.value) return;
+    if (!dirty()) { run(); return; }
+    const cur = entry.value;
+    runDanger('discardRoleEdit', {
+      run,
+      lost: cur ? changedLost(ROLE_DOC, cur.saved, cur.draft) : [],
+      confirm: { title: message, label },
+    });
+  };
   async function check(resetBaseline = false) {
     const e = entry.value, ctx = model.context.value.value;
     if (!e || !ctx) return;
@@ -162,7 +174,17 @@ function Editor({ session, onScanned, visible }: { session: Session; onScanned: 
   const other = ctx?.uses.filter((u) => !(u.name === session.r.name.value && u.place === session.r.place.value && (u.place === 'global' || u.project === model.project))) || [];
   const query = new URLSearchParams({ open: session.name + '|' + (ctx?.place === 'global' ? 'global' : (model.project || '')) });
   if (model.project) query.set('project', model.project);
-  function leave(event: MouseEvent) { if (!canDiscard('ロールに保存していない変更があります。変更を破棄して閉じますか？')) event.preventDefault(); else carryTo('roles', model.project); }
+  function leave(event: MouseEvent) {
+    if (editor.saving.value) { event.preventDefault(); return; }
+    if (!dirty()) { carryTo('roles', model.project); return; }
+    // The link goes with the page: hold it until the person answers (d-021e).
+    event.preventDefault();
+    const href = (event.currentTarget as HTMLAnchorElement).href;
+    askDiscard('ロールに保存していない変更があります。変更を破棄して閉じますか？', '破棄して閉じる', () => {
+      carryTo('roles', model.project);
+      location.assign(href);
+    });
+  }
   const transfer: TransferSource | undefined = e && ctx?.state === 'readable' ? {
     id: documentID('role', session.name, ctx.place, model.project || CURRENT),
     label: `ロール ${session.name}（${ctx.place === 'global' ? 'グローバル' : model.project || CURRENT}）`,
@@ -201,7 +223,7 @@ function Editor({ session, onScanned, visible }: { session: Session; onScanned: 
       <button class="btn primary" disabled={blocked} onClick={() => void save()}>保存</button>
     </div><div class="prose-actions">
       <a class="btn sm" title="ロールの画面で開く" aria-label="ロールの画面で開く" href={`/roles?${query}`} onClick={leave}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3h7v7M21 3 10 14M10 5H4v15h15v-6" /></svg><span>ロールの画面で開く</span></a>
-      <button class="btn sm" title="ファイルからリロード" aria-label="ファイルからリロード" disabled={editor.saving.value} onClick={() => { if (canDiscard('保存していない変更を捨てて、ファイルからリロードしますか？')) void load(); }}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 4v6h-6M20 10a8 8 0 1 0 0 6" /></svg><span>ファイルからリロード</span></button></div>
+      <button class="btn sm" title="ファイルからリロード" aria-label="ファイルからリロード" disabled={editor.saving.value} onClick={() => askDiscard('保存していない変更を捨てて、ファイルからリロードしますか？', '破棄して読み直す', () => { void load(); })}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 4v6h-6M20 10a8 8 0 1 0 0 6" /></svg><span>ファイルからリロード</span></button></div>
 
 </footer> : null}
   </section>;

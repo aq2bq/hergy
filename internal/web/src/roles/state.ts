@@ -6,7 +6,7 @@
 // 呼ぶ関数は無い（依頼書 1）。行の下書きは共有部品（ruledoc）が書き換え、変える
 // たびに onChange で知らせるので、画面はそのたびに新しい行（新しい下書きの写し）を
 // signal に入れる。
-import { assignDirty, roleDirty, yamlDirty, snapshot as changedSnapshot } from '../lib/changed.js';
+import { PROFILE_ASSIGN, ROLE_DOC, YAML_TEXT, assignDirty, lost as changedLost, roleDirty, yamlDirty, snapshot as changedSnapshot } from '../lib/changed.js';
 import { signal } from '../lib/preact.js';
 import { roleEditor, roleProblems } from '../lib/role-editor.js';
 import { takeDraft, setDirty } from '../lib/nav.js';
@@ -1023,6 +1023,26 @@ export function dirty(): boolean {
 
 export function tellDirty(): void {
   setDirty(dirty());
+}
+
+// lost names what leaving the page now would throw away: changed's words for
+// each row that differs (r-1e9a, d-021e).
+export function lost(): string[] {
+  const out: string[] = [];
+  for (const r of roles.value) for (const l of PLACES) {
+    const e = r[l];
+    if (!e || !roleDirty(e, r.born)) continue;
+    out.push(...changedLost(ROLE_DOC, e.saved || r.born || null, e.draft, !e.problem));
+  }
+  for (const t of teams.value) for (const m of t.members) {
+    if (!assignDirty(m)) continue;
+    out.push(...changedLost(PROFILE_ASSIGN, { picks: [{ member: m.name, role: m.saved }] }, { picks: [{ member: m.name, role: m.draft }] }));
+  }
+  for (const { e } of allEntries()) {
+    if (!yamlDirty(e.text || '', e.ytext)) continue;
+    out.push(...changedLost(YAML_TEXT, { text: e.text || '' }, { text: e.ytext ?? (e.text || '') }));
+  }
+  return [...new Set(out)];
 }
 
 // take is the draft the band puts aside: every row's draft that is not what the

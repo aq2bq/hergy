@@ -8,7 +8,7 @@ import { installWheel } from '../lib/wheel.js';
 import { effect, render as draw } from '../lib/preact.js';
 import { setDirty } from '../lib/nav.js';
 import {
-  view, tabsEl, state, boot, take, dirty, tellDirty, setStick, readAddress,
+  view, tabsEl, state, boot, take, dirty, lost, tellDirty, setStick, readAddress,
   narrow, thin,
 } from './state.js';
 import { Tabs, App } from './view.js';
@@ -18,7 +18,7 @@ if (view) {
   // The page says what it is through window.hergyPage (nav.js reads it, 5 章 7).
   // settled turns true once the reads that follow the first frame have answered
   // (the roles, the HQ's roles and profiles, the first checks).
-  const page = { screen: 'teams', dirty, settled: false, take, tellDirty };
+  const page = { screen: 'teams', dirty, lost, settled: false, take, tellDirty };
   Object.assign(window, { hergyPage: page });
 
   // The two trees the page holds stand where the server drew them, and stay

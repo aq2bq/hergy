@@ -12,7 +12,7 @@ import {
 } from "./nav-zn7g81kr.js";
 import {
   confirmLeave2
-} from "./nav-vxv4rttp.js";
+} from "./nav-v4xn9m8v.js";
 
 // lib/copy.ts
 var copyGroupOf = (to, from, current) => {
@@ -53,13 +53,16 @@ function ProjectView({ projects }) {
             "aria-label": "表示するプロジェクト",
             value: current?.path || "",
             onChange: (e) => {
-              if (!confirmLeave2()) {
+              const next = e.currentTarget.value;
+              const go = () => {
+                const url = new URL(location.href);
+                url.search = new URLSearchParams({ project: next }).toString();
+                location.assign(url.href);
+              };
+              if (confirmLeave2(go))
                 e.currentTarget.value = current?.path || "";
-                return;
-              }
-              const url = new URL(location.href);
-              url.search = new URLSearchParams({ project: e.currentTarget.value }).toString();
-              location.assign(url.href);
+              else
+                go();
             },
             children: choices.map((p) => /* @__PURE__ */ u("option", {
               value: p.path,

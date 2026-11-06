@@ -10,7 +10,7 @@ import { profileModel, check as apiCheck, save as apiSave, del as apiDel, list a
 import { conflictOf } from '../lib/conflict.js';
 import { parseOpen, token as hqToken } from '../lib/hq.js';
 import { copyGroupOf, projectOfGroup } from '../lib/copy';
-import { PROFILE, assignDirty, yamlDirty, diff as changedDiff, dirty as changedDirty, profileFlags, snapshot as changedSnapshot } from '../lib/changed.js';
+import { PROFILE, PROFILE_ASSIGN, YAML_TEXT, assignDirty, yamlDirty, diff as changedDiff, dirty as changedDirty, lost as changedLost, profileFlags, snapshot as changedSnapshot } from '../lib/changed.js';
 import { setDirty } from '../lib/nav.js';
 import type {
   Assign, AssignRow, Carried, Draft, EnvPair, FocusAsk, Island,
@@ -740,6 +740,25 @@ export function dirty(): boolean {
 }
 export function tellDirty(): void {
   setDirty(dirty());
+}
+
+// lost names what leaving the page now would throw away: changed's words for
+// each panel, pick and YAML text that differs (r-1e9a, d-021e).
+export function lost(): string[] {
+  const out: string[] = [];
+  for (const { panel } of allPanels()) {
+    if (!profileDirty(panel)) continue;
+    out.push(...changedLost(PROFILE, savedProfile(panel), writtenProfile(panel), !panel.problem));
+  }
+  for (const one of yamlTexts()) {
+    if (!yamlDirty(one.base, one.text)) continue;
+    out.push(...changedLost(YAML_TEXT, { text: one.base }, { text: one.text }));
+  }
+  for (const team of assignTeams()) for (const row of team.rows || []) {
+    if (!assignDirty({ name: row.key, saved: row.saved || '', draft: row.profile })) continue;
+    out.push(...changedLost(PROFILE_ASSIGN, { picks: [{ member: row.key, role: row.saved || '' }] }, { picks: [{ member: row.key, role: row.profile }] }));
+  }
+  return [...new Set(out)];
 }
 
 // take is the draft the band puts aside: every panel that is not what the file

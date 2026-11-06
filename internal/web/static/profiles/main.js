@@ -16,11 +16,9 @@ import {
   O,
   u
 } from "../chunk/nav-zn7g81kr.js";
-import"../chunk/nav-cxc0561z.js";
 import {
-  takeDraft2,
-  setDirty2
-} from "../chunk/nav-vxv4rttp.js";
+  runDanger
+} from "../chunk/nav-e790zkg1.js";
 import {
   check2,
   save2,
@@ -30,24 +28,25 @@ import {
   profileModel2
 } from "../chunk/nav-sk3m5qf3.js";
 import {
-  runDanger
-} from "../chunk/nav-qhjzcfn0.js";
+  takeDraft2,
+  setDirty2
+} from "../chunk/nav-v4xn9m8v.js";
 import {
   token2,
   parseOpen2
-} from "../chunk/nav-39jkzqwr.js";
-import"../chunk/nav-v0y32ezc.js";
+} from "../chunk/nav-x75cm7a2.js";
+import"../chunk/nav-vr986xc6.js";
 import {
   conflictOf,
   ConflictNotice,
   YamlTab2
-} from "../chunk/nav-q8zbgc80.js";
+} from "../chunk/nav-f12m5kqh.js";
 import {
   copyGroupOf,
   projectOfGroup,
   bringUnderBand,
   ProjectView
-} from "../chunk/nav-yctmvyzg.js";
+} from "../chunk/nav-98gyjnn8.js";
 import {
   Field
 } from "../chunk/nav-9htrbyn7.js";
@@ -60,10 +59,12 @@ import {
   dirty,
   lost,
   PROFILE,
+  PROFILE_ASSIGN,
+  YAML_TEXT,
   assignDirty,
   yamlDirty,
   profileFlags
-} from "../chunk/nav-2d57d34b.js";
+} from "../chunk/nav-36f6dmhj.js";
 
 // profiles/state.ts
 function mustElement(id) {
@@ -737,6 +738,26 @@ function dirty2() {
 }
 function tellDirty() {
   setDirty2(dirty2());
+}
+function lost2() {
+  const out = [];
+  for (const { panel } of allPanels()) {
+    if (!profileDirty(panel))
+      continue;
+    out.push(...lost(PROFILE, savedProfile(panel), writtenProfile(panel), !panel.problem));
+  }
+  for (const one of yamlTexts()) {
+    if (!yamlDirty(one.base, one.text))
+      continue;
+    out.push(...lost(YAML_TEXT, { text: one.base }, { text: one.text }));
+  }
+  for (const team of assignTeams())
+    for (const row of team.rows || []) {
+      if (!assignDirty({ name: row.key, saved: row.saved || "", draft: row.profile }))
+        continue;
+      out.push(...lost(PROFILE_ASSIGN, { picks: [{ member: row.key, role: row.saved || "" }] }, { picks: [{ member: row.key, role: row.profile }] }));
+    }
+  return [...new Set(out)];
 }
 function take() {
   const out = { rows: [], ytexts: [], picks: [] };
@@ -2358,7 +2379,7 @@ function App() {
     children: /* @__PURE__ */ u(List, {})
   });
 }
-var page = { screen: "profiles", dirty: dirty2, take, tellDirty, settled: true };
+var page = { screen: "profiles", dirty: dirty2, lost: lost2, take, tellDirty, settled: true };
 Object.assign(window, { hergyPage: page });
 view.replaceChildren();
 R(/* @__PURE__ */ u(App, {}), view);

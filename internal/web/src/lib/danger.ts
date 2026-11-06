@@ -13,6 +13,7 @@ import { read } from './api.js';
 export type DangerAction =
   | 'deleteTeam' | 'deleteRole' | 'deleteProfile' | 'stopTeam' | 'discardRow'
   | 'unlistProject' | 'revertDraft' | 'removeMember' | 'removeWorker' | 'removeTurn' | 'conflictRevert'
+  | 'leaveWithDraft' | 'discardRoleEdit'
   | 'abortStart';
 
 // DANGER is the one table: what a dangerous action does before it runs.
@@ -20,6 +21,7 @@ export const DANGER: Record<DangerAction, 'confirm' | 'undoable' | 'none'> = {
   deleteTeam: 'confirm', deleteRole: 'confirm', deleteProfile: 'confirm', stopTeam: 'confirm',
   unlistProject: 'undoable', revertDraft: 'undoable', removeMember: 'undoable', removeWorker: 'undoable',
   removeTurn: 'undoable', conflictRevert: 'undoable',
+  leaveWithDraft: 'confirm', discardRoleEdit: 'confirm',
   discardRow: 'confirm',
   abortStart: 'none',
 };
@@ -37,6 +39,8 @@ export type DangerOptions = {
   loss?: { kind: 'team' | 'role' | 'profile' | 'activity'; name: string; place?: string; project?: string };
   // lost is what the owner says a discard throws away, in words (changed.lost).
   lost?: string[];
+  // cancel is what the asker takes back after やめる (a focus that goes back).
+  cancel?: () => void;
 };
 
 // runDanger asks the table and does the one thing it says.
@@ -51,7 +55,7 @@ export function runDanger(action: DangerAction, opts: DangerOptions): void {
     return;
   }
   if (!opts.confirm) return;
-  const ask = { ...opts.confirm };
+  const ask = { ...opts.confirm, cancel: opts.cancel };
   if (opts.loss) {
     const loss = opts.loss;
     const q = new URLSearchParams();

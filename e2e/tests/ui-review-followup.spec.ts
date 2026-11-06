@@ -15,15 +15,17 @@ test.describe('review 1-8: listed projects', () => {
       if (screen === 'profiles/yaml') await field.fill((await field.inputValue()) + '\n# keep draft\n');
       else await field.selectOption('reviewer');
       const draft = await field.inputValue();
-      const dialog = page.waitForEvent('dialog');
-      const switching = project.selectOption(beta);
-      const confirmation = await dialog;
-      expect(confirmation.message()).toContain('保存していない変更');
-      await confirmation.dismiss(); await switching;
+      // The switch is asked for in the shared dialog (d-021e), and choosing
+      // やめる leaves the project, the draft and the address as they were.
+      const ask = page.locator('.confirm');
+      await project.selectOption(beta);
+      await expect(ask).toContainText('保存していない変更');
+      await ask.getByRole('button', { name: 'やめる', exact: true }).click();
+      await expect(ask).toHaveCount(0);
       await expect(project).toHaveValue(original);
       await expect(field).toHaveValue(draft);
-      page.once('dialog', (d) => d.accept());
       await project.selectOption(beta);
+      await ask.locator('.btn.danger.solid').click();
       await expect(project).toHaveValue(beta);
     });
   }
@@ -98,9 +100,12 @@ test.describe('review 1-8: default project', () => {
     const draft = (await field.inputValue()) + '\n# unsaved\n';
     await field.fill(draft);
     for (const keyboard of [false, true]) {
-      const dialog = page.waitForEvent('dialog');
-      const action = keyboard ? page.getByRole('tab', { name: 'YAML', exact: true }).press('ArrowLeft') : page.getByRole('tab', { name: '一覧', exact: true }).click();
-      await (await dialog).dismiss(); await action;
+      const ask = page.locator('.confirm');
+      if (keyboard) await page.getByRole('tab', { name: 'YAML', exact: true }).press('ArrowLeft');
+      else await page.getByRole('tab', { name: '一覧', exact: true }).click();
+      await expect(ask).toBeVisible();
+      await ask.getByRole('button', { name: 'やめる', exact: true }).click();
+      await expect(ask).toHaveCount(0);
       await expect(field).toHaveValue(draft);
       await expect(page.getByRole('tab', { name: 'YAML', exact: true })).toBeFocused();
       await expect(page).toHaveURL(/profiles\/yaml$/);
@@ -108,8 +113,8 @@ test.describe('review 1-8: default project', () => {
     // Ctrl+Arrow is not a tab command; unlike Alt+Left it does not navigate browser history.
     await page.getByRole('tab', { name: 'YAML', exact: true }).press('Control+ArrowLeft');
     await expect(page).toHaveURL(/profiles\/yaml$/);
-    page.once('dialog', (d) => d.accept());
     await page.getByRole('tab', { name: '一覧', exact: true }).click();
+    await page.locator('.confirm .btn.danger.solid').click();
     await expect(page).toHaveURL(/profiles$/);
   });
   test('approval boundaries never hide command lines or expose history', async ({ page, app }) => {

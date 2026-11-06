@@ -5,14 +5,14 @@
 // state.js の関数を直接呼ぶ。ここも DOM を書かない（5 章 1）。
 import { installWheel } from '../lib/wheel.js';
 import { render } from '../lib/preact.js';
-import { view, tabsEl, dirty, take, boot } from './state.js';
+import { view, tabsEl, dirty, lost, take, boot } from './state.js';
 import { Tabs, App } from './view.js';
 
 if (view) {
   // The page says what it is through window.hergyPage (nav.js reads it, 5 章 7).
   // settled is true once the first reading is drawn; every saved document's check
   // is part of that reading.
-  const page = { screen: 'roles', dirty, take, settled: false };
+  const page = { screen: 'roles', dirty, lost, take, settled: false };
   window.hergyPage = page;
 
   // The two trees the page holds stand where the server drew them, and stay

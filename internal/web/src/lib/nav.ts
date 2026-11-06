@@ -7,12 +7,13 @@
 // 帯そのもの（`.screens` の span / a、数、`.wait`）はサーバーが描いたままで、
 // ここはその上の印と数だけを書く（要素は作り直さない。webui-preact-design 5 章）。
 import { mountDialogs } from './dialogs.js';
+import { runDanger } from './danger.js';
 
 mountDialogs();
 
 // 画面は setCount / setActivity / takeDraft を import で読む。
 
-type HergyPageBase = { screen?: string; tellDirty?: () => void; settled?: boolean };
+type HergyPageBase = { screen?: string; tellDirty?: () => void; settled?: boolean; lost?: () => string[] };
 type HergyPage = HergyPageBase & (
   | { dirty?: undefined; take?: undefined }
   | { dirty: () => boolean; take: () => unknown }
@@ -186,9 +187,20 @@ if (band) {
   else { remember(); decorate(); }
 }
 
-// Full-page editor navigation must not silently discard a draft.
-export function confirmLeave(): boolean {
-  return !page()?.dirty?.() || window.confirm('保存していない変更があります。変更を破棄して移動しますか？');
+// confirmLeave asks before a full-page move throws a draft away (d-021e). What
+// is lost is the page's own answer (changed's words for each row that differs),
+// and the move goes on when the person chooses 破棄. A page with nothing unsaved
+// says so at once: the caller goes on as it always did.
+export function confirmLeave(run: () => void, cancel?: () => void): boolean {
+  const p = page();
+  if (!p?.dirty?.()) return false;
+  runDanger('leaveWithDraft', {
+    run,
+    cancel,
+    lost: p.lost ? p.lost() : [],
+    confirm: { title: '保存していない変更があります。変更を破棄して移動しますか？', label: '破棄して移動する' },
+  });
+  return true;
 }
 
 // Keep the explicitly selected project when following links between editors.
@@ -196,9 +208,18 @@ document.addEventListener('click', (e) => {
   const project = new URLSearchParams(location.search).get('project');
   const link = e.target instanceof Element ? e.target.closest<HTMLAnchorElement>('a[href]') : null;
   if (!link) return;
-  if (link.closest('#tabs') && !confirmLeave()) {
+  const follow = () => {
+    const url = new URL(link.href, location.href);
+    if (project && url.origin === location.origin && /^\/(activity|teams|roles|profiles)(?:\/|$)/.test(url.pathname) && !url.searchParams.has('project')) {
+      url.searchParams.set('project', project);
+    }
+    location.assign(url.href);
+  };
+  const tabs = link.closest('#tabs');
+  if (tabs && confirmLeave(follow, () => tabs.querySelector<HTMLElement>('[aria-selected="true"]')?.focus())) {
+    // The draft would go with the page: the move waits for the answer, and
+    // やめる puts the focus back on the tab the person was on.
     e.preventDefault(); e.stopImmediatePropagation();
-    link.closest('#tabs')?.querySelector<HTMLElement>('[aria-selected="true"]')?.focus();
     return;
   }
   if (!project) return;

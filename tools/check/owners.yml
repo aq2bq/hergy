@@ -32,15 +32,10 @@ allow:
     name: JSON.stringify
     why: 転送する文の下書きの比較で、「変えたか」の概念ではない（r-0b69）
     decision: d-f14b
-  # ブラウザの window.confirm は、画面が持っていた古い確認の状態（confirm /
-  # setConfirm）ではない。保存していない変更を捨てるかの確認で、④ が扱う
-  # 取り返せない操作の確認（共通ダイアログ）とは別の概念。共通ダイアログへ
-  # 移すのはこの段の外。
-  - path: internal/web/src/lib/nav.ts
-    name: confirm
-    why: タブを移るときに保存していない変更を捨てるかをブラウザに聞く window.confirm。画面の確認の状態ではない
-    decision: d-2cce
-  - path: internal/web/src/teams/role-modal.tsx
-    name: confirm
-    why: ロールの下書きを閉じる・読み直すときに捨てるかをブラウザに聞く window.confirm。画面の確認の状態ではない
-    decision: d-2cce
+  # ブラウザがページを閉じるときの確認は、ブラウザの決まりの文しか出せず、
+  # 共通ダイアログに置けない（d-3a42）。出す条件は「転送の準備ができている・
+  # 転送の途中」（prepared || busy）で、変えたかは自分で比べていない。
+  - path: internal/web/src/lib/prose-transfer-view.tsx
+    name: beforeunload
+    why: ブラウザを閉じるときの確認はブラウザの決まりの文しか出せない。出す条件は転送の準備ができているか途中かで、変えたかの比較はしていない（d-3a42 の「changed に聞く」は、この画面が変えたかを自分で比べ始めたときに当たる）
+    decision: d-3a42
