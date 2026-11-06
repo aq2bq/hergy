@@ -6,28 +6,27 @@ import { render, signal } from './preact.js';
 
 export type Undoable = { said: string; restore: () => void };
 export const undo = signal<Undoable | null>(null);
-export function offerUndo(one: Undoable): void { undo.value = one; }
+let hostEl: HTMLElement | null = null;
+// offerUndo shows the one notice in the field that was pressed (d-021e): the
+// caller hands the element the 元に戻す stands in, and the notice is drawn there.
+export function offerUndo(one: Undoable, host?: HTMLElement | null): void {
+  undo.value = one;
+  if (hostEl) { render(null, hostEl); hostEl.remove(); hostEl = null; }
+  if (!host) return;
+  hostEl = document.createElement('div');
+  hostEl.className = 'undo-host';
+  host.appendChild(hostEl);
+  render(<UndoNotice />, hostEl);
+}
 export function takeUndo(): void {
   const one = undo.value;
   undo.value = null;
+  if (hostEl) { render(null, hostEl); hostEl.remove(); hostEl = null; }
   if (one) one.restore();
 }
 export function UndoNotice(): JSX.Element | null {
   const one = undo.value;
   if (!one) return null;
-  return <div class="undo" role="status"><span>{one.said} を取り消す</span><button type="button" class="btn sm" onClick={takeUndo}>取り消す</button></div>;
+  return <div class="undo" role="status"><span>{one.said}しました</span><button type="button" class="btn sm" onClick={takeUndo}>取り消す</button></div>;
 }
 
-// mountUndo puts the one notice under the band, where every screen draws it:
-// the page mounts it once through nav.js, not a screen or a tab (r-1e9a,
-// the same lesson as the confirmation's one place in r-ccf8).
-let mounted = false;
-export function mountUndo(): void {
-  if (mounted || typeof document === 'undefined') return;
-  const host = document.querySelector('.bar') || document.body;
-  const el = document.createElement('div');
-  el.className = 'undo-host';
-  host.appendChild(el);
-  render(<UndoNotice />, el);
-  mounted = true;
-}

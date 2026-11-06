@@ -323,12 +323,13 @@ export function YamlTab(props: YamlTabProps) {
     setRefusal('');
     layout(now.problems);
     check();
+    const host = ta.current ? (ta.current.closest('.panel') as HTMLElement | null) || ta.current.parentElement : null;
     offerUndo({ said: '元に戻す', restore: () => {
       if (el) el.value = was;
       setNow((one) => ({ ...one, text: was }));
       onState?.({ text: was } as unknown as Parameters<NonNullable<typeof onState>>[0]);
       check();
-    } });
+    } }, host);
   }
 
   // jump puts the caret on the line a problem names, and looks at it: a person

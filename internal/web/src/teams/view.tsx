@@ -498,14 +498,14 @@ function Foot({ r, agree }: { r: Rec; agree?: boolean }) {
     return (
       <>{notice}<footer class="pf">
         <button class="btn primary" data-act="save" disabled={blocked} onClick={() => pressSave(r)}>保存</button><span class="errline doc" hidden={!refusal}>{refusal}</span><span class="dirty">{s && d ? `${d} か所` : ''}</span>{ok}
-        <span class="acts"><button class="btn" data-act="revert" hidden={empty || !d} onClick={() => pressRevert(r)}>元に戻す</button></span>
+        <span class="acts"><button class="btn" data-act="revert" hidden={empty || !d} onClick={(e) => pressRevert(r, (e.currentTarget as HTMLElement).closest('.panel') as HTMLElement | null)}>元に戻す</button></span>
       </footer></>
     );
   }
   return (
     <>{notice}<footer class="pf">
       <button class="btn primary" data-act="t-save" disabled={!n || grew} onClick={() => pressTSave(r)}>保存</button><span class="dirty">{n ? `${n} か所` : ''}</span>{ok}
-      <span class="acts"><button class="btn" data-act="t-revert" hidden={!n} onClick={() => pressTRevert(r)}>元に戻す</button></span>{refusal ? <span class="sev err refusal">{refusal}</span> : null}
+      <span class="acts"><button class="btn" data-act="t-revert" hidden={!n} onClick={(e) => pressTRevert(r, (e.currentTarget as HTMLElement).closest('.panel') as HTMLElement | null)}>元に戻す</button></span>{refusal ? <span class="sev err refusal">{refusal}</span> : null}
     </footer></>
   );
 }

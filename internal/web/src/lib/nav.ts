@@ -6,9 +6,6 @@
 //
 // 帯そのもの（`.screens` の span / a、数、`.wait`）はサーバーが描いたままで、
 // ここはその上の印と数だけを書く（要素は作り直さない。webui-preact-design 5 章）。
-import { mountUndo } from './undo.js';
-mountUndo();
-
 // 画面は setCount / setActivity / takeDraft を import で読む。
 
 type HergyPageBase = { screen?: string; tellDirty?: () => void; settled?: boolean };

@@ -173,7 +173,7 @@ function Panel({ panel }: { panel: PanelState }) {
   say(panel.refusal);
   (panel.problems || []).filter((p) => p.sev === 'err').forEach((p) => say(p.text));
   const nameInput = useRef<HTMLInputElement>(null);
-  const hints = panel.rename_targets > 0 && panel.saved && panel.draft.name && panel.draft.name !== panel.saved.name;
+  const hints = panel.rename_targets > 0 && panel.saved && panel.draft.name && panelFlags(panel).name;
 
   // Focus goes where a person just pressed (5 章 5): a new row's name, the
   // copy's name (all of it, so typing replaces it), the 削除する they asked for.

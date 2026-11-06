@@ -16,11 +16,10 @@ import {
   O,
   u
 } from "../chunk/nav-wtffyt4p.js";
-import"../chunk/nav-nn5mfhf3.js";
 import {
   takeDraft2,
   setDirty2
-} from "../chunk/nav-jwk8mf0g.js";
+} from "../chunk/nav-b2ph1bfx.js";
 import {
   check2,
   save2,
@@ -34,19 +33,19 @@ import {
   parseOpen2,
   askConfirm,
   ConfirmDialog
-} from "../chunk/nav-gnn79rgd.js";
-import"../chunk/nav-a9smj0yt.js";
+} from "../chunk/nav-55eq49ew.js";
+import"../chunk/nav-vjrb6rnv.js";
 import {
   conflictOf,
   ConflictNotice,
   YamlTab2
-} from "../chunk/nav-qmat2ryh.js";
+} from "../chunk/nav-z5vw91nq.js";
 import {
   copyGroupOf,
   projectOfGroup,
   bringUnderBand,
   ProjectView
-} from "../chunk/nav-2999spzs.js";
+} from "../chunk/nav-2krt94z2.js";
 import {
   Field
 } from "../chunk/nav-hrc2s6sc.js";
@@ -1377,7 +1376,7 @@ function Panel({ panel }) {
   say(panel.refusal);
   (panel.problems || []).filter((p) => p.sev === "err").forEach((p) => say(p.text));
   const nameInput = A(null);
-  const hints = panel.rename_targets > 0 && panel.saved && panel.draft.name && panel.draft.name !== panel.saved.name;
+  const hints = panel.rename_targets > 0 && panel.saved && panel.draft.name && panelFlags(panel).name;
   h(() => {
     const ask = focusAsk.value;
     if (!ask || ask.key !== panel.key)

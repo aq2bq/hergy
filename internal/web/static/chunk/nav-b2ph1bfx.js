@@ -7,12 +7,7 @@
 // templates load (webui-preact-design 3 章). The versions are pinned in
 // tools/webvendor/package.json and bun.lock.
 
-import {
-  mountUndo
-} from "./nav-nn5mfhf3.js";
-
 // lib/nav.ts
-mountUndo();
 var band = document.querySelector(".screens");
 var key = new URLSearchParams(location.search).get("project") || band?.dataset.key || "";
 var page = () => window.hergyPage || null;

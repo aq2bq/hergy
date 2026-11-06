@@ -1780,7 +1780,7 @@ export function pressUndoConflict(r: Rec, which: string) {
   setConflict(r, which, null);
   if (which === 'a') checkAgree(r); else checkTeam(r);
 }
-export function pressTRevert(r: Rec) {
+export function pressTRevert(r: Rec, host?: HTMLElement | null) {
   // 元に戻す goes at once and leaves its 取り消す in place (d-79e3 の A).
   const ops = changedSnapshot(r.ops.value) as typeof r.ops.value;
   setOps(r, []);
@@ -1789,10 +1789,10 @@ export function pressTRevert(r: Rec) {
   put({ confirm: {} });
   syncTeam(r);
   tellDirty();
-  offerUndo({ said: '元に戻す', restore: () => { r.ops.value = ops; syncTeam(r); tellDirty(); } });
+  offerUndo({ said: '元に戻す', restore: () => { r.ops.value = ops; syncTeam(r); tellDirty(); } }, host);
 }
 export function pressSave(r: Rec) { saveAgree(r); }
-export function pressRevert(r: Rec): void {
+export function pressRevert(r: Rec, host?: HTMLElement | null): void {
   // 元に戻す puts the document back to the one the row opened with: the saved
   // agreement, or, for a team that has none, the empty document it started from
   // (n-e3de).
@@ -1801,7 +1801,7 @@ export function pressRevert(r: Rec): void {
   r.agreeDraft.value = saved ? clone(saved) : emptyAgreement(r.name.value);
   checkAgree(r);
   tellDirty();
-  offerUndo({ said: '元に戻す', restore: () => { r.agreeDraft.value = before; checkAgree(r); tellDirty(); } });
+  offerUndo({ said: '元に戻す', restore: () => { r.agreeDraft.value = before; checkAgree(r); tellDirty(); } }, host);
 }
 export function pressToastUndo() { canvasUndoFromToast(); }
 // pressVpick puts the cursor in a finding's own field, or picks what it names on

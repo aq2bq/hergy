@@ -22,13 +22,10 @@ import {
   u
 } from "../chunk/nav-wtffyt4p.js";
 import {
-  offerUndo
-} from "../chunk/nav-nn5mfhf3.js";
-import {
   carryTo2,
   takeDraft2,
   setDirty2
-} from "../chunk/nav-jwk8mf0g.js";
+} from "../chunk/nav-b2ph1bfx.js";
 import {
   call2,
   read2,
@@ -66,15 +63,16 @@ import {
   projectName2,
   askConfirm,
   ConfirmDialog
-} from "../chunk/nav-gnn79rgd.js";
+} from "../chunk/nav-55eq49ew.js";
 import {
   RunCell2
-} from "../chunk/nav-a9smj0yt.js";
+} from "../chunk/nav-vjrb6rnv.js";
 import {
+  offerUndo,
   conflictOf,
   ConflictNotice,
   YamlTab2
-} from "../chunk/nav-qmat2ryh.js";
+} from "../chunk/nav-z5vw91nq.js";
 import {
   roleEditor,
   roleProblems
@@ -85,7 +83,7 @@ import {
   projectOfGroup,
   bringUnderBand,
   ProjectView
-} from "../chunk/nav-2999spzs.js";
+} from "../chunk/nav-2krt94z2.js";
 import {
   Field
 } from "../chunk/nav-hrc2s6sc.js";
@@ -2163,7 +2161,7 @@ function pressUndoConflict(r, which) {
   else
     checkTeam(r);
 }
-function pressTRevert(r) {
+function pressTRevert(r, host) {
   const ops = snapshot(r.ops.value);
   setOps(r, []);
   resetCanvas(r);
@@ -2175,12 +2173,12 @@ function pressTRevert(r) {
     r.ops.value = ops;
     syncTeam(r);
     tellDirty();
-  } });
+  } }, host);
 }
 function pressSave(r) {
   saveAgree(r);
 }
-function pressRevert(r) {
+function pressRevert(r, host) {
   const saved = r.agreeSaved.value;
   const before = snapshot(r.agreeDraft.value);
   r.agreeDraft.value = saved ? clone2(saved) : emptyAgreement(r.name.value);
@@ -2190,7 +2188,7 @@ function pressRevert(r) {
     r.agreeDraft.value = before;
     checkAgree(r);
     tellDirty();
-  } });
+  } }, host);
 }
 function pressToastUndo() {
   canvasUndoFromToast();
@@ -6254,7 +6252,7 @@ function Foot({ r, agree }) {
                 class: "btn",
                 "data-act": "revert",
                 hidden: empty || !d,
-                onClick: () => pressRevert(r),
+                onClick: (e) => pressRevert(r, e.currentTarget.closest(".panel")),
                 children: "元に戻す"
               })
             })
@@ -6287,7 +6285,7 @@ function Foot({ r, agree }) {
               class: "btn",
               "data-act": "t-revert",
               hidden: !n,
-              onClick: () => pressTRevert(r),
+              onClick: (e) => pressTRevert(r, e.currentTarget.closest(".panel")),
               children: "元に戻す"
             })
           }),

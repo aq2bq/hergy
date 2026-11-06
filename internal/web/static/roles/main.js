@@ -16,9 +16,6 @@ import {
   u
 } from "../chunk/nav-wtffyt4p.js";
 import {
-  offerUndo
-} from "../chunk/nav-nn5mfhf3.js";
-import {
   save2,
   del2,
   saved2,
@@ -30,14 +27,14 @@ import {
 import {
   takeDraft2,
   setDirty2
-} from "../chunk/nav-jwk8mf0g.js";
+} from "../chunk/nav-b2ph1bfx.js";
 import {
   token2,
   parseOpen2,
   askConfirm,
   ConfirmDialog
-} from "../chunk/nav-gnn79rgd.js";
-import"../chunk/nav-a9smj0yt.js";
+} from "../chunk/nav-55eq49ew.js";
+import"../chunk/nav-vjrb6rnv.js";
 import {
   Measure,
   renameCarries2,
@@ -52,7 +49,7 @@ import {
   conflictOf,
   ConflictNotice,
   YamlTab2
-} from "../chunk/nav-qmat2ryh.js";
+} from "../chunk/nav-z5vw91nq.js";
 import {
   roleEditor,
   roleProblems
@@ -62,7 +59,7 @@ import {
   projectOfGroup,
   bringUnderBand,
   ProjectView
-} from "../chunk/nav-2999spzs.js";
+} from "../chunk/nav-2krt94z2.js";
 import {
   Field
 } from "../chunk/nav-hrc2s6sc.js";
@@ -717,18 +714,12 @@ function setYfile(key) {
 }
 function pressYamlRevert(r, l) {
   if (r && r[l]) {
-    const before = r[l].ytext;
     withEntry(r.uid, l, (e) => {
       const next = { ...e };
       delete next.ytext;
       return next;
     });
     tellDirty();
-    offerUndo({ said: "元に戻す", restore: () => {
-      if (r[l])
-        withEntry(r.uid, l, (e) => ({ ...e, ytext: before }));
-      tellDirty();
-    } });
   }
 }
 function rebase(answer, group) {
