@@ -1686,8 +1686,8 @@ func TestHireNamesTheWorkerAfterTheTeam(t *testing.T) {
 			t.Fatalf("hire --dry is missing %q:\n%s", line, got)
 		}
 	}
-	if !strings.Contains(got, "From dev-researcher:") {
-		t.Fatalf("the worker's contact intro is not its herdr name:\n%s", got)
+	if !strings.Contains(got, "hergy's watcher hands it to dev-lead") {
+		t.Fatalf("the worker's prompt does not say its pane is handed to the member that hired it:\n%s", got)
 	}
 }
 

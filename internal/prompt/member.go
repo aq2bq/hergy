@@ -256,7 +256,7 @@ func Member(def *definition.Definition, node *definition.MemberNode, run Run) (*
 		},
 		"herdr": func() []definition.PromptSegment {
 			return []definition.PromptSegment{{
-				Kind: "herdr", Text: HerdrMember(run.Lang, run.textf("prompt.self_intro_member", run.Team, node.Role, memberName)),
+				Kind: "herdr", Text: HerdrMember(run.Lang),
 				Origin: definition.PromptOrigin{Kind: "hergy"},
 			}}
 		},

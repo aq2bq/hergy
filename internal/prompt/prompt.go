@@ -88,18 +88,19 @@ func Roster(lang string, members []RosterEntry, me string) string {
 	return strings.Join(lines, "\n")
 }
 
-// HerdrMember states how a member reaches the others with Herdr as it is; the
-// launcher adds no messaging of its own. intro is how the member introduces
-// itself. It also names the one way to add a teammate, so a member does not
-// start one with herdr directly and lose it from hergy's roster.
-func HerdrMember(lang, intro string) string {
-	return i18n.Textf(lang, "herdr.guide_member", intro)
+// HerdrMember is the contact guide: a member writes its result in its own pane
+// and stops, and hergy's watcher hands it on along the definition's turns
+// (r-bc26, ac-2d71). A member sends nothing itself. It also names the one way to
+// add a teammate, so a member does not start one with herdr directly and lose it
+// from hergy's roster.
+func HerdrMember(lang string) string {
+	return i18n.Text(lang, "herdr.guide_member")
 }
 
-// HerdrWorker is the same contact guide for a hired worker, which adds no
-// teammates of its own.
-func HerdrWorker(intro string) string {
-	return i18n.Tf("herdr.guide_worker", intro)
+// HerdrWorker is the same contact guide for a hired worker: its pane is handed
+// to the member that hired it, and it adds no teammates of its own.
+func HerdrWorker() string {
+	return i18n.T("herdr.guide_worker")
 }
 
 // WorkerPair is one purpose-to-profile pair a member may hire for.

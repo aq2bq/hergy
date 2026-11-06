@@ -43,7 +43,7 @@ func Worker(in WorkerInput) (*Built, error) {
 		},
 		"herdr": func() []definition.PromptSegment {
 			return []definition.PromptSegment{{
-				Kind: "herdr", Text: HerdrWorker(i18n.Tf("prompt.self_intro_worker", in.Team, in.Purpose, in.Name)),
+				Kind: "herdr", Text: HerdrWorker(),
 				Origin: definition.PromptOrigin{Kind: "hergy"},
 			}}
 		},

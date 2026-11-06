@@ -7,36 +7,36 @@ import (
 	"testing"
 )
 
-// The three lines the designer wrote for r-e54b, exactly as they stand in the
-// locale. A test names the whole line, not a word: a shorter rewording must fail.
+// The contact guide's lines, exactly as they stand in the locale (r-bc26,
+// ac-2d71): a member writes in its own pane and stops, hergy's watcher hands it
+// on, and nobody sends a turn by hand. A test names the whole line, not a word:
+// a shorter rewording must fail.
 var turnGuide = map[string][]string{
 	"ja": {
-		"- 仲間に送ることは、その相手にターンを渡すこと。自分のペインに書いて止まることは、人間にターンを渡すこと。どちらも、渡したら止まって相手からの連絡を待つ。",
-		"- ターンを持っている間は、頼まれた仕事が終わるまで止まらない。渡したあとにする仕事を予告しない（「このあと〜に進みます」と書かない）。続ける仕事があるなら渡す前に済ませるか、続けてよいかを聞いて答えを待つ。",
-		"- 連絡を受け取ったら、ターンは自分にある。相手が続けると書いていても、相手は待っている。次の仕事を渡すか、その仕事を終わりにする。",
+		"- 結果と、次に誰かにしてほしいことを、自分のペインに書いて止まる。hergy の見張りが、チーム定義の turns が名指す相手へ届ける（相手が作業中なら、止まった瞬間に届く）。",
+		"- 渡し先を変えたいときだけ、最後の行に「→ <名前>」か「→ 人間」と書く。人間に読んでほしい文も、同じように「→ 人間」と書く。",
+		"- `herdr agent prompt` は使わない。使うと hergy の見張りと二重になる。",
 	},
 	"en": {
-		"- Sending to a teammate hands them the turn. Writing in your own pane and stopping hands the turn to the human. Either way, once you hand it over, stop and wait for their message.",
-		"- While the turn is yours, do not stop until the work you were given is done. Do not promise work for after you hand the turn over (do not write \"next I will move on to ...\"). If there is more to do, finish it before you hand over, or ask whether to go on and wait for the answer.",
-		"- When a message reaches you, the turn is yours. Even if the sender wrote that they would go on, they are waiting. Hand them the next piece of work, or bring that work to an end.",
+		"- Write your result, and what you need someone to do next, in your own pane and stop. hergy's watcher hands it to the party the definition's turns name (one that is working gets it the moment it stops).",
+		"- Only to change where it goes, write \"→ <name>\" or \"→ human\" as the last line. Text for the person goes the same way: \"→ human\".",
+		"- Do not use `herdr agent prompt`: it would double what the watcher hands on.",
 	},
 }
 
-// workerTurnGuide is the turn guide a hired worker reads: it sends to the member
-// that hired it and never to a human, whose pane is not the worker's to hand a
-// turn to (r-dee4).
+// workerTurnGuide is the contact guide a hired worker reads: its pane is handed
+// to the member that hired it, questions go the same way, and it adds no
+// teammates (r-dee4, r-bc26).
 var workerTurnGuide = map[string][]string{
 	"ja": {
-		"- 呼んだメンバーに送ることは、そのメンバーにターンを返すこと。送ったら止まって、そのメンバーからの連絡を待つ。",
-		"- ターンを持っている間は、頼まれた仕事が終わるまで止まらない。渡したあとにする仕事を予告しない（「このあと〜に進みます」と書かない）。続ける仕事があるなら渡す前に済ませるか、続けてよいかを聞いて答えを待つ。",
-		"- 連絡を受け取ったら、ターンは自分にある。相手が続けると書いていても、相手は待っている。次の仕事を渡すか、その仕事を終わりにする。",
-		"- 途中で聞きたいことがあるときも、呼んだメンバーに送る。",
+		"- 結果を自分のペインに書いて止まる。hergy の見張りが、あなたを追加したメンバーへ届ける。",
+		"- 途中で聞きたいことがあるときも、自分のペインに書いて止まる。同じ道で届く。",
+		"- `herdr agent prompt` は使わない。使うと hergy の見張りと二重になる。",
 	},
 	"en": {
-		"- Sending to the member that hired you gives them back the turn. Once you send it, stop and wait for their message.",
-		"- While the turn is yours, do not stop until the work you were given is done. Do not promise work for after you hand the turn over (do not write \"next I will move on to ...\"). If there is more to do, finish it before you hand over, or ask whether to go on and wait for the answer.",
-		"- When a message reaches you, the turn is yours. Even if the sender wrote that they would go on, they are waiting. Hand them the next piece of work, or bring that work to an end.",
-		"- If you need to ask something before you are done, send it to the member that hired you.",
+		"- Write your result in your own pane and stop. hergy's watcher hands it to the member that hired you.",
+		"- To ask something before you are done, write it in your own pane and stop the same way.",
+		"- Do not use `herdr agent prompt`: it would double what the watcher hands on.",
 	},
 }
 
@@ -95,12 +95,11 @@ func hasPromptLine(prompt, line string) bool {
 	return slices.Contains(strings.Split(prompt, "\n"), line)
 }
 
-// TestWorkerPromptSendsTheReportToTheHiringMember: a hired worker is told to send
-// its result to the member that hired it with herdr agent prompt, and that a
-// summary written in its own pane does not reach the member, who keeps waiting
-// (r-dee4, d-de32). The lines that made a worker's own pane a way to hand the
-// turn to a human are gone.
-func TestWorkerPromptSendsTheReportToTheHiringMember(t *testing.T) {
+// TestWorkerPromptWritesTheResultInItsPane: a hired worker is told to write its
+// result in its own pane and stop, and that hergy's watcher hands it to the
+// member that hired it (r-dee4, d-de32, r-bc26). The lines that told it to send
+// with herdr agent prompt, and that its pane does not reach the member, are gone.
+func TestWorkerPromptWritesTheResultInItsPane(t *testing.T) {
 	tests := []struct {
 		lang   string
 		gone   []string
@@ -109,25 +108,25 @@ func TestWorkerPromptSendsTheReportToTheHiringMember(t *testing.T) {
 		{
 			lang: "ja",
 			gone: []string{
+				"herdr agent prompt dev-lead",
+				"待ち続ける",
 				"自分のペインに書いて止まることは、人間にターンを渡すこと",
-				"人間への連絡: 自分のペインに書く",
 			},
 			wanted: []string{
-				"終わったら、結果を dev-lead に送る（上の形で herdr agent prompt dev-lead）",
-				"自分のペインに書くだけでは dev-lead に届かず、dev-lead は待ち続ける",
-				"途中で聞きたいことがあるときも、呼んだメンバーに送る",
+				"終わったら、結果を自分のペインに書いて止まる。hergy の見張りが dev-lead へ届ける。",
+				"途中で聞きたいことがあるときも、自分のペインに書いて止まる。同じ道で届く。",
 			},
 		},
 		{
 			lang: "en",
 			gone: []string{
+				"herdr agent prompt dev-lead",
+				"keeps waiting",
 				"Writing in your own pane and stopping hands the turn to the human",
-				"To the human: write in your own pane",
 			},
 			wanted: []string{
-				"When you are done, send the result to dev-lead (with herdr agent prompt dev-lead, as above)",
-				"Writing it in your own pane alone does not reach dev-lead; dev-lead keeps waiting",
-				"If you need to ask something before you are done, send it to the member that hired you",
+				"When you are done, write the result in your own pane and stop. hergy's watcher hands it to dev-lead.",
+				"To ask something before you are done, write it in your own pane and stop the same way.",
 			},
 		},
 	}
@@ -156,66 +155,6 @@ func TestWorkerPromptSendsTheReportToTheHiringMember(t *testing.T) {
 				if !strings.Contains(prompt, want) {
 					t.Errorf("the worker's prompt does not say %q:\n%s", want, prompt)
 				}
-			}
-		})
-	}
-}
-
-// TestEnvironmentCheckStaysInContact: the environment check and printenv advice
-// share one contact item, outside the actor sentence (d-6b04, r-ad63).
-func TestEnvironmentCheckStaysInContact(t *testing.T) {
-	const check = `test "${HERDR_ENV:-}" = 1`
-	for _, lang := range []string{"ja", "en"} {
-		t.Run(lang, func(t *testing.T) {
-			workersProject(t, newFixture(t))
-			heading, status := "## Contact\n", "exit status"
-			if lang == "ja" {
-				heading, status = "## 連絡\n", "終了コード"
-			}
-			cases := []struct {
-				name string
-				args []string
-			}{
-				{"member", []string{"up", "dev", "--dry", "--json", "--lang", lang}},
-				{"worker", []string{"hire", "researcher", "--purpose", "調査", "--task", "read", "--team", "dev", "--dry", "--json", "--lang", lang}},
-			}
-			for _, tc := range cases {
-				t.Run(tc.name, func(t *testing.T) {
-					members := promptPlan(t, mustRun(t, tc.args...))
-					if len(members) == 0 {
-						t.Fatal("the plan has no members")
-					}
-					for _, member := range members {
-						guide := segmentOf(t, member.Name, member.Segments, "herdr").Text
-						if strings.Count(guide, check) != 1 {
-							t.Fatalf("%s's contact guide must contain one environment check", member.Name)
-						}
-						var item string
-						for line := range strings.SplitSeq(guide, "\n") {
-							if strings.Contains(line, check) {
-								item = line
-							}
-						}
-						if !strings.HasPrefix(item, "- ") {
-							t.Fatalf("%s has no contact item containing %q", member.Name, check)
-						}
-						for _, want := range []string{status, "printenv", "macOS"} {
-							if !strings.Contains(item, want) {
-								t.Errorf("%s's environment item lacks %q", member.Name, want)
-							}
-						}
-						actor := segmentOf(t, member.Name, member.Segments, "actor").Text
-						for _, unwanted := range []string{"HERDR_ENV", "printenv"} {
-							if strings.Contains(actor, unwanted) {
-								t.Errorf("%s's actor sentence contains %q", member.Name, unwanted)
-							}
-						}
-						before, contact, found := strings.Cut(member.Prompt, heading)
-						if !found || strings.Contains(before, check) || !strings.Contains(contact, check) {
-							t.Errorf("%s's environment check is not under %q", member.Name, heading)
-						}
-					}
-				})
 			}
 		})
 	}

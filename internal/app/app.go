@@ -2024,7 +2024,7 @@ func runTell(env team.Env, opts *options.Options, stdout io.Writer) error {
 }
 
 // sendText heads a message with who it is from, the shape a member's own message
-// carries (prompt.self_intro_*). An empty from is the human.
+// carries. An empty from is the human.
 func sendText(from, body string) string {
 	if from == "" {
 		from = i18n.T("send.who_human")
