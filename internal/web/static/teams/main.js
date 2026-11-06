@@ -72,7 +72,7 @@ import {
   conflictOf,
   ConflictNotice,
   YamlTab2
-} from "../chunk/nav-z5vw91nq.js";
+} from "../chunk/nav-cjbdw4bh.js";
 import {
   roleEditor,
   roleProblems
@@ -2169,7 +2169,7 @@ function pressTRevert(r, host) {
   put({ confirm: {} });
   syncTeam(r);
   tellDirty();
-  offerUndo({ said: "元に戻す", restore: () => {
+  offerUndo({ said: "保存した内容に戻しました", restore: () => {
     r.ops.value = ops;
     syncTeam(r);
     tellDirty();
@@ -2184,7 +2184,7 @@ function pressRevert(r, host) {
   r.agreeDraft.value = saved ? clone2(saved) : emptyAgreement(r.name.value);
   checkAgree(r);
   tellDirty();
-  offerUndo({ said: "元に戻す", restore: () => {
+  offerUndo({ said: "保存した内容に戻しました", restore: () => {
     r.agreeDraft.value = before;
     checkAgree(r);
     tellDirty();

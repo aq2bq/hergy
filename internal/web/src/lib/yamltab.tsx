@@ -324,7 +324,7 @@ export function YamlTab(props: YamlTabProps) {
     layout(now.problems);
     check();
     const host = ta.current ? (ta.current.closest('.panel') as HTMLElement | null) || ta.current.parentElement : null;
-    offerUndo({ said: '元に戻す', restore: () => {
+    offerUndo({ said: '保存した内容に戻しました', restore: () => {
       if (el) el.value = was;
       setNow((one) => ({ ...one, text: was }));
       onState?.({ text: was } as unknown as Parameters<NonNullable<typeof onState>>[0]);

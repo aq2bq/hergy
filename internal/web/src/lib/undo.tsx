@@ -27,6 +27,6 @@ export function takeUndo(): void {
 export function UndoNotice(): JSX.Element | null {
   const one = undo.value;
   if (!one) return null;
-  return <div class="undo" role="status"><span>{one.said}しました</span><button type="button" class="btn sm" onClick={takeUndo}>取り消す</button></div>;
+  return <div class="undo" role="status"><span>{one.said}</span><button type="button" class="btn sm" onClick={takeUndo}>取り消す</button></div>;
 }
 

@@ -1789,7 +1789,7 @@ export function pressTRevert(r: Rec, host?: HTMLElement | null) {
   put({ confirm: {} });
   syncTeam(r);
   tellDirty();
-  offerUndo({ said: '元に戻す', restore: () => { r.ops.value = ops; syncTeam(r); tellDirty(); } }, host);
+  offerUndo({ said: '保存した内容に戻しました', restore: () => { r.ops.value = ops; syncTeam(r); tellDirty(); } }, host);
 }
 export function pressSave(r: Rec) { saveAgree(r); }
 export function pressRevert(r: Rec, host?: HTMLElement | null): void {
@@ -1801,7 +1801,7 @@ export function pressRevert(r: Rec, host?: HTMLElement | null): void {
   r.agreeDraft.value = saved ? clone(saved) : emptyAgreement(r.name.value);
   checkAgree(r);
   tellDirty();
-  offerUndo({ said: '元に戻す', restore: () => { r.agreeDraft.value = before; checkAgree(r); tellDirty(); } }, host);
+  offerUndo({ said: '保存した内容に戻しました', restore: () => { r.agreeDraft.value = before; checkAgree(r); tellDirty(); } }, host);
 }
 export function pressToastUndo() { canvasUndoFromToast(); }
 // pressVpick puts the cursor in a finding's own field, or picks what it names on

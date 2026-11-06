@@ -63,10 +63,7 @@ function UndoNotice() {
     role: "status",
     children: [
       /* @__PURE__ */ u("span", {
-        children: [
-          one.said,
-          "しました"
-        ]
+        children: one.said
       }),
       /* @__PURE__ */ u("button", {
         type: "button",
@@ -450,7 +447,7 @@ function YamlTab2(props) {
     layout(now.problems);
     check();
     const host = ta.current ? ta.current.closest(".panel") || ta.current.parentElement : null;
-    offerUndo({ said: "元に戻す", restore: () => {
+    offerUndo({ said: "保存した内容に戻しました", restore: () => {
       if (el)
         el.value = was;
       setNow((one) => ({ ...one, text: was }));

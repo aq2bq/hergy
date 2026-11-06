@@ -39,7 +39,7 @@ import {
   conflictOf,
   ConflictNotice,
   YamlTab2
-} from "../chunk/nav-z5vw91nq.js";
+} from "../chunk/nav-cjbdw4bh.js";
 import {
   copyGroupOf,
   projectOfGroup,
