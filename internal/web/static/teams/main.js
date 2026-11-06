@@ -65,15 +65,15 @@ import {
   token2,
   parseOpen2,
   projectName2
-} from "../chunk/nav-x75cm7a2.js";
+} from "../chunk/nav-fm5mcr10.js";
 import {
   RunCell2
-} from "../chunk/nav-vr986xc6.js";
+} from "../chunk/nav-m262v882.js";
 import {
   conflictOf,
   ConflictNotice,
   YamlTab2
-} from "../chunk/nav-f12m5kqh.js";
+} from "../chunk/nav-973rrv97.js";
 import {
   roleEditor,
   roleProblems
@@ -5898,7 +5898,7 @@ function Dacts({ r }) {
   const del = () => runDanger("deleteTeam", {
     run: () => pressDelYes(r),
     loss: { kind: "team", name: r.name.value, place: r.place.value, project: groupOfRecord(r) },
-    confirm: { title: `${teamLabel(r)} を削除しますか`, label: "削除する（team.yaml と agreement.md）" }
+    confirm: { title: `${teamLabel(r)} を削除しますか`, label: "削除する" }
   });
   const touched = () => bornTouched(r);
   const discard = () => {

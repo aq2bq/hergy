@@ -1516,6 +1516,8 @@ export interface components {
         HQAddProjectRequest: {
             /** @description 本部に並べるプロジェクトの場所 */
             path: string;
+            /** @description 外したプロジェクトを戻す位置（取り消すの戻し先、d-2cce） */
+            at?: number;
         };
         /** @description 終了するチーム */
         HQStopRequest: {

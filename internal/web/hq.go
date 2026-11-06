@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"strconv"
 
 	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/source"
@@ -626,11 +625,17 @@ func (s *Server) hqAddProject(w http.ResponseWriter, r *http.Request) {
 	}
 	in, ok := readHQIn[struct {
 		Path string `json:"path"`
+		// At is where 取り消す puts the project back; without it the project is
+		// added at the end (d-2cce).
+		At *int `json:"at"`
 	}](w, r)
 	if !ok {
 		return
 	}
-	at, _ := strconv.Atoi(r.URL.Query().Get("at"))
+	at := -1
+	if in.At != nil {
+		at = *in.At
+	}
 	projects, err := s.hq.AddProject(in.Path, at)
 	answerHQ(w, projects, err)
 }

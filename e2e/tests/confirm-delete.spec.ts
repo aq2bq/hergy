@@ -61,7 +61,10 @@ test('DEL-PLACE-1 the delete asks in a dialog, away from the button', async ({ p
   }
   await del.click();
   await expect(ask.locator('h2')).toHaveText('core を削除しますか');
-  await expect(ask).toContainText('team.yaml と agreement.md');
+  // The files that go are the server's lines in the body, not the button's
+  // word (ac-ddb6).
+  await expect(ask.locator('.confirm-body')).toContainText('team.yaml');
+  await expect(ask.locator('.confirm-body')).toContainText('agreement.md');
   await expect(ask).toContainText('取り消せません');
   await ask.getByRole('button', { name: 'やめる', exact: true }).click();
   await expect(ask).toHaveCount(0);

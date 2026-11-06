@@ -284,7 +284,9 @@ function Dacts({ r }: { r: Rec }) {
   const del = () => runDanger('deleteTeam', {
     run: () => pressDelYes(r),
     loss: { kind: 'team', name: r.name.value, place: r.place.value, project: groupOfRecord(r) },
-    confirm: { title: `${teamLabel(r)} を削除しますか`, label: '削除する（team.yaml と agreement.md）' },
+    // The files that go are the server's lines in the body, not the button's
+    // word: a team with no agreement has no agreement.md to name (ac-ddb6).
+    confirm: { title: `${teamLabel(r)} を削除しますか`, label: '削除する' },
   });
   // The starter's words stand on the base the row was seeded with, so the same
   // rule as the other screens holds: nothing changed since it was made is thrown

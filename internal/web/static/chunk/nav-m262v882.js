@@ -40,7 +40,7 @@ import {
   searchHook,
   teamCount,
   openSheet
-} from "./nav-x75cm7a2.js";
+} from "./nav-fm5mcr10.js";
 var __defProp = Object.defineProperty;
 var __returnValue = (v) => v;
 function __exportSetter(name, newValue) {
@@ -677,9 +677,11 @@ document.querySelectorAll('[data-hq="projects"]').forEach((b) => {
 document.addEventListener("click", (e) => {
   if (!(e.target instanceof Element))
     return;
-  if (sheetOpen() && !e.target.closest(".hq-sheet") && !e.target.closest("[data-hq]") && !e.target.closest(".confirm"))
+  const path = e.composedPath();
+  const inside = (selector) => path.some((one) => one instanceof Element && one.matches(selector));
+  if (sheetOpen() && !inside(".hq-sheet") && !inside("[data-hq]") && !inside(".confirm"))
     closeSheet2();
-  if (searchBoxOpen() && !e.target.closest(".hq-sr, .hq-search"))
+  if (searchBoxOpen() && !inside(".hq-sr, .hq-search"))
     closeBox();
 });
 document.addEventListener("keydown", (e) => {

@@ -43,10 +43,14 @@ document.querySelectorAll('[data-hq="projects"]').forEach((b) => {
 // same way (spec 3 章).
 document.addEventListener('click', (e) => {
   if (!(e.target instanceof Element)) return;
+  // A press inside the sheet is read from the path the press took: a 取り消す
+  // that takes its own notice away is still a press in the sheet (d-aeeb).
+  const path = e.composedPath();
+  const inside = (selector: string): boolean => path.some((one) => one instanceof Element && one.matches(selector));
   // The shared confirmation is a dialog of its own: a press in it is not a
   // press outside the sheet behind it (r-d480).
-  if (sheetOpen() && !e.target.closest('.hq-sheet') && !e.target.closest('[data-hq]') && !e.target.closest('.confirm')) closeSheet();
-  if (searchBoxOpen() && !e.target.closest('.hq-sr, .hq-search')) closeBox();
+  if (sheetOpen() && !inside('.hq-sheet') && !inside('[data-hq]') && !inside('.confirm')) closeSheet();
+  if (searchBoxOpen() && !inside('.hq-sr, .hq-search')) closeBox();
 });
 
 // The search's keys (spec 3 章): "/" from anywhere outside a field, Esc closes,

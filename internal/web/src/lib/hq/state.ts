@@ -320,7 +320,9 @@ export function noteStarting(launch: HQLaunch): void {
 export async function postProject(path: string, at?: number): Promise<string | null> {
   try {
     const request = at === undefined ? { path } : { path, at };
-    await call<HQProjects>('POST', '/api/hq/projects', request);
+    const answer = await call<HQProjects>('POST', '/api/hq/projects', request);
+    // 取り消す puts the project back: the answer is the list as it now reads.
+    if (answer.json) st.projects.value = answer.json;
     return null;
   } catch (e) { return problemText(e, '並べられませんでした'); }
 }

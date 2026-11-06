@@ -262,7 +262,9 @@ function noteStarting(launch) {
 async function postProject(path, at) {
   try {
     const request = at === undefined ? { path } : { path, at };
-    await call2("POST", "/api/hq/projects", request);
+    const answer = await call2("POST", "/api/hq/projects", request);
+    if (answer.json)
+      st.projects.value = answer.json;
     return null;
   } catch (e) {
     return problemText2(e, "並べられませんでした");

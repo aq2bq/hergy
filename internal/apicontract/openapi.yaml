@@ -2999,6 +2999,10 @@ components:
         path:
           type: string
           description: 本部に並べるプロジェクトの場所
+        at:
+          type: integer
+          minimum: 0
+          description: 外したプロジェクトを戻す位置（取り消すの戻し先、d-2cce）
     HQStopRequest:
       description: 終了するチーム
       type: object

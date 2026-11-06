@@ -137,7 +137,13 @@ export function ConflictNotice({ c, mine, busy, undone, onOverwrite, onRevert, o
       <div class="cf-acts">
         <button class="btn sm" data-act="cf-compare" aria-pressed={shown} onClick={() => setShown(!shown)}>{shown ? '見比べるのをやめる' : '見比べる'}</button>
         <button class="btn primary sm" data-act="cf-overwrite" disabled={!!busy} onClick={onOverwrite}>{c.file.exists ? '書いていた内容で上書きする' : '書いていた内容で作り直して保存する'}</button>
-        <button class="btn sm" data-act="cf-revert" data-danger data-danger-act="conflictRevert" disabled={!!busy} onClick={(e: Event) => runDanger('conflictRevert', { run: onRevert, said: 'ファイルの今の内容に戻しました', host: (e.currentTarget as HTMLElement).closest('.panel') as HTMLElement | null })}>元に戻す</button>
+        <button class="btn sm" data-act="cf-revert" data-danger data-danger-act="conflictRevert" disabled={!!busy} onClick={(e: Event) => {
+      // The notice stands in the field that holds the notice: the row's panel,
+      // or the column the role editor draws (d-aeeb).
+      const from = e.currentTarget as HTMLElement;
+      const host = (from.closest('.panel') || from.closest('.prose-column')) as HTMLElement | null;
+      runDanger('conflictRevert', { run: onRevert, restore: onUndo, said: 'ファイルの今の内容に戻しました', host });
+    }}>元に戻す</button>
       </div>
     </section>
   );

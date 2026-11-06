@@ -194,7 +194,11 @@ function ConflictNotice({ c, mine, busy, undone, onOverwrite, onRevert, onUndo }
             "data-danger": true,
             "data-danger-act": "conflictRevert",
             disabled: !!busy,
-            onClick: (e) => runDanger("conflictRevert", { run: onRevert, said: "ファイルの今の内容に戻しました", host: e.currentTarget.closest(".panel") }),
+            onClick: (e) => {
+              const from = e.currentTarget;
+              const host = from.closest(".panel") || from.closest(".prose-column");
+              runDanger("conflictRevert", { run: onRevert, restore: onUndo, said: "ファイルの今の内容に戻しました", host });
+            },
             children: "元に戻す"
           })
         ]
