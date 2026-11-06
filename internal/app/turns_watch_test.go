@@ -99,10 +99,13 @@ func (f *turnsFixture) set(name, status string, seq int) {
 func TestTurnsHandsWhatAMemberWroteToItsEdge(t *testing.T) {
 	f := newTurnsFixture(t)
 	f.set("demo-lead", "idle", 1)
+	f.set("demo-builder", "idle", 1)
+	f.port.panes["demo-builder"] = "⏺ 準備できています。\n❯ "
+	f.w.tick() // both stopped: their panes are remembered as they stand
 	f.set("demo-builder", "working", 2)
-	f.port.panes["demo-builder"] = "❯ 依頼: テストを書いて\n\n⏺ 書いています…\n❯ "
-	f.w.tick() // the turn starts: the pane is remembered
-	f.port.panes["demo-builder"] = "❯ 依頼: テストを書いて\n\n⏺ 書いています…\n\n⏺ テストを 3 件書いた。\n  すべて緑。\n\n✻ Worked for 20s\n❯ "
+	f.port.panes["demo-builder"] = "" // herdr cannot read a working agent's scrollback
+	f.w.tick()
+	f.port.panes["demo-builder"] = "⏺ 準備できています。\n\n❯ 依頼: テストを書いて\n\n⏺ 書いています…\n\n⏺ テストを 3 件書いた。\n  すべて緑。\n\n✻ Worked for 20s\n❯ "
 	f.set("demo-builder", "done", 3)
 	f.w.tick()
 	if len(f.port.prompts) != 1 {
@@ -112,12 +115,12 @@ func TestTurnsHandsWhatAMemberWroteToItsEdge(t *testing.T) {
 	if target != "demo-lead" {
 		t.Errorf("prompted %q, want demo-lead", target)
 	}
-	for _, want := range []string{"builder", "⏺ テストを 3 件書いた。\n  すべて緑。", "herdr agent read demo-builder"} {
+	for _, want := range []string{"builder", "⏺ 書いています…\n\n⏺ テストを 3 件書いた。\n  すべて緑。", "herdr agent read demo-builder"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("the handoff lacks %q:\n%s", want, text)
 		}
 	}
-	for _, bad := range []string{"書いています", "Worked for", "❯"} {
+	for _, bad := range []string{"準備できています", "Worked for", "❯"} {
 		if strings.Contains(text, bad) {
 			t.Errorf("the handoff carries %q, which builder did not write this turn:\n%s", bad, text)
 		}
@@ -135,7 +138,6 @@ func TestTurnsHandsWhatAMemberWroteToItsEdge(t *testing.T) {
 	// lead works and stops: its two edges are the human and builder, and the
 	// turn came from builder, so it goes back to builder.
 	f.set("demo-lead", "working", 4)
-	f.port.panes["demo-lead"] = "❯ hergy より: builder のターンが終わり…\n⏺ 読む…\n"
 	f.w.tick()
 	f.port.panes["demo-lead"] = "❯ hergy より: builder のターンが終わり…\n⏺ 読む…\n\n⏺ 通った。次は段 2。\n❯ "
 	f.set("demo-lead", "done", 5)
@@ -154,8 +156,10 @@ func TestTurnsHandsWhatAMemberWroteToItsEdge(t *testing.T) {
 func TestTurnsLeavesASilentStopAndAnUndeliveredTurnWithTheHuman(t *testing.T) {
 	f := newTurnsFixture(t)
 	f.set("demo-lead", "idle", 1)
-	f.set("demo-builder", "working", 2)
+	f.set("demo-builder", "idle", 1)
 	f.port.panes["demo-builder"] = "⏺ 前の文\n❯ "
+	f.w.tick()
+	f.set("demo-builder", "working", 2)
 	f.w.tick()
 	f.set("demo-builder", "idle", 3)
 	f.w.tick()

@@ -108,9 +108,12 @@ type turnWatcher struct {
 	clock  func() time.Time
 	state  *turns.State
 	prev   []turns.Agent
-	// snaps is each agent's pane as it stood when its turn started, so what it
-	// wrote during the turn is the part after it.
-	snaps map[string]string
+	// snaps is each agent's pane as it last stood while the agent was stopped,
+	// so what it writes in its next turn is the part after it. The pane is read
+	// when the agent stops (and once at the start, for agents already stopped):
+	// herdr cannot read a working agent's scrollback (agent_not_idle, measured
+	// 2026-11-06), so the turn's start is too late to read it.
+	snaps map[string]snapshot
 	// names is each agent's herdr name by its short name, as of the last read.
 	names map[string]string
 }
@@ -119,7 +122,7 @@ func newTurnWatcher(teamName string, graph *definition.Graph, h *herdr.Herdr, pa
 	return &turnWatcher{
 		team: teamName, graph: graph, herdr: h, path: path, out: out,
 		hirers: map[string]string{}, clock: time.Now,
-		snaps: map[string]string{}, names: map[string]string{},
+		snaps: map[string]snapshot{}, names: map[string]string{},
 	}
 }
 
@@ -144,12 +147,13 @@ func (w *turnWatcher) tick() {
 	}
 	now := w.observe(teamAgents(tabs, agents, w.team))
 	actions := turns.Step(w.state, turns.Input{
-		Graph: w.graph, Before: w.prev, Now: now, Wrote: w.wrote, At: w.clock(),
+		Team: w.team, Graph: w.graph, Before: w.prev, Now: now, Wrote: w.wrote, At: w.clock(),
 	})
 	w.prev = now
 	for _, action := range actions {
 		w.act(action)
 	}
+	w.remember(now)
 	if len(actions) > 0 {
 		if err := turns.Save(w.path, w.state); err != nil {
 			fmt.Fprint(w.out, i18n.Tf("turns.save_error", err.Error()))
@@ -157,35 +161,49 @@ func (w *turnWatcher) tick() {
 	}
 }
 
-// observe is the team's live agents as the step reads them, and takes a
-// snapshot of each pane whose turn just started.
+// snapshot is a pane as it stood at one stop of its agent.
+type snapshot struct {
+	seq  int
+	text string
+}
+
+// observe is the team's live agents as the step reads them. It reads nothing
+// of the panes: the snapshots are taken after the step (remember), so a stop's
+// text is read once, after it has been handed on.
 func (w *turnWatcher) observe(live []protocol.Agent) []turns.Agent {
-	was := map[string]string{}
-	for _, a := range w.prev {
-		was[a.Name] = a.Status
-	}
 	out := make([]turns.Agent, 0, len(live))
 	for _, agent := range live {
 		short := shortMember(agent.Name, w.team)
 		w.names[short] = agent.Name
 		out = append(out, turns.Agent{Name: short, Hirer: w.hirers[short], Status: agent.Status, Seq: agent.Seq})
-		if agent.Status == "working" && was[short] != "working" {
-			if text, err := w.herdr.ReadRecent(agent.Name, paneLines); err == nil {
-				w.snaps[short] = text
-			}
-		}
 	}
 	return out
 }
 
+// remember takes a snapshot of each stopped agent's pane at this stop (by
+// herdr's seq), once: what the agent writes in its next turn is read past it.
+func (w *turnWatcher) remember(now []turns.Agent) {
+	for _, a := range now {
+		if a.Status == "working" || a.Status == "blocked" {
+			continue
+		}
+		if have, ok := w.snaps[a.Name]; ok && have.seq == a.Seq {
+			continue
+		}
+		if text, err := w.herdr.ReadRecent(w.names[a.Name], paneLines); err == nil {
+			w.snaps[a.Name] = snapshot{seq: a.Seq, text: text}
+		}
+	}
+}
+
 // wrote is what one agent wrote in its pane during the turn that just ended:
-// the pane now, past where it stood when the turn started.
+// the pane now, past where it stood at the agent's last stop.
 func (w *turnWatcher) wrote(short string) string {
 	text, err := w.herdr.ReadRecent(w.names[short], paneLines)
 	if err != nil {
 		return ""
 	}
-	return paneDelta(w.snaps[short], text)
+	return paneDelta(w.snaps[short].text, text)
 }
 
 func (w *turnWatcher) act(action turns.Action) {
@@ -247,19 +265,69 @@ func (w *turnWatcher) handoffText(msgs []turns.Message) string {
 // by position. When it is not found, the whole of after is taken. The
 // harness's own chrome at the bottom (the prompt box, the status line) is cut.
 func paneDelta(before, after string) string {
-	lines := strings.Split(strings.TrimRight(after, "\n"), "\n")
-	// The anchor is the agent's own last words, not the chrome under them: the
-	// prompt box is drawn again differently once a turn runs.
-	anchor := lastNonEmpty(trimChrome(strings.Split(strings.TrimRight(before, "\n"), "\n")), 3)
+	lines := columnOf(strings.Split(strings.TrimRight(after, "\n"), "\n"))
+	// The anchor is the agent's own last words, not the chrome under them (the
+	// prompt box is drawn again differently once a turn runs) and not the blank
+	// lines between them: so both sides are read as the sequence of the agent's
+	// non-empty lines, and the match is mapped back to the pane's lines.
+	anchor := lastNonEmpty(trimChrome(columnOf(strings.Split(strings.TrimRight(before, "\n"), "\n"))), 3)
 	if len(anchor) > 0 {
-		for i := len(lines) - len(anchor); i >= 0; i-- {
-			if matchesAt(lines, i, anchor) {
-				lines = lines[i+len(anchor):]
+		words := wordsOf(lines)
+		for i := len(words) - len(anchor); i >= 0; i-- {
+			if matchesAt(words, i, anchor) {
+				lines = lines[words[i+len(anchor)-1].at+1:]
 				break
 			}
 		}
 	}
 	return strings.Join(trimChrome(lines), "\n")
+}
+
+// word is one of the agent's own lines, and where it stands in the pane.
+type word struct {
+	text string
+	at   int
+}
+
+// wordsOf is the agent's non-empty, non-chrome lines of a pane, in order, each
+// with its index in the pane.
+func wordsOf(lines []string) []word {
+	var out []word
+	for i, line := range lines {
+		if strings.TrimSpace(line) == "" || isChrome(line) {
+			continue
+		}
+		out = append(out, word{text: line, at: i})
+	}
+	return out
+}
+
+// panelIndent is how far right an agent's own line never starts: beyond it, a
+// line is the side panel's alone.
+const panelIndent = 24
+
+// columnOf keeps the agent's own column of each line: a harness that draws a
+// side panel (opencode's context and title, to the right of a wide pane) puts
+// it on the same lines after a run of blank space, and that panel changes from
+// one reading to the next, so it is neither the agent's text nor a stable anchor.
+func columnOf(lines []string) []string {
+	out := make([]string, len(lines))
+	for i, line := range lines {
+		// The indentation is the agent's; the run of blank space after its words
+		// is the panel's.
+		body := strings.TrimLeft(line, " ")
+		if len(line)-len(body) > panelIndent {
+			// Nothing of the agent's stands this far right: the line is the
+			// panel's alone.
+			out[i] = ""
+			continue
+		}
+		if at := strings.Index(body, "    "); at > 0 {
+			line = line[:len(line)-len(body)+at]
+		}
+		out[i] = strings.TrimRight(line, " ")
+	}
+	return out
 }
 
 func lastNonEmpty(lines []string, n int) []string {
@@ -272,9 +340,9 @@ func lastNonEmpty(lines []string, n int) []string {
 	return out
 }
 
-func matchesAt(lines []string, at int, anchor []string) bool {
+func matchesAt(words []word, at int, anchor []string) bool {
 	for j, want := range anchor {
-		if strings.TrimRight(lines[at+j], " ") != strings.TrimRight(want, " ") {
+		if strings.TrimRight(words[at+j].text, " ") != strings.TrimRight(want, " ") {
 			return false
 		}
 	}
@@ -284,10 +352,10 @@ func matchesAt(lines []string, at int, anchor []string) bool {
 // chromeMarks start the lines a harness draws for itself under what the agent
 // wrote: Claude Code's prompt box and status line, opencode's frame and status
 // bar, Codex's prompt. A line that starts with one is not the agent's text.
-var chromeMarks = []string{"❯", "┃", "╹", "╭", "╰", "│", "─", "━", "➜", "⏵⏵", "✻", "✔", "›", "Build ·", "Plan ·", "~/"}
+var chromeMarks = []string{"❯", "┃", "╹", "╭", "╰", "│", "─", "━", "➜", "⏵⏵", "✻", "✔", "›", "Build ·", "Plan ·", "~/", "Context"}
 
 // chromeWords mark a status line wherever they stand in it.
-var chromeWords = []string{"ctrl+", "esc to", "? for shortcuts", "shift+tab", "tok/s"}
+var chromeWords = []string{"ctrl+", "esc to", "? for shortcuts", "shift+tab", "tok/s", "% used"}
 
 func isChrome(line string) bool {
 	s := strings.TrimSpace(line)

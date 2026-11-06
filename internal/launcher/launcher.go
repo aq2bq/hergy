@@ -213,6 +213,10 @@ func (l *Launcher) startWatcher(root string, first *definition.Start) error {
 	if err != nil {
 		return err
 	}
+	// The split comes out at a half whatever the ratio asked (herdr.Resize), so
+	// the boundary is moved down to the share the members keep. A herdr that
+	// cannot resize leaves the strip at a half; the watcher runs the same.
+	_ = l.herdr.Resize(pane, "down", watcherRatio-0.5)
 	if err := l.herdr.Rename(pane, WatcherPane(l.team)); err != nil {
 		return err
 	}

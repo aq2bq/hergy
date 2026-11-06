@@ -215,3 +215,15 @@ func TestLoadAndSaveKeepTheTurn(t *testing.T) {
 		t.Errorf("Load after Save = %+v, %v", back, err)
 	}
 }
+
+// TestStepReadsAHintWrittenWithTheHerdrName: "→ t-spec" names spec when the
+// team is t.
+func TestStepReadsAHintWrittenWithTheHerdrName(t *testing.T) {
+	st := &State{Team: "t", Holder: "lead", From: Human}
+	before := []Agent{{Name: "lead", Status: "working", Seq: 1}, {Name: "dev", Status: "idle", Seq: 0}}
+	now := []Agent{{Name: "lead", Status: "done", Seq: 2}, {Name: "dev", Status: "idle", Seq: 0}}
+	got := Step(st, Input{Team: "t", Graph: ring(), Before: before, Now: now, Wrote: wrote(map[string]string{"lead": "spec に頼む。\n→ t-spec"}), At: at})
+	if len(got) != 1 || got[0].Kind != Deliver || got[0].To != "spec" {
+		t.Fatalf("Step = %+v, want a delivery to spec", got)
+	}
+}

@@ -75,6 +75,9 @@ type Agent struct {
 // they are now, and how to read what an agent wrote during the turn that just
 // ended.
 type Input struct {
+	// Team is the team's name: a hint written with the herdr name ("→ demo-spec")
+	// is read as the short name.
+	Team   string
 	Graph  *definition.Graph
 	Before []Agent
 	Now    []Agent
@@ -199,7 +202,11 @@ func (st *State) ended(in Input, a Agent, now map[string]Agent) []Action {
 	if st.Holder == a.Name {
 		from = st.From
 	}
-	to, human, why := Destination(in.Graph, a, from, Hint(text))
+	hint := Hint(text)
+	if in.Team != "" {
+		hint = strings.TrimPrefix(hint, in.Team+"-")
+	}
+	to, human, why := Destination(in.Graph, a, from, hint)
 	if human {
 		st.toHuman(a.Name, why, in.At)
 		return []Action{{Kind: ToHuman, From: a.Name, Why: why, Messages: []Message{{From: a.Name, At: in.At, Text: text}}}}

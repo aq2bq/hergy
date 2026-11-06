@@ -52,3 +52,30 @@ func TestPaneDeltaWithNoAnchorTakesThePane(t *testing.T) {
 		t.Errorf("paneDelta with a lost anchor = %q, want the pane less its chrome", got)
 	}
 }
+
+// TestPaneDeltaDropsASidePanel: opencode draws its context panel to the right
+// of a wide pane, on the same lines as the agent's words, after a run of blank
+// space; the words change between readings, so the panel is neither the text
+// handed on nor part of the anchor.
+func TestPaneDeltaDropsASidePanel(t *testing.T) {
+	before := strings.Join([]string{
+		"     依頼はまだ受け取っていません。                               smoke-lead の小さな役",
+		"     → 人間                                                        Context",
+		"                                                                   11,219 tokens",
+		"  ┃                                                                1% used",
+	}, "\n")
+	after := strings.Join([]string{
+		"     依頼はまだ受け取っていません。                               smoke-lead の小さな役",
+		"     → 人間                                                        Context",
+		"                                                                   11,735 tokens",
+		"     dev さん、「計測done」と 1 行だけ書いて止まってください。    1% used",
+		"     → dev",
+		"     Build · DeepSeek V4.1 Flash · 1.5s · 40.4 tok/s",
+		"  ┃",
+	}, "\n")
+	got := paneDelta(before, after)
+	want := "     dev さん、「計測done」と 1 行だけ書いて止まってください。\n     → dev"
+	if got != want {
+		t.Errorf("paneDelta =\n%q\nwant\n%q", got, want)
+	}
+}

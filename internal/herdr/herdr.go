@@ -298,9 +298,19 @@ func (h *Herdr) SplitRatio(pane, direction string, ratio float64, cwd string, en
 	return protocol.DigString(result, "pane", "pane_id")
 }
 
-// Run runs one command in a pane's shell.
+// Resize moves the split a pane stands in by amount of the tab's room, in a
+// direction (up, down, left, right). herdr's split takes no ratio in practice
+// (measured 2026-11-06: --ratio 0.85 made a 0.5 split), so the strip a watcher
+// runs in is cut at a half and then moved.
+func (h *Herdr) Resize(pane, direction string, amount float64) error {
+	_, err := h.port.JSON("pane", "resize", "--pane", pane, "--direction", direction, "--amount", strconv.FormatFloat(amount, 'f', 2, 64))
+	return err
+}
+
+// Run runs one command in a pane's shell. herdr prints nothing on success, so
+// the answer is read as text, not JSON.
 func (h *Herdr) Run(pane string, command []string) error {
-	_, err := h.port.JSON(append([]string{"pane", "run", pane}, command...)...)
+	_, err := h.port.Text(append([]string{"pane", "run", pane}, command...)...)
 	return err
 }
 
