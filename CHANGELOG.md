@@ -1,5 +1,32 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **hergy hands the turn on**: a member or worker writes its result in its own
+  pane and stops; `hergy turns <team>`, started by `hergy up` in a strip under
+  the members, reads herdr once a second and hands what was written to the
+  party the definition's `turns:` name (several: the one that handed it the
+  turn; a worker: the member that hired it; a last line `→ <name>` or
+  `→ human` chooses). A recipient that is working gets it when it stops, as
+  one message. A member that stops without writing, or whose delivery does not
+  land, leaves the turn with the human, and `hergy status` says who holds the
+  turn and why (`turn:`); the activity tile says the same. The contact guide
+  in every prompt is three lines: write in your own pane and stop, `→ <name>`
+  to choose, and no `herdr agent prompt`.
+- **A cut-off topology is refused**: `hergy validate`, `hergy up` and the
+  team definition screen refuse a definition in which a member is never
+  reached from the human or can never hand the turn back to it, naming the
+  member.
+
+### Changed
+
+- **`go run ./tools/check diff` is the quick, local tier**: it runs the gates
+  a change can fail here in about a minute, names the browser walks the change
+  selects, and leaves e2e, coverage, vuln and the race detector to CI, which
+  runs every gate on every push.
+
 ## 0.9.8 - 2026-11-05
 
 ### Added
