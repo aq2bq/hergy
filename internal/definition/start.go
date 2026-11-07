@@ -1,6 +1,10 @@
 package definition
 
-import "github.com/aq2bq/hergy/internal/source"
+import (
+	"maps"
+
+	"github.com/aq2bq/hergy/internal/source"
+)
 
 // Start is one member as a team runs it: the frame team.yaml writes, the engine
 // its profile names, and the prompt hergy hands it. The launcher works on these;
@@ -42,6 +46,42 @@ type Start struct {
 	// order they stand in Prompt: joining their texts gives Prompt exactly
 	// (r-4cf9). A prompt built before this existed has none.
 	Segments []PromptSegment
+	// Signal is what hergy adds to the start so the harness says when a turn
+	// ends (r-378e): kept apart from Args and Env, which stay the profile's,
+	// so a fingerprint, a plan and apply read the profile's alone.
+	Signal Signal
+}
+
+// Signal is the harness's turn-end signal wired into one start: the arguments
+// and environment added to the profile's own, or why none were.
+type Signal struct {
+	Wired bool
+	Args  []string
+	Env   map[string]string
+	// Skipped is why nothing was wired (a harness.Skipped constant); empty
+	// when Wired.
+	Skipped string
+}
+
+// StartArgs is what the harness is started with: the profile's arguments and
+// the signal's.
+func (s *Start) StartArgs() []string {
+	if len(s.Signal.Args) == 0 {
+		return s.Args
+	}
+	return append(append([]string(nil), s.Args...), s.Signal.Args...)
+}
+
+// PaneEnv is the environment the pane is made with: the profile's (with
+// GY_ACTOR) and the signal's.
+func (s *Start) PaneEnv() map[string]string {
+	if len(s.Signal.Env) == 0 {
+		return s.Env
+	}
+	out := make(map[string]string, len(s.Env)+len(s.Signal.Env))
+	maps.Copy(out, s.Env)
+	maps.Copy(out, s.Signal.Env)
+	return out
 }
 
 // PromptOrigin is where one prompt segment came from: hergy's own words, the

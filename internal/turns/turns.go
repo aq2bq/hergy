@@ -1,10 +1,13 @@
 // Package turns owns the turn: who holds it, how a stopped member's turn is
 // handed on along the definition's edges, what waits in the box for a member
 // that is still working, and the guards that keep a handing from looping
-// (r-bc26; d-90e0, d-ef43, d-b4b5, d-3baa, d-5b60). It reads nothing itself:
-// hergy turns (internal/app) reads herdr and the panes and hands the step what
-// it read, then does what the step says. So the judgement is tested with
-// made-up input, like internal/activity.
+// (r-bc26; d-90e0, d-ef43, d-b4b5, d-3baa, d-5b60). A turn ends in one of two
+// ways: the harness says so (a Signal, r-378e), or herdr sees the agent go from
+// working to stopped. The signal comes first and carries the turn's text; the
+// pane is read only for a member without one (d-ef1d, d-5f1a). It reads nothing
+// itself: hergy turns (internal/app) reads the signals, herdr and the panes and
+// hands the step what it read, then does what the step says. So the judgement
+// is tested with made-up input, like internal/activity.
 //
 // The one rule, in a sentence: a member writes its result in its own pane and
 // stops; hergy hands what it wrote to the party the definition's turns name.
@@ -12,6 +15,7 @@
 package turns
 
 import (
+	"maps"
 	"regexp"
 	"slices"
 	"strings"
@@ -49,6 +53,19 @@ type State struct {
 	// Handed is, per member, the seq of the stop hergy last handed on: one
 	// handing per stop (d-b4b5).
 	Handed map[string]int `json:"handed,omitempty"`
+	// Waiting is, per wired member, the stop herdr saw whose signal has not
+	// come yet: it is handed from the pane once SignalGrace has passed (d-5f1a).
+	Waiting map[string]Stop `json:"waiting,omitempty"`
+	// Signaled is, per member, when a signal ended a turn before herdr saw the
+	// agent stop: the stop herdr then sees within SignalGrace is that turn's,
+	// already handed on (d-5f1a).
+	Signaled map[string]time.Time `json:"signaled,omitempty"`
+}
+
+// Stop is one stop as herdr saw it: its seq and when the watcher saw it.
+type Stop struct {
+	Seq int       `json:"seq"`
+	At  time.Time `json:"at"`
 }
 
 // Message is one thing a party wrote for another: who wrote it, when it
@@ -84,6 +101,12 @@ type Input struct {
 	// Wrote is what the named agent wrote in its pane during the turn that just
 	// ended; hergy turns reads the pane. Nil reads as nothing written.
 	Wrote func(name string) string
+	// Signals is what the harnesses said since the last step, oldest first.
+	Signals []Signal
+	// Wired says whether a member's harness was given a signal to send, so its
+	// stop waits for the signal (SignalGrace) instead of reading the pane. Nil
+	// wires nobody.
+	Wired func(name string) bool
 	At    time.Time
 }
 
@@ -101,6 +124,20 @@ const (
 	// Started notes that From started To's turn outside hergy's handing (the
 	// person typed in the pane): nothing is sent.
 	Started Kind = "started"
+	// Dropped notes that From's signal came for a stop already handed on from
+	// the pane, so it is not handed again (d-5f1a).
+	Dropped Kind = "dropped"
+)
+
+// How a turn was seen to end.
+const (
+	// RouteSignal: the harness said so.
+	RouteSignal = "signal"
+	// RouteHerdr: herdr saw the agent stop, and the member has no signal.
+	RouteHerdr = "herdr"
+	// RouteLate: herdr saw a wired member stop and no signal came within
+	// SignalGrace, so the pane was read.
+	RouteLate = "late"
 )
 
 // Action is one thing the step decided.
@@ -110,6 +147,10 @@ type Action struct {
 	Messages []Message
 	// Why is a Why constant for ToHuman.
 	Why string
+	// Route is how From's turn was seen to end (a Route constant) on the action
+	// that hands it on, and Source the harness that spoke for RouteSignal. The
+	// box emptying into a member has neither.
+	Route, Source string
 }
 
 // Why the human came to hold the turn.
@@ -142,6 +183,12 @@ func Step(st *State, in Input) []Action {
 	if st.Handed == nil {
 		st.Handed = map[string]int{}
 	}
+	if st.Waiting == nil {
+		st.Waiting = map[string]Stop{}
+	}
+	if st.Signaled == nil {
+		st.Signaled = map[string]time.Time{}
+	}
 	before := map[string]Agent{}
 	for _, a := range in.Before {
 		before[a.Name] = a
@@ -151,19 +198,95 @@ func Step(st *State, in Input) []Action {
 		now[a.Name] = a
 	}
 	var out []Action
-	// Turns that ended: their output is handed on, or boxed.
+	out = append(out, st.signaled(in, now)...)
+	out = append(out, st.seenStopped(in, before, now)...)
+	out = append(out, st.waitedEnough(in, now)...)
+	out = append(out, st.startedByHand(in, before)...)
+	out = append(out, st.emptyBox(in)...)
+	return out
+}
+
+// signaled hands the turns the harnesses said ended, from the signal's text,
+// whatever herdr says (d-ef1d). A signal for a stop already handed on from the
+// pane is dropped (d-5f1a).
+func (st *State) signaled(in Input, now map[string]Agent) []Action {
+	var out []Action
+	for _, sig := range in.Signals {
+		a, live := now[sig.Member]
+		if !live {
+			a = Agent{Name: sig.Member}
+		}
+		if live && stopped(a) && st.Handed[a.Name] == a.Seq {
+			out = append(out, Action{Kind: Dropped, From: a.Name, Source: sig.Source})
+			continue
+		}
+		delete(st.Waiting, a.Name)
+		if live && stopped(a) {
+			st.Handed[a.Name] = a.Seq
+			delete(st.Signaled, a.Name)
+		} else {
+			st.Signaled[a.Name] = in.At
+		}
+		out = append(out, st.ended(in, a, now, sig.Text, RouteSignal, sig.Source)...)
+	}
+	return out
+}
+
+// seenStopped hands the turns herdr saw end (working, then stopped) from the
+// pane; a wired member's stop is left to wait for its signal, and a stop a
+// signal ended within SignalGrace is that turn's, already handed (d-5f1a).
+func (st *State) seenStopped(in Input, before, now map[string]Agent) []Action {
+	var out []Action
 	for _, a := range in.Now {
 		was, seen := before[a.Name]
-		if !seen || was.Status != working || a.Status == working || a.Status == blocked {
+		if !seen || was.Status != working || !stopped(a) {
 			continue
 		}
 		if st.Handed[a.Name] == a.Seq {
 			continue // one handing per stop
 		}
+		if since, ok := st.Signaled[a.Name]; ok {
+			delete(st.Signaled, a.Name)
+			if in.At.Sub(since) <= SignalGrace {
+				st.Handed[a.Name] = a.Seq
+				continue
+			}
+		}
+		if in.Wired != nil && in.Wired(a.Name) {
+			st.Waiting[a.Name] = Stop{Seq: a.Seq, At: in.At}
+			continue
+		}
 		st.Handed[a.Name] = a.Seq
-		out = append(out, st.ended(in, a, now)...)
+		out = append(out, st.ended(in, a, now, in.wrote(a.Name), RouteHerdr, "")...)
 	}
-	// Turns that started outside hergy's handing: the person typed.
+	return out
+}
+
+// waitedEnough reads the pane of a wired member whose stop waited SignalGrace
+// for a signal that did not come; a stop the agent moved past is forgotten.
+func (st *State) waitedEnough(in Input, now map[string]Agent) []Action {
+	var out []Action
+	for _, name := range slices.Sorted(maps.Keys(st.Waiting)) {
+		w := st.Waiting[name]
+		a, live := now[name]
+		if !live || a.Seq != w.Seq || !stopped(a) {
+			delete(st.Waiting, name)
+			continue
+		}
+		if in.At.Sub(w.At) < SignalGrace {
+			continue
+		}
+		delete(st.Waiting, name)
+		st.Handed[name] = a.Seq
+		out = append(out, st.ended(in, a, now, in.wrote(name), RouteLate, "")...)
+	}
+	return out
+}
+
+// startedByHand notes the turns that started outside hergy's handing: the
+// person typed in the pane.
+func (st *State) startedByHand(in Input, before map[string]Agent) []Action {
+	var out []Action
 	for _, a := range in.Now {
 		was, seen := before[a.Name]
 		if a.Status != working || (seen && was.Status == working) {
@@ -175,9 +298,14 @@ func Step(st *State, in Input) []Action {
 		st.hold(a.Name, Human, in.At)
 		out = append(out, Action{Kind: Started, To: a.Name, From: Human})
 	}
-	// The box empties into a member that is stopped.
+	return out
+}
+
+// emptyBox delivers the box to each member that is stopped.
+func (st *State) emptyBox(in Input) []Action {
+	var out []Action
 	for _, a := range in.Now {
-		if a.Status == working || a.Status == blocked || len(st.Pending[a.Name]) == 0 {
+		if !stopped(a) || len(st.Pending[a.Name]) == 0 {
 			continue
 		}
 		msgs := st.Pending[a.Name]
@@ -188,12 +316,30 @@ func Step(st *State, in Input) []Action {
 	return out
 }
 
-// ended is what one stopped agent's turn becomes.
-func (st *State) ended(in Input, a Agent, now map[string]Agent) []Action {
-	var text string
-	if in.Wrote != nil {
-		text = in.Wrote(a.Name)
+// stopped is whether an agent's turn is over as herdr sees it: not working and
+// not waiting on a person (blocked is not a stop).
+func stopped(a Agent) bool {
+	return a.Status != working && a.Status != blocked
+}
+
+func (in Input) wrote(name string) string {
+	if in.Wrote == nil {
+		return ""
 	}
+	return in.Wrote(name)
+}
+
+// ended is what one stopped agent's turn becomes, given the text of the turn
+// and how the end was seen.
+func (st *State) ended(in Input, a Agent, now map[string]Agent, text, route, source string) []Action {
+	out := st.turnOf(in, a, now, text)
+	for i := range out {
+		out[i].Route, out[i].Source = route, source
+	}
+	return out
+}
+
+func (st *State) turnOf(in Input, a Agent, now map[string]Agent, text string) []Action {
 	if strings.TrimSpace(text) == "" {
 		st.toHuman(a.Name, WhySilent, in.At)
 		return []Action{{Kind: ToHuman, From: a.Name, Why: WhySilent}}

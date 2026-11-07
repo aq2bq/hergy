@@ -205,6 +205,8 @@ func dispatch(ctx context.Context, env team.Env, opts *options.Options, stdout, 
 		return runHire(ctx, env, opts, stdout, stderr)
 	case options.Turns:
 		return runTurns(ctx, env, opts, stdout)
+	case options.TurnDone:
+		return runTurnDone(opts, os.Stdin)
 	default:
 		return i18n.Errorf("error.unhandled_command")
 	}
@@ -315,6 +317,7 @@ func startsOf(cat *catalog.Catalog, def *definition.Definition, runName, base st
 			Workers:  workersOf(def, node.Name),
 			Turns:    turnsOf(def, node.Name),
 		})
+		wireStart(&starts[len(starts)-1], runName)
 	}
 	return starts, nil
 }
@@ -1327,6 +1330,7 @@ func runUp(ctx context.Context, env team.Env, opts *options.Options, stdout, std
 		return err
 	}
 	printHeader(stdout, r, env, true)
+	printSignalNotes(stdout, r.starts)
 	l := newLauncher(r, opts.Timeout, stdout).WithWatcher(watcherCommand(r.team.Name, env.ProjectRoot))
 	up := hergyCommand(opts)
 	// A boot that stops partway says the same thing the screen's start sheet
@@ -2184,6 +2188,10 @@ func runHire(ctx context.Context, env team.Env, opts *options.Options, stdout, s
 		return err
 	}
 	worker, err := spawn.Plan(r.team.Name, r.starts, r.profiles, opts.Name, opts.Purpose, opts.Task, opts.From)
+	if err == nil {
+		wireStart(worker, r.team.Name)
+		printSignalNotes(stdout, []definition.Start{*worker})
+	}
 	if err != nil {
 		return err
 	}
@@ -2456,6 +2464,9 @@ func newLauncher(r *resolved, timeout int, out io.Writer) *launcher.Launcher {
 }
 
 func newLauncherWithPort(r *resolved, timeout int, out io.Writer, port herdr.Port) *launcher.Launcher {
+	// The opencode plugin is hergy's to keep current wherever a start may
+	// happen; writing it again costs one read when it is already this hergy's.
+	ensurePlugin(out)
 	return launcher.New(r.starts, r.team.Name, herdr.New(port), timeout, out)
 }
 

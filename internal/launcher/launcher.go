@@ -1375,7 +1375,7 @@ func (l *Launcher) preflightIn(workspace string, members []definition.Start) err
 // createTab makes the new tab whose root pane the first member holds.
 func (l *Launcher) createTab(workspace string, first *definition.Start, label string) (string, error) {
 	l.stage(i18n.T("progress.stage.creating_tab"))
-	root, err := l.herdr.CreateTab(workspace, label, first.Cwd, first.Env, func(id string) {
+	root, err := l.herdr.CreateTab(workspace, label, first.Cwd, first.PaneEnv(), func(id string) {
 		l.mu.Lock()
 		l.progress.TabID = id
 		l.mu.Unlock()
@@ -1404,7 +1404,7 @@ func (l *Launcher) layOut(step layout.Step) error {
 
 // splitPane splits one pane and gives the new pane to one member.
 func (l *Launcher) splitPane(source string, member *definition.Start, direction string) error {
-	pane, err := l.herdr.Split(source, direction, member.Cwd, member.Env)
+	pane, err := l.herdr.Split(source, direction, member.Cwd, member.PaneEnv())
 	if err != nil {
 		return err
 	}

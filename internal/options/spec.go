@@ -331,6 +331,18 @@ var specs = []Spec{
 		Flags: []Use{use(flagDir, descDir)},
 	},
 	{
+		Kind: TurnDone, Name: "turn-done",
+		Summary: text("Tell hergy a member's turn ended (the harness calls this)", "メンバーのターンの終わりを hergy に知らせる（ハーネスが呼ぶ）"),
+		Detail: text(
+			"The call hergy up wires into each member's harness: Claude Code's Stop hook, Codex's notify\nand opencode's plugin call it when a turn ends, with the turn's last reply (Codex as one JSON\nargument, the others on stdin). hergy writes the signal for the team's watcher (hergy turns),\nwhich hands the turn on from it. A person does not type this.",
+			"hergy up がメンバーのハーネスに差し込む呼び出し。Claude Code の Stop hook、Codex の notify、\nopencode のプラグインが、ターンの終わりに最後の返答を添えて呼ぶ（Codex は引数の JSON、\nほかは標準入力）。hergy は合図を書き、チームの見張り（hergy turns）がそれを読んで渡す。\n人が打つコマンドではない。"),
+		Args: []Arg{
+			{Name: text("team", "チーム"), Desc: text("The team name", "チーム名")},
+			{Name: text("member", "メンバー"), Desc: text("The member's or worker's short name", "メンバーかワーカーの短い名前")},
+			{Name: text("payload", "本文"), Optional: true, Desc: text("Codex's JSON (left out: read from stdin)", "Codex の JSON（省くと標準入力から読む）")},
+		},
+	},
+	{
 		Kind: Ls, Name: "ls",
 		Summary: text("List the team definitions", "チーム定義の一覧を見る"),
 		Detail: text(

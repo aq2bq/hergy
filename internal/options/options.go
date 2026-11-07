@@ -38,6 +38,9 @@ const (
 	// Turns watches a running team and hands each stopped member's turn on
 	// along the definition's turns (r-bc26).
 	Turns
+	// TurnDone is what a member's harness calls when a turn ends (r-378e):
+	// its Stop hook, notify or plugin, wired by hergy up.
+	TurnDone
 	// Ls lists visible teams.
 	Ls
 	// Show prints the effective config and where it came from.
@@ -230,6 +233,14 @@ func assignPositionals(o *Options, positionals []string) error {
 			return i18n.Errorf("error.hire_needs_name")
 		}
 		o.Name = positionals[0]
+	case TurnDone:
+		if len(positionals) < 2 || len(positionals) > 3 {
+			return i18n.Errorf("error.turn_done_needs_names")
+		}
+		o.Team, o.Member = positionals[0], positionals[1]
+		if len(positionals) == 3 {
+			o.Body = positionals[2]
+		}
 	case Ls:
 		if len(positionals) != 0 {
 			return i18n.Errorf("error.ls_no_args", positionals)

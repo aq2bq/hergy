@@ -149,6 +149,9 @@ func newFixture(t *testing.T) *fixture {
 	// gy is reached the same way: a test that wants the questions writes a fake
 	// gy and points HERGY_GY at it (段 6).
 	t.Setenv("HERGY_GY", filepath.Join(f.cfg, "no-gy"))
+	// A Codex member's signal keeps the person's notify (d-a70c); the person
+	// here has none.
+	t.Setenv("CODEX_HOME", "")
 	return f
 }
 

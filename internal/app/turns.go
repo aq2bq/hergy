@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"maps"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -22,11 +24,12 @@ import (
 )
 
 // hergy turns <team>: the watcher that hands a stopped member's turn on
-// (r-bc26, d-90e0, d-5b60). It reads herdr once a second, hands the step in
-// internal/turns what it read, and does what the step says: prompts the party a
-// turn goes to, keeps the box, writes the turn's state, and prints one line per
-// handing in its own pane for a person to read. The judgement is the turns
-// package's; this file is the reading and the doing.
+// (r-bc26, d-90e0, d-5b60). Once a second it takes the signals the harnesses
+// wrote (hergy turn-done, r-378e), reads herdr, hands the step in
+// internal/turns both, and does what the step says: prompts the party a turn
+// goes to, keeps the box, writes the turn's state, and prints one line per
+// handing in its own pane for a person to read, with how the end was seen. The
+// judgement is the turns package's; this file is the reading and the doing.
 
 const (
 	// turnsTick is how often herdr is read.
@@ -58,10 +61,19 @@ func runTurns(ctx context.Context, env team.Env, opts *options.Options, stdout i
 	w := newTurnWatcher(r.team.Name, r.team.Definition.Graph, h, turns.Path(dir, r.team.Name), stdout)
 	w.read = herdrRead
 	w.hirers = hirersOf(r.team.Name)
+	w.signals = turns.SignalDir(dir, r.team.Name)
+	for _, s := range r.starts {
+		if s.Signal.Wired {
+			w.wired[s.Short] = true
+		}
+	}
 	if err := w.load(); err != nil {
 		return err
 	}
 	fmt.Fprint(stdout, i18n.Tf("turns.watching", w.team, w.state.Holder))
+	if names := slices.Sorted(maps.Keys(w.wired)); len(names) > 0 {
+		fmt.Fprint(stdout, i18n.Tf("turns.wired", strings.Join(names, ", ")))
+	}
 	ticker := time.NewTicker(turnsTick)
 	defer ticker.Stop()
 	for {
@@ -116,13 +128,18 @@ type turnWatcher struct {
 	snaps map[string]snapshot
 	// names is each agent's herdr name by its short name, as of the last read.
 	names map[string]string
+	// signals is the directory the harnesses' signals wait in; empty reads
+	// none. wired is who has a harness that signals: the members hergy wired,
+	// and anyone a signal has come from.
+	signals string
+	wired   map[string]bool
 }
 
 func newTurnWatcher(teamName string, graph *definition.Graph, h *herdr.Herdr, path string, out io.Writer) *turnWatcher {
 	return &turnWatcher{
 		team: teamName, graph: graph, herdr: h, path: path, out: out,
 		hirers: map[string]string{}, clock: time.Now,
-		snaps: map[string]snapshot{}, names: map[string]string{},
+		snaps: map[string]snapshot{}, names: map[string]string{}, wired: map[string]bool{},
 	}
 }
 
@@ -135,8 +152,18 @@ func (w *turnWatcher) load() error {
 	return nil
 }
 
-// tick reads herdr once and does what the step says.
+// tick takes the signals, reads herdr once and does what the step says.
 func (w *turnWatcher) tick() {
+	var signals []turns.Signal
+	if w.signals != "" {
+		var err error
+		if signals, err = turns.TakeSignals(w.signals); err != nil {
+			fmt.Fprint(w.out, i18n.Tf("turns.read_error", err.Error()))
+		}
+		for _, sig := range signals {
+			w.wired[sig.Member] = true
+		}
+	}
 	tabs, agents, agentsRead, err := w.read()
 	if err != nil {
 		fmt.Fprint(w.out, i18n.Tf("turns.read_error", err.Error()))
@@ -148,6 +175,7 @@ func (w *turnWatcher) tick() {
 	now := w.observe(teamAgents(tabs, agents, w.team))
 	actions := turns.Step(w.state, turns.Input{
 		Team: w.team, Graph: w.graph, Before: w.prev, Now: now, Wrote: w.wrote, At: w.clock(),
+		Signals: signals, Wired: func(name string) bool { return w.wired[name] },
 	})
 	w.prev = now
 	for _, action := range actions {
@@ -190,6 +218,9 @@ func (w *turnWatcher) remember(now []turns.Agent) {
 		if have, ok := w.snaps[a.Name]; ok && have.seq == a.Seq {
 			continue
 		}
+		if waiting, ok := w.state.Waiting[a.Name]; ok && waiting.Seq == a.Seq {
+			continue // this stop's text is still to be read, once its signal comes or not
+		}
 		if text, err := w.herdr.ReadRecent(w.names[a.Name], paneLines); err == nil {
 			w.snaps[a.Name] = snapshot{seq: a.Seq, text: text}
 		}
@@ -207,28 +238,46 @@ func (w *turnWatcher) wrote(short string) string {
 }
 
 func (w *turnWatcher) act(action turns.Action) {
+	route := routeText(action)
 	switch action.Kind {
 	case turns.Deliver:
-		w.deliver(action)
+		w.deliver(action, route)
 	case turns.Box:
-		fmt.Fprint(w.out, i18n.Tf("turns.boxed", action.From, action.To))
+		fmt.Fprint(w.out, i18n.Tf("turns.boxed", action.From, action.To, route))
 	case turns.ToHuman:
 		switch action.Why {
 		case turns.WhySilent:
-			fmt.Fprint(w.out, i18n.Tf("turns.to_human_silent", action.From))
+			fmt.Fprint(w.out, i18n.Tf("turns.to_human_silent", action.From, route))
 		case turns.WhyNoEdge:
-			fmt.Fprint(w.out, i18n.Tf("turns.to_human_no_edge", action.From))
+			fmt.Fprint(w.out, i18n.Tf("turns.to_human_no_edge", action.From, route))
 		default:
-			fmt.Fprint(w.out, i18n.Tf("turns.to_human_edge", action.From))
+			fmt.Fprint(w.out, i18n.Tf("turns.to_human_edge", action.From, route))
 		}
 	case turns.Started:
 		fmt.Fprint(w.out, i18n.Tf("turns.started", action.To))
+	case turns.Dropped:
+		fmt.Fprint(w.out, i18n.Tf("turns.dropped", action.From, action.Source))
 	}
+}
+
+// routeText says how a turn's end was seen, after the line that hands it on:
+// the harness's signal, herdr's reading, or herdr's reading after the signal
+// did not come (r-378e). The box emptying has no route and says nothing.
+func routeText(action turns.Action) string {
+	switch action.Route {
+	case turns.RouteSignal:
+		return i18n.Tf("turns.route_signal", action.Source)
+	case turns.RouteHerdr:
+		return i18n.T("turns.route_herdr")
+	case turns.RouteLate:
+		return i18n.Tf("turns.route_late", int(turns.SignalGrace/time.Second))
+	}
+	return ""
 }
 
 // deliver prompts the recipient and waits to see it working; a delivery that
 // does not land is tried once more, then the human holds the turn (d-b4b5).
-func (w *turnWatcher) deliver(action turns.Action) {
+func (w *turnWatcher) deliver(action turns.Action, route string) {
 	text := w.handoffText(action.Messages)
 	target := w.names[action.To]
 	if target == "" {
@@ -237,7 +286,7 @@ func (w *turnWatcher) deliver(action turns.Action) {
 	var err error
 	for range 2 {
 		if err = w.herdr.PromptWait(target, text, deliverWaitMS); err == nil {
-			fmt.Fprint(w.out, i18n.Tf("turns.delivered", action.From, action.To, strings.Count(text, "\n")+1))
+			fmt.Fprint(w.out, i18n.Tf("turns.delivered", action.From, action.To, strings.Count(text, "\n")+1, route))
 			return
 		}
 	}

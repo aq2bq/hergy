@@ -196,3 +196,75 @@ func TestTurnsSeesThePersonStartATurn(t *testing.T) {
 		t.Errorf("the watcher's pane says nothing:\n%s", f.out.String())
 	}
 }
+
+// TestTurnsHandsTheSignalBeforeHerdrSeesTheStop: builder's harness says the
+// turn ended while herdr still says working; the watcher hands the signal's
+// text to lead at once, says it came as a signal, and the stop herdr then sees
+// hands nothing again (r-378e, d-ef1d, d-5f1a).
+func TestTurnsHandsTheSignalBeforeHerdrSeesTheStop(t *testing.T) {
+	f := newTurnsFixture(t)
+	f.w.signals = turns.SignalDir(t.TempDir(), "demo")
+	f.w.wired["builder"] = true
+	f.set("demo-lead", "idle", 1)
+	f.set("demo-builder", "idle", 1)
+	f.w.tick()
+	f.set("demo-builder", "working", 2)
+	f.w.tick()
+	if err := turns.WriteSignal(f.w.signals, turns.Signal{Member: "builder", At: f.now, Text: "テストを 3 件書いた。\nすべて緑。", Source: "claude"}); err != nil {
+		t.Fatal(err)
+	}
+	f.now = f.now.Add(time.Second)
+	f.w.tick()
+	if len(f.port.prompts) != 1 {
+		t.Fatalf("prompts = %q, want one to lead from the signal", f.port.prompts)
+	}
+	target, text, _ := strings.Cut(f.port.prompts[0], "\n")
+	if target != "demo-lead" || !strings.Contains(text, "テストを 3 件書いた。\nすべて緑。") {
+		t.Errorf("prompt = %q %q", target, text)
+	}
+	if !strings.Contains(f.out.String(), "builder → lead: 渡しました（") || !strings.Contains(f.out.String(), "［合図: claude］") {
+		t.Errorf("the watcher's pane does not say the signal handed it:\n%s", f.out.String())
+	}
+	// herdr sees the stop a second later: the pane is not read, nothing more is sent.
+	f.port.panes["demo-builder"] = "⏺ ペインには別の文字\n❯ "
+	f.set("demo-builder", "done", 3)
+	f.now = f.now.Add(time.Second)
+	f.w.tick()
+	if len(f.port.prompts) != 1 {
+		t.Errorf("the stop the signal ended was handed again: %q", f.port.prompts)
+	}
+	if f.w.state.Handed["builder"] != 3 {
+		t.Errorf("state = %+v, want builder's stop 3 handed", f.w.state)
+	}
+}
+
+// TestTurnsWaitsForAWiredMembersSignalThenReadsThePane: a wired member's stop
+// is not handed from the pane at once; with no signal in SignalGrace the pane
+// is read and the line says so.
+func TestTurnsWaitsForAWiredMembersSignalThenReadsThePane(t *testing.T) {
+	f := newTurnsFixture(t)
+	f.w.signals = turns.SignalDir(t.TempDir(), "demo")
+	f.w.wired["builder"] = true
+	f.set("demo-lead", "idle", 1)
+	f.set("demo-builder", "idle", 1)
+	f.port.panes["demo-builder"] = "❯ "
+	f.w.tick()
+	f.set("demo-builder", "working", 2)
+	f.port.panes["demo-builder"] = ""
+	f.w.tick()
+	f.port.panes["demo-builder"] = "⏺ ペインから読んだ本文\n❯ "
+	f.set("demo-builder", "done", 3)
+	f.now = f.now.Add(time.Second)
+	f.w.tick()
+	if len(f.port.prompts) != 0 {
+		t.Fatalf("a wired member's stop was handed before its signal could come: %q", f.port.prompts)
+	}
+	f.now = f.now.Add(turns.SignalGrace)
+	f.w.tick()
+	if len(f.port.prompts) != 1 || !strings.Contains(f.port.prompts[0], "ペインから読んだ本文") {
+		t.Fatalf("prompts = %q, want the pane handed after the grace", f.port.prompts)
+	}
+	if !strings.Contains(f.out.String(), "［合図が 5 秒来ないので herdr の遷移］") {
+		t.Errorf("the watcher's pane does not say the signal never came:\n%s", f.out.String())
+	}
+}

@@ -47,6 +47,23 @@ func TestUpStartsTheWatcherUnderTheMembers(t *testing.T) {
 			break
 		}
 	}
+	// Each Claude member is started with hergy's Stop hook, so its harness
+	// calls hergy turn-done when a turn ends (r-378e); the profile's own
+	// arguments come first.
+	var started string
+	for _, line := range lines {
+		if strings.HasPrefix(line, "agent start demo-lead ") {
+			started = line
+		}
+	}
+	for _, want := range []string{"--kind claude", "-- ", "--settings {\"hooks\":{\"Stop\":[", "'turn-done' 'demo' 'lead'"} {
+		if !strings.Contains(started, want) {
+			t.Errorf("demo-lead's start lacks %q:\n%s", want, started)
+		}
+	}
+	if strings.Contains(record, "signal") {
+		t.Errorf("up noted a member without a signal, but every starter member has one:\n%s", record)
+	}
 }
 
 // TestStatusSaysWhoHoldsTheTurn: status reads the turn's state the watcher keeps

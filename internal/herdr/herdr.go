@@ -329,7 +329,7 @@ const paneBusy = "agent_pane_busy"
 func (h *Herdr) Start(member *definition.Start, pane string, timeoutMS int) error {
 	args := []string{"agent", "start", member.Name, "--kind", member.Kind, "--pane", pane,
 		"--timeout", fmt.Sprintf("%d", timeoutMS), "--"}
-	args = append(args, member.Args...)
+	args = append(args, member.StartArgs()...)
 	deadline := time.Now().Add(time.Duration(timeoutMS) * time.Millisecond)
 	for {
 		_, err := h.port.JSON(args...)

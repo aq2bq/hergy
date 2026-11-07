@@ -15,6 +15,19 @@
   turn and why (`turn:`); the activity tile says the same. The contact guide
   in every prompt is three lines: write in your own pane and stop, `→ <name>`
   to choose, and no `herdr agent prompt`.
+- **The harness says when a turn ends**: `hergy up` and `hergy hire` wire
+  each member's harness to `hergy turn-done <team> <member>` without writing
+  into the person's own configuration: Claude Code's Stop hook through
+  `--settings`, Codex's notify through `-c notify=…` (the person's own notify
+  from `~/.codex/config.toml` is called afterwards with the same JSON), and a
+  `--standalone` opencode's plugin through a `plugins` entry added to
+  `OPENCODE_CONFIG_CONTENT` (the person's `~/.config/opencode` is read as
+  before). The watcher takes these signals before reading herdr and
+  hands the turn's last reply from the signal, so a turn is handed on as soon
+  as the harness finishes and without reading the pane; a member without a
+  signal (a profile that passes the same argument itself, or opencode on the
+  shared server) is seen through herdr as before, and `hergy up` says so.
+  Each line in the watcher's strip says how the end was seen.
 - **A cut-off topology is refused**: `hergy validate`, `hergy up` and the
   team definition screen refuse a definition in which a member is never
   reached from the human or can never hand the turn back to it, naming the
