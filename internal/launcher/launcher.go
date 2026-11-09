@@ -62,6 +62,10 @@ type Launcher struct {
 	// says both (d-5f02).
 	failedMember string
 	started      []string
+	// strip is the watcher's pane and tabRows the tab's rows when the strip was
+	// cut, for trimStripAgain; empty when the rows could not be read.
+	strip   string
+	tabRows int
 }
 
 // New builds a launcher over the members of one team: the team name, and the
@@ -185,6 +189,7 @@ func (l *Launcher) BootIn(workspace, up string) error {
 			return err
 		}
 	}
+	l.trimStripAgain()
 	l.notify(Event{CreatedPanes: len(members), Workspace: l.workspace})
 	next := NextUp(l.team, up)
 	for i := range members {
@@ -227,19 +232,31 @@ func (l *Launcher) startWatcher(root string, first *definition.Start) error {
 	if err != nil {
 		return err
 	}
-	rows := l.trimStrip(pane, tabRows, rowsErr)
+	if rowsErr == nil {
+		l.strip, l.tabRows = pane, tabRows
+	}
+	l.trimStrip(pane, tabRows, rowsErr)
 	if err := l.herdr.Rename(pane, WatcherPane(l.team)); err != nil {
 		return err
 	}
 	if err := l.herdr.Run(pane, l.watcher); err != nil {
 		return err
 	}
-	if rows > 0 {
-		fmt.Fprint(l.out, i18n.Tf("launcher.watcher_started_rows", l.team, pane, rows))
-	} else {
-		fmt.Fprint(l.out, i18n.Tf("launcher.watcher_started", l.team, pane))
-	}
+	fmt.Fprint(l.out, i18n.Tf("launcher.watcher_started", l.team, pane))
 	return nil
+}
+
+// trimStripAgain trims the strip once more after the members' panes are laid
+// out: herdr shares the tab out again at each cut (measured 2026-11-09: a
+// 6-row strip stood at 24 rows once two more panes were made), so the last
+// word is said when the layout is whole. It says what the strip keeps.
+func (l *Launcher) trimStripAgain() {
+	if l.strip == "" {
+		return
+	}
+	if rows := l.trimStrip(l.strip, l.tabRows, nil); rows > 0 {
+		fmt.Fprint(l.out, i18n.Tf("launcher.watcher_rows", l.strip, rows))
+	}
 }
 
 // trimStrip moves the boundary above the strip until the strip keeps

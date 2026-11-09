@@ -662,7 +662,7 @@
   "turns.to_human_unclear": "%s の答えから渡し先が決まりません。ターンは人間へ%s\n",
   "turns.to_human_unanswered": "%s に聞けませんでした（%s）。ターンは人間へ\n",
   "launcher.watcher_started": "見張り: %s のターンを渡す見張りをペイン %s で起動しました\n",
-  "launcher.watcher_started_rows": "見張り: %s の見張りをペイン %s で起動しました（%d 行）\n",
+  "launcher.watcher_rows": "見張り: ペイン %s は %d 行です\n",
   "launcher.watcher_failed": "見張り: %s の見張りを起動できませんでした（%s）。hergy turns %s で起動できます\n",
   "launcher.signal_skipped_args": "%s（%s）: プロファイルが同じ起動引数を自分で渡しているので、ターンの終わりの合図は差し込みません。止まりは herdr で見ます\n",
   "launcher.signal_skipped_env": "%s（opencode）: プロファイルの OPENCODE_CONFIG_CONTENT が hergy の足せる JSON ではないので、ターンの終わりの合図は差し込みません。止まりは herdr で見ます\n",

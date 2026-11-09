@@ -78,6 +78,9 @@ func (b *band) note(action turns.Action, at time.Time) {
 	var ev bandEvent
 	switch action.Kind {
 	case turns.Told, turns.Deliver, turns.Box, turns.Started:
+		if action.To == turns.Human {
+			return // the turn's end says it, with ✓
+		}
 		ev = bandEvent{From: action.From, To: action.To, Mark: "→"}
 	case turns.ToHuman:
 		mark := "✓"
