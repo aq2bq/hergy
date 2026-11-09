@@ -285,11 +285,14 @@ func assignMemberPositionals(o *Options, positionals []string) error {
 			o.Body = positionals[1]
 		}
 	case Tell:
-		if len(positionals) != 2 {
+		// The body is checked by the command: a tell to the human carries none.
+		if len(positionals) < 1 || len(positionals) > 2 {
 			return i18n.Errorf("error.tell_needs_body")
 		}
 		o.Member = positionals[0]
-		o.Body = positionals[1]
+		if len(positionals) == 2 {
+			o.Body = positionals[1]
+		}
 	default:
 		// unreachable: the caller only sends the four kinds above.
 	}

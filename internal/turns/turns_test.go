@@ -439,3 +439,88 @@ func TestATellFoldedIntoTheRunningTurnIsAskedAboutAfterTheGrace(t *testing.T) {
 		t.Fatalf("Step = %+v, state %+v; want the next turn to take lead's opening, nothing asked", got, st)
 	}
 }
+
+// TestATellToTheHumanEndsTheTurnWithoutAQuestion: lead told dev; dev writes
+// for the person, marks it with hergy tell 人間 and stops. Nothing is asked:
+// the turn is the human's, and lead waits no more (d-e601, ac-bc44).
+func TestATellToTheHumanEndsTheTurnWithoutAQuestion(t *testing.T) {
+	st := &State{Team: "t", Holder: Human}
+	idle := agents(map[string]string{"lead": "idle", "dev": "idle"}, 1)
+	_ = Step(st, Input{Graph: ring(), Before: idle, Now: idle, Tells: []Tell{{From: "lead", To: "dev", At: at}}, At: at})
+	busy := agents(map[string]string{"lead": "idle", "dev": "working"}, 2)
+	_ = Step(st, Input{Graph: ring(), Before: idle, Now: busy, At: at.Add(time.Second)})
+	got := Step(st, Input{Graph: ring(), Before: busy, Now: busy, Tells: []Tell{{From: "dev", To: Human, At: at.Add(30 * time.Second)}}, At: at.Add(30 * time.Second)})
+	if len(got) != 1 || got[0].Kind != Told || got[0].From != "dev" || got[0].To != Human {
+		t.Fatalf("Step = %+v, want the tell noted, dev -> human", got)
+	}
+	if st.Holder != "dev" || len(st.Opened[Human]) != 0 {
+		t.Fatalf("state = %+v, want dev still holding its turn and no turn opened for the human", st)
+	}
+	stopped := agents(map[string]string{"lead": "idle", "dev": "done"}, 3)
+	got = Step(st, Input{Graph: ring(), Before: busy, Now: stopped, Wrote: wrote(map[string]string{"dev": "人への報告"}), At: at.Add(time.Minute)})
+	if len(got) != 1 || got[0].Kind != ToHuman || got[0].From != "dev" || got[0].Why != "" || len(got[0].Waiting) != 1 || got[0].Waiting[0] != "lead" {
+		t.Fatalf("Step = %+v, want the turn handed to the human from dev, lead released, nothing asked", got)
+	}
+	if st.Holder != Human || st.From != "dev" || len(st.Asked) != 0 || len(st.Opened["dev"]) != 0 || len(st.Waits()) != 0 {
+		t.Fatalf("state = %+v, want the human holding it from dev, nothing asked, nobody waiting", st)
+	}
+}
+
+// TestATellToTheHumanInThePersonsOwnTurnRests: the person opened dev's turn;
+// dev marks its reply with hergy tell 人間 anyway. The reply rests as before,
+// and nothing is remembered as an unanswered rest.
+func TestATellToTheHumanInThePersonsOwnTurnRests(t *testing.T) {
+	st := &State{Team: "t", Holder: Human}
+	idle := agents(map[string]string{"dev": "idle"}, 1)
+	busy := agents(map[string]string{"dev": "working"}, 2)
+	_ = Step(st, Input{Graph: ring(), Before: idle, Now: busy, At: at}) // the person typed
+	_ = Step(st, Input{Graph: ring(), Before: busy, Now: busy, Tells: []Tell{{From: "dev", To: Human, At: at.Add(time.Second)}}, At: at.Add(time.Second)})
+	stopped := agents(map[string]string{"dev": "done"}, 3)
+	got := Step(st, Input{Graph: ring(), Before: busy, Now: stopped, Wrote: wrote(map[string]string{"dev": "人への答え"}), At: at.Add(time.Minute)})
+	if len(got) != 1 || got[0].Kind != Rested {
+		t.Fatalf("Step = %+v, want the person's turn to rest", got)
+	}
+	if st.Holder != Human || len(st.Rested) != 0 || len(st.Told) != 0 {
+		t.Fatalf("state = %+v, want the human holding it, no rest kept, the tell forgotten", st)
+	}
+}
+
+// TestATellToTheHumanAnswersTheQuestion: asked who its text is for, dev runs
+// hergy tell 人間 instead of answering with a word. The turn is the human's,
+// as if it had answered "人間", and lead waits no more.
+func TestATellToTheHumanAnswersTheQuestion(t *testing.T) {
+	st := &State{Team: "t", Holder: Human}
+	idle := agents(map[string]string{"lead": "idle", "dev": "idle"}, 1)
+	_ = Step(st, Input{Graph: ring(), Before: idle, Now: idle, Tells: []Tell{{From: "lead", To: "dev", At: at}}, At: at})
+	busy := agents(map[string]string{"lead": "idle", "dev": "working"}, 2)
+	_ = Step(st, Input{Graph: ring(), Before: idle, Now: busy, At: at.Add(time.Second)})
+	stopped := agents(map[string]string{"lead": "idle", "dev": "done"}, 3)
+	got := Step(st, Input{Graph: ring(), Before: busy, Now: stopped, Wrote: wrote(map[string]string{"dev": "報告"}), At: at.Add(time.Minute)})
+	if len(got) != 1 || got[0].Kind != Ask {
+		t.Fatalf("Step = %+v, want dev asked", got)
+	}
+	again := agents(map[string]string{"lead": "idle", "dev": "working"}, 4)
+	_ = Step(st, Input{Graph: ring(), Before: stopped, Now: again, At: at.Add(2 * time.Minute)})
+	_ = Step(st, Input{Graph: ring(), Before: again, Now: again, Tells: []Tell{{From: "dev", To: Human, At: at.Add(2*time.Minute + time.Second)}}, At: at.Add(2*time.Minute + time.Second)})
+	done := agents(map[string]string{"lead": "idle", "dev": "done"}, 5)
+	got = Step(st, Input{Graph: ring(), Before: again, Now: done, Wrote: wrote(map[string]string{"dev": "人間に渡した"}), At: at.Add(3 * time.Minute)})
+	if len(got) != 1 || got[0].Kind != ToHuman || got[0].From != "dev" || got[0].Why != "" || len(got[0].Waiting) != 1 || got[0].Waiting[0] != "lead" {
+		t.Fatalf("Step = %+v, want the turn handed to the human, lead released", got)
+	}
+	if st.Holder != Human || len(st.Asked) != 0 || len(st.Waits()) != 0 {
+		t.Fatalf("state = %+v, want the human holding it, nothing asked, nobody waiting", st)
+	}
+}
+
+func TestIsHumanReadsTheAnswerWords(t *testing.T) {
+	for _, word := range []string{"人間", "human", "Human", " 外側 ", "outside"} {
+		if !IsHuman(word) {
+			t.Errorf("IsHuman(%q) = false, want true", word)
+		}
+	}
+	for _, word := range []string{"lead", "humans", "", "誰にも"} {
+		if IsHuman(word) {
+			t.Errorf("IsHuman(%q) = true, want false", word)
+		}
+	}
+}

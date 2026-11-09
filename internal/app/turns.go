@@ -266,7 +266,7 @@ func (w *turnWatcher) act(action turns.Action) {
 	case turns.Ask:
 		w.ask(action, route)
 	case turns.Told:
-		fmt.Fprint(w.out, i18n.Tf("turns.told", w.party(action.From), action.To))
+		fmt.Fprint(w.out, i18n.Tf("turns.told", w.party(action.From), w.party(action.To)))
 	case turns.Rested:
 		fmt.Fprint(w.out, i18n.Tf("turns.rested", action.From, route))
 	case turns.Passed:

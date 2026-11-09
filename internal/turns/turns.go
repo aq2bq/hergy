@@ -66,9 +66,10 @@ type State struct {
 	// Started is, per member, when herdr last saw it begin a turn: openers that
 	// came before it opened this turn, later ones the next.
 	Started map[string]time.Time `json:"started,omitempty"`
-	// Told is, per member, when it last handed on with hergy tell. A turn with a
-	// tell in it was handed on by the member itself.
-	Told map[string]time.Time `json:"told,omitempty"`
+	// Told is, per member, its last hergy tell: when, and to whom. A turn with
+	// a tell in it was handed on by the member itself; one told to Human is the
+	// human's when it ends, and the member is not asked (d-e601).
+	Told map[string]Handoff `json:"told,omitempty"`
 	// Asked is, per member, the question hergy sent it: the stop it is about,
 	// the text waiting to be handed on, and who the answer may name. The
 	// member's next stop is the answer.
@@ -139,8 +140,16 @@ type Message struct {
 	Text string    `json:"text"`
 }
 
+// Handoff is one member's hergy tell as the state keeps it: when, and to whom
+// (a short name, or Human).
+type Handoff struct {
+	At time.Time `json:"at"`
+	To string    `json:"to"`
+}
+
 // Tell is one hergy tell as hergy turns reads it: who handed what turn to
-// whom. From is a member's short name, or "" for the person.
+// whom. From is a member's short name, or "" for the person. To is a short
+// name, or Human when the member marked its text as the person's.
 type Tell struct {
 	From string    `json:"from"`
 	To   string    `json:"to"`
@@ -295,7 +304,7 @@ func (st *State) init() {
 		st.Started = map[string]time.Time{}
 	}
 	if st.Told == nil {
-		st.Told = map[string]time.Time{}
+		st.Told = map[string]Handoff{}
 	}
 	if st.Asked == nil {
 		st.Asked = map[string]Question{}
@@ -362,7 +371,9 @@ func (st *State) lateOpeners(in Input, now map[string]Agent) []Action {
 }
 
 // told records each hergy tell: the sender handed its turn on (Told), and
-// opened the recipient's next turn (Opened). The tell itself sent the text.
+// opened the recipient's next turn (Opened). The tell itself sent the text. A
+// tell to Human marks the sender's text as the person's: it opens no turn, and
+// the sender's turn is the human's when it ends (d-e601).
 func (st *State) told(in Input) []Action {
 	var out []Action
 	for _, tell := range in.Tells {
@@ -370,10 +381,12 @@ func (st *State) told(in Input) []Action {
 		if from == "" {
 			from = Human
 		} else {
-			st.Told[from] = tell.At
+			st.Told[from] = Handoff{At: tell.At, To: tell.To}
 		}
-		st.Opened[tell.To] = append(st.Opened[tell.To], Opening{By: from, At: tell.At})
-		st.hold(tell.To, from, tell.At)
+		if tell.To != Human {
+			st.Opened[tell.To] = append(st.Opened[tell.To], Opening{By: from, At: tell.At})
+			st.hold(tell.To, from, tell.At)
+		}
 		out = append(out, Action{Kind: Told, From: from, To: tell.To})
 	}
 	return out
@@ -531,12 +544,13 @@ func (st *State) ended(in Input, a Agent, now map[string]Agent, text, route, sou
 }
 
 // turnOf decides one ended turn (d-80a5, d-b024): the outside's reply rests;
-// one the member handed on itself (a tell in the turn) needs nothing; one that
-// members opened and the member did not hand on is asked about, unless it
-// wrote nothing, which goes to the human.
+// one the member handed on itself (a tell in the turn) needs nothing, and one
+// it marked as the person's (hergy tell 人間) is the human's; one that members
+// opened and the member did not hand on is asked about, unless it wrote
+// nothing, which goes to the human.
 func (st *State) turnOf(in Input, a Agent, text string) []Action {
 	openers := st.takeOpeners(a)
-	told := st.toldIn(a.Name)
+	toldTo, told := st.toldIn(a.Name)
 	if len(openers) == 0 {
 		st.toHuman(a.Name, "", in.At)
 		if !told && len(st.Opened[a.Name]) > 0 {
@@ -545,7 +559,7 @@ func (st *State) turnOf(in Input, a Agent, text string) []Action {
 		return []Action{{Kind: Rested, From: a.Name}}
 	}
 	if told {
-		return []Action{{Kind: Passed, From: a.Name}}
+		return st.handedOn(a.Name, toldTo, openers, in.At)
 	}
 	if strings.TrimSpace(text) == "" {
 		st.toHuman(a.Name, WhySilent, in.At)
@@ -562,8 +576,8 @@ func (st *State) turnOf(in Input, a Agent, text string) []Action {
 // that names no one candidate leaves the turn with the human, saying why.
 func (st *State) answered(in Input, a Agent, now map[string]Agent, ask Question, text string) []Action {
 	delete(st.Asked, a.Name)
-	if st.toldIn(a.Name) {
-		return []Action{{Kind: Passed, From: a.Name}} // it handed on itself, asked
+	if toldTo, told := st.toldIn(a.Name); told {
+		return st.handedOn(a.Name, toldTo, ask.Waiting, in.At) // it handed on itself, asked
 	}
 	to := Answer(text, in.Team, ask.Candidates)
 	switch to {
@@ -622,15 +636,29 @@ func (st *State) takeOpeners(a Agent) []string {
 }
 
 // toldIn is whether the member handed on with hergy tell during the turn that
-// just ended, and forgets the tell.
-func (st *State) toldIn(name string) bool {
+// just ended, and to whom, and forgets the tell.
+func (st *State) toldIn(name string) (string, bool) {
 	told, ok := st.Told[name]
 	if !ok {
-		return false
+		return "", false
 	}
 	delete(st.Told, name)
 	started := st.Started[name]
-	return started.IsZero() || !told.Before(started)
+	if !started.IsZero() && told.At.Before(started) {
+		return "", false
+	}
+	return told.To, true
+}
+
+// handedOn ends a turn the member handed on itself. Told to a member, the
+// tell's own line said it all. Told to Human, the text is the person's: the
+// turn is the human's, and those that waited wait no more (d-e601).
+func (st *State) handedOn(name, to string, waiting []string, at time.Time) []Action {
+	if to == Human {
+		st.toHuman(name, "", at)
+		return []Action{{Kind: ToHuman, From: name, Waiting: waiting}}
+	}
+	return []Action{{Kind: Passed, From: name}}
 }
 
 func (st *State) hold(holder, from string, at time.Time) {
@@ -674,6 +702,12 @@ var (
 	humanWords  = []string{"人間", "human", "外側", "outside"}
 	nobodyWords = []string{"誰にも", "nobody", "no one", "none"}
 )
+
+// IsHuman is whether a name, as hergy tell's target or an answer's one word,
+// is the outside: the same words an answer may use.
+func IsHuman(name string) bool {
+	return slices.Contains(humanWords, strings.ToLower(strings.TrimSpace(name)))
+}
 
 // Answer reads a member's answer to hergy's question: the one candidate it
 // names (by short name or herdr name), Human, Nobody, or "" when it names none

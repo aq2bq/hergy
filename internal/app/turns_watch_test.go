@@ -136,6 +136,39 @@ func TestTurnsRestsATurnThePersonOpened(t *testing.T) {
 	}
 }
 
+// TestTurnsDoesNotAskAMemberThatToldTheHuman: lead tells builder; builder
+// writes for the person, runs hergy tell 人間 and stops. No question is sent,
+// the strip says the turn went to the human, and nobody waits (d-e601, ac-bc44).
+func TestTurnsDoesNotAskAMemberThatToldTheHuman(t *testing.T) {
+	f := newTurnsFixture(t)
+	f.set("demo-lead", "idle", 1)
+	f.set("demo-builder", "idle", 1)
+	f.port.panes["demo-builder"] = "⏺ 準備できています。\n❯ "
+	f.w.tick()
+	f.tell(t, "lead", "builder")
+	f.later(time.Second)
+	f.set("demo-builder", "working", 2)
+	f.port.panes["demo-builder"] = ""
+	f.later(time.Second)
+	f.tell(t, "builder", turns.Human)
+	f.later(time.Second)
+	if !strings.Contains(f.out.String(), "builder → 人間: hergy tell で渡しました") {
+		t.Errorf("the strip does not note the tell to the human:\n%s", f.out.String())
+	}
+	f.port.panes["demo-builder"] = "⏺ 準備できています。\n\n❯ lead より: 報告して\n\n⏺ 人へ: 終わりました。\n❯ "
+	f.set("demo-builder", "done", 3)
+	f.later(time.Minute)
+	if len(f.port.prompts) != 0 {
+		t.Fatalf("prompts = %q, want none: builder said its text is the person's", f.port.prompts)
+	}
+	if f.w.state.Holder != turns.Human || f.w.state.From != "builder" || len(f.w.state.Asked) != 0 || len(f.w.state.Waits()) != 0 {
+		t.Errorf("state = %+v, want the human holding it from builder, nothing asked, nobody waiting", f.w.state)
+	}
+	if !strings.Contains(f.out.String(), "builder → 人間: ターンは人間へ渡りました") {
+		t.Errorf("the strip does not say the turn went to the human:\n%s", f.out.String())
+	}
+}
+
 // TestTurnsAsksAnUnhandedTurnAndDeliversAsAnswered: lead tells builder;
 // builder works, writes, stops without a tell. The watcher asks builder who
 // it is for, naming lead as waiting; builder answers "lead"; the watcher

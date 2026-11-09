@@ -369,6 +369,52 @@ func TestTellSenderComesFromThePaneElseTheHuman(t *testing.T) {
 	}
 }
 
+// TestTellToTheHumanRecordsAndSendsNothing: from a member's pane, hergy tell
+// 人間 sends no prompt and records a tell to the human, so the watcher knows
+// the member's text is the person's (d-e601). A body is not needed.
+func TestTellToTheHumanRecordsAndSendsNothing(t *testing.T) {
+	f := newFixture(t)
+	mustRun(t, "new", "demo")
+	_, promptsPath := f.controlHerdr(t, "demo-lead idle p1 screen-lead\ndemo-builder idle p2 screen-builder\n")
+
+	t.Setenv("HERDR_PANE_ID", "p1")
+	stdout := mustRun(t, "tell", "人間")
+	if !strings.Contains(stdout, "handed to the human") {
+		t.Errorf("stdout = %q, want it to say the text was handed to the human", stdout)
+	}
+	mustRun(t, "tell", "human", "--from", "builder")
+	if got := promptsRead(t, promptsPath); len(got) != 0 {
+		t.Fatalf("prompts = %q, want none: nothing is sent to the human", got)
+	}
+	tells, err := turns.TakeTells(turns.TellDir(filepath.Join(f.state, "hergy"), "demo"))
+	if err != nil || len(tells) != 2 || tells[0].From != "lead" || tells[0].To != turns.Human || tells[1].From != "builder" || tells[1].To != turns.Human {
+		t.Fatalf("TakeTells = %+v, %v; want lead's then builder's tell to the human", tells, err)
+	}
+}
+
+// TestTellToTheHumanFromNoMembersPaneIsRefused: the person has nothing to mark
+// as their own; hergy says so and records nothing. A tell to a member still
+// needs its text.
+func TestTellToTheHumanFromNoMembersPaneIsRefused(t *testing.T) {
+	f := newFixture(t)
+	mustRun(t, "new", "demo")
+	f.controlHerdr(t, "demo-lead idle p1 screen-lead\ndemo-builder idle p2 screen-builder\n")
+
+	t.Setenv("HERDR_PANE_ID", "")
+	_, stderr := mustFail(t, "tell", "人間")
+	if !strings.Contains(stderr, "typed in its own pane") {
+		t.Errorf("stderr = %q, want the refusal to say a member types it in its own pane", stderr)
+	}
+	_, stderr = mustFail(t, "tell", "builder")
+	if !strings.Contains(stderr, "<text>") {
+		t.Errorf("stderr = %q, want the refusal to ask for the text", stderr)
+	}
+	tells, err := turns.TakeTells(turns.TellDir(filepath.Join(f.state, "hergy"), "demo"))
+	if err != nil || len(tells) != 0 {
+		t.Fatalf("TakeTells = %+v, %v; want nothing recorded", tells, err)
+	}
+}
+
 // TestTellRefusesAFromOutsideTheTeam: --from names a member of the team.
 func TestTellRefusesAFromOutsideTheTeam(t *testing.T) {
 	f := newFixture(t)

@@ -8,20 +8,21 @@ import (
 )
 
 // The contact guide's lines, exactly as they stand in the locale (r-103d,
-// d-8b4e): a member hands its result on with hergy tell and stops, text for the
-// person is written in the pane, a stop without a tell is asked about, and
+// d-8b4e, d-e601): a member hands its result on with hergy tell and stops, text
+// for the person is written in the pane and marked with hergy tell 人間, a stop
+// without a tell is asked about, and
 // nobody uses herdr agent prompt. A test names the whole line, not a word: a
 // shorter rewording must fail.
 var turnGuide = map[string][]string{
 	"ja": {
 		"- 結果と、次に誰かにしてほしいことは、`hergy tell <名前> \"<本文>\"` で渡してから止まる。名前は名簿の短い名前（lead など）。",
-		"- 人間に読んでほしい文は、自分のペインに書いて止まる。",
+		"- 人間に読んでほしい文は、自分のペインに書き、`hergy tell 人間` と渡してから止まる。",
 		"- 誰にも渡さずに止まると、hergy が「誰に渡しますか」と聞く。名前 1 語か「人間」か「誰にも」で答える。",
 		"- `herdr agent prompt` は使わない。hergy が誰のターンか分からなくなる。",
 	},
 	"en": {
 		"- Hand your result, and what you need someone to do next, on with `hergy tell <name> \"<text>\"`, then stop. The name is the short one in the roster (lead, for example).",
-		"- Text for the person: write it in your own pane and stop.",
+		"- Text for the person: write it in your own pane, hand it on with `hergy tell human`, then stop.",
 		"- If you stop without handing on, hergy asks who it is for. Answer with one name, \"human\" or \"nobody\".",
 		"- Do not use `herdr agent prompt`: hergy would lose whose turn it is.",
 	},

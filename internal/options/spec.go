@@ -264,8 +264,8 @@ var specs = []Spec{
 		Kind: Tell, Name: "tell",
 		Summary: text("Send a member a message from you or another member", "メンバーに伝える（誰からかを付けられる）"),
 		Detail: text(
-			"Send a member a message, headed by who it is from. It does not check the\nmember's state: the message reaches an agent in any state.",
-			"誰からかを頭に付けて、メンバーに本文を送る。\n相手の状態は見ない。どの状態のエージェントにも届く。"),
+			"Send a member a message, headed by who it is from. It does not check the\nmember's state: the message reaches an agent in any state.\nhergy tell human, from a member's pane, sends nothing: it marks what the member\nwrote in its pane as the person's, so hergy turns does not ask who it is for.",
+			"誰からかを頭に付けて、メンバーに本文を送る。\n相手の状態は見ない。どの状態のエージェントにも届く。\nメンバーのペインから打つ hergy tell 人間 は何も送らない。ペインに書いた文を人間向けと記し、\nhergy turns が渡し先を聞かなくなる。"),
 		Args: []Arg{
 			{
 				Name: text("member", "メンバー"),
@@ -274,8 +274,10 @@ var specs = []Spec{
 					"送る相手のメンバー（短いメンバー名か herdr 名）"),
 			},
 			{
-				Name: text("text", "本文"),
-				Desc: text("What to send", "送る本文"),
+				Name: text("text", "本文"), Optional: true,
+				Desc: text(
+					"What to send. Required for a member; not for the human (nothing is sent)",
+					"送る本文。メンバーへは必須。人間へは何も送らないので要らない"),
 			},
 		},
 		Flags: []Use{

@@ -20,6 +20,12 @@
   same. `hergy down` removes the team's turn state. The contact guide in every
   prompt names `hergy tell` as the one way to hand on, and the `→ <name>` last
   line is gone.
+- **`hergy tell human` marks text for the person**: a member that wrote for
+  the person in its own pane says so with `hergy tell human` (`人間`), which
+  sends nothing and needs no text, then stops. The watcher then leaves the
+  turn with the human and asks nothing, so hergy's question reaches a member
+  only when it really stopped without handing on, and no longer lands in the
+  pane the person is reading and typing in after every report to them.
 - **The harness says when a turn ends**: `hergy up` and `hergy hire` wire
   each member's harness to `hergy turn-done <team> <member>` without writing
   into the person's own configuration: Claude Code's Stop hook through
