@@ -1,17 +1,22 @@
-// Package turns owns the turn: who holds it, how a stopped member's turn is
-// handed on along the definition's edges, what waits in the box for a member
-// that is still working, and the guards that keep a handing from looping
-// (r-bc26; d-90e0, d-ef43, d-b4b5, d-3baa, d-5b60). A turn ends in one of two
-// ways: the harness says so (a Signal, r-378e), or herdr sees the agent go from
-// working to stopped. The signal comes first and carries the turn's text; the
-// pane is read only for a member without one (d-ef1d, d-5f1a). It reads nothing
-// itself: hergy turns (internal/app) reads the signals, herdr and the panes and
-// hands the step what it read, then does what the step says. So the judgement
-// is tested with made-up input, like internal/activity.
+// Package turns owns the turn: who holds it, who opened whose turn, what waits
+// in the box for a member that is still working, and what hergy does when a
+// turn ends without being handed on (r-103d; d-8b4e, d-80a5, d-b024, with the
+// box and the guards of r-bc26: d-90e0, d-b4b5, d-3baa, d-5b60). A turn ends in
+// one of two ways: the harness says so (a Signal, r-378e), or herdr sees the
+// agent go from working to stopped. The signal comes first and carries the
+// turn's text; the pane is read only for a member without one (d-ef1d,
+// d-5f1a). The package reads nothing itself: hergy turns (internal/app) reads
+// the tells, the signals, herdr and the panes and hands the step what it read,
+// then does what the step says. So the judgement is tested with made-up input.
 //
-// The one rule, in a sentence: a member writes its result in its own pane and
-// stops; hergy hands what it wrote to the party the definition's turns name.
-// Members do not hand the turn themselves.
+// The rule, in a few sentences. Members hand the turn on themselves, with
+// hergy tell; hergy records who opened whose turn and hands nothing on of its
+// own (d-8b4e). A turn the outside opened (the person, the start prompt, a
+// question of hergy's) ends and nothing happens: the reply is the outside's
+// (d-b024). A turn another member opened that ends without a tell is the one
+// case hergy acts on: it asks the member who the result is for, delivers it as
+// the member answers, and tells the outside when the member names nobody or
+// cannot be understood (d-80a5). hergy never reads the text to decide.
 package turns
 
 import (
@@ -24,8 +29,14 @@ import (
 	"github.com/aq2bq/hergy/internal/definition"
 )
 
-// Human is the holder when the turn is the person's.
+// Human is the outside of the loop: the person today, a parent team one day
+// (d-b024). It is who holds the turn when no member does, who opens a turn that
+// no member opened, and where a turn goes when hergy cannot tell where else.
 const Human = "human"
+
+// Nobody is a member's answer that its result is for no one: the loop rests,
+// and the outside is told.
+const Nobody = "nobody"
 
 // Herdr's agent_status values the step reads.
 const (
@@ -33,9 +44,10 @@ const (
 	blocked = "blocked"
 )
 
-// State is one running team's turn: the holder, who handed it to them, what
-// waits in the box, and the stops hergy already handed on. hergy turns keeps it
-// in one file (Path) so hergy status and the screens read the same answer.
+// State is one running team's turn: the holder, who handed it to them, who has
+// opened whose turn and not been answered, what waits in the box, what hergy
+// has asked, and the stops hergy already acted on. hergy turns keeps it in one
+// file (Path) so hergy status and the screens read the same answer.
 type State struct {
 	Team string `json:"team"`
 	// Holder is who has the turn: a member's or worker's short name, or Human.
@@ -44,22 +56,55 @@ type State struct {
 	// From is who handed the turn to Holder: a short name, or Human.
 	From string `json:"from,omitempty"`
 	// Why says why the human holds it when hergy handed it over (a Why constant);
-	// empty when a turn reached the human along an edge.
+	// empty when a member answered the outside or named the human.
 	Why string `json:"why,omitempty"`
-	// Pending is the box: what came for a member while it was working, by the
-	// member's short name, in the order it came. It goes out as one message when
-	// the member stops (d-5b60 の箱).
+	// Opened is, per member, who opened a turn of theirs that has not ended:
+	// a member that told them (hergy tell), hergy delivering an answer, or Human
+	// (the person's hergy tell). Oldest first. A member whose turn ends with
+	// openers among the members and no tell of its own is asked (d-80a5).
+	Opened map[string][]Opening `json:"opened,omitempty"`
+	// Started is, per member, when herdr last saw it begin a turn: openers that
+	// came before it opened this turn, later ones the next.
+	Started map[string]time.Time `json:"started,omitempty"`
+	// Told is, per member, when it last handed on with hergy tell. A turn with a
+	// tell in it was handed on by the member itself.
+	Told map[string]time.Time `json:"told,omitempty"`
+	// Asked is, per member, the question hergy sent it: the stop it is about,
+	// the text waiting to be handed on, and who the answer may name. The
+	// member's next stop is the answer.
+	Asked map[string]Question `json:"asked,omitempty"`
+	// Pending is the box: what hergy delivers to a member once it stops, by the
+	// member's short name, in the order it came (d-5b60 の箱).
 	Pending map[string][]Message `json:"pending,omitempty"`
-	// Handed is, per member, the seq of the stop hergy last handed on: one
-	// handing per stop (d-b4b5).
+	// Handed is, per member, the seq of the stop hergy last acted on: one act
+	// per stop (d-b4b5).
 	Handed map[string]int `json:"handed,omitempty"`
 	// Waiting is, per wired member, the stop herdr saw whose signal has not
-	// come yet: it is handed from the pane once SignalGrace has passed (d-5f1a).
+	// come yet: it is read from the pane once SignalGrace has passed (d-5f1a).
 	Waiting map[string]Stop `json:"waiting,omitempty"`
 	// Signaled is, per member, when a signal ended a turn before herdr saw the
 	// agent stop: the stop herdr then sees within SignalGrace is that turn's,
-	// already handed on (d-5f1a).
+	// already acted on (d-5f1a).
 	Signaled map[string]time.Time `json:"signaled,omitempty"`
+}
+
+// Opening is one party opening a member's turn: who, and when.
+type Opening struct {
+	By string    `json:"by"`
+	At time.Time `json:"at"`
+}
+
+// Question is what hergy sent a member whose turn ended unhanded.
+type Question struct {
+	Seq int       `json:"seq"`
+	At  time.Time `json:"at"`
+	// Text is what the member wrote in that turn: handed on as it answers.
+	Text string `json:"text"`
+	// Candidates are the members the answer may name: those waiting for it
+	// first, then those the definition's turns name.
+	Candidates []string `json:"candidates"`
+	// Waiting are the members that opened the turn and were not told back.
+	Waiting []string `json:"waiting,omitempty"`
 }
 
 // Stop is one stop as herdr saw it: its seq and when the watcher saw it.
@@ -76,11 +121,20 @@ type Message struct {
 	Text string    `json:"text"`
 }
 
+// Tell is one hergy tell as hergy turns reads it: who handed what turn to
+// whom. From is a member's short name, or "" for the person.
+type Tell struct {
+	From string    `json:"from"`
+	To   string    `json:"to"`
+	At   time.Time `json:"at"`
+}
+
 // Agent is one live agent of the team, as hergy turns read it from herdr.
 type Agent struct {
 	// Name is the short name: a member's, or a hired worker's.
 	Name string
 	// Hirer is the member that hired a worker, by short name; empty for a member.
+	// A worker's turn no one opened is the hirer's opening (d-3baa).
 	Hirer string
 	// Status is herdr's agent_status: working, idle, done, blocked, unknown.
 	Status string
@@ -89,11 +143,11 @@ type Agent struct {
 }
 
 // Input is one observation: the agents as they were at the last step and as
-// they are now, and how to read what an agent wrote during the turn that just
-// ended.
+// they are now, what was told and signaled since, and how to read what an
+// agent wrote during the turn that just ended.
 type Input struct {
-	// Team is the team's name: a hint written with the herdr name ("→ demo-spec")
-	// is read as the short name.
+	// Team is the team's name: an answer that names a member by its herdr name
+	// ("demo-spec") is read as the short name.
 	Team   string
 	Graph  *definition.Graph
 	Before []Agent
@@ -101,6 +155,8 @@ type Input struct {
 	// Wrote is what the named agent wrote in its pane during the turn that just
 	// ended; hergy turns reads the pane. Nil reads as nothing written.
 	Wrote func(name string) string
+	// Tells is what hergy tell recorded since the last step, oldest first.
+	Tells []Tell
 	// Signals is what the harnesses said since the last step, oldest first.
 	Signals []Signal
 	// Wired says whether a member's harness was given a signal to send, so its
@@ -121,11 +177,23 @@ const (
 	// ToHuman makes the human the holder: the pane is left as it is, the state
 	// says why, and the screens show it.
 	ToHuman Kind = "to-human"
-	// Started notes that From started To's turn outside hergy's handing (the
-	// person typed in the pane): nothing is sent.
+	// Started notes that the person started To's turn (typed in the pane):
+	// nothing is sent.
 	Started Kind = "started"
-	// Dropped notes that From's signal came for a stop already handed on from
-	// the pane, so it is not handed again (d-5f1a).
+	// Told notes that From handed the turn to To with hergy tell: nothing is
+	// sent, the tell did that.
+	Told Kind = "told"
+	// Rested notes that From's turn, which the outside opened, ended: its reply
+	// is the outside's and nothing is sent (d-b024).
+	Rested Kind = "rested"
+	// Ask sends To the question: who is the result for? Candidates and Waiting
+	// say who it may name and who waits (d-80a5).
+	Ask Kind = "ask"
+	// Passed notes that From handed its turn on itself (a tell in the turn), so
+	// hergy has nothing to do; the state moved on.
+	Passed Kind = "passed"
+	// Dropped notes that From's signal came for a stop already acted on from
+	// the pane, so it is not acted on again (d-5f1a).
 	Dropped Kind = "dropped"
 )
 
@@ -147,25 +215,30 @@ type Action struct {
 	Messages []Message
 	// Why is a Why constant for ToHuman.
 	Why string
-	// Route is how From's turn was seen to end (a Route constant) on the action
-	// that hands it on, and Source the harness that spoke for RouteSignal. The
-	// box emptying into a member has neither.
+	// Candidates and Waiting are the Ask's: who the answer may name, and who
+	// waits for it.
+	Candidates, Waiting []string
+	// Route is how From's turn was seen to end (a Route constant), and Source
+	// the harness that spoke for RouteSignal. The box emptying into a member and
+	// a tell have neither.
 	Route, Source string
 }
 
 // Why the human came to hold the turn.
 const (
-	// WhyEdge: the stopped member's turn goes to the human along an edge.
-	WhyEdge = "edge"
-	// WhySilent: the member stopped without writing a line, so there is nothing
-	// to hand on and handing an empty turn on would loop (d-b4b5).
+	// WhySilent: the member stopped without writing a line while members waited
+	// for it, so there is nothing to hand on and nothing to ask about.
 	WhySilent = "silent"
-	// WhyNoEdge: the member hands the turn to nobody (the definition should not
-	// hold this: I12a).
-	WhyNoEdge = "no-edge"
-	// WhyUndelivered: hergy handed the turn on and the recipient never started
-	// (herdr saw no working state, after one more try), so the person is told
-	// (d-b4b5).
+	// WhyNobody: the member answered that its result is for nobody.
+	WhyNobody = "nobody"
+	// WhyUnclear: the member's answer named no one candidate.
+	WhyUnclear = "unclear"
+	// WhyUnanswered: hergy's question could not be put to the member (blocked,
+	// or it never started).
+	WhyUnanswered = "unanswered"
+	// WhyUndelivered: hergy handed the turn on as the member answered and the
+	// recipient never started (herdr saw no working state, after one more try),
+	// so the person is told (d-b4b5).
 	WhyUndelivered = "undelivered"
 )
 
@@ -175,8 +248,40 @@ func (st *State) Undelivered(at time.Time) {
 	st.Holder, st.Since, st.Why = Human, at, WhyUndelivered
 }
 
-// Step reads one observation and says what to do. It changes st.
-func Step(st *State, in Input) []Action {
+// Unanswered records that hergy's question could not be put to name: the ask
+// is forgotten, the human holds the turn, and the state says why.
+func (st *State) Unanswered(name string, at time.Time) {
+	delete(st.Asked, name)
+	st.Holder, st.From, st.Since, st.Why = Human, name, at, WhyUnanswered
+}
+
+// Waits is who waits for whose answer, as "a → b" lines: every member opening
+// of a turn that has not ended. It is what status and the screens show.
+func (st *State) Waits() []string {
+	var out []string
+	for _, name := range slices.Sorted(maps.Keys(st.Opened)) {
+		for _, o := range st.Opened[name] {
+			if o.By != Human {
+				out = append(out, o.By+" → "+name)
+			}
+		}
+	}
+	return out
+}
+
+func (st *State) init() {
+	if st.Opened == nil {
+		st.Opened = map[string][]Opening{}
+	}
+	if st.Started == nil {
+		st.Started = map[string]time.Time{}
+	}
+	if st.Told == nil {
+		st.Told = map[string]time.Time{}
+	}
+	if st.Asked == nil {
+		st.Asked = map[string]Question{}
+	}
 	if st.Pending == nil {
 		st.Pending = map[string][]Message{}
 	}
@@ -189,6 +294,11 @@ func Step(st *State, in Input) []Action {
 	if st.Signaled == nil {
 		st.Signaled = map[string]time.Time{}
 	}
+}
+
+// Step reads one observation and says what to do. It changes st.
+func Step(st *State, in Input) []Action {
+	st.init()
 	before := map[string]Agent{}
 	for _, a := range in.Before {
 		before[a.Name] = a
@@ -198,16 +308,35 @@ func Step(st *State, in Input) []Action {
 		now[a.Name] = a
 	}
 	var out []Action
+	out = append(out, st.told(in)...)
 	out = append(out, st.signaled(in, now)...)
 	out = append(out, st.seenStopped(in, before, now)...)
 	out = append(out, st.waitedEnough(in, now)...)
-	out = append(out, st.startedByHand(in, before)...)
+	out = append(out, st.started(in, before)...)
 	out = append(out, st.emptyBox(in)...)
 	return out
 }
 
-// signaled hands the turns the harnesses said ended, from the signal's text,
-// whatever herdr says (d-ef1d). A signal for a stop already handed on from the
+// told records each hergy tell: the sender handed its turn on (Told), and
+// opened the recipient's next turn (Opened). The tell itself sent the text.
+func (st *State) told(in Input) []Action {
+	var out []Action
+	for _, tell := range in.Tells {
+		from := tell.From
+		if from == "" {
+			from = Human
+		} else {
+			st.Told[from] = tell.At
+		}
+		st.Opened[tell.To] = append(st.Opened[tell.To], Opening{By: from, At: tell.At})
+		st.hold(tell.To, from, tell.At)
+		out = append(out, Action{Kind: Told, From: from, To: tell.To})
+	}
+	return out
+}
+
+// signaled acts on the turns the harnesses said ended, from the signal's text,
+// whatever herdr says (d-ef1d). A signal for a stop already acted on from the
 // pane is dropped (d-5f1a).
 func (st *State) signaled(in Input, now map[string]Agent) []Action {
 	var out []Action
@@ -232,9 +361,9 @@ func (st *State) signaled(in Input, now map[string]Agent) []Action {
 	return out
 }
 
-// seenStopped hands the turns herdr saw end (working, then stopped) from the
+// seenStopped acts on the turns herdr saw end (working, then stopped) from the
 // pane; a wired member's stop is left to wait for its signal, and a stop a
-// signal ended within SignalGrace is that turn's, already handed (d-5f1a).
+// signal ended within SignalGrace is that turn's, already acted on (d-5f1a).
 func (st *State) seenStopped(in Input, before, now map[string]Agent) []Action {
 	var out []Action
 	for _, a := range in.Now {
@@ -243,7 +372,7 @@ func (st *State) seenStopped(in Input, before, now map[string]Agent) []Action {
 			continue
 		}
 		if st.Handed[a.Name] == a.Seq {
-			continue // one handing per stop
+			continue // one act per stop
 		}
 		if since, ok := st.Signaled[a.Name]; ok {
 			delete(st.Signaled, a.Name)
@@ -283,17 +412,19 @@ func (st *State) waitedEnough(in Input, now map[string]Agent) []Action {
 	return out
 }
 
-// startedByHand notes the turns that started outside hergy's handing: the
-// person typed in the pane.
-func (st *State) startedByHand(in Input, before map[string]Agent) []Action {
+// started notes each turn herdr saw begin. One a tell, a delivery or a
+// question of hergy's opened is their landing; any other is the person's,
+// typed in the pane.
+func (st *State) started(in Input, before map[string]Agent) []Action {
 	var out []Action
 	for _, a := range in.Now {
 		was, seen := before[a.Name]
 		if a.Status != working || (seen && was.Status == working) {
 			continue
 		}
-		if st.Holder == a.Name {
-			continue // hergy handed it; the start is the delivery landing
+		st.Started[a.Name] = in.At
+		if _, asked := st.Asked[a.Name]; asked || len(st.Opened[a.Name]) > 0 {
+			continue
 		}
 		st.hold(a.Name, Human, in.At)
 		out = append(out, Action{Kind: Started, To: a.Name, From: Human})
@@ -301,17 +432,22 @@ func (st *State) startedByHand(in Input, before map[string]Agent) []Action {
 	return out
 }
 
-// emptyBox delivers the box to each member that is stopped.
+// emptyBox delivers the box to each member that is stopped and is not being
+// asked: the answer comes first, so the question's reply is read on its own.
 func (st *State) emptyBox(in Input) []Action {
 	var out []Action
 	for _, a := range in.Now {
 		if !stopped(a) || len(st.Pending[a.Name]) == 0 {
 			continue
 		}
+		if _, asked := st.Asked[a.Name]; asked {
+			continue
+		}
 		msgs := st.Pending[a.Name]
 		delete(st.Pending, a.Name)
-		st.hold(a.Name, msgs[len(msgs)-1].From, in.At)
-		out = append(out, Action{Kind: Deliver, To: a.Name, From: msgs[len(msgs)-1].From, Messages: msgs})
+		from := msgs[len(msgs)-1].From
+		st.open(a.Name, from, in.At)
+		out = append(out, Action{Kind: Deliver, To: a.Name, From: from, Messages: msgs})
 	}
 	return out
 }
@@ -332,113 +468,207 @@ func (in Input) wrote(name string) string {
 // ended is what one stopped agent's turn becomes, given the text of the turn
 // and how the end was seen.
 func (st *State) ended(in Input, a Agent, now map[string]Agent, text, route, source string) []Action {
-	out := st.turnOf(in, a, now, text)
+	var out []Action
+	if ask, asked := st.Asked[a.Name]; asked {
+		out = st.answered(in, a, now, ask, text)
+	} else {
+		out = st.turnOf(in, a, text)
+	}
 	for i := range out {
 		out[i].Route, out[i].Source = route, source
 	}
 	return out
 }
 
-func (st *State) turnOf(in Input, a Agent, now map[string]Agent, text string) []Action {
+// turnOf decides one ended turn (d-80a5, d-b024): the outside's reply rests;
+// one the member handed on itself (a tell in the turn) needs nothing; one that
+// members opened and the member did not hand on is asked about, unless it
+// wrote nothing, which goes to the human.
+func (st *State) turnOf(in Input, a Agent, text string) []Action {
+	openers := st.takeOpeners(a)
+	told := st.toldIn(a.Name)
+	if len(openers) == 0 {
+		st.toHuman(a.Name, "", in.At)
+		return []Action{{Kind: Rested, From: a.Name}}
+	}
+	if told {
+		return []Action{{Kind: Passed, From: a.Name}}
+	}
 	if strings.TrimSpace(text) == "" {
 		st.toHuman(a.Name, WhySilent, in.At)
-		return []Action{{Kind: ToHuman, From: a.Name, Why: WhySilent}}
+		return []Action{{Kind: ToHuman, From: a.Name, Why: WhySilent, Waiting: openers}}
 	}
-	from := ""
-	if st.Holder == a.Name {
-		from = st.From
+	cands := Candidates(in.Graph, a, openers)
+	st.Asked[a.Name] = Question{Seq: a.Seq, At: in.At, Text: text, Candidates: cands, Waiting: openers}
+	st.hold(a.Name, st.From, in.At)
+	return []Action{{Kind: Ask, To: a.Name, Candidates: cands, Waiting: openers}}
+}
+
+// answered reads the member's answer to hergy's question and does as it says:
+// a member it names gets the text that waited; the human, nobody or an answer
+// that names no one candidate leaves the turn with the human, saying why.
+func (st *State) answered(in Input, a Agent, now map[string]Agent, ask Question, text string) []Action {
+	delete(st.Asked, a.Name)
+	if st.toldIn(a.Name) {
+		return []Action{{Kind: Passed, From: a.Name}} // it handed on itself, asked
 	}
-	hint := Hint(text)
-	if in.Team != "" {
-		hint = strings.TrimPrefix(hint, in.Team+"-")
+	to := Answer(text, in.Team, ask.Candidates)
+	switch to {
+	case "":
+		st.toHuman(a.Name, WhyUnclear, in.At)
+		return []Action{{Kind: ToHuman, From: a.Name, Why: WhyUnclear, Messages: []Message{{From: a.Name, At: in.At, Text: text}}}}
+	case Nobody:
+		st.toHuman(a.Name, WhyNobody, in.At)
+		return []Action{{Kind: ToHuman, From: a.Name, Why: WhyNobody}}
+	case Human:
+		st.toHuman(a.Name, "", in.At)
+		return []Action{{Kind: ToHuman, From: a.Name, Messages: []Message{{From: a.Name, At: ask.At, Text: ask.Text}}}}
 	}
-	to, human, why := Destination(in.Graph, a, from, hint)
-	if human {
-		st.toHuman(a.Name, why, in.At)
-		return []Action{{Kind: ToHuman, From: a.Name, Why: why, Messages: []Message{{From: a.Name, At: in.At, Text: text}}}}
-	}
-	msg := Message{From: a.Name, At: in.At, Text: text}
+	msg := Message{From: a.Name, At: ask.At, Text: ask.Text}
 	if recipient, live := now[to]; live && (recipient.Status == working || recipient.Status == blocked) {
 		st.Pending[to] = append(st.Pending[to], msg)
 		return []Action{{Kind: Box, To: to, From: a.Name, Messages: []Message{msg}}}
 	}
 	msgs := append(append([]Message(nil), st.Pending[to]...), msg)
 	delete(st.Pending, to)
-	st.hold(to, a.Name, in.At)
+	st.open(to, a.Name, in.At)
 	return []Action{{Kind: Deliver, To: to, From: a.Name, Messages: msgs}}
+}
+
+// takeOpeners is who opened the turn that just ended, by member: the openings
+// that came before herdr saw it begin (all of them when it was not seen), taken
+// out of Opened; Human among them says the outside opened it too. A worker's
+// turn no one opened is its hirer's (d-3baa).
+func (st *State) takeOpeners(a Agent) []string {
+	started := st.Started[a.Name]
+	var keep []Opening
+	var members []string
+	outside := false
+	for _, o := range st.Opened[a.Name] {
+		if !started.IsZero() && o.At.After(started) {
+			keep = append(keep, o)
+			continue
+		}
+		if o.By == Human {
+			outside = true
+			continue
+		}
+		if !slices.Contains(members, o.By) {
+			members = append(members, o.By)
+		}
+	}
+	if len(keep) == 0 {
+		delete(st.Opened, a.Name)
+	} else {
+		st.Opened[a.Name] = keep
+	}
+	if len(members) == 0 && !outside && a.Hirer != "" {
+		return []string{a.Hirer}
+	}
+	return members
+}
+
+// toldIn is whether the member handed on with hergy tell during the turn that
+// just ended, and forgets the tell.
+func (st *State) toldIn(name string) bool {
+	told, ok := st.Told[name]
+	if !ok {
+		return false
+	}
+	delete(st.Told, name)
+	started := st.Started[name]
+	return started.IsZero() || !told.Before(started)
 }
 
 func (st *State) hold(holder, from string, at time.Time) {
 	st.Holder, st.From, st.Since, st.Why = holder, from, at, ""
 }
 
-func (st *State) toHuman(from, why string, at time.Time) {
-	st.Holder, st.From, st.Since = Human, from, at
-	if why != WhyEdge {
-		st.Why = why
-	} else {
-		st.Why = ""
-	}
+// open gives to the turn from from, by hergy's hand: the delivery opens to's
+// turn, so its reply without a tell is asked about.
+func (st *State) open(to, from string, at time.Time) {
+	st.Opened[to] = append(st.Opened[to], Opening{By: from, At: at})
+	st.hold(to, from, at)
 }
 
-// Destination is who a stopped agent's turn goes to (d-ef43, d-3baa): a worker
-// returns to the member that hired it; a member whose turns name one party
-// hands it there; one with several hands it back to the party that handed it
-// the turn, or else to the first its turns name; a hint written on the last
-// line (Hint) wins when it names one of those parties. human is whether the
-// turn goes to the person, and why is a Why constant then.
-func Destination(g *definition.Graph, a Agent, from, hint string) (to string, human bool, why string) {
-	if a.Hirer != "" {
-		return a.Hirer, false, ""
+func (st *State) toHuman(from, why string, at time.Time) {
+	st.Holder, st.From, st.Since, st.Why = Human, from, at, why
+}
+
+// Candidates are the members an asked member may name: those waiting for its
+// answer first, then the members the definition's turns name out of it, then
+// the member that hired a worker. The human and nobody are always understood.
+func Candidates(g *definition.Graph, a Agent, waiting []string) []string {
+	out := append([]string(nil), waiting...)
+	add := func(name string) {
+		if name != "" && name != a.Name && !slices.Contains(out, name) {
+			out = append(out, name)
+		}
 	}
-	var cands []string
 	if g != nil {
 		for _, edge := range g.Out(definition.NodeID{Kind: definition.KindMember, Name: a.Name}) {
-			switch edge.To.Kind {
-			case definition.KindHuman:
-				cands = append(cands, Human)
-			case definition.KindMember:
-				cands = append(cands, edge.To.Name)
-			case definition.KindWorker:
-				// A worker is hired, not handed the turn.
+			if edge.To.Kind == definition.KindMember {
+				add(edge.To.Name)
 			}
 		}
 	}
-	if len(cands) == 0 {
-		return Human, true, WhyNoEdge
-	}
-	pick := func(name string) (string, bool, string) {
-		if name == Human {
-			return Human, true, WhyEdge
-		}
-		return name, false, ""
-	}
-	if hint != "" && slices.Contains(cands, hint) {
-		return pick(hint)
-	}
-	if len(cands) == 1 {
-		return pick(cands[0])
-	}
-	if from != "" && slices.Contains(cands, from) {
-		return pick(from)
-	}
-	return pick(cands[0])
+	add(a.Hirer)
+	return out
 }
 
-// hintLine is the one way a member names the party it writes for: a last line
-// of "→ name" (or "-> name"); "→ 人間" and "→ human" name the person.
-var hintLine = regexp.MustCompile(`^(?:→|->)\s*(\S+)\s*$`)
+// humanWords and nobodyWords are how an answer names the outside and no one.
+var (
+	humanWords  = []string{"人間", "human", "外側", "outside"}
+	nobodyWords = []string{"誰にも", "nobody", "no one", "none"}
+)
 
-// Hint is the party the last non-empty line of a turn's text names, or "".
-func Hint(text string) string {
+// Answer reads a member's answer to hergy's question: the one candidate it
+// names (by short name or herdr name), Human, Nobody, or "" when it names none
+// or more than one. When the whole answer names several (a pane read back with
+// the question's own list in it), its last line alone is read: the one word
+// the member was asked for. A name is a whole word among ASCII letters, so
+// "dev" is not found in "developer".
+func Answer(text, team string, cands []string) string {
+	if to := answerIn(text, team, cands); to != "" {
+		return to
+	}
 	lines := strings.Split(strings.TrimRight(text, "\n \t"), "\n")
 	last := strings.TrimSpace(lines[len(lines)-1])
-	m := hintLine.FindStringSubmatch(last)
-	if m == nil {
+	if last == strings.TrimSpace(text) {
 		return ""
 	}
-	if m[1] == "人間" || m[1] == Human {
-		return Human
+	return answerIn(last, team, cands)
+}
+
+func answerIn(text, team string, cands []string) string {
+	var hits []string
+	lower := strings.ToLower(text)
+	for _, cand := range cands {
+		if namesWord(lower, strings.ToLower(cand)) || (team != "" && namesWord(lower, strings.ToLower(team+"-"+cand))) {
+			hits = append(hits, cand)
+		}
 	}
-	return m[1]
+	for _, w := range humanWords {
+		if namesWord(lower, w) {
+			hits = append(hits, Human)
+			break
+		}
+	}
+	for _, w := range nobodyWords {
+		if namesWord(lower, w) {
+			hits = append(hits, Nobody)
+			break
+		}
+	}
+	if len(hits) != 1 {
+		return ""
+	}
+	return hits[0]
+}
+
+// namesWord is whether text holds word as a whole word: not inside a longer run
+// of ASCII letters, digits, hyphens or underscores.
+func namesWord(text, word string) bool {
+	re := regexp.MustCompile(`(^|[^A-Za-z0-9_-])` + regexp.QuoteMeta(word) + `([^A-Za-z0-9_-]|$)`)
+	return re.MatchString(text)
 }

@@ -56,3 +56,16 @@ func Save(path string, st *State) error {
 	}
 	return os.Rename(tmp.Name(), path)
 }
+
+// Clear forgets one team's turn: the state file, the signals and the tells
+// that waited. hergy down calls it once the team's panes are closed, so the
+// next team of that name starts with the human holding the turn.
+func Clear(stateDir, team string) error {
+	var first error
+	for _, path := range []string{Path(stateDir, team), SignalDir(stateDir, team), TellDir(stateDir, team)} {
+		if err := os.RemoveAll(path); err != nil && first == nil {
+			first = err
+		}
+	}
+	return first
+}

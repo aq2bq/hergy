@@ -23,13 +23,15 @@ import (
 	"github.com/aq2bq/hergy/internal/turns"
 )
 
-// hergy turns <team>: the watcher that hands a stopped member's turn on
-// (r-bc26, d-90e0, d-5b60). Once a second it takes the signals the harnesses
-// wrote (hergy turn-done, r-378e), reads herdr, hands the step in
-// internal/turns both, and does what the step says: prompts the party a turn
-// goes to, keeps the box, writes the turn's state, and prints one line per
-// handing in its own pane for a person to read, with how the end was seen. The
-// judgement is the turns package's; this file is the reading and the doing.
+// hergy turns <team>: the watcher that keeps the team's turn and acts when a
+// turn ends unhanded (r-103d; d-90e0, d-5b60). Once a second it takes the
+// tells hergy tell recorded and the signals the harnesses wrote (hergy
+// turn-done, r-378e), reads herdr, hands the step in internal/turns all of it,
+// and does what the step says: asks a member who its result is for, delivers
+// it as the member answers, keeps the box, writes the turn's state, and prints
+// one line per event in its own pane for a person to read, with how the end
+// was seen. The judgement is the turns package's; this file is the reading and
+// the doing.
 
 const (
 	// turnsTick is how often herdr is read.
@@ -62,6 +64,12 @@ func runTurns(ctx context.Context, env team.Env, opts *options.Options, stdout i
 	w.read = herdrRead
 	w.hirers = hirersOf(r.team.Name)
 	w.signals = turns.SignalDir(dir, r.team.Name)
+	w.tells = turns.TellDir(dir, r.team.Name)
+	// Tells that waited while no watcher ran are about turns this watcher did
+	// not see: they are dropped, so a member is not asked about a turn long gone.
+	if _, err := turns.TakeTells(w.tells); err != nil {
+		return err
+	}
 	for _, s := range r.starts {
 		if s.Signal.Wired {
 			w.wired[s.Short] = true
@@ -128,10 +136,11 @@ type turnWatcher struct {
 	snaps map[string]snapshot
 	// names is each agent's herdr name by its short name, as of the last read.
 	names map[string]string
-	// signals is the directory the harnesses' signals wait in; empty reads
-	// none. wired is who has a harness that signals: the members hergy wired,
-	// and anyone a signal has come from.
+	// signals is the directory the harnesses' signals wait in, and tells the
+	// one hergy tell writes to; empty reads none. wired is who has a harness
+	// that signals: the members hergy wired, and anyone a signal has come from.
 	signals string
+	tells   string
 	wired   map[string]bool
 }
 
@@ -152,8 +161,16 @@ func (w *turnWatcher) load() error {
 	return nil
 }
 
-// tick takes the signals, reads herdr once and does what the step says.
+// tick takes the tells and the signals, reads herdr once and does what the
+// step says.
 func (w *turnWatcher) tick() {
+	var tells []turns.Tell
+	if w.tells != "" {
+		var err error
+		if tells, err = turns.TakeTells(w.tells); err != nil {
+			fmt.Fprint(w.out, i18n.Tf("turns.read_error", err.Error()))
+		}
+	}
 	var signals []turns.Signal
 	if w.signals != "" {
 		var err error
@@ -175,7 +192,7 @@ func (w *turnWatcher) tick() {
 	now := w.observe(teamAgents(tabs, agents, w.team))
 	actions := turns.Step(w.state, turns.Input{
 		Team: w.team, Graph: w.graph, Before: w.prev, Now: now, Wrote: w.wrote, At: w.clock(),
-		Signals: signals, Wired: func(name string) bool { return w.wired[name] },
+		Tells: tells, Signals: signals, Wired: func(name string) bool { return w.wired[name] },
 	})
 	w.prev = now
 	for _, action := range actions {
@@ -245,14 +262,15 @@ func (w *turnWatcher) act(action turns.Action) {
 	case turns.Box:
 		fmt.Fprint(w.out, i18n.Tf("turns.boxed", action.From, action.To, route))
 	case turns.ToHuman:
-		switch action.Why {
-		case turns.WhySilent:
-			fmt.Fprint(w.out, i18n.Tf("turns.to_human_silent", action.From, route))
-		case turns.WhyNoEdge:
-			fmt.Fprint(w.out, i18n.Tf("turns.to_human_no_edge", action.From, route))
-		default:
-			fmt.Fprint(w.out, i18n.Tf("turns.to_human_edge", action.From, route))
-		}
+		w.toHuman(action, route)
+	case turns.Ask:
+		w.ask(action, route)
+	case turns.Told:
+		fmt.Fprint(w.out, i18n.Tf("turns.told", w.party(action.From), action.To))
+	case turns.Rested:
+		fmt.Fprint(w.out, i18n.Tf("turns.rested", action.From, route))
+	case turns.Passed:
+		// The tell's own line said it; nothing more to say.
 	case turns.Started:
 		fmt.Fprint(w.out, i18n.Tf("turns.started", action.To))
 	case turns.Dropped:
@@ -260,9 +278,58 @@ func (w *turnWatcher) act(action turns.Action) {
 	}
 }
 
-// routeText says how a turn's end was seen, after the line that hands it on:
-// the harness's signal, herdr's reading, or herdr's reading after the signal
-// did not come (r-378e). The box emptying has no route and says nothing.
+// party is a name as the band writes it: a member's short name, or the human.
+func (w *turnWatcher) party(name string) string {
+	if name == turns.Human {
+		return i18n.T("send.who_human")
+	}
+	return name
+}
+
+// toHuman prints why the human came to hold the turn.
+func (w *turnWatcher) toHuman(action turns.Action, route string) {
+	switch action.Why {
+	case turns.WhySilent:
+		fmt.Fprint(w.out, i18n.Tf("turns.to_human_silent", action.From, waitingText(action.Waiting), route))
+	case turns.WhyNobody:
+		fmt.Fprint(w.out, i18n.Tf("turns.to_human_nobody", action.From, route))
+	case turns.WhyUnclear:
+		fmt.Fprint(w.out, i18n.Tf("turns.to_human_unclear", action.From, route))
+	default:
+		fmt.Fprint(w.out, i18n.Tf("turns.to_human_edge", action.From, route))
+	}
+}
+
+// waitingText names who waits for a member's answer, for the band.
+func waitingText(waiting []string) string {
+	if len(waiting) == 0 {
+		return ""
+	}
+	return i18n.Tf("turns.waiting_for", strings.Join(waiting, ", "))
+}
+
+// ask puts hergy's question to the member whose turn ended unhanded: who is
+// the result for? The answer is read at its next stop. A question that cannot
+// be put (the member is blocked, or never starts) leaves the turn with the
+// human, saying why.
+func (w *turnWatcher) ask(action turns.Action, route string) {
+	target := w.names[action.To]
+	if target == "" {
+		target = w.team + "-" + action.To
+	}
+	cands := append(append([]string(nil), action.Candidates...), i18n.T("send.who_human"), i18n.T("turns.nobody"))
+	text := i18n.Tf("turns.question", waitingText(action.Waiting), strings.Join(cands, i18n.T("turns.or")))
+	fmt.Fprint(w.out, i18n.Tf("turns.asked", action.To, waitingText(action.Waiting), route))
+	if err := w.herdr.PromptWait(target, text, deliverWaitMS); err != nil {
+		w.state.Unanswered(action.To, w.clock())
+		fmt.Fprint(w.out, i18n.Tf("turns.to_human_unanswered", action.To, err.Error()))
+	}
+}
+
+// routeText says how a turn's end was seen, after the line about it: the
+// harness's signal, herdr's reading, or herdr's reading after the signal did
+// not come (r-378e). A delivery the member's answer decided says so. The box
+// emptying and a tell have no route and say nothing.
 func routeText(action turns.Action) string {
 	switch action.Route {
 	case turns.RouteSignal:
@@ -276,8 +343,12 @@ func routeText(action turns.Action) string {
 }
 
 // deliver prompts the recipient and waits to see it working; a delivery that
-// does not land is tried once more, then the human holds the turn (d-b4b5).
+// does not land is tried once more, then the human holds the turn (d-b4b5). A
+// delivery the member's answer decided says so after the line.
 func (w *turnWatcher) deliver(action turns.Action, route string) {
+	if route != "" {
+		route = i18n.Tf("turns.route_answer", route)
+	}
 	text := w.handoffText(action.Messages)
 	target := w.names[action.To]
 	if target == "" {

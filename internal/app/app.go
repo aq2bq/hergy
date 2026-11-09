@@ -1443,7 +1443,17 @@ func runDown(ctx context.Context, env team.Env, opts *options.Options, stdout, s
 		return err
 	}
 	printLeftovers(stdout, projectRoot, dirs, owner, false)
-	return nil
+	return clearTurn(r.team.Name)
+}
+
+// clearTurn forgets a closed team's turn, so a team of the same name starts
+// with the human holding it (r-103d). It is called once the panes are closed.
+func clearTurn(teamName string) error {
+	dir, err := screenlog.DefaultDir()
+	if err != nil {
+		return err
+	}
+	return turns.Clear(dir, teamName)
 }
 
 // downOneWorker closes one worker of a running team and nothing else: the pane
@@ -1527,7 +1537,7 @@ func downByName(ctx context.Context, chosen team.Running, reason error, opts *op
 		return err
 	}
 	printLeftovers(stdout, projectRoot, dirs, owner, false)
-	return nil
+	return clearTurn(chosen.Team)
 }
 
 // downStopped puts away a team that stopped before any of its agents ran: hergy
@@ -1618,7 +1628,7 @@ func downNoAgents(ctx context.Context, opts *options.Options, projectRoot, name 
 		return err
 	}
 	printLeftovers(stdout, projectRoot, dirs, owner, false)
-	return nil
+	return clearTurn(name)
 }
 
 // hasTeamTab reports whether a tab is this team's: one labelled with the team's
@@ -1669,9 +1679,10 @@ func watcherCommand(teamName, projectRoot string) []string {
 	return []string{executable(), "turns", teamName, "-C", projectRoot, "--lang", i18n.Language()}
 }
 
-// printTurn is the status line about the turn: who holds it, from whom, and why
-// the human does when hergy handed it over; and whether the watcher's pane is
-// there at all (r-bc26).
+// printTurn is the status lines about the turn: who holds it, from whom, why
+// the human does when hergy handed it over, whether the holder is being asked
+// who its result is for, who waits for whose answer; and whether the watcher's
+// pane is there at all (r-bc26, r-103d).
 func printTurn(stdout io.Writer, teamName string) {
 	dir, err := screenlog.DefaultDir()
 	if err != nil {
@@ -1688,14 +1699,20 @@ func printTurn(stdout io.Writer, teamName string) {
 		}
 		return
 	}
-	if st.Holder == turns.Human {
+	switch {
+	case st.Holder == turns.Human:
 		why := ""
 		if st.Why != "" {
 			why = i18n.T("status.turn_why_" + st.Why)
 		}
 		field(stdout, i18n.T("status.turn"), i18n.Tf("status.turn_human", st.From, why))
-	} else {
+	case st.Asked[st.Holder].Seq != 0:
+		field(stdout, i18n.T("status.turn"), i18n.Tf("status.turn_holder_asked", st.Holder, st.From))
+	default:
 		field(stdout, i18n.T("status.turn"), i18n.Tf("status.turn_holder", st.Holder, st.From))
+	}
+	if waits := st.Waits(); len(waits) > 0 {
+		field(stdout, i18n.T("status.turn_waits"), strings.Join(waits, i18n.T("list.separator")))
 	}
 	if !watcherPresent(teamName) {
 		fmt.Fprint(stdout, i18n.Tf("status.no_watcher", teamName))
@@ -1992,39 +2009,6 @@ func runStop(env team.Env, opts *options.Options, stdout io.Writer) error {
 		printNext(stdout, "refresh "+member.Name+" --team "+r.team.Name)
 	}
 	return nil
-}
-
-// runTell sends one member a message from a person or another member. --dry
-// prints the message and sends nothing.
-func runTell(env team.Env, opts *options.Options, stdout io.Writer) error {
-	resolve := resolveTeam
-	if opts.Dry {
-		resolve = resolveTeamDry
-	}
-	r, err := resolve(env.Catalog(source.Disk{}), env.ProjectRoot, opts)
-	if err != nil {
-		return err
-	}
-	member, err := r.member(opts.Member)
-	if err != nil {
-		return err
-	}
-	from := ""
-	if opts.From != "" {
-		found, err := r.member(opts.From)
-		if err != nil {
-			return i18n.Errorf("error.tell_from_unknown", opts.From)
-		}
-		from = found.Name
-	} else if !opts.Dry {
-		from = senderName(r, os.Getenv("HERDR_PANE_ID"))
-	}
-	text := sendText(from, opts.Body)
-	if opts.Dry {
-		fmt.Fprintf(stdout, i18n.T("send.dry"), member.Name, text)
-		return nil
-	}
-	return newLauncher(r, opts.Timeout, stdout).Tell(member, text)
 }
 
 // sendText heads a message with who it is from, the shape a member's own message

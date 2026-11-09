@@ -71,6 +71,10 @@ var ownerRules = []ownerRule{
 	{name: "Undelivered(", where: "go", files: []string{"internal/turns/", "internal/app/turns.go"}},
 	{name: "turns.TakeSignals", where: "go", files: []string{"internal/app/turns.go"}},
 	{name: "turns.WriteSignal", where: "go", files: []string{"internal/app/turn_done.go"}},
+	{name: "turns.TakeTells", where: "go", files: []string{"internal/app/turns.go"}},
+	{name: "turns.WriteTell", where: "go", files: []string{"internal/app/tell.go"}},
+	{name: "turns.Clear(", where: "go", files: []string{"internal/app/app.go"}},
+	{name: "Unanswered(", where: "go", files: []string{"internal/turns/", "internal/app/turns.go"}},
 	{name: "harness.Wire(", where: "go", files: []string{"internal/app/wire.go"}},
 }
 

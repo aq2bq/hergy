@@ -7,36 +7,39 @@ import (
 	"testing"
 )
 
-// The contact guide's lines, exactly as they stand in the locale (r-bc26,
-// ac-2d71): a member writes in its own pane and stops, hergy's watcher hands it
-// on, and nobody sends a turn by hand. A test names the whole line, not a word:
-// a shorter rewording must fail.
+// The contact guide's lines, exactly as they stand in the locale (r-103d,
+// d-8b4e): a member hands its result on with hergy tell and stops, text for the
+// person is written in the pane, a stop without a tell is asked about, and
+// nobody uses herdr agent prompt. A test names the whole line, not a word: a
+// shorter rewording must fail.
 var turnGuide = map[string][]string{
 	"ja": {
-		"- 結果と、次に誰かにしてほしいことを、自分のペインに書いて止まる。hergy の見張りが、チーム定義の turns が名指す相手へ届ける（相手が作業中なら、止まった瞬間に届く）。",
-		"- 渡し先を変えたいときだけ、最後の行に「→ <名前>」か「→ 人間」と書く。人間に読んでほしい文も、同じように「→ 人間」と書く。",
-		"- `herdr agent prompt` は使わない。使うと hergy の見張りと二重になる。",
+		"- 結果と、次に誰かにしてほしいことは、`hergy tell <名前> \"<本文>\"` で渡してから止まる。名前は名簿の短い名前（lead など）。",
+		"- 人間に読んでほしい文は、自分のペインに書いて止まる。",
+		"- 誰にも渡さずに止まると、hergy が「誰に渡しますか」と聞く。名前 1 語か「人間」か「誰にも」で答える。",
+		"- `herdr agent prompt` は使わない。hergy が誰のターンか分からなくなる。",
 	},
 	"en": {
-		"- Write your result, and what you need someone to do next, in your own pane and stop. hergy's watcher hands it to the party the definition's turns name (one that is working gets it the moment it stops).",
-		"- Only to change where it goes, write \"→ <name>\" or \"→ human\" as the last line. Text for the person goes the same way: \"→ human\".",
-		"- Do not use `herdr agent prompt`: it would double what the watcher hands on.",
+		"- Hand your result, and what you need someone to do next, on with `hergy tell <name> \"<text>\"`, then stop. The name is the short one in the roster (lead, for example).",
+		"- Text for the person: write it in your own pane and stop.",
+		"- If you stop without handing on, hergy asks who it is for. Answer with one name, \"human\" or \"nobody\".",
+		"- Do not use `herdr agent prompt`: hergy would lose whose turn it is.",
 	},
 }
 
-// workerTurnGuide is the contact guide a hired worker reads: its pane is handed
-// to the member that hired it, questions go the same way, and it adds no
-// teammates (r-dee4, r-bc26).
+// workerTurnGuide is the contact guide a hired worker reads: it hands its
+// result to the member that hired it with hergy tell, questions go the same
+// way, and it adds no teammates (r-dee4, r-103d).
 var workerTurnGuide = map[string][]string{
 	"ja": {
-		"- 結果を自分のペインに書いて止まる。hergy の見張りが、あなたを追加したメンバーへ届ける。",
-		"- 途中で聞きたいことがあるときも、自分のペインに書いて止まる。同じ道で届く。",
-		"- `herdr agent prompt` は使わない。使うと hergy の見張りと二重になる。",
+		"- 結果は `hergy tell <追加したメンバー> \"<本文>\"` で渡してから止まる。途中で聞きたいことも、同じ道で渡す。",
+		"- 渡さずに止まると、hergy が「誰に渡しますか」と聞く。名前 1 語で答える。",
+		"- `herdr agent prompt` は使わない。hergy が誰のターンか分からなくなる。",
 	},
 	"en": {
-		"- Write your result in your own pane and stop. hergy's watcher hands it to the member that hired you.",
-		"- To ask something before you are done, write it in your own pane and stop the same way.",
-		"- Do not use `herdr agent prompt`: it would double what the watcher hands on.",
+		"- Hand your result on with `hergy tell <the member that hired you> \"<text>\"`, then stop. A question before you are done goes the same way.",
+		"- If you stop without handing on, hergy asks who it is for. Answer with one name.",
+		"- Do not use `herdr agent prompt`: hergy would lose whose turn it is.",
 	},
 }
 
@@ -95,11 +98,12 @@ func hasPromptLine(prompt, line string) bool {
 	return slices.Contains(strings.Split(prompt, "\n"), line)
 }
 
-// TestWorkerPromptWritesTheResultInItsPane: a hired worker is told to write its
-// result in its own pane and stop, and that hergy's watcher hands it to the
-// member that hired it (r-dee4, d-de32, r-bc26). The lines that told it to send
-// with herdr agent prompt, and that its pane does not reach the member, are gone.
-func TestWorkerPromptWritesTheResultInItsPane(t *testing.T) {
+// TestWorkerPromptHandsTheResultOnWithTell: a hired worker is told to hand its
+// result to the member that hired it with hergy tell and stop (r-dee4, d-de32,
+// r-103d). The lines that told it to send with herdr agent prompt, that its
+// pane does not reach the member, and that the watcher hands its pane on are
+// gone.
+func TestWorkerPromptHandsTheResultOnWithTell(t *testing.T) {
 	tests := []struct {
 		lang   string
 		gone   []string
@@ -111,10 +115,11 @@ func TestWorkerPromptWritesTheResultInItsPane(t *testing.T) {
 				"herdr agent prompt dev-lead",
 				"待ち続ける",
 				"自分のペインに書いて止まることは、人間にターンを渡すこと",
+				"hergy の見張りが dev-lead へ届ける",
 			},
 			wanted: []string{
-				"終わったら、結果を自分のペインに書いて止まる。hergy の見張りが dev-lead へ届ける。",
-				"途中で聞きたいことがあるときも、自分のペインに書いて止まる。同じ道で届く。",
+				"終わったら、結果を `hergy tell dev-lead \"<本文>\"` で渡して止まる。",
+				"- 結果は `hergy tell <追加したメンバー> \"<本文>\"` で渡してから止まる。途中で聞きたいことも、同じ道で渡す。",
 			},
 		},
 		{
@@ -123,10 +128,11 @@ func TestWorkerPromptWritesTheResultInItsPane(t *testing.T) {
 				"herdr agent prompt dev-lead",
 				"keeps waiting",
 				"Writing in your own pane and stopping hands the turn to the human",
+				"hergy's watcher hands it to dev-lead",
 			},
 			wanted: []string{
-				"When you are done, write the result in your own pane and stop. hergy's watcher hands it to dev-lead.",
-				"To ask something before you are done, write it in your own pane and stop the same way.",
+				"When you are done, hand the result on with `hergy tell dev-lead \"<text>\"` and stop.",
+				"- Hand your result on with `hergy tell <the member that hired you> \"<text>\"`, then stop. A question before you are done goes the same way.",
 			},
 		},
 	}

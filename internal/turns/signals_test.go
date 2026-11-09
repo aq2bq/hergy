@@ -12,16 +12,17 @@ func wired(names ...string) func(string) bool {
 }
 
 // TestASignalEndsTheTurnBeforeHerdrSeesTheStop: the harness speaks while herdr
-// still says working; the turn is handed from the signal's text, and the stop
-// herdr then sees is that turn's, not handed again (d-ef1d, d-5f1a).
+// still says working; the turn is acted on with the signal's text (dev, whose
+// turn spec opened, is asked), and the stop herdr then sees is that turn's,
+// not acted on again (d-ef1d, d-5f1a).
 func TestASignalEndsTheTurnBeforeHerdrSeesTheStop(t *testing.T) {
-	st := &State{Team: "t", Holder: "dev", From: "spec"}
+	st := &State{Team: "t", Holder: "dev", From: "spec", Opened: map[string][]Opening{"dev": {{By: "spec", At: at.Add(-time.Minute)}}}}
 	working := []Agent{{Name: "spec", Status: "idle", Seq: 1}, {Name: "dev", Status: "working", Seq: 2}}
 	sig := Signal{Member: "dev", At: at, Text: "d6465cd を積んだ。", Source: "claude"}
 	got := Step(st, Input{Graph: ring(), Before: working, Now: working, Signals: []Signal{sig}, Wired: wired("dev"), At: at,
 		Wrote: wrote(map[string]string{"dev": "ペインの文字は使わない"})})
-	if len(got) != 1 || got[0].Kind != Deliver || got[0].To != "spec" || got[0].Messages[0].Text != sig.Text {
-		t.Fatalf("Step = %+v, want dev's signal delivered to spec", got)
+	if len(got) != 1 || got[0].Kind != Ask || got[0].To != "dev" || st.Asked["dev"].Text != sig.Text {
+		t.Fatalf("Step = %+v, state %+v; want dev asked about the signal's text", got, st)
 	}
 	if got[0].Route != RouteSignal || got[0].Source != "claude" {
 		t.Errorf("route = %q %q, want the signal from claude", got[0].Route, got[0].Source)
@@ -30,10 +31,10 @@ func TestASignalEndsTheTurnBeforeHerdrSeesTheStop(t *testing.T) {
 		t.Fatalf("the signal before the stop is not remembered: %+v", st)
 	}
 	// herdr sees the stop a second later: nothing more is handed.
-	stopped := []Agent{{Name: "spec", Status: "working", Seq: 3}, {Name: "dev", Status: "done", Seq: 3}}
+	stopped := []Agent{{Name: "spec", Status: "idle", Seq: 3}, {Name: "dev", Status: "done", Seq: 3}}
 	if again := Step(st, Input{Graph: ring(), Before: working, Now: stopped, Wired: wired("dev"), At: at.Add(time.Second),
 		Wrote: wrote(map[string]string{"dev": "x"})}); len(again) != 0 {
-		t.Errorf("the stop the signal already ended was handed again: %+v", again)
+		t.Errorf("the stop the signal already ended was acted on again: %+v", again)
 	}
 	if st.Handed["dev"] != 3 || len(st.Signaled) != 0 || len(st.Waiting) != 0 {
 		t.Errorf("state = %+v, want dev's stop 3 marked handed and nothing waiting", st)
@@ -41,14 +42,14 @@ func TestASignalEndsTheTurnBeforeHerdrSeesTheStop(t *testing.T) {
 }
 
 // TestASignalAfterThePaneWasHandedIsDropped: herdr saw an unwired member stop
-// and the pane was handed; a signal for the same stop hands nothing twice.
+// and the pane was acted on; a signal for the same stop acts twice on nothing.
 func TestASignalAfterThePaneWasHandedIsDropped(t *testing.T) {
-	st := &State{Team: "t", Holder: "dev", From: "spec"}
+	st := &State{Team: "t", Holder: "dev", From: "spec", Opened: map[string][]Opening{"dev": {{By: "spec", At: at.Add(-time.Minute)}}}}
 	before := []Agent{{Name: "spec", Status: "idle", Seq: 1}, {Name: "dev", Status: "working", Seq: 2}}
 	now := []Agent{{Name: "spec", Status: "idle", Seq: 1}, {Name: "dev", Status: "done", Seq: 3}}
 	got := Step(st, Input{Graph: ring(), Before: before, Now: now, Wrote: wrote(map[string]string{"dev": "積んだ"}), At: at})
-	if len(got) != 1 || got[0].Kind != Deliver || got[0].Route != RouteHerdr {
-		t.Fatalf("Step = %+v, want one delivery from the pane", got)
+	if len(got) != 1 || got[0].Kind != Ask || got[0].Route != RouteHerdr {
+		t.Fatalf("Step = %+v, want dev asked from the pane", got)
 	}
 	late := Step(st, Input{Graph: ring(), Before: now, Now: now, Signals: []Signal{{Member: "dev", At: at, Text: "積んだ", Source: "codex"}}, At: at.Add(2 * time.Second)})
 	if len(late) != 1 || late[0].Kind != Dropped || late[0].From != "dev" {
@@ -57,10 +58,10 @@ func TestASignalAfterThePaneWasHandedIsDropped(t *testing.T) {
 }
 
 // TestAWiredStopWaitsForItsSignalThenReadsThePane: a wired member's stop is
-// not handed from the pane at once; the signal that comes in time hands it,
+// not acted on from the pane at once; the signal that comes in time ends it,
 // and one that never comes leaves the pane to be read after SignalGrace.
 func TestAWiredStopWaitsForItsSignalThenReadsThePane(t *testing.T) {
-	st := &State{Team: "t", Holder: "dev", From: "spec"}
+	st := &State{Team: "t", Holder: "dev", From: "spec", Opened: map[string][]Opening{"dev": {{By: "spec", At: at.Add(-time.Minute)}}}}
 	before := []Agent{{Name: "spec", Status: "idle", Seq: 1}, {Name: "dev", Status: "working", Seq: 2}}
 	now := []Agent{{Name: "spec", Status: "idle", Seq: 1}, {Name: "dev", Status: "done", Seq: 3}}
 	in := Input{Graph: ring(), Before: before, Now: now, Wired: wired("dev"), Wrote: wrote(map[string]string{"dev": "ペインから"}), At: at}
@@ -74,8 +75,8 @@ func TestAWiredStopWaitsForItsSignalThenReadsThePane(t *testing.T) {
 	in.Before, in.At = now, at.Add(2*time.Second)
 	in.Signals = []Signal{{Member: "dev", At: in.At, Text: "合図から", Source: "opencode"}}
 	got := Step(st, in)
-	if len(got) != 1 || got[0].Kind != Deliver || got[0].Messages[0].Text != "合図から" || got[0].Route != RouteSignal {
-		t.Fatalf("Step = %+v, want the signal's text delivered", got)
+	if len(got) != 1 || got[0].Kind != Ask || st.Asked["dev"].Text != "合図から" || got[0].Route != RouteSignal {
+		t.Fatalf("Step = %+v, state %+v; want dev asked with the signal's text", got, st)
 	}
 	if len(st.Waiting) != 0 || st.Handed["dev"] != 3 {
 		t.Errorf("state = %+v, want nothing waiting and stop 3 handed", st)
@@ -87,7 +88,7 @@ func TestAWiredStopWaitsForItsSignalThenReadsThePane(t *testing.T) {
 	}
 
 	// Without a signal: the pane is read once SignalGrace has passed.
-	st = &State{Team: "t", Holder: "dev", From: "spec"}
+	st = &State{Team: "t", Holder: "dev", From: "spec", Opened: map[string][]Opening{"dev": {{By: "spec", At: at.Add(-time.Minute)}}}}
 	in = Input{Graph: ring(), Before: before, Now: now, Wired: wired("dev"), Wrote: wrote(map[string]string{"dev": "ペインから"}), At: at}
 	_ = Step(st, in)
 	in.Before, in.At = now, at.Add(SignalGrace-time.Second)
@@ -96,8 +97,8 @@ func TestAWiredStopWaitsForItsSignalThenReadsThePane(t *testing.T) {
 	}
 	in.At = at.Add(SignalGrace)
 	got = Step(st, in)
-	if len(got) != 1 || got[0].Kind != Deliver || got[0].Messages[0].Text != "ペインから" || got[0].Route != RouteLate {
-		t.Fatalf("Step = %+v, want the pane handed late", got)
+	if len(got) != 1 || got[0].Kind != Ask || st.Asked["dev"].Text != "ペインから" || got[0].Route != RouteLate {
+		t.Fatalf("Step = %+v, state %+v; want dev asked from the pane, late", got, st)
 	}
 	if len(st.Waiting) != 0 || st.Handed["dev"] != 3 {
 		t.Errorf("state = %+v", st)

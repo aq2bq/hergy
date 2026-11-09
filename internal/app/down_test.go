@@ -2,11 +2,14 @@ package app
 
 import (
 	"encoding/json"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/aq2bq/hergy/internal/turns"
 )
 
 // stoppedTeamHerdr writes a fake herdr of a team that stopped before any agent
@@ -71,12 +74,26 @@ func TestDownClosesATeamThatStoppedBeforeAnyAgentRan(t *testing.T) {
 			t.Setenv("HERDR_ENV", "1")
 			t.Setenv("HERDR_PANE_ID", "p9")
 
+			// The team's turn, as the watcher left it, goes with the team (r-103d).
+			stateDir := filepath.Join(f.state, "hergy")
+			if err := turns.Save(turns.Path(stateDir, "turnwalk"), &turns.State{Team: "turnwalk", Holder: "lead"}); err != nil {
+				t.Fatal(err)
+			}
+			if err := turns.WriteTell(turns.TellDir(stateDir, "turnwalk"), turns.Tell{From: "lead", To: "builder", At: time.Now()}); err != nil {
+				t.Fatal(err)
+			}
+
 			if got := mustRun(t, "down", "turnwalk", "--lang", tc.lang); got != tc.want {
 				t.Fatalf("down turnwalk (--lang %s) printed:\n%s\nwant:\n%s", tc.lang, got, tc.want)
 			}
 			closes := calls(t, log)
 			if !strings.Contains(closes, "pane close p1") || !strings.Contains(closes, "pane close p2") {
 				t.Fatalf("down did not close the panes hergy named:\n%s", closes)
+			}
+			for _, gone := range []string{turns.Path(stateDir, "turnwalk"), turns.TellDir(stateDir, "turnwalk")} {
+				if _, err := os.Stat(gone); err == nil {
+					t.Errorf("down left the team's turn behind: %s", gone)
+				}
 			}
 			if strings.Contains(closes, "pane close p3") {
 				t.Fatalf("down closed a pane hergy did not name:\n%s", closes)

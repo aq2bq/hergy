@@ -83,6 +83,18 @@ func TestStatusSaysWhoHoldsTheTurn(t *testing.T) {
 			t.Fatalf("status is missing %q:\n%s", line, got)
 		}
 	}
+	// The holder is being asked who its result is for, and lead waits (r-103d).
+	if err := turns.Save(path, &turns.State{Team: "demo", Holder: "builder", From: "lead", Since: time.Now(),
+		Asked:  map[string]turns.Question{"builder": {Seq: 3, Text: "x", Candidates: []string{"lead"}}},
+		Opened: map[string][]turns.Opening{"builder": {{By: "lead"}}}}); err != nil {
+		t.Fatal(err)
+	}
+	got = mustRun(t, "status", "demo")
+	for _, line := range []string{"turn: builder (handed by lead); asked who it is for", "awaiting: lead → builder"} {
+		if !strings.Contains(got, line+"\n") {
+			t.Fatalf("status is missing %q:\n%s", line, got)
+		}
+	}
 	if err := turns.Save(path, &turns.State{Team: "demo", Holder: turns.Human, From: "builder", Why: turns.WhySilent, Since: time.Now()}); err != nil {
 		t.Fatal(err)
 	}

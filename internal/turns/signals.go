@@ -1,12 +1,7 @@
 package turns
 
 import (
-	"encoding/json"
-	"errors"
-	"os"
 	"path/filepath"
-	"sort"
-	"strconv"
 	"time"
 )
 
@@ -40,61 +35,11 @@ func SignalDir(stateDir, team string) string {
 // WriteSignal puts one signal in the team's directory, through a temporary
 // file and a rename. The name orders them by time.
 func WriteSignal(dir string, sig Signal) error {
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return err
-	}
-	raw, err := json.Marshal(sig)
-	if err != nil {
-		return err
-	}
-	tmp, err := os.CreateTemp(dir, ".signal-*")
-	if err != nil {
-		return err
-	}
-	if _, err := tmp.Write(raw); err != nil {
-		_ = tmp.Close()
-		_ = os.Remove(tmp.Name())
-		return err
-	}
-	if err := tmp.Close(); err != nil {
-		_ = os.Remove(tmp.Name())
-		return err
-	}
-	name := strconv.FormatInt(sig.At.UnixNano(), 10) + "-" + sig.Member + ".json"
-	return os.Rename(tmp.Name(), filepath.Join(dir, name))
+	return writeNote(dir, sig, sig.At, sig.Member)
 }
 
 // TakeSignals reads every signal waiting in the directory, oldest first, and
 // removes them. A directory that is not there holds none.
 func TakeSignals(dir string) ([]Signal, error) {
-	entries, err := os.ReadDir(dir)
-	if errors.Is(err, os.ErrNotExist) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	names := make([]string, 0, len(entries))
-	for _, e := range entries {
-		if !e.IsDir() && filepath.Ext(e.Name()) == ".json" && e.Name()[0] != '.' {
-			names = append(names, e.Name())
-		}
-	}
-	sort.Strings(names)
-	var out []Signal
-	for _, name := range names {
-		path := filepath.Join(dir, name)
-		raw, err := os.ReadFile(path)
-		if err != nil {
-			return out, err
-		}
-		var sig Signal
-		if err := json.Unmarshal(raw, &sig); err == nil {
-			out = append(out, sig)
-		}
-		if err := os.Remove(path); err != nil {
-			return out, err
-		}
-	}
-	return out, nil
+	return takeNotes[Signal](dir)
 }

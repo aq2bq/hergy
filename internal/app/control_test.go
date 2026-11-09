@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/aq2bq/hergy/internal/turns"
 )
 
 // controlHerdr writes a fake herdr for the member commands (focus, nudge, stop,
@@ -357,6 +359,12 @@ func TestTellSenderComesFromThePaneElseTheHuman(t *testing.T) {
 	}
 	if got := promptsRead(t, promptsPath); !slices.Equal(got, want) {
 		t.Fatalf("prompts = %q, want %q", got, want)
+	}
+	// Both tells are recorded for the watcher, by short names, the person as ""
+	// (r-103d, d-8b4e): this is how hergy knows who opened builder's turn.
+	tells, err := turns.TakeTells(turns.TellDir(filepath.Join(f.state, "hergy"), "demo"))
+	if err != nil || len(tells) != 2 || tells[0].From != "lead" || tells[0].To != "builder" || tells[1].From != "" || tells[1].To != "builder" {
+		t.Fatalf("TakeTells = %+v, %v; want lead's then the person's, both to builder", tells, err)
 	}
 }
 

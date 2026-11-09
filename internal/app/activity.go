@@ -711,20 +711,30 @@ func turnOf(teamName string) *web.ActivityTurn {
 }
 
 // turnText is the turn line in the server's words: the holder and who handed it
-// over, and why the human holds it when hergy handed it to the person.
+// over, whether the holder is being asked who its result is for, why the human
+// holds it when hergy handed it to the person, and who waits for whose answer.
 func turnText(st *turns.State) string {
 	from := st.From
 	if from == turns.Human {
 		from = i18n.T("activity.turn_the_human")
 	}
-	if st.Holder != turns.Human {
-		return i18n.Tf("activity.turn_holder", st.Holder, from)
+	var text string
+	switch {
+	case st.Holder != turns.Human && st.Asked[st.Holder].Seq != 0:
+		text = i18n.Tf("activity.turn_holder_asked", st.Holder, from)
+	case st.Holder != turns.Human:
+		text = i18n.Tf("activity.turn_holder", st.Holder, from)
+	default:
+		why := ""
+		if st.Why != "" {
+			why = i18n.T("status.turn_why_" + st.Why)
+		}
+		text = i18n.Tf("activity.turn_human", from, why)
 	}
-	why := ""
-	if st.Why != "" {
-		why = i18n.T("status.turn_why_" + st.Why)
+	if waits := st.Waits(); len(waits) > 0 {
+		text += i18n.T("list.separator") + i18n.Tf("activity.turn_waits", strings.Join(waits, i18n.T("list.separator")))
 	}
-	return i18n.Tf("activity.turn_human", from, why)
+	return text
 }
 
 // sinceOf is the row's いつから: how long the state has lasted and when it began,
