@@ -73,6 +73,11 @@ type State struct {
 	// the text waiting to be handed on, and who the answer may name. The
 	// member's next stop is the answer.
 	Asked map[string]Question `json:"asked,omitempty"`
+	// Rested is, per member, a turn that ended as the outside's while a tell
+	// that came during it still waits: if no next turn begins within
+	// OpenGrace, the tell was answered in that turn (a harness that folds a
+	// queued message into the running turn), and the member is asked.
+	Rested map[string]Rest `json:"rested,omitempty"`
 	// Pending is the box: what hergy delivers to a member once it stops, by the
 	// member's short name, in the order it came (d-5b60 の箱).
 	Pending map[string][]Message `json:"pending,omitempty"`
@@ -106,6 +111,19 @@ type Question struct {
 	// Waiting are the members that opened the turn and were not told back.
 	Waiting []string `json:"waiting,omitempty"`
 }
+
+// Rest is one turn that ended as the outside's while later openings waited.
+type Rest struct {
+	Seq  int       `json:"seq"`
+	At   time.Time `json:"at"`
+	Text string    `json:"text"`
+}
+
+// OpenGrace is how long a member that rested stays stopped before a tell that
+// came during that turn is taken as answered in it: a harness that starts a
+// new turn for a queued message does so within a second or two; one that
+// folded it into the running turn starts nothing.
+const OpenGrace = 10 * time.Second
 
 // Stop is one stop as herdr saw it: its seq and when the watcher saw it.
 type Stop struct {
@@ -282,6 +300,9 @@ func (st *State) init() {
 	if st.Asked == nil {
 		st.Asked = map[string]Question{}
 	}
+	if st.Rested == nil {
+		st.Rested = map[string]Rest{}
+	}
 	if st.Pending == nil {
 		st.Pending = map[string][]Message{}
 	}
@@ -313,7 +334,30 @@ func Step(st *State, in Input) []Action {
 	out = append(out, st.seenStopped(in, before, now)...)
 	out = append(out, st.waitedEnough(in, now)...)
 	out = append(out, st.started(in, before)...)
+	out = append(out, st.lateOpeners(in, now)...)
 	out = append(out, st.emptyBox(in)...)
+	return out
+}
+
+// lateOpeners asks a member whose turn rested while a tell waited for its next
+// turn, once OpenGrace has passed with no next turn: the tell was answered in
+// the turn that rested. A member that began a new turn is left to it.
+func (st *State) lateOpeners(in Input, now map[string]Agent) []Action {
+	var out []Action
+	for _, name := range slices.Sorted(maps.Keys(st.Rested)) {
+		rest := st.Rested[name]
+		a, live := now[name]
+		if !live || a.Seq != rest.Seq || !stopped(a) || len(st.Opened[name]) == 0 {
+			delete(st.Rested, name)
+			continue
+		}
+		if in.At.Sub(rest.At) < OpenGrace {
+			continue
+		}
+		delete(st.Rested, name)
+		st.Started[name] = in.At
+		out = append(out, st.turnOf(in, a, rest.Text)...)
+	}
 	return out
 }
 
@@ -357,6 +401,12 @@ func (st *State) signaled(in Input, now map[string]Agent) []Action {
 			st.Signaled[a.Name] = in.At
 		}
 		out = append(out, st.ended(in, a, now, sig.Text, RouteSignal, sig.Source)...)
+		if live && !stopped(a) {
+			// herdr still says working: a queued message may have started the
+			// next turn without a stop herdr could see, so that turn begins
+			// here, and a tell that came during the turn just ended opens it.
+			st.Started[a.Name] = in.At
+		}
 	}
 	return out
 }
@@ -489,6 +539,9 @@ func (st *State) turnOf(in Input, a Agent, text string) []Action {
 	told := st.toldIn(a.Name)
 	if len(openers) == 0 {
 		st.toHuman(a.Name, "", in.At)
+		if !told && len(st.Opened[a.Name]) > 0 {
+			st.Rested[a.Name] = Rest{Seq: a.Seq, At: in.At, Text: text}
+		}
 		return []Action{{Kind: Rested, From: a.Name}}
 	}
 	if told {

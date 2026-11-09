@@ -645,7 +645,7 @@
   "turns.rested": "%s answered the human and stopped; nothing to hand on%s\n",
   "turns.asked": "%s stopped without handing on. %sAsking who it is for%s\n",
   "turns.waiting_for": "%s waits for the answer. ",
-  "turns.question": "From hergy: you wrote and stopped without handing on with `hergy tell`. %sWho is what you wrote for? Answer with one word only: %s",
+  "turns.question": "From hergy: you wrote and stopped without handing on with `hergy tell`. %sWho is what you wrote for? Text for the person is \"human\"; nothing to hand on is \"nobody\". Answer with one word only: %s",
   "turns.nobody": "nobody",
   "turns.or": " / ",
   "turns.route_answer": "[as answered]%s",

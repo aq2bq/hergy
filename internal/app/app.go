@@ -393,11 +393,39 @@ func resolveTeam(cat *catalog.Catalog, base string, opts *options.Options) (*res
 	if err != nil {
 		return nil, err
 	}
-	chosen, err := pickTeam(running, opts.Team)
+	name := opts.Team
+	if name == "" && len(running) > 1 {
+		name = teamOfPane(running, os.Getenv("HERDR_PANE_ID"))
+	}
+	chosen, err := pickTeam(running, name)
 	if err != nil {
 		return nil, err
 	}
 	return buildRunning(cat, base, chosen)
+}
+
+// teamOfPane is the running team whose member or worker runs in the pane hergy
+// was typed in, or "" from any other pane. A member that types hergy tell while
+// several teams run names no team: its own pane says which (r-103d).
+func teamOfPane(running []team.Running, selfPane string) string {
+	if selfPane == "" {
+		return ""
+	}
+	agent, err := herdr.New(herdrcli.New(os.Getenv("HERGY_HERDR"))).Agent(selfPane)
+	if err != nil {
+		return ""
+	}
+	return teamOfAgent(running, agent.Name)
+}
+
+// teamOfAgent is the running team an agent's herdr name belongs to, or "".
+func teamOfAgent(running []team.Running, agentName string) string {
+	for _, one := range running {
+		if protocol.NamedForTeam(one.Team, agentName) {
+			return one.Team
+		}
+	}
+	return ""
 }
 
 // resolveTeamDry finds the team a hire --dry plans for without reading herdr, so

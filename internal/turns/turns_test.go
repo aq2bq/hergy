@@ -397,3 +397,45 @@ func TestTellsAreTakenOldestFirstAndOnce(t *testing.T) {
 		t.Fatalf("TakeTells again = %+v, %v; want none", again, err)
 	}
 }
+
+// TestATellFoldedIntoTheRunningTurnIsAskedAboutAfterTheGrace: lead tells spec
+// while spec works on the start prompt; spec's harness folds the message into
+// the running turn and answers both in it (opencode, 2026-11-09 実機). The turn
+// rests at first, and when no next turn begins within OpenGrace, spec is
+// asked about lead's tell with that turn's text.
+func TestATellFoldedIntoTheRunningTurnIsAskedAboutAfterTheGrace(t *testing.T) {
+	st := &State{Team: "t", Holder: Human}
+	idle := agents(map[string]string{"lead": "idle", "spec": "idle"}, 1)
+	busy := agents(map[string]string{"lead": "idle", "spec": "working"}, 2)
+	_ = Step(st, Input{Graph: ring(), Before: idle, Now: busy, At: at}) // the start prompt's turn
+	_ = Step(st, Input{Graph: ring(), Before: busy, Now: busy, Tells: []Tell{{From: "lead", To: "spec", At: at.Add(time.Minute)}}, At: at.Add(time.Minute)})
+	stopped := agents(map[string]string{"lead": "idle", "spec": "done"}, 3)
+	got := Step(st, Input{Graph: ring(), Before: busy, Now: stopped, Wrote: wrote(map[string]string{"spec": "起動しました。\nping"}), At: at.Add(3 * time.Minute)})
+	if len(got) != 1 || got[0].Kind != Rested {
+		t.Fatalf("Step = %+v, want the turn to rest first", got)
+	}
+	if _, ok := st.Rested["spec"]; !ok || len(st.Opened["spec"]) != 1 {
+		t.Fatalf("state = %+v, want the rest remembered and lead's opening kept", st)
+	}
+	// Still stopped, grace not over: nothing.
+	if early := Step(st, Input{Graph: ring(), Before: stopped, Now: stopped, At: at.Add(3*time.Minute + OpenGrace - time.Second)}); len(early) != 0 {
+		t.Fatalf("Step = %+v, want nothing before the grace is over", early)
+	}
+	got = Step(st, Input{Graph: ring(), Before: stopped, Now: stopped, At: at.Add(3*time.Minute + OpenGrace)})
+	if len(got) != 1 || got[0].Kind != Ask || got[0].To != "spec" || got[0].Waiting[0] != "lead" || st.Asked["spec"].Text != "起動しました。\nping" {
+		t.Fatalf("Step = %+v, state %+v; want spec asked about lead's tell with the turn's text", got, st)
+	}
+	if len(st.Rested) != 0 {
+		t.Errorf("the rest is still remembered: %+v", st.Rested)
+	}
+
+	// A member that begins a new turn within the grace is left to it.
+	st = &State{Team: "t", Holder: Human}
+	_ = Step(st, Input{Graph: ring(), Before: idle, Now: busy, At: at})
+	_ = Step(st, Input{Graph: ring(), Before: busy, Now: busy, Tells: []Tell{{From: "lead", To: "spec", At: at.Add(time.Minute)}}, At: at.Add(time.Minute)})
+	_ = Step(st, Input{Graph: ring(), Before: busy, Now: stopped, Wrote: wrote(map[string]string{"spec": "起動しました"}), At: at.Add(2 * time.Minute)})
+	again := agents(map[string]string{"lead": "idle", "spec": "working"}, 4)
+	if got := Step(st, Input{Graph: ring(), Before: stopped, Now: again, At: at.Add(2*time.Minute + time.Second)}); len(got) != 0 || len(st.Rested) != 0 {
+		t.Fatalf("Step = %+v, state %+v; want the next turn to take lead's opening, nothing asked", got, st)
+	}
+}

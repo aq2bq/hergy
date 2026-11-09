@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aq2bq/hergy/internal/team"
 	"github.com/aq2bq/hergy/internal/turns"
 )
 
@@ -498,4 +499,20 @@ func setClock(t *testing.T, at time.Time) {
 	previous := screenClock
 	screenClock = func() time.Time { return at }
 	t.Cleanup(func() { screenClock = previous })
+}
+
+// TestTeamOfAgentNamesTheTeamAMemberBelongsTo: a member that types a team
+// command while several teams run does not name its team; its herdr name does
+// (r-103d).
+func TestTeamOfAgentNamesTheTeamAMemberBelongsTo(t *testing.T) {
+	running := []team.Running{{Team: "sig"}, {Team: "hergy-dev"}}
+	if got := teamOfAgent(running, "hergy-dev-spec"); got != "hergy-dev" {
+		t.Errorf("hergy-dev-spec: %q, want hergy-dev", got)
+	}
+	if got := teamOfAgent(running, "sig-dev"); got != "sig" {
+		t.Errorf("sig-dev: %q, want sig", got)
+	}
+	if got := teamOfAgent(running, "other-lead"); got != "" {
+		t.Errorf("other-lead: %q, want none", got)
+	}
 }
