@@ -61,7 +61,8 @@ func starterGraph() *definition.Graph {
 type turnsFixture struct {
 	port   *turnsPort
 	w      *turnWatcher
-	out    *bytes.Buffer
+	out    *bytes.Buffer // the log: the sentences
+	scr    *bytes.Buffer // the pane: the band
 	agents []protocol.Agent
 	now    time.Time
 }
@@ -69,9 +70,11 @@ type turnsFixture struct {
 func newTurnsFixture(t *testing.T) *turnsFixture {
 	t.Helper()
 	inJapanese(t)
-	f := &turnsFixture{port: &turnsPort{panes: map[string]string{}}, out: &bytes.Buffer{}, now: time.Date(2026, 11, 6, 21, 20, 0, 0, time.UTC)}
+	f := &turnsFixture{port: &turnsPort{panes: map[string]string{}}, out: &bytes.Buffer{}, scr: &bytes.Buffer{}, now: time.Date(2026, 11, 6, 21, 20, 0, 0, time.UTC)}
 	dir := t.TempDir()
 	f.w = newTurnWatcher("demo", starterGraph(), herdr.New(f.port), filepath.Join(dir, "demo.json"), f.out)
+	f.w.screen = &screen{out: f.scr}
+	f.w.band.width = func() int { return 120 }
 	f.w.tells = turns.TellDir(dir, "demo")
 	f.w.signals = turns.SignalDir(dir, "demo")
 	f.w.read = func() ([]team.Tab, []protocol.Agent, bool, error) {
@@ -166,6 +169,32 @@ func TestTurnsDoesNotAskAMemberThatToldTheHuman(t *testing.T) {
 	}
 	if !strings.Contains(f.out.String(), "builder → 人間: ターンは人間へ渡りました") {
 		t.Errorf("the strip does not say the turn went to the human:\n%s", f.out.String())
+	}
+}
+
+// TestTurnsDrawsTheBandInItsPane: the pane gets the band, not the sentences:
+// after lead's tell lands and builder works, the last draw names the members'
+// states, the holder and who waits, and the handoff with its time; the
+// sentences are in the log alone (r-4e04, ac-3d07).
+func TestTurnsDrawsTheBandInItsPane(t *testing.T) {
+	f := newTurnsFixture(t)
+	f.set("demo-lead", "idle", 1)
+	f.set("demo-builder", "idle", 1)
+	f.port.panes["demo-builder"] = "⏺ 準備できています。\n❯ "
+	f.w.tick()
+	f.tell(t, "lead", "builder")
+	f.later(time.Second)
+	f.set("demo-builder", "working", 2)
+	f.later(time.Second)
+	draws := strings.Split(f.scr.String(), "\x1b[H")
+	last := draws[len(draws)-1]
+	for _, want := range []string{" demo  ", " lead ○ ", " builder \x1b[32m●\x1b[0m ", "ターン: builder（lead から）", "待ち: lead → builder", "21:20:01 lead→builder →"} {
+		if !strings.Contains(last, want) {
+			t.Errorf("the band lacks %q:\n%q", want, last)
+		}
+	}
+	if strings.Contains(f.scr.String(), "hergy tell で渡しました") || !strings.Contains(f.out.String(), "lead → builder: hergy tell で渡しました") {
+		t.Errorf("the sentence belongs in the log, not the pane:\npane %q\nlog %q", f.scr.String(), f.out.String())
 	}
 }
 

@@ -324,13 +324,18 @@ var specs = []Spec{
 		Kind: Turns, Name: "turns",
 		Summary: text("Watch a team and ask a member that stopped without handing on", "チームを見張り、渡さずに止まったメンバーに渡し先を聞く"),
 		Detail: text(
-			"Read the tells, the signals and herdr once a second. Members hand the turn on with hergy tell.\nA turn another member opened that ends without a tell is asked about: who is the result for?\nThe answer decides where the text goes; the human, nobody or no clear name leaves it with the human.\nA turn the person opened rests when it ends. hergy up starts this in a pane of the team's tab.",
-			"tell・合図・herdr を 1 秒ごとに読む。ターンを渡すのはメンバーの hergy tell。\nほかのメンバーが開いたターンが、渡さずに終わったときだけ、本人に「誰に渡しますか」と聞く。\n答えどおりに届ける。人間・誰にも・決まらない答えなら、ターンは人間へ。\n人間が開いたターンの終わりには何もしない。hergy up がチームのタブのペインで起動する。"),
+			"Read the tells, the signals and herdr once a second. Members hand the turn on with hergy tell.\nA turn another member opened that ends without a tell is asked about: who is the result for?\nThe answer decides where the text goes; the human, nobody or no clear name leaves it with the human.\nA turn the person opened rests when it ends. hergy up starts this in a four-row pane of the\nteam's tab. The pane shows a three-line band (states, holder, waits / the latest handoffs with\ntheir time / what is being asked); the sentences go to turns/<team>.log (read it with --log).",
+			"tell・合図・herdr を 1 秒ごとに読む。ターンを渡すのはメンバーの hergy tell。\nほかのメンバーが開いたターンが、渡さずに終わったときだけ、本人に「誰に渡しますか」と聞く。\n答えどおりに届ける。人間・誰にも・決まらない答えなら、ターンは人間へ。\n人間が開いたターンの終わりには何もしない。hergy up がチームのタブの 4 行のペインで起動する。\nペインには 3 行の帯（状態・持ち主・待ち／時刻付きの直近の受け渡し／いま聞いていること）を描き、\n文のログは turns/<チーム>.log へ（--log で読む）。"),
 		Args: []Arg{{
 			Name: text("team", "チーム"), Optional: true,
 			Desc: text("The team name (left out: the one running team)", "チーム名（省くと、動いている 1 つのチーム）"),
 		}},
-		Flags: []Use{use(flagDir, descDir)},
+		Flags: []Use{
+			use(flagLog, text(
+				"Print the watcher's log (each line with its time) and stop\nThe pane shows the band; the sentences are in turns/<team>.log",
+				"見張りのログ（1 行ごとに時刻付き）を表示して終わる\nペインには帯だけが出る。文は turns/<チーム>.log に残る")),
+			use(flagDir, descDir),
+		},
 	},
 	{
 		Kind: TurnDone, Name: "turn-done",

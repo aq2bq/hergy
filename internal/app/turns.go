@@ -2,10 +2,12 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"maps"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -28,10 +30,11 @@ import (
 // tells hergy tell recorded and the signals the harnesses wrote (hergy
 // turn-done, r-378e), reads herdr, hands the step in internal/turns all of it,
 // and does what the step says: asks a member who its result is for, delivers
-// it as the member answers, keeps the box, writes the turn's state, and prints
-// one line per event in its own pane for a person to read, with how the end
-// was seen. The judgement is the turns package's; this file is the reading and
-// the doing.
+// it as the member answers, keeps the box, writes the turn's state, and writes
+// one line per event, with how the end was seen, to the team's log
+// (turns.LogPath, read with hergy turns --log). Its own pane shows the band
+// (turns_band.go): three lines redrawn in place. The judgement is the turns
+// package's; this file is the reading and the doing.
 
 const (
 	// turnsTick is how often herdr is read.
@@ -60,7 +63,17 @@ func runTurns(ctx context.Context, env team.Env, opts *options.Options, stdout i
 	if err != nil {
 		return err
 	}
-	w := newTurnWatcher(r.team.Name, r.team.Definition.Graph, h, turns.Path(dir, r.team.Name), stdout)
+	if opts.Log {
+		return printTurnsLog(r.team.Name, turns.LogPath(dir, r.team.Name), stdout)
+	}
+	logFile, err := openTurnsLog(turns.LogPath(dir, r.team.Name))
+	if err != nil {
+		return err
+	}
+	defer func() { _ = logFile.Close() }()
+	w := newTurnWatcher(r.team.Name, r.team.Definition.Graph, h, turns.Path(dir, r.team.Name), &stampWriter{out: logFile, clock: time.Now})
+	w.screen = &screen{out: stdout}
+	defer w.screen.end()
 	w.read = herdrRead
 	w.hirers = hirersOf(r.team.Name)
 	w.signals = turns.SignalDir(dir, r.team.Name)
@@ -78,10 +91,11 @@ func runTurns(ctx context.Context, env team.Env, opts *options.Options, stdout i
 	if err := w.load(); err != nil {
 		return err
 	}
-	fmt.Fprint(stdout, i18n.Tf("turns.watching", w.team, w.state.Holder))
+	fmt.Fprint(w.out, i18n.Tf("turns.watching", w.team, w.state.Holder))
 	if names := slices.Sorted(maps.Keys(w.wired)); len(names) > 0 {
-		fmt.Fprint(stdout, i18n.Tf("turns.wired", strings.Join(names, ", ")))
+		fmt.Fprint(w.out, i18n.Tf("turns.wired", strings.Join(names, ", ")))
 	}
+	w.draw()
 	ticker := time.NewTicker(turnsTick)
 	defer ticker.Stop()
 	for {
@@ -92,6 +106,28 @@ func runTurns(ctx context.Context, env team.Env, opts *options.Options, stdout i
 			w.tick()
 		}
 	}
+}
+
+// openTurnsLog opens the team's log for appending, making the directory.
+func openTurnsLog(path string) (*os.File, error) {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return nil, err
+	}
+	return os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
+}
+
+// printTurnsLog prints the team's log as it stands (hergy turns --log).
+func printTurnsLog(teamName, path string, stdout io.Writer) error {
+	raw, err := os.ReadFile(path)
+	if errors.Is(err, os.ErrNotExist) {
+		fmt.Fprint(stdout, i18n.Tf("turns.log_missing", teamName, path))
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	_, err = stdout.Write(raw)
+	return err
 }
 
 // hirersOf is, by a worker's short name, the member that hired it, from this
@@ -142,6 +178,10 @@ type turnWatcher struct {
 	signals string
 	tells   string
 	wired   map[string]bool
+	// band is the picture the pane shows, and screen where it is drawn; no
+	// screen draws nothing (the tests read the log alone).
+	band   *band
+	screen *screen
 }
 
 func newTurnWatcher(teamName string, graph *definition.Graph, h *herdr.Herdr, path string, out io.Writer) *turnWatcher {
@@ -149,7 +189,16 @@ func newTurnWatcher(teamName string, graph *definition.Graph, h *herdr.Herdr, pa
 		team: teamName, graph: graph, herdr: h, path: path, out: out,
 		hirers: map[string]string{}, clock: time.Now,
 		snaps: map[string]snapshot{}, names: map[string]string{}, wired: map[string]bool{},
+		band: newBand(teamName),
 	}
+}
+
+// draw redraws the band from the state and what the band noted.
+func (w *turnWatcher) draw() {
+	if w.screen == nil {
+		return
+	}
+	w.screen.draw(w.band.render(w.state, w.band.width()))
 }
 
 func (w *turnWatcher) load() error {
@@ -184,12 +233,15 @@ func (w *turnWatcher) tick() {
 	tabs, agents, agentsRead, err := w.read()
 	if err != nil {
 		fmt.Fprint(w.out, i18n.Tf("turns.read_error", err.Error()))
+		w.band.failed(err.Error())
+		w.draw()
 		return
 	}
 	if !agentsRead {
 		return
 	}
 	now := w.observe(teamAgents(tabs, agents, w.team))
+	w.band.seen(now)
 	actions := turns.Step(w.state, turns.Input{
 		Team: w.team, Graph: w.graph, Before: w.prev, Now: now, Wrote: w.wrote, At: w.clock(),
 		Tells: tells, Signals: signals, Wired: func(name string) bool { return w.wired[name] },
@@ -197,6 +249,7 @@ func (w *turnWatcher) tick() {
 	w.prev = now
 	for _, action := range actions {
 		w.act(action)
+		w.band.note(action, w.clock())
 	}
 	w.remember(now)
 	if len(actions) > 0 {
@@ -204,6 +257,7 @@ func (w *turnWatcher) tick() {
 			fmt.Fprint(w.out, i18n.Tf("turns.save_error", err.Error()))
 		}
 	}
+	w.draw()
 }
 
 // snapshot is a pane as it stood at one stop of its agent.

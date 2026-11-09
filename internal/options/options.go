@@ -75,6 +75,7 @@ type Options struct {
 	Members []string
 	Body    string // nudge/tell positional: the message text
 	All     bool   // refresh/reprompt --all
+	Log     bool   // turns --log: print the watcher's log and stop
 	Name    string // hire positional
 	As      string // up only: the team name to boot under (defaults to the team definition name)
 

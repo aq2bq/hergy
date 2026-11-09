@@ -307,6 +307,15 @@ func (h *Herdr) Resize(pane, direction string, amount float64) error {
 	return err
 }
 
+// PaneRows is how many rows a pane shows (herdr pane get's viewport_rows).
+func (h *Herdr) PaneRows(pane string) (int, error) {
+	result, err := h.port.JSON("pane", "get", pane)
+	if err != nil {
+		return 0, err
+	}
+	return protocol.DigInt(result, "pane", "scroll", "viewport_rows")
+}
+
 // Run runs one command in a pane's shell. herdr prints nothing on success, so
 // the answer is read as text, not JSON.
 func (h *Herdr) Run(pane string, command []string) error {

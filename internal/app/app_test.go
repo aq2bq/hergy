@@ -249,6 +249,7 @@ case "$g $s" in
     printf '{"result":{"tab":{"tab_id":"t%s"},"root_pane":{"pane_id":"p1"}}}' "$n"
     ;;
   "pane split") echo '{"result":{"pane":{"pane_id":"p2"}}}' ;;
+  "pane get") echo '{"result":{"pane":{"pane_id":"p2","scroll":{"viewport_rows":20}}}}' ;;
   "pane process-info") echo '{"result":{"process_info":{"foreground_process_group_id":900,"shell_pid":900,"pane_id":"p1"}}}' ;;
   *) echo '{"result":{}}' ;;
 esac
@@ -335,6 +336,7 @@ case "$g $s" in
   "tab list")   echo '{"result":{"tabs":[{"tab_id":"t1","label":"team:demo@demo"}]}}' ;;
   "pane list")  echo '{"result":{"panes":[{"pane_id":"p1","label":"demo-lead","tab_id":"t1"}]}}' ;;
   "pane split") echo '{"result":{"pane":{"pane_id":"p2"}}}' ;;
+  "pane get") echo '{"result":{"pane":{"pane_id":"p2","scroll":{"viewport_rows":20}}}}' ;;
   "pane process-info") echo '{"result":{"process_info":{"foreground_process_group_id":900,"shell_pid":900,"pane_id":"p1"}}}' ;;
   *) echo '{"result":{}}' ;;
 esac
@@ -1728,6 +1730,22 @@ func TestHireLabelsTheTabWithTheTeam(t *testing.T) {
 	record = readFile(t, log)
 	if !strings.Contains(record, "--label worker:dev2/reviewer ") {
 		t.Fatalf("hire did not label the tab with the other team name:\n%s", record)
+	}
+}
+
+// TestUpCutsTheWatcherStripToFourRows: the split gives the strip 20 of the
+// tab's 41 rows; up moves the boundary so the strip keeps watcherRows (4):
+// the members' share is 37/41, and the move from the half is 0.40 (r-4e04).
+func TestUpCutsTheWatcherStripToFourRows(t *testing.T) {
+	f := newFixture(t)
+	mustRun(t, "new", "demo")
+	log := f.statefulHerdr(t)
+	t.Setenv("HERDR_ENV", "1")
+	t.Setenv("HERDR_PANE_ID", "p9")
+	mustRun(t, "up", "demo")
+	record := readFile(t, log)
+	if !strings.Contains(record, "pane resize --pane p2 --direction down --amount 0.40") {
+		t.Fatalf("up did not move the strip's boundary to leave it four rows:\n%s", record)
 	}
 }
 

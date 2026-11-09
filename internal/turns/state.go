@@ -14,6 +14,13 @@ func Path(stateDir, team string) string {
 	return filepath.Join(stateDir, "turns", team+".json")
 }
 
+// LogPath is where the watcher's sentences go, stamped with the time:
+// <stateDir>/turns/<team>.log. hergy down leaves it, so a day's relay can be
+// read back after the team is gone (r-4e04).
+func LogPath(stateDir, team string) string {
+	return filepath.Join(stateDir, "turns", team+".log")
+}
+
 // Load reads one team's turn. A file that is not there is a team whose turn
 // hergy has not seen yet: the human holds it, and nothing waits.
 func Load(path, team string) (*State, error) {

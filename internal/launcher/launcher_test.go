@@ -1246,3 +1246,18 @@ func TestWaitGoneSaysWhichMemberToRefresh(t *testing.T) {
 		t.Errorf("the sentence does not say which member to refresh: %q", text)
 	}
 }
+
+// TestMembersShareLeavesTheStripItsRows: from the rows the half split gave the
+// strip, the members keep all but watcherRows of the tab; without the rows, or
+// with too few, the old share (r-4e04).
+func TestMembersShareLeavesTheStripItsRows(t *testing.T) {
+	if got := membersShare(20, nil); fmt.Sprintf("%.2f", got) != "0.90" {
+		t.Errorf("membersShare(20) = %.4f, want 37/41", got)
+	}
+	if got := membersShare(0, fmt.Errorf("no rows")); got != watcherRatio {
+		t.Errorf("membersShare(err) = %v, want the old share", got)
+	}
+	if got := membersShare(3, nil); got != watcherRatio {
+		t.Errorf("membersShare(3) = %v, want the old share: too few rows to cut", got)
+	}
+}

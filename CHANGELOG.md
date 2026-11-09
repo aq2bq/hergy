@@ -20,6 +20,14 @@
   same. `hergy down` removes the team's turn state. The contact guide in every
   prompt names `hergy tell` as the one way to hand on, and the `→ <name>` last
   line is gone.
+- **The watcher's pane is a band**: `hergy up` cuts the watcher a four-row
+  strip, and `hergy turns` draws three lines in it, redrawn in place: each
+  member's state, who holds the turn and who waits for whose answer; the
+  latest handoffs with their time and a mark (→ handed, ✓ to the human,
+  ? asked, ⟲ rested, ✗ not delivered or unclear); and what is being asked.
+  The sentences it printed before go to `$XDG_STATE_HOME/hergy/turns/<team>.log`
+  with the time of each line, which `hergy turns <team> --log` prints and
+  `hergy down` leaves.
 - **`hergy tell human` marks text for the person**: a member that wrote for
   the person in its own pane says so with `hergy tell human` (`人間`), which
   sends nothing and needs no text, then stops. The watcher then leaves the

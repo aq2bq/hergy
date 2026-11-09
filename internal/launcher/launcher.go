@@ -197,9 +197,13 @@ func (l *Launcher) BootIn(workspace, up string) error {
 	return nil
 }
 
-// watcherRatio is the share of the tab the members keep above the watcher's
-// strip (d-5b60).
-const watcherRatio = 0.85
+// watcherRows is how many rows the watcher's strip keeps under the members:
+// the band's three lines and one spare (r-4e04, d-1a54ca). watcherRatio is the
+// share the members keep when the strip's rows cannot be read (d-5b60).
+const (
+	watcherRows  = 4
+	watcherRatio = 0.85
+)
 
 // WatcherPane is the name of the pane a team's watcher runs in: "<team>-turns",
 // named for the team like a member's pane, so down closes it with the rest.
@@ -214,9 +218,11 @@ func (l *Launcher) startWatcher(root string, first *definition.Start) error {
 		return err
 	}
 	// The split comes out at a half whatever the ratio asked (herdr.Resize), so
-	// the boundary is moved down to the share the members keep. A herdr that
-	// cannot resize leaves the strip at a half; the watcher runs the same.
-	_ = l.herdr.Resize(pane, "down", watcherRatio-0.5)
+	// the boundary is moved down to the share the members keep: all but the
+	// strip's rows, read from the half the split made. A herdr that cannot say
+	// or cannot resize leaves the strip at the old share, or at a half; the
+	// watcher runs the same.
+	_ = l.herdr.Resize(pane, "down", membersShare(l.herdr.PaneRows(pane))-0.5)
 	if err := l.herdr.Rename(pane, WatcherPane(l.team)); err != nil {
 		return err
 	}
@@ -225,6 +231,18 @@ func (l *Launcher) startWatcher(root string, first *definition.Start) error {
 	}
 	fmt.Fprint(l.out, i18n.Tf("launcher.watcher_started", l.team, pane))
 	return nil
+}
+
+// membersShare is the share of the tab the members keep above the strip, from
+// the rows the half split gave the strip: the whole tab is twice that and the
+// split's line, and the strip keeps watcherRows of it. Without the rows, the
+// old share.
+func membersShare(halfRows int, err error) float64 {
+	if err != nil || halfRows <= watcherRows {
+		return watcherRatio
+	}
+	total := 2*halfRows + 1
+	return float64(total-watcherRows) / float64(total)
 }
 
 // teamTabLabel is the label of the team's tab: the team's own name, and nothing

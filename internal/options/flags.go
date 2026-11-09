@@ -58,6 +58,7 @@ var (
 	flagJSON = &Flag{Name: "json", Set: sets(func(o *Options) { o.JSON = true })}
 	flagAI   = &Flag{Name: "ai", Set: sets(func(o *Options) { o.AI = true })}
 	flagAll  = &Flag{Name: "all", Set: sets(func(o *Options) { o.All = true })}
+	flagLog  = &Flag{Name: "log", Set: sets(func(o *Options) { o.Log = true })}
 	// --global and --local are gone (段 3): the parser still knows them, so a
 	// person who types one is stopped with the sentence that says so, rather
 	// than with "unknown option". Nothing is set; validateValues refuses them.
@@ -107,7 +108,7 @@ var (
 
 // allFlags is every flag hergy reads, in the order the cheatsheet lists them.
 var allFlags = []*Flag{
-	flagAI, flagAs, flagDry, flagJSON, flagAll, flagGlobal, flagLocal, flagTimeout, flagPort, flagNoOpen,
+	flagAI, flagAs, flagDry, flagJSON, flagAll, flagLog, flagGlobal, flagLocal, flagTimeout, flagPort, flagNoOpen,
 	flagTeam, flagProfile, flagPurpose, flagTask, flagFrom, flagLang, flagDir, flagHelp,
 }
 
