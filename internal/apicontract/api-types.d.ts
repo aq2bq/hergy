@@ -667,7 +667,7 @@ export interface components {
             };
             /** @description 使われる置き場所。両方に文書があれば project、グローバルのものだけなら global。 */
             effective: string;
-            /** @description 別の置き場所の文書に隠れている置き場所 */
+            /** @description 同じ名前の文書がプロジェクトにあるため無効になっている置き場所 */
             hidden: string[] | null;
             summary: components["schemas"]["RoleSummary"];
             problems: components["schemas"]["Counts"];
@@ -754,7 +754,7 @@ export interface components {
             path: string;
             /** @description 使われる置き場所 */
             effective: string;
-            /** @description 別の置き場所の文書に隠れている置き場所 */
+            /** @description 同じ名前の文書がプロジェクトにあるため無効になっている置き場所 */
             hidden: string[] | null;
         };
         /** @description POST /api/role/check の答え（spec-boundary 5）。問題、メンバーが読む Markdown、変更が動かした行と規則の矢印、その文書を読むメンバー。 */
@@ -817,7 +817,7 @@ export interface components {
             path: string;
             /** @description 使われる置き場所 */
             effective?: string;
-            /** @description 別の置き場所の文書に隠れている置き場所 */
+            /** @description 同じ名前の文書がプロジェクトにあるため無効になっている置き場所 */
             hidden?: string[];
             /** @description 保存のあとのロールの一覧 */
             items?: components["schemas"]["RoleItem"][];
@@ -896,7 +896,7 @@ export interface components {
             };
             /** @description 使われる置き場所。両方にあれば project、グローバルのものだけなら global。 */
             effective: string;
-            /** @description 別の置き場所のプロファイルに隠れている置き場所 */
+            /** @description 同じ名前のプロファイルがプロジェクトにあるため無効になっている置き場所 */
             hidden: string[] | null;
             summary: components["schemas"]["ProfileSummary"];
             problems: components["schemas"]["Counts"];
@@ -1001,7 +1001,7 @@ export interface components {
             name?: string;
             /** @description このファイルが 2 つのうちどちらか（1 つの名前が 2 つのファイルを持つ種類だけ） */
             kind?: string;
-            /** @description 別の置き場所の同じ名前のファイルに隠れているか */
+            /** @description 同じ名前のファイルがプロジェクトにあるため無効になっているか */
             hidden?: boolean;
             /** @description この文の問題 */
             problems: components["schemas"]["Problem"][] | null;
@@ -1019,7 +1019,7 @@ export interface components {
             path: string;
             /** @description 使われる置き場所 */
             effective: string;
-            /** @description 別の置き場所のプロファイルに隠れている置き場所 */
+            /** @description 同じ名前のプロファイルがプロジェクトにあるため無効になっている置き場所 */
             hidden: string[] | null;
         };
         /** @description POST /api/profile/check の答え（spec-boundary 5）。見つかった問題だけを答える。 */
@@ -1039,7 +1039,7 @@ export interface components {
             path: string;
             /** @description 使われる置き場所 */
             effective?: string;
-            /** @description 別の置き場所のプロファイルに隠れている置き場所 */
+            /** @description 同じ名前のプロファイルがプロジェクトにあるため無効になっている置き場所 */
             hidden?: string[];
             /** @description 保存のあとのプロファイルの一覧 */
             items?: components["schemas"]["ProfileItem"][];
@@ -1727,7 +1727,7 @@ export interface components {
              * @enum {string}
              */
             effective: "project" | "global";
-            /** @description 有効なチーム定義に隠れている場所 */
+            /** @description 同じ名前のチーム定義がプロジェクトにあるため無効になっている置き場所 */
             hidden: string[] | null;
             /** @description チーム定義の一覧に出す集計 */
             summary: components["schemas"]["TeamSummary"];
@@ -1881,7 +1881,7 @@ export interface components {
              * @enum {string}
              */
             effective: "project" | "global";
-            /** @description 有効なチーム定義に隠れている場所 */
+            /** @description 同じ名前のチーム定義がプロジェクトにあるため無効になっている置き場所 */
             hidden: string[] | null;
         };
         /** @description 初期プロンプトを由来ごとに分けた部分。 */
@@ -2059,7 +2059,7 @@ export interface components {
             path: string;
             /** @description 有効なチーム定義の場所 */
             effective?: string;
-            /** @description 有効なチーム定義に隠れている場所 */
+            /** @description 同じ名前のチーム定義がプロジェクトにあるため無効になっている置き場所 */
             hidden?: string[];
             /** @description 保存後のチーム定義の一覧 */
             items?: components["schemas"]["TeamItem"][];

@@ -357,7 +357,7 @@ var specs = []Spec{
 		Summary: text("Show the final team definition and where each value came from", "最終的なチーム定義と、その出どころを見る"),
 		Detail: text(
 			"Print the effective team definition and where each value and document came from.",
-			"効いているチーム定義と、各値と文書の出どころを表示する。"),
+			"最終的なチーム定義と、各値と文書の出どころを表示する。"),
 		Args: []Arg{{
 			Name: text("definition", "チーム定義"),
 			Desc: text("The team definition to show", "表示するチーム定義の名前"),

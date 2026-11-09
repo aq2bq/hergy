@@ -165,7 +165,7 @@ function sumInner(r: RoleRow) {
   const size = checks.value[r.uid + eff(r)];
   const teamIds = [...new Set(readers.map((x) => x.t.id))];
   return <><button type="button" class="chev disclosure" aria-label={`${r.markdown ? r.name : curName(r)} を開閉する`} aria-expanded={state.value.open.has(r.uid)} onClick={(e) => { e.stopPropagation(); pressToggle(r.uid); }}></button>
-      <span class="c-name"><span class="nm">{d.name ? d.name : <span class="none">—</span>}</span>{r.mark ? <span class={'state ' + (r.mark === 'hidden' ? 'off' : 'on')}>{r.mark === 'hidden' ? '隠れている' : '効いている'}</span> : ''}<span class="ttl">{d.title}</span>{r.isNew ? <span class="tag">新規</span> : ''}{saved ? <Badge list={issues} /> : readers.length ? <span class="sev err">問題 {readers.length}</span> : ''}</span>
+      <span class="c-name"><span class="nm">{d.name ? d.name : <span class="none">—</span>}</span>{r.mark ? <span class={'state ' + (r.mark === 'hidden' ? 'off' : 'on')}>{r.mark === 'hidden' ? '無効' : '優先'}</span> : ''}<span class="ttl">{d.title}</span>{r.isNew ? <span class="tag">新規</span> : ''}{saved ? <Badge list={issues} /> : readers.length ? <span class="sev err">問題 {readers.length}</span> : ''}</span>
       <span class="c-place">{r.noDoc ? '' : placePills(r)}</span>
       <span class="c-amount">{size && size.limit ? <Measure chars={size.size || 0} limit={size.limit} /> : <span class="none">—</span>}</span>
       <span class="c-readers">{GROUPED ? readersCell(r) : teamIds.length ? <><b>{teamIds.length}</b><span>{teamIds.join(' · ')}</span></> : <span class="none">0</span>}</span></>;
@@ -253,7 +253,7 @@ function Panel({ r, l }: { r: RoleRow; l: Place }) {
             : <button class="btn danger" data-act="del" data-danger data-danger-act="deleteRole" onClick={() => runDanger('deleteRole', { run: () => doDelete(r.uid, l), loss: { kind: 'role', name: d.name, place: l, project: groupOfRow(r) }, confirm: { title: `ロール ${d.name} を削除しますか`, label: `削除する${nread ? `（${nread} 人が読んでいる）` : ''}` } })}>削除</button>}
         </span></header>
       <div class="pmain"><RuleDoc row={row} issues={issues} nameError={nameError} heading={{ kind: 'ロール', name: row.draft.name || '新しいロール', title: row.draft.title,
-          id: `role-${r.uid}-${l}`, compact: true, path: `${placeLabel} · roles/${d.name}.md`, fullPath: pathOfRow(r, l, d), state: (n ? '未保存' : '保存済み') + (shadowed ? '（隠れている）' : ''), members: whoReads(row.draft.name, r.group).map((u) => `${u.t.id}: ${u.m.name}`).join('、') }}
+          id: `role-${r.uid}-${l}`, compact: true, path: `${placeLabel} · roles/${d.name}.md`, fullPath: pathOfRow(r, l, d), state: (n ? '未保存' : '保存済み') + (shadowed ? '（無効）' : ''), members: whoReads(row.draft.name, r.group).map((u) => `${u.t.id}: ${u.m.name}`).join('、') }}
         filtering={filtering()} query={state.value.q}
         readerCount={(name: string) => whoReads(name, GROUPED ? CURRENT : '').length}
         onChange={() => onChangeDraft(r, l)}

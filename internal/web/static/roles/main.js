@@ -1229,7 +1229,7 @@ function YamlFile({ file }) {
     children: /* @__PURE__ */ u(YamlTab2, {
       label: LNAME[l],
       path: pathOf(l, e.saved),
-      badge: both ? { cls: "state " + (hid ? "off" : "on"), text: hid ? "隠れている" : "効いている" } : null,
+      badge: both ? { cls: "state " + (hid ? "off" : "on"), text: hid ? "無効" : "優先" } : null,
       text: docText(r, l),
       hash: e.hash || "",
       kind: "role",
@@ -1342,7 +1342,7 @@ function YamlPageBody() {
                     class: "ft",
                     children: [
                       e.saved.title,
-                      hid ? "・隠れている" : ""
+                      hid ? "・無効" : ""
                     ]
                   })
                 ]
@@ -1758,7 +1758,7 @@ function sumInner(r) {
           }),
           r.mark ? /* @__PURE__ */ u("span", {
             class: "state " + (r.mark === "hidden" ? "off" : "on"),
-            children: r.mark === "hidden" ? "隠れている" : "効いている"
+            children: r.mark === "hidden" ? "無効" : "優先"
           }) : "",
           /* @__PURE__ */ u("span", {
             class: "ttl",
@@ -2018,7 +2018,7 @@ function Panel({ r, l }) {
             compact: true,
             path: `${placeLabel} · roles/${d.name}.md`,
             fullPath: pathOfRow(r, l, d),
-            state: (n ? "未保存" : "保存済み") + (shadowed ? "（隠れている）" : ""),
+            state: (n ? "未保存" : "保存済み") + (shadowed ? "（無効）" : ""),
             members: whoReads(row.draft.name, r.group).map((u2) => `${u2.t.id}: ${u2.m.name}`).join("、")
           },
           filtering: filtering(),

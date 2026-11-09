@@ -216,7 +216,7 @@
   "progress.stopped": "止まったところ: %s",
   "progress.created_tab": "タブ: %s",
   "progress.member": "  メンバー: %s（ペイン %s、%s）",
-  "progress.kept": "注意: 作ったペインとプロセスはそのまま残しています。失敗した操作が、実際には効いていることもあります。",
+  "progress.kept": "注意: 作ったペインとプロセスはそのまま残しています。失敗した操作が、実際には反映されていることもあります。",
   "progress.inspect": "注意: やり直す前に、いまの状態を確かめてください。初期プロンプトは自動では送り直しません。",
   "role.worker": "%sワーカー",
   "prompt.template_member": "メンバー %s の prompt: に",

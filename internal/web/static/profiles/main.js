@@ -1239,7 +1239,7 @@ function Row({ row }) {
               }),
               row.mark ? /* @__PURE__ */ u("span", {
                 class: "state " + (row.mark === "hidden" ? "off" : "on"),
-                children: row.mark === "hidden" ? "隠れている" : "効いている"
+                children: row.mark === "hidden" ? "無効" : "優先"
               }) : null,
               row.isNew ? /* @__PURE__ */ u("span", {
                 class: "tag",
@@ -1506,7 +1506,7 @@ function Panel({ panel }) {
           }),
           panel.mark ? /* @__PURE__ */ u("span", {
             class: "state " + (panel.mark === "hidden" ? "off" : "on"),
-            children: panel.mark === "hidden" ? "隠れている" : "効いている"
+            children: panel.mark === "hidden" ? "無効" : "優先"
           }) : "",
           /* @__PURE__ */ u("span", {
             class: "acts",

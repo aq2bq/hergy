@@ -33,7 +33,7 @@ function YamlFile({ file }: { file: SavedFileEntry }) {
   const name = e.saved.name;
   return <section class="yed" data-key={keyOfYed(r, l)} data-hash={e.hash || ''}>
     <YamlTab key={keyOfYed(r, l)} label={LNAME[l]} path={pathOf(l, e.saved)}
-      badge={both ? { cls: 'state ' + (hid ? 'off' : 'on'), text: hid ? '隠れている' : '効いている' } : null}
+      badge={both ? { cls: 'state ' + (hid ? 'off' : 'on'), text: hid ? '無効' : '優先' } : null}
       text={docText(r, l)} hash={e.hash || ''} kind="role" place={l} name={name}
       problems={ychecksOf(l, name) || []} problem={e.problem || ''}
       onProblems={(probs: components['schemas']['Problem'][]) => setYchecks(l, name, probs)}
@@ -78,7 +78,7 @@ function YamlPageBody() {
   return <div class="ylay">
       <nav class="files">{PLACES.map((l) => <div class="fgroup"><div class="gh"><b>{LNAME[l]}</b><code>{DIR[l]}</code></div>{files.filter((f) => f.l === l).map(({ r, e }) => {
         const key = keyOfYed(r, l), is = issuesOf(r, l), hid = l === 'global' && live(r, 'project');
-        return <button class={['file', chosen === key ? 'on' : '', hid ? 'hid' : ''].filter(Boolean).join(' ')} data-act="yfile" data-key={key} aria-pressed={chosen === key} onClick={() => pressYfile(key)}><code>{e.saved.name}.md</code><span class="fs">{ychecksText(l, e.saved.name)}{badgeOrCount(is, e.saved)}</span><span class="ft">{e.saved.title}{hid ? '・隠れている' : ''}</span></button>;
+        return <button class={['file', chosen === key ? 'on' : '', hid ? 'hid' : ''].filter(Boolean).join(' ')} data-act="yfile" data-key={key} aria-pressed={chosen === key} onClick={() => pressYfile(key)}><code>{e.saved.name}.md</code><span class="fs">{ychecksText(l, e.saved.name)}{badgeOrCount(is, e.saved)}</span><span class="ft">{e.saved.title}{hid ? '・無効' : ''}</span></button>;
       })}</div>)}</nav>
       {one ? <YamlFile key={chosen} file={one} /> : <div class="none">ロールの文書はありません</div>}
     </div>;

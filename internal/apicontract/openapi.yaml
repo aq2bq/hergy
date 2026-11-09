@@ -1484,7 +1484,7 @@ components:
         hidden:
           type: array
           nullable: true
-          description: 別の置き場所の文書に隠れている置き場所
+          description: 同じ名前の文書がプロジェクトにあるため無効になっている置き場所
           items:
             type: string
         summary:
@@ -1623,7 +1623,7 @@ components:
         hidden:
           type: array
           nullable: true
-          description: 別の置き場所の文書に隠れている置き場所
+          description: 同じ名前の文書がプロジェクトにあるため無効になっている置き場所
           items:
             type: string
     RoleCheck:
@@ -1748,7 +1748,7 @@ components:
           description: 使われる置き場所
         hidden:
           type: array
-          description: 別の置き場所の文書に隠れている置き場所
+          description: 同じ名前の文書がプロジェクトにあるため無効になっている置き場所
           items:
             type: string
         items:
@@ -1885,7 +1885,7 @@ components:
         hidden:
           type: array
           nullable: true
-          description: 別の置き場所のプロファイルに隠れている置き場所
+          description: 同じ名前のプロファイルがプロジェクトにあるため無効になっている置き場所
           items:
             type: string
         summary:
@@ -2067,7 +2067,7 @@ components:
           description: このファイルが 2 つのうちどちらか（1 つの名前が 2 つのファイルを持つ種類だけ）
         hidden:
           type: boolean
-          description: 別の置き場所の同じ名前のファイルに隠れているか
+          description: 同じ名前のファイルがプロジェクトにあるため無効になっているか
         problems:
           type: array
           nullable: true
@@ -2100,7 +2100,7 @@ components:
         hidden:
           type: array
           nullable: true
-          description: 別の置き場所のプロファイルに隠れている置き場所
+          description: 同じ名前のプロファイルがプロジェクトにあるため無効になっている置き場所
           items:
             type: string
     ProfileCheck:
@@ -2138,7 +2138,7 @@ components:
           description: 使われる置き場所
         hidden:
           type: array
-          description: 別の置き場所のプロファイルに隠れている置き場所
+          description: 同じ名前のプロファイルがプロジェクトにあるため無効になっている置き場所
           items:
             type: string
         items:
@@ -3356,7 +3356,7 @@ components:
           nullable: true
           items:
             type: string
-          description: 有効なチーム定義に隠れている場所
+          description: 同じ名前のチーム定義がプロジェクトにあるため無効になっている置き場所
         summary:
           allOf:
             - $ref: '#/components/schemas/TeamSummary'
@@ -3614,7 +3614,7 @@ components:
           nullable: true
           items:
             type: string
-          description: 有効なチーム定義に隠れている場所
+          description: 同じ名前のチーム定義がプロジェクトにあるため無効になっている置き場所
     TeamPromptSegment:
       description: 初期プロンプトを由来ごとに分けた部分。
       type: object
@@ -3952,7 +3952,7 @@ components:
           type: array
           items:
             type: string
-          description: 有効なチーム定義に隠れている場所
+          description: 同じ名前のチーム定義がプロジェクトにあるため無効になっている置き場所
         items:
           type: array
           items:

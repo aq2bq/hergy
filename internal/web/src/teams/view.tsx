@@ -210,7 +210,7 @@ function Sum({ r, open }: { r: Rec; open: boolean }) {
   return (
     <>
       <button type="button" class="chev disclosure" aria-label={`${teamLabel(r)} を開閉する`} aria-expanded={open} onClick={(e) => { e.stopPropagation(); pressToggle(r); }}></button>
-      <span class="c-name"><NameCell r={r} open={open} />{r.mark.value ? <span class={'state ' + (r.mark.value === 'hidden' ? 'off' : 'on')}>{r.mark.value === 'hidden' ? '隠れている' : '効いている'}</span> : null}<span class="vcount"><Counts list={messagesOf(rowIssues(r))} /></span></span>
+      <span class="c-name"><NameCell r={r} open={open} />{r.mark.value ? <span class={'state ' + (r.mark.value === 'hidden' ? 'off' : 'on')}>{r.mark.value === 'hidden' ? '無効' : '優先'}</span> : null}<span class="vcount"><Counts list={messagesOf(rowIssues(r))} /></span></span>
       <span class={'c-description' + (broken || !(t.description || open) ? ' none' : '')}>{cell}</span>
       <span class="c-place">{pills}</span>
       <span class="c-members c-num">{broken ? '—' : t.members.length}</span>
@@ -320,12 +320,12 @@ function Dacts({ r }: { r: Rec }) {
 // (spec-teams B7). The column's 属性 / YAML tabs pick what stands on the right.
 function TeamPanel({ r }: { r: Rec }) {
   const k = dkey(r);
-  // The owner marks a name both places hold: its rows say 効いている / 隠れている
+  // The owner marks a name both places hold: its rows say 優先 / 無効
   // (r-ea17).
   const both = !!r.mark.value;
   const head = (
     <header class="ph"><code class="path">{r.teamPath.value}</code>
-      <span class="phr">{both ? <span class={'state ' + (r.mark.value === 'hidden' ? 'off' : 'on')}>{r.mark.value === 'hidden' ? '隠れている' : '効いている'}</span> : null}</span></header>
+      <span class="phr">{both ? <span class={'state ' + (r.mark.value === 'hidden' ? 'off' : 'on')}>{r.mark.value === 'hidden' ? '無効' : '優先'}</span> : null}</span></header>
   );
   // A team.yaml that does not read draws no figure, and a saved one offers no
   // shape save: the check column alone says what stopped it, and the YAML tab is
@@ -565,7 +565,7 @@ function AgreePanel({ r }: { r: Rec }) {
       <div class="pmain">
         <RuleDoc transfer={r.draftRow ? undefined : teamTransfer(r)} row={rowOfPanel(r)} issues={agreeIssues(r)} hasName={false} heading={{ id: `team-prose-${r.uid}`, kind: 'チーム定義', name: r.name.value, title: r.agreeDraft.value.title,
             path: `${placeName(r.place.value)} · teams/${r.name.value}/agreement.md`, members: r.draft.value.members.map((m) => m.name).join('、'),
-            template: r.check.value?.templateSize || 0, state: (agreementChanged(r) ? '未保存' : '保存済み') + (shadowed ? '（隠れている）' : '') }}
+            template: r.check.value?.templateSize || 0, state: (agreementChanged(r) ? '未保存' : '保存済み') + (shadowed ? '（無効）' : '') }}
           onChange={() => onChangeDraft(r)}
           onMode={(v: string) => pressPmode(r, v)}
           onURL={() => syncURL()} />
@@ -627,7 +627,7 @@ function YamlFile({ f }: { f: YFile }) {
   return (
     <section class="yed" data-key={keyOfFile(f)} data-hash={f.hash}>
       <YamlTab label={f.label} path={f.path}
-        badge={both ? { cls: 'state ' + (mark === 'hidden' ? 'off' : 'on'), text: mark === 'hidden' ? '隠れている' : '効いている' } : null}
+        badge={both ? { cls: 'state ' + (mark === 'hidden' ? 'off' : 'on'), text: mark === 'hidden' ? '無効' : '優先' } : null}
         text={f.text} carried={state.value.ydraft[f.file] ?? null} hash={f.hash} kind="team" place={f.place} name={f.name} extra={{ part: f.kind }}
         problems={yIssues(f.file)} problem={f.problem || ''}
         onProblems={(probs: Schemas['Problem'][]) => yamlProblems(f.file, probs)}

@@ -153,6 +153,24 @@ var glossary = []term{
 		},
 	},
 	{
+		id:       "preferred",
+		english:  "preferred",
+		japanese: "優先",
+		meaning:  "the mark on the project row when both the project and global places hold the same name; the project's profile, role document or team definition is used",
+		banned: []ban{
+			{lang: "ja", word: "効いている", instead: "優先"},
+		},
+	},
+	{
+		id:       "inactive",
+		english:  "inactive",
+		japanese: "無効",
+		meaning:  "the mark on the global row when both the project and global places hold the same name; the global profile, role document or team definition is not used because the project's is used",
+		banned: []ban{
+			{lang: "ja", word: "隠れている", instead: "無効"},
+		},
+	},
+	{
 		id:       "profile",
 		english:  "profile",
 		japanese: "プロファイル",

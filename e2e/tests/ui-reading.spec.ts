@@ -146,8 +146,8 @@ test('activity cards align their actions and explain unknown ownership once', as
 test('profile state stays immediately after its path', async ({ page, app }, info) => {
  await page.setViewportSize({ width: 1440, height: 1100 }); await page.goto(app.base + '/profiles'); await ready(page);
  await page.locator('.row[data-name="sonnet-fast"] .sum').first().click();
- // A row is one place (r-ea17): the place is the panel's head, and there is no
- // 効いている/隠れている state inside a row any more.
+ // A row is one place (r-ea17): the panel's head names the place and path,
+ // then carries its 優先/無効 state.
  const header = page.locator('.panel .ph').first();
  await expect(header.locator('.ln')).not.toBeEmpty();
  await expect(header.locator('.path')).toBeVisible();

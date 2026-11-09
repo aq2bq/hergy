@@ -110,7 +110,7 @@ export function Row({ row }: { row: Row }) {
         <button type="button" class="chev disclosure" ref={sum} aria-label={`${name || '新しいプロファイル'} を開閉する`} aria-expanded={row.open} onClick={(e) => { e.stopPropagation(); pressToggle(row.key); }}></button>
         <span class="c-name">
           <span class="nm">{name ? name : <span class="none">—</span>}</span>
-          {row.mark ? <span class={'state ' + (row.mark === 'hidden' ? 'off' : 'on')}>{row.mark === 'hidden' ? '隠れている' : '効いている'}</span> : null}
+          {row.mark ? <span class={'state ' + (row.mark === 'hidden' ? 'off' : 'on')}>{row.mark === 'hidden' ? '無効' : '優先'}</span> : null}
           {row.isNew ? <span class="tag">新規</span> : ''}
           {row.err > 0 ? <span class="sev err">問題 {row.err}</span> : row.warn > 0 ? <span class="sev warn">警告 {row.warn}</span> : ''}
         </span>
@@ -210,7 +210,7 @@ function Panel({ panel }: { panel: PanelState }) {
       <header class="ph">
         <span class="ln">{groupName(panel.group)}</span>
         <code class="path">{panel.path}</code>
-        {panel.mark ? <span class={'state ' + (panel.mark === 'hidden' ? 'off' : 'on')}>{panel.mark === 'hidden' ? '隠れている' : '効いている'}</span> : ''}
+        {panel.mark ? <span class={'state ' + (panel.mark === 'hidden' ? 'off' : 'on')}>{panel.mark === 'hidden' ? '無効' : '優先'}</span> : ''}
         <span class="acts">{acts}</span>
       </header>
       <div class="field"><label>プロファイル名</label><div>

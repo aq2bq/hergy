@@ -5884,7 +5884,7 @@ function Sum({ r, open }) {
           }),
           r.mark.value ? /* @__PURE__ */ u("span", {
             class: "state " + (r.mark.value === "hidden" ? "off" : "on"),
-            children: r.mark.value === "hidden" ? "隠れている" : "効いている"
+            children: r.mark.value === "hidden" ? "無効" : "優先"
           }) : null,
           /* @__PURE__ */ u("span", {
             class: "vcount",
@@ -6104,7 +6104,7 @@ function TeamPanel({ r }) {
         class: "phr",
         children: both ? /* @__PURE__ */ u("span", {
           class: "state " + (r.mark.value === "hidden" ? "off" : "on"),
-          children: r.mark.value === "hidden" ? "隠れている" : "効いている"
+          children: r.mark.value === "hidden" ? "無効" : "優先"
         }) : null
       })
     ]
@@ -6672,7 +6672,7 @@ function AgreePanel({ r }) {
                     path: `${placeName(r.place.value)} · teams/${r.name.value}/agreement.md`,
                     members: r.draft.value.members.map((m) => m.name).join("、"),
                     template: r.check.value?.templateSize || 0,
-                    state: (agreementChanged(r) ? "未保存" : "保存済み") + (shadowed ? "（隠れている）" : "")
+                    state: (agreementChanged(r) ? "未保存" : "保存済み") + (shadowed ? "（無効）" : "")
                   },
                   onChange: () => onChangeDraft(r),
                   onMode: (v) => pressPmode(r, v),
@@ -6807,7 +6807,7 @@ function YamlFile({ f }) {
     children: /* @__PURE__ */ u(YamlTab2, {
       label: f.label,
       path: f.path,
-      badge: both ? { cls: "state " + (mark === "hidden" ? "off" : "on"), text: mark === "hidden" ? "隠れている" : "効いている" } : null,
+      badge: both ? { cls: "state " + (mark === "hidden" ? "off" : "on"), text: mark === "hidden" ? "無効" : "優先" } : null,
       text: f.text,
       carried: state.value.ydraft[f.file] ?? null,
       hash: f.hash,
