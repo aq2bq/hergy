@@ -197,12 +197,19 @@ func (l *Launcher) BootIn(workspace, up string) error {
 	return nil
 }
 
-// watcherRows is how many rows the watcher's strip keeps under the members:
-// the band's three lines and one spare (r-4e04, d-1a54ca). watcherRatio is the
-// share the members keep when the strip's rows cannot be read (d-5b60).
+// watcherRows is how many rows the watcher's strip asks for under the members:
+// the band's three lines and one spare (r-4e04, d-1a54ca); herdr gives no pane
+// fewer rows than its own smallest (6, measured 2026-11-09), and the strip
+// takes that. watcherRatio is the share the members keep when the tab's rows
+// cannot be read (d-5b60).
 const (
 	watcherRows  = 4
 	watcherRatio = 0.85
+	// settleStep and settleTries bound the wait for herdr's layout after the
+	// split: the rows a pane reports right after it is cut change for a moment
+	// (measured 2026-11-09: 17, then 2), so they are read until two readings agree.
+	settleStep  = 100 * time.Millisecond
+	settleTries = 10
 )
 
 // WatcherPane is the name of the pane a team's watcher runs in: "<team>-turns",
@@ -211,38 +218,92 @@ func WatcherPane(team string) string { return team + "-turns" }
 
 // startWatcher cuts the strip under the first member's pane, names it, and runs
 // the watcher there. The strip keeps the project's directory and the member's
-// environment (the same hergy, the same settings).
+// environment (the same hergy, the same settings). The tab's rows are read
+// from the first pane before the cut; the strip is asked for at watcherRows,
+// and what the cut left over is moved back up to the members (stripMove).
 func (l *Launcher) startWatcher(root string, first *definition.Start) error {
-	pane, err := l.herdr.SplitRatio(root, "down", watcherRatio, first.Cwd, first.Env)
+	tabRows, rowsErr := l.herdr.PaneRows(root)
+	pane, err := l.herdr.SplitRatio(root, "down", membersShare(tabRows, rowsErr), first.Cwd, first.Env)
 	if err != nil {
 		return err
 	}
-	// The split comes out at a half whatever the ratio asked (herdr.Resize), so
-	// the boundary is moved down to the share the members keep: all but the
-	// strip's rows, read from the half the split made. A herdr that cannot say
-	// or cannot resize leaves the strip at the old share, or at a half; the
-	// watcher runs the same.
-	_ = l.herdr.Resize(pane, "down", membersShare(l.herdr.PaneRows(pane))-0.5)
+	rows := l.trimStrip(pane, tabRows, rowsErr)
 	if err := l.herdr.Rename(pane, WatcherPane(l.team)); err != nil {
 		return err
 	}
 	if err := l.herdr.Run(pane, l.watcher); err != nil {
 		return err
 	}
-	fmt.Fprint(l.out, i18n.Tf("launcher.watcher_started", l.team, pane))
+	if rows > 0 {
+		fmt.Fprint(l.out, i18n.Tf("launcher.watcher_started_rows", l.team, pane, rows))
+	} else {
+		fmt.Fprint(l.out, i18n.Tf("launcher.watcher_started", l.team, pane))
+	}
 	return nil
 }
 
-// membersShare is the share of the tab the members keep above the strip, from
-// the rows the half split gave the strip: the whole tab is twice that and the
-// split's line, and the strip keeps watcherRows of it. Without the rows, the
+// trimStrip moves the boundary above the strip until the strip keeps
+// watcherRows, or herdr says it moves no more (its smallest pane), reading the
+// strip's rows once they settle. It answers the rows the strip keeps, or 0
+// when they could not be read; a herdr that cannot resize leaves the strip as
+// the cut made it, and the watcher runs the same.
+func (l *Launcher) trimStrip(pane string, tabRows int, rowsErr error) int {
+	if rowsErr != nil || tabRows <= 0 {
+		return 0
+	}
+	rows := l.settledRows(pane)
+	for range 3 {
+		move := stripMove(rows, tabRows)
+		if move <= 0 {
+			break
+		}
+		changed, err := l.herdr.Resize(pane, "down", move)
+		if err != nil || !changed {
+			break
+		}
+		rows = l.settledRows(pane)
+	}
+	return rows
+}
+
+// settledRows reads a pane's rows until two readings agree, or the tries run
+// out; 0 when herdr cannot say.
+func (l *Launcher) settledRows(pane string) int {
+	last := -1
+	for range settleTries {
+		rows, err := l.herdr.PaneRows(pane)
+		if err != nil {
+			return 0
+		}
+		if rows == last {
+			return rows
+		}
+		last = rows
+		if err := l.sleeping(settleStep); err != nil {
+			return rows
+		}
+	}
+	return last
+}
+
+// membersShare is the share of the tab the members keep above the strip when
+// the strip has watcherRows and its split line; without the tab's rows, the
 // old share.
-func membersShare(halfRows int, err error) float64 {
-	if err != nil || halfRows <= watcherRows {
+func membersShare(tabRows int, err error) float64 {
+	if err != nil || tabRows <= 2*(watcherRows+1) {
 		return watcherRatio
 	}
-	total := 2*halfRows + 1
-	return float64(total-watcherRows) / float64(total)
+	return float64(tabRows-watcherRows-1) / float64(tabRows)
+}
+
+// stripMove is how far down the boundary moves, as a share of the tab, so a
+// strip of rows keeps watcherRows: nothing when it already does or the rows
+// are unknown.
+func stripMove(rows, tabRows int) float64 {
+	if rows <= watcherRows || tabRows <= 0 {
+		return 0
+	}
+	return float64(rows-watcherRows) / float64(tabRows)
 }
 
 // teamTabLabel is the label of the team's tab: the team's own name, and nothing

@@ -662,6 +662,7 @@
   "turns.to_human_unclear": "%s's answer names no one party; the turn is the human's%s\n",
   "turns.to_human_unanswered": "%s could not be asked (%s). The turn goes to the human\n",
   "launcher.watcher_started": "watcher: %s's turns are handed on by the watcher in pane %s\n",
+  "launcher.watcher_started_rows": "watcher: %s's watcher runs in pane %s (%d rows)\n",
   "launcher.watcher_failed": "watcher: %s's watcher could not be started (%s); hergy turns %s starts it\n",
   "launcher.signal_skipped_args": "%s (%s): the profile passes the same start argument itself, so no turn-end signal is wired; stops are seen through herdr\n",
   "launcher.signal_skipped_env": "%s (opencode): the profile's OPENCODE_CONFIG_CONTENT is not JSON hergy can add to, so no turn-end signal is wired; stops are seen through herdr\n",

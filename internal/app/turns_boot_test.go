@@ -27,7 +27,7 @@ func TestUpStartsTheWatcherUnderTheMembers(t *testing.T) {
 	split, rename, run := -1, -1, -1
 	for i, line := range lines {
 		switch {
-		case strings.HasPrefix(line, "pane split p1 --direction down --ratio 0.85"):
+		case strings.HasPrefix(line, "pane split p1 --direction down --ratio 0."):
 			split = i
 		case strings.HasSuffix(line, " demo-turns") && strings.HasPrefix(line, "pane rename"):
 			rename = i

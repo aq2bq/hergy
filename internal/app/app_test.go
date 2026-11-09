@@ -1733,9 +1733,10 @@ func TestHireLabelsTheTabWithTheTeam(t *testing.T) {
 	}
 }
 
-// TestUpCutsTheWatcherStripToFourRows: the split gives the strip 20 of the
-// tab's 41 rows; up moves the boundary so the strip keeps watcherRows (4):
-// the members' share is 37/41, and the move from the half is 0.40 (r-4e04).
+// TestUpCutsTheWatcherStripToFourRows: the fake tab is 20 rows (pane get), so
+// the split is asked for 15/20 of it for the members, and, the strip still
+// reading 20 rows, the boundary is moved down by the 16 surplus rows, 0.80 of
+// the tab (r-4e04).
 func TestUpCutsTheWatcherStripToFourRows(t *testing.T) {
 	f := newFixture(t)
 	mustRun(t, "new", "demo")
@@ -1744,8 +1745,10 @@ func TestUpCutsTheWatcherStripToFourRows(t *testing.T) {
 	t.Setenv("HERDR_PANE_ID", "p9")
 	mustRun(t, "up", "demo")
 	record := readFile(t, log)
-	if !strings.Contains(record, "pane resize --pane p2 --direction down --amount 0.40") {
-		t.Fatalf("up did not move the strip's boundary to leave it four rows:\n%s", record)
+	for _, want := range []string{"--direction down --ratio 0.75 ", "pane resize --pane p2 --direction down --amount 0.80"} {
+		if !strings.Contains(record, want) {
+			t.Fatalf("up did not cut and trim the strip (%q missing):\n%s", want, record)
+		}
 	}
 }
 

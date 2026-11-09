@@ -1247,17 +1247,24 @@ func TestWaitGoneSaysWhichMemberToRefresh(t *testing.T) {
 	}
 }
 
-// TestMembersShareLeavesTheStripItsRows: from the rows the half split gave the
-// strip, the members keep all but watcherRows of the tab; without the rows, or
-// with too few, the old share (r-4e04).
-func TestMembersShareLeavesTheStripItsRows(t *testing.T) {
-	if got := membersShare(20, nil); fmt.Sprintf("%.2f", got) != "0.90" {
-		t.Errorf("membersShare(20) = %.4f, want 37/41", got)
+// TestStripArithmetic: the members' share asked of the split leaves the strip
+// watcherRows and its line; the move after the cut is the surplus rows as a
+// share of the tab, and nothing when the strip is small enough or unknown
+// (r-4e04).
+func TestStripArithmetic(t *testing.T) {
+	if got := membersShare(77, nil); fmt.Sprintf("%.3f", got) != "0.935" {
+		t.Errorf("membersShare(77) = %.4f, want 72/77", got)
 	}
 	if got := membersShare(0, fmt.Errorf("no rows")); got != watcherRatio {
 		t.Errorf("membersShare(err) = %v, want the old share", got)
 	}
-	if got := membersShare(3, nil); got != watcherRatio {
-		t.Errorf("membersShare(3) = %v, want the old share: too few rows to cut", got)
+	if got := membersShare(8, nil); got != watcherRatio {
+		t.Errorf("membersShare(8) = %v, want the old share: too few rows to cut", got)
+	}
+	if got := stripMove(36, 77); fmt.Sprintf("%.3f", got) != "0.416" {
+		t.Errorf("stripMove(36, 77) = %.4f, want 32/77", got)
+	}
+	if stripMove(4, 77) != 0 || stripMove(6, 0) != 0 {
+		t.Errorf("stripMove moves a strip that is small enough or unknown")
 	}
 }

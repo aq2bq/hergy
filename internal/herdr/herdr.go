@@ -299,12 +299,20 @@ func (h *Herdr) SplitRatio(pane, direction string, ratio float64, cwd string, en
 }
 
 // Resize moves the split a pane stands in by amount of the tab's room, in a
-// direction (up, down, left, right). herdr's split takes no ratio in practice
-// (measured 2026-11-06: --ratio 0.85 made a 0.5 split), so the strip a watcher
-// runs in is cut at a half and then moved.
-func (h *Herdr) Resize(pane, direction string, amount float64) error {
-	_, err := h.port.JSON("pane", "resize", "--pane", pane, "--direction", direction, "--amount", strconv.FormatFloat(amount, 'f', 2, 64))
-	return err
+// direction (up, down, left, right), and says whether anything moved: herdr
+// answers changed=false at a pane's smallest height (measured 2026-11-09: a
+// strip keeps 6 rows). An answer without the flag counts as not moved.
+func (h *Herdr) Resize(pane, direction string, amount float64) (bool, error) {
+	result, err := h.port.JSON("pane", "resize", "--pane", pane, "--direction", direction, "--amount", strconv.FormatFloat(amount, 'f', 2, 64))
+	if err != nil {
+		return false, err
+	}
+	value, err := protocol.Dig(result, "resize", "changed")
+	if err != nil {
+		return false, nil
+	}
+	changed, _ := value.(bool)
+	return changed, nil
 }
 
 // PaneRows is how many rows a pane shows (herdr pane get's viewport_rows).
