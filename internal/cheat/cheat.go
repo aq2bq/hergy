@@ -186,16 +186,16 @@ Reading the output:
   The values, the JSON keys and the "next:" line are never translated.
   A line "next: <command>" names the command to type next, with no leading hergy (for example "next: down demo", or "next: status demo" after up --as demo).
   --dry prints the plan; with --json it is an object with these top-level keys:
-    up (mode=boot): always: mode, team, startup_timeout_ms, members; optional: turns
-    refresh (mode=restart): always: mode, team, startup_timeout_ms, members; optional: turns
-    reprompt (mode=reprompt): always: mode, team, startup_timeout_ms, members; optional: turns
-    hire (mode=spawn): always: mode, team, startup_timeout_ms, members; optional: turns
+    up (mode=boot): always: mode, team, startup_timeout_ms, members, turns
+    refresh (mode=restart): always: mode, team, startup_timeout_ms, members, turns
+    reprompt (mode=reprompt): always: mode, team, startup_timeout_ms, members, turns
+    hire (mode=spawn): always: mode, team, startup_timeout_ms, members, turns
     apply: always: herdr, count, teams
     down: always: team, members, workers, leftovers
-  For up, refresh, reprompt and hire, top-level turns appears when the team definition has turns. apply returns the same shape as GET /api/apply, which the screen's apply sheet reads.
+  apply returns the same shape as GET /api/apply, which the screen's apply sheet reads.
   status --json prints its rows as JSON, the one command that does not need --dry: a team object with members, each {name, state, unchanged_minutes, live, worker}, where unchanged_minutes is the number of minutes a working member's screen has stood (absent when it changed or hergy had not seen it). With no team name it is {"teams": [...]}, one such object each.
   Members in --dry --json have different shapes:
-    up/refresh/reprompt/hire members[]: always: name, role, kind, args, env, cwd, prompt, segments; optional: profile, turns, workers, sources
+    up/refresh/reprompt/hire members[]: always: name, role, kind, args, env, cwd, prompt, segments, profile; optional: turns, workers, sources
     apply teams[].members[]: always: name, short, role, state, how, changes, can_apply, conversation_lost; optional: why_not
     down members[]: herdr name strings
   For up, refresh, reprompt and hire, optional member keys appear only when set; cwd is an absolute path, and env is the pane's environment, the profile's own variables plus GY_ACTOR. For apply, why_not appears only when the member cannot be applied.

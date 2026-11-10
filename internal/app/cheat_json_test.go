@@ -1,16 +1,12 @@
 package app
 
 import (
-	"bytes"
 	"encoding/json"
 	"maps"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
-
-	"github.com/aq2bq/hergy/internal/definition"
-	"github.com/aq2bq/hergy/internal/launcher"
 )
 
 // TestCheatDryJSONKeys compares the cheat's lists with actual command output,
@@ -27,19 +23,9 @@ func TestCheatDryJSONKeys(t *testing.T) {
 					label += " (mode=" + mode + ")"
 				}
 				always, optional := cheatJSONKeys(t, doc, label)
-				sameJSONKeys(t, plan, append(slices.Clone(always), optional...))
-				if hasMode {
-					// The shared writer omits turns when there is no definition.
-					// This also checks the cheat did not call turns an always key.
-					var out bytes.Buffer
-					if err := printPlanJSON(&out, mode, &resolved{}, nil, 30000, launcher.NewPanes{}); err != nil {
-						t.Fatal(err)
-					}
-					var withoutTurns map[string]any
-					if err := json.Unmarshal(out.Bytes(), &withoutTurns); err != nil {
-						t.Fatal(err)
-					}
-					sameJSONKeys(t, withoutTurns, always)
+				sameJSONKeys(t, plan, always)
+				if len(optional) != 0 {
+					t.Errorf("CLI top-level keys are always present, cheat --ai calls %v optional", optional)
 				}
 			})
 			t.Run("members", func(t *testing.T) {
@@ -49,19 +35,35 @@ func TestCheatDryJSONKeys(t *testing.T) {
 	}
 }
 
-// TestCheatLaunchMemberOptionalKeys checks both ends of ToPlan's conditional
-// fields. CLI plans always carry GY_ACTOR, even with no profile env (r-1c42).
+// TestCheatLaunchMemberOptionalKeys classifies fields by CLI output (d-e038):
+// always keys appear in every member and worker; optional keys appear in some.
 func TestCheatLaunchMemberOptionalKeys(t *testing.T) {
-	newFixture(t)
-	doc := mustRun(t, "cheat", "--ai")
+	counts := map[string]int{}
+	total := 0
+	doc := ""
+	for _, command := range []string{"up", "refresh", "reprompt", "hire"} {
+		t.Run(command, func(t *testing.T) {
+			plan := dryJSONForCheat(t, command)
+			doc = mustRun(t, "cheat", "--ai")
+			for _, member := range jsonObjectList(t, plan["members"]) {
+				total++
+				for key := range member {
+					counts[key]++
+				}
+			}
+		})
+	}
 	always, optional := cheatJSONKeys(t, doc, "up/refresh/reprompt/hire members[]")
-	member := definition.Start{Env: map[string]string{"GY_ACTOR": "demo-lead"}}
-	sameJSONKeys(t, member.ToPlan(), always)
-	member.Profile = "demo-profile"
-	member.Turns = []string{"human"}
-	member.Workers = []definition.WorkerNode{{From: "lead", Purpose: "inspect", Profile: "demo-profile"}}
-	member.HasRole = true
-	sameJSONKeys(t, member.ToPlan(), append(slices.Clone(always), optional...))
+	observedAlways, observedOptional := map[string]any{}, map[string]any{}
+	for key, count := range counts {
+		if count == total {
+			observedAlways[key] = true
+		} else {
+			observedOptional[key] = true
+		}
+	}
+	sameJSONKeys(t, observedAlways, always)
+	sameJSONKeys(t, observedOptional, optional)
 }
 
 func dryJSONForCheat(t *testing.T, command string) map[string]any {
