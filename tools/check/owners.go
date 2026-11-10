@@ -212,14 +212,15 @@ type ownerAllow struct {
 
 // ownersFile is tools/check/owners.yml.
 type ownersFile struct {
-	Enforce             bool         `yaml:"enforce"`
-	ChangedEnforce      bool         `yaml:"changed_enforce"`
-	DangerEnforce       bool         `yaml:"danger_enforce"`
-	PromptEnforce       bool         `yaml:"prompt_enforce"`
-	SelectionEnforce    bool         `yaml:"selection_enforce"`
-	AddressEnforce      bool         `yaml:"address_enforce"`
-	PagePositionEnforce bool         `yaml:"page_position_enforce"`
-	Allow               []ownerAllow `yaml:"allow"`
+	ConfirmedSend       *confirmedSendRules `yaml:"confirmed_send"`
+	Enforce             bool                `yaml:"enforce"`
+	ChangedEnforce      bool                `yaml:"changed_enforce"`
+	DangerEnforce       bool                `yaml:"danger_enforce"`
+	PromptEnforce       bool                `yaml:"prompt_enforce"`
+	SelectionEnforce    bool                `yaml:"selection_enforce"`
+	AddressEnforce      bool                `yaml:"address_enforce"`
+	PagePositionEnforce bool                `yaml:"page_position_enforce"`
+	Allow               []ownerAllow        `yaml:"allow"`
 }
 
 // ownersGate reports (and, once enforced, refuses) a name outside its owner.
@@ -264,6 +265,11 @@ func (r *runner) ownersGate() error {
 	if err != nil {
 		return err
 	}
+	receipt, err := r.confirmedSendFindings(conf.ConfirmedSend)
+	if err != nil {
+		return err
+	}
+	findings = append(findings, receipt...)
 	return ownersVerdict(conf, append(findings, changed...), danger, prompt, selection, address, page)
 }
 
@@ -304,7 +310,7 @@ func ownersVerdict(conf ownersFile, findings, danger, prompt, selection, address
 		fmt.Println(finding)
 	}
 	if failed {
-		return fmt.Errorf("持ち主の外で帯の件数を書く・一覧の行を決める・危ない操作の確認や取り消しを書く・渡る文を組み立てる・選んだものと右の列を書く・開いている行の住所を書く・ページを動かす場所が %d 件", len(all))
+		return fmt.Errorf("持ち主の外で帯の件数を書く・一覧の行を決める・危ない操作の確認や取り消しを書く・渡る文を組み立てる・選んだものと右の列を書く・開いている行の住所を書く・ページを動かす・確認つきの送信を持つ場所が %d 件", len(all))
 	}
 	fmt.Printf("owners: %d 件（報告のみ。tools/check/owners.yml の%s を true にする前に、持ち主へ寄せるか許可リストに理由と決定を添えてください）\n", len(all), which.String())
 	return nil
