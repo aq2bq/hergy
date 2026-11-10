@@ -188,7 +188,7 @@ func TestTurnsDrawsTheBandInItsPane(t *testing.T) {
 	f.later(time.Second)
 	draws := strings.Split(f.scr.String(), "\x1b[H")
 	last := draws[len(draws)-1]
-	for _, want := range []string{" demo  ", " lead ○ ", " builder \x1b[32m●\x1b[0m ", "ターン: builder（lead から）", "待ち: lead → builder", "21:20:01 lead→builder →"} {
+	for _, want := range []string{" demo  ", " lead ○ ", " builder \x1b[32m●\x1b[0m ", "turn: builder (from lead)", "waiting: lead → builder", "21:20:01 lead→builder →"} {
 		if !strings.Contains(last, want) {
 			t.Errorf("the band lacks %q:\n%q", want, last)
 		}

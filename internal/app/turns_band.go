@@ -12,7 +12,6 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/turns"
 )
 
@@ -22,9 +21,9 @@ import (
 // log file instead (turns.LogPath), stamped with the time; this file only reads
 // the state and the actions and draws.
 //
-//	 sig   lead ○   dev ●   spec ○  │ ターン: dev（lead から） │ 待ち: lead → dev
-//	 21:28:47 lead→dev →   21:29:11 dev→人間 ✓
-//	 ? dev に渡し先を聞いています（lead が待ち）
+//	 sig   lead ○   dev ●   spec ○  │ turn: dev (from lead) │ waiting: lead → dev
+//	 21:28:47 lead→dev →   21:29:11 dev→human ✓
+//	 ? asking dev (lead waiting)
 //
 // Line 1: the team, each member's state (● working, ○ stopped, ◐ blocked,
 // · unknown), who holds the turn and from whom, who waits for whose answer.
@@ -119,12 +118,12 @@ func (b *band) statusLine(st *turns.State) string {
 	for _, m := range b.members {
 		sb.WriteString(" " + m.Name + " " + stateMark(m.Status) + " ")
 	}
-	sb.WriteString(" │ " + i18n.Tf("band.turn", bandParty(st.Holder)))
+	sb.WriteString(" │ " + "turn: " + bandParty(st.Holder))
 	if st.From != "" && st.From != st.Holder {
-		sb.WriteString(i18n.Tf("band.from", bandParty(st.From)))
+		sb.WriteString(" (from " + bandParty(st.From) + ")")
 	}
 	if waits := st.Waits(); len(waits) > 0 {
-		sb.WriteString(" │ " + i18n.Tf("band.waits", strings.Join(waits, ", ")))
+		sb.WriteString(" │ " + "waiting: " + strings.Join(waits, ", "))
 	}
 	return sb.String()
 }
@@ -156,10 +155,10 @@ func (b *band) pendingLine(st *turns.State) string {
 	}
 	for _, name := range sortedKeys(st.Asked) {
 		q := st.Asked[name]
-		return " " + i18n.Tf("band.asking", name, strings.Join(q.Waiting, ", "))
+		return " " + "? asking " + name + " (" + strings.Join(q.Waiting, ", ") + " waiting)"
 	}
 	if len(st.Pending) > 0 {
-		return " " + i18n.Tf("band.boxed", strings.Join(sortedKeys(st.Pending), ", "))
+		return " " + "boxed for: " + strings.Join(sortedKeys(st.Pending), ", ")
 	}
 	return ""
 }
@@ -189,13 +188,11 @@ func stateMark(status string) string {
 	return "·"
 }
 
-// bandParty is a name as the band writes it: the human in the person's language.
-func bandParty(name string) string {
-	if name == turns.Human {
-		return i18n.T("send.who_human")
-	}
-	return name
-}
+// bandParty is a name as the band writes it. The band's own words (turn,
+// waiting, human, asking) are English in every language: they are labels a
+// person reads at a glance, and a translated label reads worse than the word
+// they already know (d-1a54ca's follow-up, 2026-11-10).
+func bandParty(name string) string { return name }
 
 func sortedKeys[V any](m map[string]V) []string { return slices.Sorted(maps.Keys(m)) }
 

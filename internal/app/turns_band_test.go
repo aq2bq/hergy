@@ -9,7 +9,8 @@ import (
 	"github.com/aq2bq/hergy/internal/turns"
 )
 
-// TestBandRendersStateHandoffsAndWhatIsAsked: the three lines, in Japanese,
+// TestBandRendersStateHandoffsAndWhatIsAsked: the three lines, whose labels
+// are English even in a Japanese run,
 // from a state in which lead told builder, builder stopped unhanded and is
 // being asked (r-4e04, ac-3d07).
 func TestBandRendersStateHandoffsAndWhatIsAsked(t *testing.T) {
@@ -28,7 +29,7 @@ func TestBandRendersStateHandoffsAndWhatIsAsked(t *testing.T) {
 	if len(lines) != bandLines {
 		t.Fatalf("render = %d lines, want %d", len(lines), bandLines)
 	}
-	for _, want := range []string{" demo  ", " lead ○ ", " builder ● ", "│ ターン: builder（lead から）", "│ 待ち: lead → builder"} {
+	for _, want := range []string{" demo  ", " lead ○ ", " builder ● ", "│ turn: builder (from lead)", "│ waiting: lead → builder"} {
 		if !strings.Contains(lines[0], want) {
 			t.Errorf("line 1 lacks %q: %q", want, lines[0])
 		}
@@ -36,17 +37,17 @@ func TestBandRendersStateHandoffsAndWhatIsAsked(t *testing.T) {
 	if want := " 21:28:47 lead→builder →   21:29:11 builder ?"; lines[1] != want {
 		t.Errorf("line 2 = %q, want %q", lines[1], want)
 	}
-	if want := " ? builder に渡し先を聞いています（lead が待ち）"; lines[2] != want {
+	if want := " ? asking builder (lead waiting)"; lines[2] != want {
 		t.Errorf("line 3 = %q, want %q", lines[2], want)
 	}
 	// The human holds it, nothing asked: the third line is empty.
 	rest := &turns.State{Team: "demo", Holder: turns.Human, From: "builder"}
 	b.note(turns.Action{Kind: turns.ToHuman, From: "builder"}, at.Add(time.Minute))
 	lines = b.render(rest, 120)
-	if !strings.Contains(lines[0], "ターン: 人間（builder から）") || lines[2] != "" {
+	if !strings.Contains(lines[0], "turn: human (from builder)") || lines[2] != "" {
 		t.Errorf("render = %q, want the human holding it from builder and an empty third line", lines)
 	}
-	if !strings.HasSuffix(lines[1], "21:29:47 builder→人間 ✓") {
+	if !strings.HasSuffix(lines[1], "21:29:47 builder→human ✓") {
 		t.Errorf("line 2 = %q, want it to end with the handoff to the human", lines[1])
 	}
 }
