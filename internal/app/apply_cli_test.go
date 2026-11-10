@@ -55,6 +55,33 @@ func TestApplyDrySaysHowAndWhatChanged(t *testing.T) {
 	}
 }
 
+// TestApplyDrySaysThereIsNoChange: an empty plan says the same thing as apply
+// without --dry, in either language and after selecting a team (r-c963).
+func TestApplyDrySaysThereIsNoChange(t *testing.T) {
+	for _, test := range []struct {
+		lang string
+		demo func(*testing.T) *fixture
+		want string
+	}{
+		{lang: "en", demo: applyDemo, want: "there is no change to apply"},
+		{lang: "ja", demo: japaneseDemo, want: "反映する変更はありません"},
+	} {
+		t.Run(test.lang, func(t *testing.T) {
+			f := test.demo(t)
+			f.runningHerdr(t, `{"tab_id":"t1","label":"demo"}`,
+				`{"name":"demo-lead","agent":"claude","agent_status":"idle","pane_id":"p1","tab_id":"t1","state_change_seq":1},
+				{"name":"demo-builder","agent":"claude","agent_status":"idle","pane_id":"p2","tab_id":"t1","state_change_seq":1}`)
+			for _, args := range [][]string{{"apply", "--dry"}, {"apply", "--dry", "--team", "demo"}} {
+				stdout, stderr, code := run(args...)
+				if code != 0 {
+					t.Fatalf("%v: exit %d\nstderr:\n%s", args, code, stderr)
+				}
+				wantLines(t, stdout, test.want)
+			}
+		})
+	}
+}
+
 // TestApplyDrySaysWhyADefinitionDoesNotBuild: a team whose role file does not
 // read cannot be applied, and --dry says the reason and the way to fix it, and
 // answers 1 (2.2, d-36ef).
@@ -68,10 +95,13 @@ func TestApplyDrySaysWhyADefinitionDoesNotBuild(t *testing.T) {
 	if code == 0 {
 		t.Fatalf("apply --dry answered 0 for a definition that does not build:\n%s", stdout)
 	}
-	for _, want := range []string{"does not build", "hergy validate"} {
+	for _, want := range []string{"does not build", "hergy validate", "there is no change to apply"} {
 		if !strings.Contains(stdout, want) {
 			t.Errorf("apply --dry does not say %q:\n%s", want, stdout)
 		}
+	}
+	if strings.Contains(stdout, "Plan:") {
+		t.Errorf("apply --dry shows a heading for an empty plan:\n%s", stdout)
 	}
 	if stderr == "" {
 		t.Error("apply --dry did not say why it answered 1")

@@ -296,6 +296,10 @@ func printApplyPlan(stdout io.Writer, plan deliveryPlan, selected []plannedMembe
 		fmt.Fprintln(stdout, string(out))
 		return nil
 	}
+	if len(selected) == 0 && len(remaining) == 0 {
+		fmt.Fprintln(stdout, i18n.T("apply.nothing"))
+		return nil
+	}
 	fmt.Fprintln(stdout, i18n.T("apply.plan"))
 	applied := map[string]bool{}
 	for _, group := range groupByTeam(selected) {
