@@ -188,7 +188,7 @@ func TestDryAndFailedLaunchesRecordNothing(t *testing.T) {
 }
 
 // TestRefreshRefusesAMemberTheTeamHasNoAgentFor: adding a member to a running
-// team is the apply's road now (d-8fcf), so refresh names hergy apply and changes
+// team is the apply's road now (d-36ef), so refresh names hergy apply and changes
 // nothing.
 func TestRefreshRefusesAMemberTheTeamHasNoAgentFor(t *testing.T) {
 	f := newFixture(t)

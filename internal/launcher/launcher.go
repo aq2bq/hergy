@@ -370,14 +370,15 @@ func (l *Launcher) Reprompt(members []definition.Start) error {
 	return nil
 }
 
-// Refresh restarts each selected member, and gives a pane to a member the
+// Refresh is the launcher shared by apply and the standalone refresh command.
+// It restarts selected members and, for apply, gives a pane to a member the
 // definition has and hergy has none for. A member that is live has its process
 // group stopped, Herdr's name waited away, and the member started again in the
 // same pane; a member that is not live, but whose pane hergy named after it is
 // still there at its shell, is started again in that pane. A member with no pane
 // at all is added to the running team: hergy makes a pane for it in the team's tab
 // and starts it there, the way a boot makes one member's pane, with the same
-// bootstrap prompt and the same wait on a startup question (d-8fcf); the other
+// bootstrap prompt and the same wait on a startup question (d-36ef); the other
 // members are left alone. Either way the conversation starts empty, and the
 // settings are read again first, so an edited profile, kind, args or prompt takes
 // effect. selfPane is the pane hergy itself runs in: a member there cannot be
@@ -386,8 +387,9 @@ func (l *Launcher) Reprompt(members []definition.Start) error {
 // pane, so one member that is not idle or done, is hergy's own, or whose pane is
 // busy stops the whole command with nothing changed.
 //
-// A team that is not running has no tab to add a member to, and refresh starts no
-// team: it refuses and names hergy up, as it always has.
+// The standalone refresh command refuses members with no pane before calling
+// this launcher. A team that is not running has no tab to add a member to, and
+// this launcher starts no team: it refuses and names hergy up, as it always has.
 func (l *Launcher) Refresh(members []definition.Start, selfPane string) error {
 	if err := l.herdr.Verify(protocol.ModeRefresh); err != nil {
 		return err
@@ -654,11 +656,11 @@ func (l *Launcher) stoppedByNow(name string) (bool, error) {
 	}
 }
 
-// refreshTarget is one member a refresh acts on: its pane, and whether an agent is
-// live there. A member with no live agent is started again in the pane hergy named
-// for it, when that pane is at its shell. A member with no pane at all is one
-// hergy has not run yet: refresh makes it a pane in the team's tab (d-8fcf), and
-// pane is empty.
+// refreshTarget is one member the shared launcher acts on: its pane, and whether
+// an agent is live there. A member with no live agent is started again in the
+// pane hergy named for it, when that pane is at its shell. A member with no pane
+// at all is one hergy has not run yet: when apply adds it, the launcher makes it
+// a pane in the team's tab (d-36ef), and pane is empty.
 type refreshTarget struct {
 	member *definition.Start
 	pane   string

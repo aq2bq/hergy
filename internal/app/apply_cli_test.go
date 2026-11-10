@@ -7,7 +7,7 @@ import (
 )
 
 // TestApplyAddsAMemberTheTeamHasNoAgentFor: hergy apply is the road that adds a
-// member to a running team now (d-8fcf): the member gets a pane in the team's tab
+// member to a running team now (d-36ef): the member gets a pane in the team's tab
 // and its bootstrap prompt.
 func TestApplyAddsAMemberTheTeamHasNoAgentFor(t *testing.T) {
 	f := applyDemo(t)

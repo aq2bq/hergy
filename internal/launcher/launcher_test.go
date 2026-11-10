@@ -597,10 +597,10 @@ func addablePort() *fakePort {
 	}
 }
 
-// TestRefreshAddsAMemberTheDefinitionHasAndNoPaneFor: a member written in the
-// definition that hergy made no pane for is given one in the team's tab, and
-// started there with the bootstrap prompt and the timeout a boot uses. The
-// members already running are left alone (d-8fcf, r-7e09).
+// TestRefreshAddsAMemberTheDefinitionHasAndNoPaneFor: apply uses the shared
+// launcher to make a pane in the team's tab for a member with no pane, then
+// start it with the bootstrap prompt and timeout a boot uses. Members already
+// running are left alone (d-36ef, r-7e09).
 func TestRefreshAddsAMemberTheDefinitionHasAndNoPaneFor(t *testing.T) {
 	port := addablePort()
 	l, out := downLauncherFor(t, port, "demo", "demo-lead", "demo-spec2")
