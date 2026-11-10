@@ -136,6 +136,7 @@ func shortsOfStarts(members []plannedMember) []string {
 // with the launcher the command line uses; the record keeps the plain prompt, so
 // the next comparison does not see the preamble as a change.
 func (h *hqRead) runApply(ctx context.Context, op *launchOp, selected []plannedMember) {
+	var undelivered []error
 	for _, group := range groupByTeam(selected) {
 		env, err := h.act.envAt(group[0].team.Project)
 		if err != nil {
@@ -150,6 +151,10 @@ func (h *hqRead) runApply(ctx context.Context, op *launchOp, selected []plannedM
 			return
 		}
 		if err := h.applyGroup(ctx, op, env, cat, r, group); err != nil {
+			if launcher.IsUndelivered(err) {
+				undelivered = append(undelivered, err)
+				continue
+			}
 			if errors.Is(err, launcher.ErrCancelled) || ctx.Err() != nil {
 				h.finish(op, "cancelled", "")
 				return
@@ -157,6 +162,10 @@ func (h *hqRead) runApply(ctx context.Context, op *launchOp, selected []plannedM
 			h.finish(op, "failed", err.Error())
 			return
 		}
+	}
+	if err := errors.Join(undelivered...); err != nil {
+		h.finish(op, "failed", err.Error())
+		return
 	}
 	// The members are on their current prompts now, so the band is read again.
 	h.finish(op, "done", "")
@@ -177,34 +186,47 @@ func (h *hqRead) applyGroup(ctx context.Context, op *launchOp, env team.Env, cat
 			resends = append(resends, member.start)
 		}
 	}
+	var undelivered []error
 	if len(starts)+len(restarts) > 0 {
 		if err := l.Refresh(append(starts, restarts...), os.Getenv("HERDR_PANE_ID")); err != nil {
-			if errors.Is(err, launcher.ErrCancelled) {
-				return err
+			if launcher.IsUndelivered(err) {
+				undelivered = append(undelivered, err)
+			} else {
+				if errors.Is(err, launcher.ErrCancelled) {
+					return err
+				}
+				// A start that stopped partway says who, why and what remains, the
+				// way a start from the team sheet does (d-5f02). An apply that never
+				// got to a start keeps the sentence it stopped with.
+				failure := l.Failure(err)
+				if failure.Member == "" && failure.Panes == 0 {
+					return err
+				}
+				return errors.New(startFailureText(failure,
+					h.projectNameIn(env.ProjectRoot), applyFixCommand(group)))
 			}
-			// A start that stopped partway says who, why and what remains, the
-			// way a start from the team sheet does (d-5f02). An apply that never
-			// got to a start keeps the sentence it stopped with.
-			failure := l.Failure(err)
-			if failure.Member == "" && failure.Panes == 0 {
-				return err
-			}
-			return errors.New(startFailureText(failure,
-				h.projectNameIn(env.ProjectRoot), applyFixCommand(group)))
 		}
 	}
 	if len(resends) > 0 {
 		if err := l.Reprompt(promptsToResend(cat, env.ProjectRoot, r, resends)); err != nil {
-			return err
+			if !launcher.IsUndelivered(err) {
+				return err
+			}
+			undelivered = append(undelivered, err)
 		}
 	}
 	all := make([]definition.Start, 0, len(group))
 	for _, member := range group {
+		if !l.Received(member.start.Name) {
+			continue
+		}
 		all = append(all, member.start)
 		h.stepApplied(op, member)
 	}
-	recordLaunch(io.Discard, env, r, launchlog.CommandApply, all)
-	return nil
+	if len(all) > 0 {
+		recordLaunch(io.Discard, env, r, launchlog.CommandApply, all)
+	}
+	return errors.Join(undelivered...)
 }
 
 // stepApplied is one member's line of the apply's progress.

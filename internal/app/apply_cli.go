@@ -10,6 +10,7 @@ import (
 
 	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/i18n"
+	"github.com/aq2bq/hergy/internal/launcher"
 	"github.com/aq2bq/hergy/internal/launchlog"
 	"github.com/aq2bq/hergy/internal/options"
 	"github.com/aq2bq/hergy/internal/source"
@@ -169,44 +170,69 @@ func chooseApply(plan deliveryPlan, opts *options.Options) ([]plannedMember, []c
 // applyNow applies the selected members, one team at a time, with the launcher
 // the other commands use, and records what was handed to whom.
 func applyNow(ctx context.Context, env team.Env, selected []plannedMember, timeout int, stdout, stderr io.Writer) error {
+	var undelivered []error
 	for _, group := range groupByTeam(selected) {
-		projectEnv := env
-		if scoped, err := env.AtProject(group[0].team.Project); err == nil {
-			projectEnv = scoped
-		}
-		cat := projectEnv.Catalog(source.Disk{})
-		r, err := buildRunningIn(cat, projectEnv.ProjectRoot,
-			team.Running{Team: group[0].team.Name, Definition: group[0].team.Definition}, group[0].team.Place)
-		if err != nil {
-			return err
-		}
-		l := newLauncher(r, timeout, stdout).WithContext(ctx).WithoutNextHint()
-		var starts, resends []definition.Start
-		for _, member := range group {
-			if member.how == web.ApplyResend {
-				resends = append(resends, member.start)
-				continue
-			}
-			starts = append(starts, member.start)
-		}
-		if len(starts) > 0 {
-			if err := l.Refresh(starts, os.Getenv("HERDR_PANE_ID")); err != nil {
+		if err := applyTeamNow(ctx, env, group, timeout, stdout, stderr); err != nil {
+			if !launcher.IsUndelivered(err) {
 				return err
 			}
+			undelivered = append(undelivered, err)
 		}
-		if len(resends) > 0 {
-			if err := l.Reprompt(promptsToResend(cat, projectEnv.ProjectRoot, r, resends)); err != nil {
+	}
+	return errors.Join(undelivered...)
+}
+
+// applyTeamNow applies one team's members; only missing receipts let the caller
+// continue with another team. Confirmed recipients alone enter the launch log.
+func applyTeamNow(ctx context.Context, env team.Env, group []plannedMember, timeout int, stdout, stderr io.Writer) error {
+	var undelivered []error
+	projectEnv := env
+	if scoped, err := env.AtProject(group[0].team.Project); err == nil {
+		projectEnv = scoped
+	}
+	cat := projectEnv.Catalog(source.Disk{})
+	r, err := buildRunningIn(cat, projectEnv.ProjectRoot,
+		team.Running{Team: group[0].team.Name, Definition: group[0].team.Definition}, group[0].team.Place)
+	if err != nil {
+		return err
+	}
+	l := newLauncher(r, timeout, stdout).WithContext(ctx).WithoutNextHint()
+	var starts, resends []definition.Start
+	for _, member := range group {
+		if member.how == web.ApplyResend {
+			resends = append(resends, member.start)
+			continue
+		}
+		starts = append(starts, member.start)
+	}
+	if len(starts) > 0 {
+		if err := l.Refresh(starts, os.Getenv("HERDR_PANE_ID")); err != nil {
+			if !launcher.IsUndelivered(err) {
 				return err
 			}
+			undelivered = append(undelivered, err)
 		}
-		all := make([]definition.Start, 0, len(group))
-		for _, member := range group {
-			all = append(all, member.start)
-			fmt.Fprintf(stdout, "%s\n", i18n.Tf("apply.applied", member.start.Short, applyHowWord(member.how)))
+	}
+	if len(resends) > 0 {
+		if err := l.Reprompt(promptsToResend(cat, projectEnv.ProjectRoot, r, resends)); err != nil {
+			if !launcher.IsUndelivered(err) {
+				return err
+			}
+			undelivered = append(undelivered, err)
 		}
+	}
+	all := make([]definition.Start, 0, len(group))
+	for _, member := range group {
+		if !l.Received(member.start.Name) {
+			continue
+		}
+		all = append(all, member.start)
+		fmt.Fprintf(stdout, "%s\n", i18n.Tf("apply.applied", member.start.Short, applyHowWord(member.how)))
+	}
+	if len(all) > 0 {
 		recordLaunch(stderr, projectEnv, r, launchlog.CommandApply, all)
 	}
-	return nil
+	return errors.Join(undelivered...)
 }
 
 // applyHowWord is one way of applying, as a person reads it after it was done.

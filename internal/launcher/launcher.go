@@ -29,6 +29,7 @@ import (
 type Launcher struct {
 	starts  []definition.Start
 	team    string
+	project string
 	timeout int
 	herdr   *herdr.Herdr
 	out     io.Writer
@@ -51,6 +52,9 @@ type Launcher struct {
 	// kill stops a process group. It is a field so a test can record the call
 	// instead of signalling a real process group.
 	kill func(pgid int) error
+	// The name-release wait has a test clock so ordering does not depend on sleeps.
+	now   func() time.Time
+	pause func(time.Duration)
 
 	mu       sync.Mutex
 	progress *progress.Progress
@@ -69,15 +73,18 @@ type Launcher struct {
 }
 
 // New builds a launcher over the members of one team: the team name, and the
-// members as starts.
-func New(starts []definition.Start, team string, h *herdr.Herdr, timeoutMS int, out io.Writer) *Launcher {
+// members as starts. project is the absolute project path used by recovery commands.
+func New(starts []definition.Start, team, project string, h *herdr.Herdr, timeoutMS int, out io.Writer) *Launcher {
 	return &Launcher{
 		starts:   starts,
 		team:     team,
+		project:  project,
 		timeout:  timeoutMS,
 		herdr:    h,
 		out:      out,
 		kill:     defaultKill,
+		now:      time.Now,
+		pause:    time.Sleep,
 		progress: progress.Start(namesOf(starts)),
 	}
 }
@@ -192,10 +199,17 @@ func (l *Launcher) BootIn(workspace, up string) error {
 	l.trimStripAgain()
 	l.notify(Event{CreatedPanes: len(members), Workspace: l.workspace})
 	next := NextUp(l.team, up)
+	var undelivered []error
 	for i := range members {
 		if err := l.start(&members[i], next, l.teamTabLabel()); err != nil {
-			return err
+			if !IsUndelivered(err) {
+				return err
+			}
+			undelivered = append(undelivered, err)
 		}
+	}
+	if err := errors.Join(undelivered...); err != nil {
+		return err
 	}
 	fmt.Fprintf(l.out, i18n.T("launcher.boot_complete"), l.team, l.tabID())
 	fmt.Fprint(l.out, i18n.T("launcher.boot_submitted"))
@@ -351,6 +365,8 @@ func (l *Launcher) Reprompt(members []definition.Start) error {
 		}
 		l.place(member.Name, agent.PaneID)
 	}
+	var undelivered []error
+	var received []string
 	for i := range members {
 		member := &members[i]
 		pane := l.paneOf(member.Name)
@@ -363,11 +379,18 @@ func (l *Launcher) Reprompt(members []definition.Start) error {
 			return err
 		}
 		if err := l.submit(member, pane); err != nil {
-			return err
+			if !IsUndelivered(err) {
+				return err
+			}
+			undelivered = append(undelivered, err)
+			continue
 		}
+		received = append(received, member.Name)
 	}
-	fmt.Fprintf(l.out, i18n.T("launcher.reprompt_submitted"), strings.Join(namesOf(members), ", "))
-	return nil
+	if len(received) > 0 {
+		fmt.Fprintf(l.out, i18n.T("launcher.reprompt_submitted"), strings.Join(received, ", "))
+	}
+	return errors.Join(undelivered...)
 }
 
 // Refresh is the launcher shared by apply and the standalone refresh command.
@@ -399,22 +422,32 @@ func (l *Launcher) Refresh(members []definition.Start, selfPane string) error {
 		return err
 	}
 	var restarted, added []string
+	var undelivered []error
 	from, depth := tab.from, 0
 	for _, target := range targets {
 		if !target.makesPane() {
 			if err := l.restart(target, NextRefresh()); err != nil {
-				return err
+				if !IsUndelivered(err) {
+					return err
+				}
+				undelivered = append(undelivered, err)
+				continue
 			}
 			restarted = append(restarted, target.member.Name)
 			continue
 		}
 		if err := l.addMember(target.member, from, layout.Direction(depth), tab.label); err != nil {
-			return err
+			if !IsUndelivered(err) {
+				return err
+			}
+			undelivered = append(undelivered, err)
 		}
 		// The member added before is the pane the next one is split from, so a
 		// second new member does not halve the pane the team was using.
 		from, depth = l.paneOf(target.member.Name), depth+1
-		added = append(added, target.member.Name)
+		if l.Received(target.member.Name) {
+			added = append(added, target.member.Name)
+		}
 	}
 	if len(restarted) > 0 {
 		fmt.Fprintf(l.out, i18n.T("launcher.refresh_restarted"), strings.Join(restarted, ", "))
@@ -428,7 +461,7 @@ func (l *Launcher) Refresh(members []definition.Start, selfPane string) error {
 			fmt.Fprintln(l.out, i18n.Tf("next", i18n.Tf("launcher.refresh_added_next", l.team)))
 		}
 	}
-	return nil
+	return errors.Join(undelivered...)
 }
 
 // NewPanes names the members the definition has and hergy has no pane for.
@@ -828,7 +861,7 @@ func (l *Launcher) restart(target refreshTarget, next StartupNext) error {
 			}
 		}
 		l.stage(i18n.Tf("progress.stage.waiting", member.Name))
-		if err := l.waitGone(member.Name); err != nil {
+		if err := l.waitGone(member.Name, i18n.Errorf("error.agent_not_gone", member.Name, l.timeout, member.Name)); err != nil {
 			return err
 		}
 	}
@@ -838,8 +871,8 @@ func (l *Launcher) restart(target refreshTarget, next StartupNext) error {
 
 // waitGone waits until Herdr no longer knows the agent name. Herdr refuses a
 // start with agent_name_taken until then. It gives up after the timeout.
-func (l *Launcher) waitGone(name string) error {
-	deadline := time.Now().Add(time.Duration(l.timeout) * time.Millisecond)
+func (l *Launcher) waitGone(name string, timeoutError error) error {
+	deadline := l.now().Add(time.Duration(l.timeout) * time.Millisecond)
 	for {
 		_, err := l.herdr.Agent(name)
 		if err != nil {
@@ -848,15 +881,15 @@ func (l *Launcher) waitGone(name string) error {
 			}
 			return err
 		}
-		if !time.Now().Before(deadline) {
-			return i18n.Errorf("error.agent_not_gone", name, l.timeout, name)
+		if !l.now().Before(deadline) {
+			return timeoutError
 		}
-		time.Sleep(200 * time.Millisecond)
+		l.pause(200 * time.Millisecond)
 	}
 }
 
 // Hire starts one worker in a tab of its own, so the team layout stays as booted.
-func (l *Launcher) Hire(worker *definition.Start) error {
+func (l *Launcher) Hire(worker *definition.Start, task string) error {
 	l.progress = progress.Start([]string{worker.Name})
 	workspace, err := l.preflight([]definition.Start{*worker})
 	if err != nil {
@@ -872,6 +905,9 @@ func (l *Launcher) Hire(worker *definition.Start) error {
 		return err
 	}
 	if err := l.start(worker, NextHire(), label); err != nil {
+		if missing, ok := errors.AsType[*Undelivered](err); ok {
+			missing.Recovery = hireRetry(l.project, l.team, worker, task)
+		}
 		return err
 	}
 	fmt.Fprintf(l.out, i18n.T("launcher.hired"), worker.Name, l.tabID())
@@ -1012,6 +1048,9 @@ func (l *Launcher) DownWorker(label, selfPane string, dry bool) (int, error) {
 	if dry {
 		fmt.Fprint(l.out, i18n.Tf("down.dry_done", closed, 0))
 	} else {
+		if err := l.waitGone(name, i18n.Errorf("error.worker_not_gone", name, l.timeout, name)); err != nil {
+			return closed, err
+		}
 		fmt.Fprint(l.out, i18n.Tf("down.done", closed, 0))
 	}
 	return closed, nil
@@ -1545,8 +1584,14 @@ func (l *Launcher) start(member *definition.Start, next StartupNext, tabLabel st
 func (l *Launcher) submit(member *definition.Start, target string) error {
 	l.stage(i18n.Tf("progress.stage.submitting", member.Name))
 	l.mark(member.Name, i18n.T("progress.mark.prompt_requested"))
-	if err := l.herdr.Prompt(target, member.Prompt); err != nil {
-		return err
+	if err := l.herdr.ConfirmPrompt(target, member.Prompt); err != nil {
+		switch protocol.ErrorCode(err) {
+		case "agent_prompt_stalled", "timeout", "agent_blocked":
+			l.mark(member.Name, i18n.T("progress.mark.bootstrap_undelivered"))
+			return &Undelivered{Name: member.Name, Pane: l.paneOf(member.Name), Recovery: "hergy reprompt " + member.Name + " --team " + l.team + " -C " + shellWord(l.project), Cause: err}
+		default:
+			return err
+		}
 	}
 	l.mark(member.Name, i18n.T("progress.mark.bootstrap_submitted"))
 	fmt.Fprintf(l.out, i18n.T("launcher.submitted"), member.Name, l.paneOf(member.Name))

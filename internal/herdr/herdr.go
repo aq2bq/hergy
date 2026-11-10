@@ -381,8 +381,8 @@ func (h *Herdr) Prompt(target, text string) error {
 }
 
 // PromptWait sends text to a live agent and waits until herdr sees it working,
-// up to timeoutMS: the receipt hergy turns asks for before it counts a turn as
-// handed on (d-b4b5). An agent that does not start is herdr's
+// up to timeoutMS. ConfirmPrompt uses this for each receipt attempt; the watcher
+// also uses a single attempt when asking a member who its reply is for. An agent that does not start is herdr's
 // agent_prompt_stalled error; one that is blocked is agent_blocked.
 func (h *Herdr) PromptWait(target, text string, timeoutMS int) error {
 	_, err := h.port.JSON("agent", "prompt", target, text, "--wait", "--until", "working", "--timeout", fmt.Sprintf("%d", timeoutMS))

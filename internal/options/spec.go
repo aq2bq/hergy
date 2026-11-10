@@ -69,8 +69,8 @@ var specs = []Spec{
 		Kind: Up, Name: "up",
 		Summary: text("Start a team", "チームを起動する"),
 		Detail: text(
-			"Boot a team definition in a new herdr tab: one pane per member, each handed its bootstrap prompt.",
-			"チーム定義を新しいタブに起動する。メンバーごとにペインを作り、初期プロンプトを渡す。"),
+			"Boot a team definition in a new herdr tab: one pane per member, each handed its bootstrap prompt.\nConfirm receipt within five seconds and retry once on a sending error.\nMissing receipts are listed after the remaining members; the command fails.\nOther sending or startup failures stop immediately.",
+			"チーム定義を新しいタブに起動する。メンバーごとにペインを作り、初期プロンプトを渡す。\n受け取りを5秒待ち、送信の失敗時は1回だけ送り直す。\n届かなかった相手は残りの処理後に並べ、失敗で終わる。\n送信そのものや起動の失敗は、その場で止まる。"),
 		Args: []Arg{{
 			Name: text("definition", "チーム定義"), Optional: true,
 			Desc: text(
@@ -93,8 +93,8 @@ var specs = []Spec{
 		Kind: Down, Name: "down",
 		Summary: text("Stop a team, or one of its workers", "チーム、またはそのワーカーを終了する"),
 		Detail: text(
-			"With a team name, close the panes of the running team's live members and of the workers it hired.\nA name that is not a running team is looked for as a worker of one (its short name or its\nherdr name), and only that worker's pane is closed; the worker's own tab goes when that pane\nwas the last one in it. A name that is both is refused, naming both. Left out, down uses the one\nrunning team.\nAfter closing, down lists the git worktrees that came while the team was running — after the\nworker was hired, for one worker — other than the project root; an agent keeps its pane in the\nproject root and cds into a worktree, so the pane's own directory is not enough to find them.\nThe time comes from the launch record, and a worktree a closed pane stood in is marked. Each\nworktree comes with its branch, uncommitted changes and commits not in main, and the project's\nstashes, and the commands that remove them; hergy removes nothing. Temporary documents are not\nlisted: hergy cannot tell which are the team's.",
-			"チーム名なら、動いているチームのメンバーと、hire したワーカーのペインを閉じる。\n動いているチームに無い名前は、そのワーカー（短い名前か herdr 名）として探し、\nそのワーカーのペインだけを閉じる。ワーカーのタブは、そのペインが最後の 1 枚だった\nときに閉じる。チーム名にもワーカー名にも当たる名前は断り、両方を名指す。\n省くと、動いているチームが 1 つだけのときにそのチームを使う。\n閉じたあと、チームが動いている間にできた git ワークツリー（ワーカー 1 人を閉じたときは、\nそのワーカーを雇ったあとにできたもの）を、プロジェクトのルートを除いて一覧にする。\nエージェントはペインの作業ディレクトリをルートに置いたまま cd してワークツリーで働くので、\nペインの作業ディレクトリだけでは見つからない。できた時刻は起動の記録から読み、ペインの\n作業ディレクトリがそこにあったワークツリーには、そう添える。一覧の中身は、枝・保存して\nいない変更・main に入っていないコミットの数と、このプロジェクトの stash の数、消すコマンド。\nhergy は消さない。一時文書は、どれがチームのものか分からないので一覧に入れない。"),
+			"With a team name, close the panes of the running team's live members and of the workers it hired.\nA name that is not a running team is looked for as a worker of one (its short name or its\nherdr name), and only that worker's pane is closed; the worker's own tab goes when that pane\nwas the last one in it. A name that is both is refused, naming both. Left out, down uses the one\nrunning team.\nFor one worker, wait for herdr to forget its name before succeeding; a timeout fails.\nAfter closing, down lists the git worktrees that came while the team was running — after the\nworker was hired, for one worker — other than the project root; an agent keeps its pane in the\nproject root and cds into a worktree, so the pane's own directory is not enough to find them.\nThe time comes from the launch record, and a worktree a closed pane stood in is marked. Each\nworktree comes with its branch, uncommitted changes and commits not in main, and the project's\nstashes, and the commands that remove them; hergy removes nothing. Temporary documents are not\nlisted: hergy cannot tell which are the team's.",
+			"チーム名なら、動いているチームのメンバーと、hire したワーカーのペインを閉じる。\n動いているチームに無い名前は、そのワーカー（短い名前か herdr 名）として探し、\nそのワーカーのペインだけを閉じる。ワーカーのタブは、そのペインが最後の 1 枚だった\nときに閉じる。チーム名にもワーカー名にも当たる名前は断り、両方を名指す。\n省くと、動いているチームが 1 つだけのときにそのチームを使う。\nワーカー1人の終了は、herdrから名前が消えるまで待つ。時間切れなら失敗で終わる。\n閉じたあと、チームが動いている間にできた git ワークツリー（ワーカー 1 人を閉じたときは、\nそのワーカーを雇ったあとにできたもの）を、プロジェクトのルートを除いて一覧にする。\nエージェントはペインの作業ディレクトリをルートに置いたまま cd してワークツリーで働くので、\nペインの作業ディレクトリだけでは見つからない。できた時刻は起動の記録から読み、ペインの\n作業ディレクトリがそこにあったワークツリーには、そう添える。一覧の中身は、枝・保存して\nいない変更・main に入っていないコミットの数と、このプロジェクトの stash の数、消すコマンド。\nhergy は消さない。一時文書は、どれがチームのものか分からないので一覧に入れない。"),
 		Args: []Arg{{
 			Name: text("team|worker", "チーム|ワーカー"), Optional: true,
 			Desc: text(
@@ -130,8 +130,8 @@ var specs = []Spec{
 		Kind: Refresh, Name: "refresh",
 		Summary: text("Restart a member", "メンバーを起動し直す"),
 		Detail: text(
-			"End each selected member's agent and start it again in the same pane.\nA member with no live agent is refused: adding a member to a running team\nis hergy apply. Give a member or --all.",
-			"選んだメンバーのエージェントを終わらせ、同じペインで起動し直す。\n動いていないメンバーは断り、hergy apply を示す。\nメンバーか --all のどちらかを指定する。"),
+			"End each selected member's agent and start it again in the same pane.\nA member with no live agent is refused: adding a member to a running team\nis hergy apply. Give a member or --all.\nConfirm receipt within five seconds and retry once on a sending error.\nMissing receipts are listed after the remaining members; the command fails.\nOther sending or startup failures stop immediately.",
+			"選んだメンバーのエージェントを終わらせ、同じペインで起動し直す。\n動いていないメンバーは断り、hergy apply を示す。\nメンバーか --all のどちらかを指定する。\n受け取りを5秒待ち、送信の失敗時は1回だけ送り直す。\n届かなかった相手は残りの処理後に並べ、失敗で終わる。\n送信そのものや起動の失敗は、その場で止まる。"),
 		Args: []Arg{{
 			Name: text("member", "メンバー"), Or: flagAll,
 			Desc: text(
@@ -155,8 +155,8 @@ var specs = []Spec{
 		Kind: Reprompt, Name: "reprompt",
 		Summary: text("Send the bootstrap prompt again; the conversation stays", "初期プロンプトを送り直す。会話は残る"),
 		Detail: text(
-			"Re-send the bootstrap prompt to members that are idle or done. It starts nothing.\nGive a member or --all.",
-			"待機中（idle か done）のメンバーに初期プロンプトを送り直す。何も起動しない。\nメンバーか --all のどちらかを指定する。"),
+			"Re-send the bootstrap prompt to members that are idle or done. It starts nothing.\nGive a member or --all.\nConfirm receipt within five seconds and retry once on a sending error.\nMissing receipts are listed after the remaining members; the command fails.\nOther sending or startup failures stop immediately.",
+			"待機中（idle か done）のメンバーに初期プロンプトを送り直す。何も起動しない。\nメンバーか --all のどちらかを指定する。\n受け取りを5秒待ち、送信の失敗時は1回だけ送り直す。\n届かなかった相手は残りの処理後に並べ、失敗で終わる。\n送信そのものや起動の失敗は、その場で止まる。"),
 		Args: []Arg{{
 			Name: text("member", "メンバー"), Or: flagAll,
 			Desc: text(
@@ -177,8 +177,8 @@ var specs = []Spec{
 		Kind: Apply, Name: "apply", Variadic: true,
 		Summary: text("Apply a changed definition to a running team", "動いているチームに定義の変更を反映する"),
 		Detail: text(
-			"Compare the saved definition with the running teams and apply each\nmember's drift: send its prompt again, start it, or restart it.\nName no member to apply every member with drift.",
-			"保存した定義と動いているチームを比べ、メンバーごとのずれを反映する。\n送り直す・起動する・起動し直すのどれかを hergy が決める。\nメンバーを名指さなければ、ずれのあるメンバー全員を反映する。"),
+			"Compare the saved definition with the running teams and apply each\nmember's drift: send its prompt again, start it, or restart it.\nName no member to apply every member with drift.\nConfirm receipt within five seconds and retry once on a sending error.\nMissing receipts are listed after the remaining members; the command fails.\nOther sending or startup failures stop immediately.",
+			"保存した定義と動いているチームを比べ、メンバーごとのずれを反映する。\n送り直す・起動する・起動し直すのどれかを hergy が決める。\nメンバーを名指さなければ、ずれのあるメンバー全員を反映する。\n受け取りを5秒待ち、送信の失敗時は1回だけ送り直す。\n届かなかった相手は残りの処理後に並べ、失敗で終わる。\n送信そのものや起動の失敗は、その場で止まる。"),
 		Args: []Arg{{
 			Name: text("member", "メンバー"), Optional: true,
 			Desc: text(
@@ -295,8 +295,8 @@ var specs = []Spec{
 		Kind: Hire, Name: "hire",
 		Summary: text("Add a worker", "ワーカーを追加する"),
 		Detail: text(
-			"A member starts a worker of its own in a tab of its own and hands it a task.",
-			"メンバーが、自分のワーカーを別タブに起動して依頼を渡す。"),
+			"A member starts a worker of its own in a tab of its own and hands it a task.\nConfirm receipt within five seconds and retry once on a sending error.\nMissing receipts are listed after the remaining members; the command fails.\nOther sending or startup failures stop immediately.",
+			"メンバーが、自分のワーカーを別タブに起動して依頼を渡す。\n受け取りを5秒待ち、送信の失敗時は1回だけ送り直す。\n届かなかった相手は残りの処理後に並べ、失敗で終わる。\n送信そのものや起動の失敗は、その場で止まる。"),
 		Args: []Arg{{
 			Name: text("name", "名前"),
 			Desc: text(

@@ -297,7 +297,7 @@ func downLauncherFor(t *testing.T, port *fakePort, team string, members ...strin
 		list[i] = definition.Start{Name: name, Short: name, Role: "role", Kind: "claude"}
 	}
 	out := &bytes.Buffer{}
-	return New(list, team, herdr.New(port), 30000, out), out
+	return New(list, team, t.TempDir(), herdr.New(port), 30000, out), out
 }
 
 func TestDownClosesItsOwnPaneLast(t *testing.T) {
@@ -1230,7 +1230,7 @@ func TestWaitGoneSaysWhichMemberToRefresh(t *testing.T) {
 	l, _ := downLauncher(t, port, "core-lead")
 	l.timeout = 1
 
-	err := l.waitGone("core-lead")
+	err := l.waitGone("core-lead", i18n.Errorf("error.agent_not_gone", "core-lead", l.timeout, "core-lead"))
 	if err == nil {
 		t.Fatal("waitGone answered no error while herdr still knew the agent")
 	}

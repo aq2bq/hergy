@@ -408,12 +408,10 @@ func (w *turnWatcher) deliver(action turns.Action, route string) {
 	if target == "" {
 		target = w.team + "-" + action.To
 	}
-	var err error
-	for range 2 {
-		if err = w.herdr.PromptWait(target, text, deliverWaitMS); err == nil {
-			fmt.Fprint(w.out, i18n.Tf("turns.delivered", action.From, action.To, strings.Count(text, "\n")+1, route))
-			return
-		}
+	err := w.herdr.ConfirmPrompt(target, text)
+	if err == nil {
+		fmt.Fprint(w.out, i18n.Tf("turns.delivered", action.From, action.To, strings.Count(text, "\n")+1, route))
+		return
 	}
 	w.state.Undelivered(w.clock())
 	fmt.Fprint(w.out, i18n.Tf("turns.to_human_undelivered", action.From, action.To, err.Error()))

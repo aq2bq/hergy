@@ -20,7 +20,9 @@ import (
 // and how the prompts differ.
 //
 // It runs after a launch has succeeded (up, refresh and reprompt; not --dry and
-// not a launch that failed). A hire writes its own line (recordHire): a worker
+// not a launch that failed). Apply records only members with confirmed receipt,
+// even when other members did not receive their prompts. A hire writes its own
+// line (recordHire): a worker
 // is not a member of the team definition, so it has no prompt to point at. A
 // record that cannot be written is one line on stderr and nothing else: the
 // team is already up, so the command still succeeds.

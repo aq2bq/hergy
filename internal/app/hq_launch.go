@@ -537,6 +537,10 @@ func (h *hqRead) runStart(ctx context.Context, op *launchOp, env team.Env, r *re
 		return
 	}
 	if err != nil {
+		if launcher.IsUndelivered(err) {
+			h.finish(op, "failed", err.Error())
+			return
+		}
 		failure := l.Failure(err)
 		h.finish(op, "failed", startFailureText(failure,
 			h.projectNameIn(env.ProjectRoot),
