@@ -40,6 +40,9 @@ type hqRead struct {
 	order   []string
 	seq     int
 	started time.Time
+	// The name-release wait uses real time unless a test supplies a clock.
+	stopNow   func() time.Time
+	stopPause func(time.Duration)
 }
 
 // launchOp is one start from the screens, with the state the polling reads.

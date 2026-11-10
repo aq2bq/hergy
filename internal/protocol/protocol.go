@@ -183,7 +183,7 @@ var refreshGroups = []Group{
 }
 
 var downGroups = []Group{
-	{Name: "agent", Subs: []string{"list"}},
+	{Name: "agent", Subs: []string{"list", "get"}},
 	{Name: "pane", Subs: []string{"close", "list"}},
 	{Name: "tab", Subs: []string{"list", "close"}},
 }
@@ -221,9 +221,9 @@ const (
 	ModeRefresh = "refresh"
 	// ModeReprompt re-prompts live agents in place; it starts nothing.
 	ModeReprompt = "reprompt"
-	// ModeDown closes live agents' panes; it starts nothing.
+	// ModeDown closes team panes and waits for their names to be released.
 	ModeDown = "down"
-	// ModeDownWorker also reads whether herdr released the worker name.
+	// ModeDownWorker closes one worker and waits for its name to be released.
 	ModeDownWorker = "down-worker"
 	// ModeStatus reads the live agents, their screens and the tabs; it starts
 	// and stops nothing.
@@ -248,10 +248,8 @@ func RequiredCommands(mode string) []Group {
 		return refreshGroups
 	case ModeReprompt:
 		return repromptGroups
-	case ModeDown:
+	case ModeDown, ModeDownWorker:
 		return downGroups
-	case ModeDownWorker:
-		return append([]Group{{Name: "agent", Subs: []string{"list", "get"}}}, downGroups[1:]...)
 	case ModeStatus:
 		return statusGroups
 	case ModeFocus:

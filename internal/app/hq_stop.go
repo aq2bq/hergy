@@ -74,14 +74,14 @@ func (h *hqRead) stopTargets(env team.Env, one runningTeam, read herdrNow) stopT
 	r, buildErr := buildRunningIn(cat, env.ProjectRoot, team.Running{Team: one.Name, Definition: one.Definition}, one.Place)
 	workers := workerNamesOf(read.tabs, one.Name)
 	if buildErr != nil {
-		l := newLauncherWithPort(&resolved{team: team.Team{Name: one.Name}}, 30000, io.Discard, h.act.herdrPort())
+		l := newLauncherWithPort(&resolved{team: team.Team{Name: one.Name}}, 30000, io.Discard, h.act.herdrPort()).WithWaitClock(h.stopNow, h.stopPause)
 		agents := team.MemberAgents(read.tabs, one.Name)
 		return stopTarget{members: append([]string{}, agents...), workers: workers, close: func(selfPane string) error {
 			_, err := l.DownByName(agents, selfPane, false)
 			return err
 		}}
 	}
-	l := newLauncherWithPort(r, 30000, io.Discard, h.act.herdrPort())
+	l := newLauncherWithPort(r, 30000, io.Discard, h.act.herdrPort()).WithWaitClock(h.stopNow, h.stopPause)
 	members := make([]string, 0, len(r.starts))
 	for _, start := range r.starts {
 		members = append(members, start.Short)

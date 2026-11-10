@@ -469,6 +469,7 @@ fi
 case "$g $s" in
   "tab list") cat '` + tabs + `' ;;
   "pane list") cat '` + panes + `' ;;
+  "agent get") echo '{"error":{"code":"agent_not_found"}}' ;;
   "agent list") cat '` + agents + `' ;;
   "workspace list") cat '` + spaces + `' ;;
   "pane current") echo '{"result":{"pane":{"workspace_id":"w1"}}}' ;;

@@ -861,7 +861,7 @@ func (l *Launcher) restart(target refreshTarget, next StartupNext) error {
 			}
 		}
 		l.stage(i18n.Tf("progress.stage.waiting", member.Name))
-		if err := l.waitGone(member.Name, i18n.Errorf("error.agent_not_gone", member.Name, l.timeout, member.Name)); err != nil {
+		if err := l.waitGone([]string{member.Name}, func([]string) error { return i18n.Errorf("error.agent_not_gone", member.Name, l.timeout, member.Name) }); err != nil {
 			return err
 		}
 	}
@@ -869,23 +869,47 @@ func (l *Launcher) restart(target refreshTarget, next StartupNext) error {
 	return l.start(member, next, "")
 }
 
-// waitGone waits until Herdr no longer knows the agent name. Herdr refuses a
-// start with agent_name_taken until then. It gives up after the timeout.
-func (l *Launcher) waitGone(name string, timeoutError error) error {
+// waitGone waits until Herdr releases all names, with one deadline for the
+// group. A disappeared name is not read again; only agent_not_found proves it
+// gone. Refresh, worker down and team down share this rule.
+func (l *Launcher) waitGone(names []string, timeoutError func([]string) error) error {
 	deadline := l.now().Add(time.Duration(l.timeout) * time.Millisecond)
-	for {
-		_, err := l.herdr.Agent(name)
-		if err != nil {
-			if protocol.ErrorCode(err) == herdr.AgentNotFound {
-				return nil
+	remaining := append([]string(nil), names...)
+	for len(remaining) > 0 {
+		next := remaining[:0]
+		for _, name := range remaining {
+			_, err := l.herdr.Agent(name)
+			if err != nil {
+				if protocol.ErrorCode(err) == herdr.AgentNotFound {
+					continue
+				}
+				return err
 			}
-			return err
+			next = append(next, name)
+		}
+		remaining = next
+		if len(remaining) == 0 {
+			return nil
 		}
 		if !l.now().Before(deadline) {
-			return timeoutError
+			return timeoutError(remaining)
 		}
-		l.pause(200 * time.Millisecond)
+		l.pause(min(200*time.Millisecond, deadline.Sub(l.now())))
 	}
+	return nil
+}
+
+// WithWaitClock supplies the clock used to await name release. Nil functions
+// retain the real clock. This also lets callers test stop results without time
+// passing or a running herdr.
+func (l *Launcher) WithWaitClock(now func() time.Time, pause func(time.Duration)) *Launcher {
+	if now != nil {
+		l.now = now
+	}
+	if pause != nil {
+		l.pause = pause
+	}
+	return l
 }
 
 // Hire starts one worker in a tab of its own, so the team layout stays as booted.
@@ -1048,7 +1072,7 @@ func (l *Launcher) DownWorker(label, selfPane string, dry bool) (int, error) {
 	if dry {
 		fmt.Fprint(l.out, i18n.Tf("down.dry_done", closed, 0))
 	} else {
-		if err := l.waitGone(name, i18n.Errorf("error.worker_not_gone", name, l.timeout, name)); err != nil {
+		if err := l.waitGone([]string{name}, func([]string) error { return i18n.Errorf("error.worker_not_gone", name, l.timeout, name) }); err != nil {
 			return closed, err
 		}
 		fmt.Fprint(l.out, i18n.Tf("down.done", closed, 0))
@@ -1215,13 +1239,17 @@ func (l *Launcher) DownStopped(teamName, selfPane string, dry bool) (int, error)
 }
 
 // closeTargets closes what a down found: a pane once, however many targets point
-// at it, and hergy's own pane last, because closing it first would take hergy
-// with it and leave the rest open. absent is how many members were not there.
+// at it. After closing the other panes it awaits name release, then closes
+// hergy's own pane last. On failure that pane stays open to show the error.
+// Its own name cannot be awaited because closing that pane ends hergy too.
+// absent is how many members were not there.
 func (l *Launcher) closeTargets(targets []downTarget, selfPane string, absent int, dry bool) (int, error) {
 	l.stage(i18n.T("progress.stage.closing"))
 	closed := 0
 	seen := make(map[string]bool)
 	var self *downTarget
+	var names []string
+	nameSeen := map[string]bool{}
 	for _, target := range targets {
 		if seen[target.pane] {
 			continue
@@ -1237,6 +1265,22 @@ func (l *Launcher) closeTargets(targets []downTarget, selfPane string, absent in
 			return 0, err
 		}
 		closed++
+		if target.name != "" && !nameSeen[target.name] {
+			names = append(names, target.name)
+			nameSeen[target.name] = true
+		}
+	}
+	if !dry {
+		err := l.waitGone(names, func(remaining []string) error {
+			key := "error.team_not_gone"
+			if self != nil {
+				key = "error.team_not_gone_self"
+			}
+			return i18n.Errorf(key, strings.Join(remaining, ", "), l.timeout, l.team)
+		})
+		if err != nil {
+			return closed, err
+		}
 	}
 	if self != nil {
 		if err := l.closePane(*self, dry); err != nil {
