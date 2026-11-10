@@ -142,7 +142,6 @@
   "launcher.refresh_restarted": "起動し直しました: %s\n",
   "launcher.refresh_added": "起動しました: %s（タブ %s）\n",
   "launcher.refresh_added_next": "hergy reprompt --all --team %s",
-  "launcher.refresh_dry_add": "%s: ペインを作って起動します（タブ %s）\n",
   "launcher.reprompt_submitted": "初期プロンプトを送り直しました: %s\n",
   "launcher.hired": "ワーカーを追加しました: %s（タブ %s）\n",
   "launcher.submitted": "送りました: %s（ペイン %s）\n",

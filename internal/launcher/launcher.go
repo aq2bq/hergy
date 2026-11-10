@@ -429,11 +429,9 @@ func (l *Launcher) Refresh(members []definition.Start, selfPane string) error {
 	return nil
 }
 
-// NewPanes is the part of a refresh that makes panes: the members the definition
-// has and hergy has no pane for, and the team's tab, named as the lines name it.
+// NewPanes names the members the definition has and hergy has no pane for.
 type NewPanes struct {
 	Members []string
-	Tab     string
 }
 
 // WithoutNextHint says the caller goes on with the members a refresh adds, so a
@@ -448,11 +446,11 @@ func (l *Launcher) WithoutNextHint() *Launcher {
 // so --dry shows the same refusal, and says which members a refresh would give a
 // pane to. Like down --dry, it reads the live agents, tabs and panes.
 func (l *Launcher) RefreshDry(members []definition.Start, selfPane string) (NewPanes, error) {
-	targets, tab, err := l.checkTargets(members, selfPane)
+	targets, _, err := l.checkTargets(members, selfPane)
 	if err != nil {
 		return NewPanes{}, err
 	}
-	plan := NewPanes{Tab: tabNamed(tab.label, tab.id)}
+	plan := NewPanes{}
 	for _, target := range targets {
 		if target.makesPane() {
 			plan.Members = append(plan.Members, target.member.Name)

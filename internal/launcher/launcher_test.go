@@ -723,9 +723,9 @@ func TestRefreshRefusesToAddWhenTheTeamHasNoTab(t *testing.T) {
 	}
 }
 
-// TestRefreshDryShowsThePaneItWouldMake: --dry names the member it would give a
-// pane to and the tab, and makes and starts nothing.
-func TestRefreshDryShowsThePaneItWouldMake(t *testing.T) {
+// TestRefreshDryNamesMembersWithoutPanes names the member that needs a pane,
+// and makes and starts nothing.
+func TestRefreshDryNamesMembersWithoutPanes(t *testing.T) {
 	port := addablePort()
 	l, _ := downLauncherFor(t, port, "demo", "demo-lead", "demo-spec2")
 	l.kill = func(pgid int) error { t.Fatalf("dry refresh killed %d", pgid); return nil }
@@ -735,9 +735,9 @@ func TestRefreshDryShowsThePaneItWouldMake(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RefreshDry: %v", err)
 	}
-	want := NewPanes{Members: []string{"demo-spec2"}, Tab: "demo (t1)"}
-	if !slices.Equal(plan.Members, want.Members) || plan.Tab != want.Tab {
-		t.Fatalf("RefreshDry = %+v, want %+v", plan, want)
+	want := []string{"demo-spec2"}
+	if !slices.Equal(plan.Members, want) {
+		t.Fatalf("RefreshDry members = %v, want %v", plan.Members, want)
 	}
 	if len(port.splits) != 0 || len(port.renamed) != 0 {
 		t.Fatalf("dry refresh made a pane: %v %v", port.splits, port.renamed)

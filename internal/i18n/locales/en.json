@@ -142,7 +142,6 @@
   "launcher.refresh_restarted": "restarted: %s\n",
   "launcher.refresh_added": "started: %s (tab %s)\n",
   "launcher.refresh_added_next": "hergy reprompt --all --team %s",
-  "launcher.refresh_dry_add": "%s: would make a pane and start it (tab %s)\n",
   "launcher.reprompt_submitted": "reprompted: %s\n",
   "launcher.hired": "hired: %s (tab %s)\n",
   "launcher.submitted": "submitted: %s (pane %s)\n",
