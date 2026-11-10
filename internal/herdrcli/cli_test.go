@@ -59,7 +59,7 @@ func TestJSONKeepsTheErrorCode(t *testing.T) {
 }
 
 func TestVerifyAcceptsAdvertisedCommands(t *testing.T) {
-	for _, mode := range []string{protocol.ModeBoot, protocol.ModeRefresh, protocol.ModeReprompt, protocol.ModeDown, protocol.ModeStatus, protocol.ModeFocus, protocol.ModePrompt, protocol.ModeStop} {
+	for _, mode := range []string{protocol.ModeBoot, protocol.ModeRefresh, protocol.ModeReprompt, protocol.ModeDown, protocol.ModeDownWorker, protocol.ModeStatus, protocol.ModeFocus, protocol.ModePrompt, protocol.ModeStop} {
 		t.Run(mode, func(t *testing.T) {
 			if err := fakeHerdr(t, helpScript(advertised)).Verify(mode); err != nil {
 				t.Fatalf("Verify(%s): %v", mode, err)

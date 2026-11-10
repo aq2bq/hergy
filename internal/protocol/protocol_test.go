@@ -213,3 +213,26 @@ func TestMessageIsHerdrsReasonInWords(t *testing.T) {
 		t.Errorf("Message = %q, want the command's own words", got)
 	}
 }
+
+// A worker down now reads name release with agent get. A team down keeps its
+// former requirements because it does not wait for name release (r-990d).
+func TestWorkerDownRequiresNameReading(t *testing.T) {
+	for _, tc := range []struct {
+		mode    string
+		wantGet bool
+	}{{ModeDown, false}, {ModeDownWorker, true}} {
+		found := false
+		for _, group := range RequiredCommands(tc.mode) {
+			if group.Name == "agent" {
+				for _, sub := range group.Subs {
+					if sub == "get" {
+						found = true
+					}
+				}
+			}
+		}
+		if found != tc.wantGet {
+			t.Fatalf("%s requires agent get: %t, want %t", tc.mode, found, tc.wantGet)
+		}
+	}
+}

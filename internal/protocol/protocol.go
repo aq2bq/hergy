@@ -223,6 +223,8 @@ const (
 	ModeReprompt = "reprompt"
 	// ModeDown closes live agents' panes; it starts nothing.
 	ModeDown = "down"
+	// ModeDownWorker also reads whether herdr released the worker name.
+	ModeDownWorker = "down-worker"
 	// ModeStatus reads the live agents, their screens and the tabs; it starts
 	// and stops nothing.
 	ModeStatus = "status"
@@ -248,6 +250,8 @@ func RequiredCommands(mode string) []Group {
 		return repromptGroups
 	case ModeDown:
 		return downGroups
+	case ModeDownWorker:
+		return append([]Group{{Name: "agent", Subs: []string{"list", "get"}}}, downGroups[1:]...)
 	case ModeStatus:
 		return statusGroups
 	case ModeFocus:
