@@ -7,6 +7,7 @@ import (
 
 	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/i18n"
+	"github.com/aq2bq/hergy/internal/launcher"
 	"github.com/aq2bq/hergy/internal/launchlog"
 	"github.com/aq2bq/hergy/internal/protocol"
 	"github.com/aq2bq/hergy/internal/source"
@@ -19,15 +20,31 @@ import (
 // were built from. The WebUI reads it to show what changed since the last launch
 // and how the prompts differ.
 //
-// It runs after a launch has succeeded (up, refresh and reprompt; not --dry and
-// not a launch that failed). Apply records only members with confirmed receipt,
-// even when other members did not receive their prompts. A hire writes its own
-// line (recordHire): a worker
-// is not a member of the team definition, so it has no prompt to point at. A
-// record that cannot be written is one line on stderr and nothing else: the
-// team is already up, so the command still succeeds.
+// Members record only confirmed recipients. Successful operations and missing
+// receipts use recordReceivedLaunch: up always keeps the team's identity, even
+// with no recipient; refresh, reprompt and apply write only with a recipient.
+// Startup failures, sending failures and cancellation keep no launch record.
+// A hire has its own recordHire, independently of prompt receipt. A record that
+// cannot be written is reported on stderr and does not decide the operation.
 func recordLaunch(stderr io.Writer, env team.Env, r *resolved, command string, members []definition.Start) {
 	recordLaunchIn(stderr, env, r, command, members, launchlog.Workspace{})
+}
+
+// recordReceivedLaunch owns which confirmed recipients enter a launch and when
+// an empty launch is kept (d-8e2f). The team created by up must remain resolvable
+// by its alias even when nobody received a prompt; other operations create no
+// team and keep no new record when nobody received one.
+func recordReceivedLaunch(stderr io.Writer, env team.Env, r *resolved, command string, members []definition.Start, l *launcher.Launcher, workspace launchlog.Workspace) {
+	var received []definition.Start
+	for _, member := range members {
+		if l.Received(member.Name) {
+			received = append(received, member)
+		}
+	}
+	if command != launchlog.CommandUp && len(received) == 0 {
+		return
+	}
+	recordLaunchIn(stderr, env, r, command, received, workspace)
 }
 
 // recordLaunchIn writes one launch, naming the workspace its tab was made in

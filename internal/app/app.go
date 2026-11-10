@@ -1376,11 +1376,12 @@ func runUp(ctx context.Context, env team.Env, opts *options.Options, stdout, std
 		return errors.New(startFailureText(failure, filepath.Base(env.ProjectRoot),
 			failedStartCommand(failure, r.team.Name, up)))
 	}
-	if err := runLaunch(ctx, stderr, l, say, func() error { return l.Boot(up) }); err != nil {
+	err = runLaunch(ctx, stderr, l, say, func() error { return l.Boot(up) })
+	if err != nil && !launcher.IsUndelivered(err) {
 		return err
 	}
-	recordLaunchIn(stderr, env, r, launchlog.CommandUp, r.starts, launchlog.Workspace{Label: l.WorkspaceLabel(), ID: l.WorkspaceID()})
-	return nil
+	recordReceivedLaunch(stderr, env, r, launchlog.CommandUp, r.starts, l, launchlog.Workspace{Label: l.WorkspaceLabel(), ID: l.WorkspaceID()})
+	return err
 }
 
 // runDown closes the panes of a live team's members. --dry prints what would
@@ -2142,11 +2143,12 @@ func runRefresh(ctx context.Context, env team.Env, opts *options.Options, stdout
 	}
 	printHeader(stdout, r, env, true)
 	l := newLauncher(r, opts.Timeout, stdout)
-	if err := runLaunch(ctx, stderr, l, nil, func() error { return l.Refresh(selected, os.Getenv("HERDR_PANE_ID")) }); err != nil {
+	err = runLaunch(ctx, stderr, l, nil, func() error { return l.Refresh(selected, os.Getenv("HERDR_PANE_ID")) })
+	if err != nil && !launcher.IsUndelivered(err) {
 		return err
 	}
-	recordLaunch(stderr, env, r, launchlog.CommandRefresh, selected)
-	return nil
+	recordReceivedLaunch(stderr, env, r, launchlog.CommandRefresh, selected, l, launchlog.Workspace{})
+	return err
 }
 
 func runReprompt(ctx context.Context, env team.Env, opts *options.Options, stdout, stderr io.Writer) error {
@@ -2184,11 +2186,12 @@ func runReprompt(ctx context.Context, env team.Env, opts *options.Options, stdou
 	printHeader(stdout, r, env, true)
 	l := newLauncher(r, opts.Timeout, stdout)
 	sent := promptsToResend(cat, env.ProjectRoot, r, selected)
-	if err := runLaunch(ctx, stderr, l, nil, func() error { return l.Reprompt(sent) }); err != nil {
+	err = runLaunch(ctx, stderr, l, nil, func() error { return l.Reprompt(sent) })
+	if err != nil && !launcher.IsUndelivered(err) {
 		return err
 	}
-	recordLaunch(stderr, env, r, launchlog.CommandReprompt, selected)
-	return nil
+	recordReceivedLaunch(stderr, env, r, launchlog.CommandReprompt, selected, l, launchlog.Workspace{})
+	return err
 }
 
 func runHire(ctx context.Context, env team.Env, opts *options.Options, stdout, stderr io.Writer) error {

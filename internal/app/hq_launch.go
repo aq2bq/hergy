@@ -536,6 +536,13 @@ func (h *hqRead) runStart(ctx context.Context, op *launchOp, env team.Env, r *re
 		h.finish(op, "cancelled", "")
 		return
 	}
+	if err == nil || launcher.IsUndelivered(err) {
+		label := workspace.Label
+		if label == "" {
+			label = l.WorkspaceLabel()
+		}
+		recordReceivedLaunch(io.Discard, env, r, launchlog.CommandUp, r.starts, l, launchlog.Workspace{Label: label, ID: l.WorkspaceID()})
+	}
 	if err != nil {
 		if launcher.IsUndelivered(err) {
 			h.finish(op, "failed", err.Error())
@@ -547,11 +554,6 @@ func (h *hqRead) runStart(ctx context.Context, op *launchOp, env team.Env, r *re
 			failedStartCommand(failure, r.team.Name, command)))
 		return
 	}
-	label := workspace.Label
-	if label == "" {
-		label = l.WorkspaceLabel()
-	}
-	recordLaunchIn(io.Discard, env, r, launchlog.CommandUp, r.starts, launchlog.Workspace{Label: label, ID: l.WorkspaceID()})
 	h.finish(op, "done", "")
 }
 
