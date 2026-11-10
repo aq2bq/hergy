@@ -41,14 +41,34 @@ func (l *Launcher) Received(name string) bool {
 // hireRetry reconstructs the original task and effective hiring member, rather
 // than the generated bootstrap prompt. Quotes keep tasks as data in the shell.
 func hireRetry(project, team string, worker *definition.Start, task string) string {
-	return "hergy down " + worker.Name + " -C " + shellWord(project) + " && hergy hire " + worker.Short +
-		" --team " + team + " -C " + shellWord(project) + " --purpose " + shellWord(worker.Purpose) +
-		" --task " + shellWord(task) + " --from " + worker.From
+	projectSetup, projectWord := recoveryWord(project, "project")
+	purposeSetup, purposeWord := recoveryWord(worker.Purpose, "purpose")
+	taskSetup, taskWord := recoveryWord(task, "task")
+	return projectSetup + purposeSetup + taskSetup +
+		"hergy down " + worker.Name + " -C " + projectWord + " && hergy hire " + worker.Short +
+		" --team " + team + " -C " + projectWord + " --purpose " + purposeWord +
+		" --task " + taskWord + " --from " + worker.From
+}
+
+func repromptRetry(project, team, member string) string {
+	setup, word := recoveryWord(project, "project")
+	return setup + "hergy reprompt " + member + " --team " + team + " -C " + word
+}
+
+// recoveryWord keeps a recovery command on one physical line in POSIX shells.
+// For multiline values, the sentinel protects trailing newlines from command
+// substitution; parameter expansion removes only that final sentinel.
+func recoveryWord(value, name string) (setup, word string) {
+	if !strings.ContainsAny(value, "\r\n") {
+		return "", shellWord(value)
+	}
+	encoded := strings.ReplaceAll(value, "\\", "\\\\")
+	encoded = strings.ReplaceAll(encoded, "\n", "\\n")
+	encoded = strings.ReplaceAll(encoded, "\r", "\\r")
+	variable := "_hergy_retry_" + name
+	return variable + "=$(printf '%b_' " + shellWord(encoded) + ") && ", "\"${" + variable + "%_}\""
 }
 
 func shellWord(s string) string {
-	s = strings.ReplaceAll(s, "'", "'\"'\"'")
-	s = strings.ReplaceAll(s, "\n", "'$'\\n''")
-	s = strings.ReplaceAll(s, "\r", "'$'\\r''")
-	return "'" + s + "'"
+	return "'" + strings.ReplaceAll(s, "'", "'\"'\"'") + "'"
 }

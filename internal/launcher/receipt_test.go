@@ -236,11 +236,18 @@ func TestHireRetryPreservesTaskAsOneShellArgument(t *testing.T) {
 		t.Fatalf("recovery is multiple lines: %q", command)
 	}
 	// Run only printf with the quoted task: no hergy, herdr or harness is started.
-	cmd := exec.Command("/bin/sh", "-c", "printf '%s' "+shellWord(task))
-	cmd.Dir = t.TempDir()
-	got, err := cmd.Output()
-	if err != nil || string(got) != task {
-		t.Fatalf("task changed: %q, %v", got, err)
+	setup, word := recoveryWord(task, "task")
+	shells := []string{"/bin/sh", "bash"}
+	if dash, err := exec.LookPath("dash"); err == nil {
+		shells = append(shells, dash)
+	}
+	for _, shell := range shells {
+		cmd := exec.Command(shell, "-c", setup+"printf '%s' "+word)
+		cmd.Dir = t.TempDir()
+		got, err := cmd.Output()
+		if err != nil || string(got) != task {
+			t.Fatalf("%s changed task: %q, %v", shell, got, err)
+		}
 	}
 	if !strings.Contains(command, "hergy down team-worker -C '/project' && hergy hire worker --team team -C '/project' --purpose ") || !strings.HasSuffix(command, " --from lead") {
 		t.Fatalf("incomplete recovery: %s", command)
