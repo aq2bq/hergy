@@ -1238,6 +1238,13 @@ func (l *Launcher) DownStopped(teamName, selfPane string, dry bool) (int, error)
 	return l.closeTargets(named, selfPane, 0, dry)
 }
 
+// TeamDownTimeout means the other panes have been closed, but herdr still
+// retains their names. CLI callers must finish the team's cleanup even though
+// the shutdown failed. Pane-close and name-reading errors do not have this type.
+type TeamDownTimeout struct{ message string }
+
+func (e *TeamDownTimeout) Error() string { return e.message }
+
 // closeTargets closes what a down found: a pane once, however many targets point
 // at it. After closing the other panes it awaits name release, then closes
 // hergy's own pane last. On failure that pane stays open to show the error.
@@ -1276,7 +1283,7 @@ func (l *Launcher) closeTargets(targets []downTarget, selfPane string, absent in
 			if self != nil {
 				key = "error.team_not_gone_self"
 			}
-			return i18n.Errorf(key, strings.Join(remaining, ", "), l.timeout, l.team)
+			return &TeamDownTimeout{message: i18n.Tf(key, strings.Join(remaining, ", "), l.timeout, l.team)}
 		})
 		if err != nil {
 			return closed, err
