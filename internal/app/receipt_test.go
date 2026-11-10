@@ -93,6 +93,7 @@ func TestInitialPromptReceiptOperations(t *testing.T) {
 					target = "demo-worker"
 				}
 				log := receiptHerdr(t, f, target, tc.code, tc.retry)
+				_, beforeRecords := launchLog(t, f)
 				var stdout, stderr bytes.Buffer
 				exit := 0
 				var result web.HQLaunch
@@ -210,6 +211,12 @@ func TestInitialPromptReceiptOperations(t *testing.T) {
 								t.Fatalf("undelivered member recorded: %+v", m)
 							}
 						}
+					}
+				}
+				if tc.fatal {
+					_, records := launchLog(t, f)
+					if len(records) != len(beforeRecords) {
+						t.Fatalf("sending failure recorded a launch: %+v", records)
 					}
 				}
 				if tc.fatal && strings.Contains(stderr.String(), "届いていません") {
@@ -382,6 +389,158 @@ func TestReceiptRecoveryKeepsProjectFromDirOption(t *testing.T) {
 			}
 			if !strings.Contains(stderr.String(), want) {
 				t.Fatalf("wrong project or recipient: %s", &stderr)
+			}
+		})
+	}
+}
+
+// d-8e2f separates the team's existence from its confirmed recipients.
+func TestReceiptLaunchRecords(t *testing.T) {
+	for _, operation := range []string{"up", "screen-start", "refresh", "reprompt", "apply-cli", "apply-screen"} {
+		for _, allMissing := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/all-missing=%t", operation, allMissing), func(t *testing.T) {
+				f := newFixture(t)
+				receiptTeam(t, f)
+				if operation != "up" && operation != "screen-start" {
+					mustRun(t, "up", "demo")
+				}
+				_, before := launchLog(t, f)
+				target := "demo-b"
+				if allMissing {
+					target = "*"
+				}
+				receiptHerdr(t, f, target, "agent_prompt_stalled", false)
+				if allMissing {
+					file := os.Getenv("HERGY_HERDR")
+					f.herdr(t, strings.Replace(readFile(t, file), `[ "$n" -le 2 ]`, `true`, 1))
+				}
+				var out, stderr bytes.Buffer
+				switch operation {
+				case "up":
+					if code := Run([]string{"up", "demo"}, &out, &stderr); code != 1 {
+						t.Fatalf("code=%d: %s", code, &stderr)
+					}
+				case "refresh", "reprompt":
+					if code := Run([]string{operation, "--all", "--team", "demo"}, &out, &stderr); code != 1 {
+						t.Fatalf("code=%d: %s", code, &stderr)
+					}
+				case "screen-start":
+					env := serveEnv(t)
+					r, err := readDefinition(env.Catalog(source.Disk{}), env.ProjectRoot, "demo", "demo")
+					if err != nil {
+						t.Fatal(err)
+					}
+					h := newActivityRead(env).hq
+					op := h.newOp(web.HQLaunch{Team: "demo", Phase: "starting"})
+					h.runStart(context.Background(), op, env, r, web.HQLaunchIn{Definition: "demo"}, web.HQWorkspace{ID: "w1", Label: "workspace"})
+					if got := op.snapshot(); got.Phase != "failed" {
+						t.Fatalf("result=%+v", got)
+					}
+				case "apply-cli", "apply-screen":
+					file := filepath.Join(f.proj, ".hergy", "roles", "lead.md")
+					writeFile(t, file, readFile(t, file)+"\nChanged role.\n")
+					if operation == "apply-cli" {
+						if code := Run([]string{"apply", "--team", "demo"}, &out, &stderr); code != 1 {
+							t.Fatalf("code=%d: %s", code, &stderr)
+						}
+					} else {
+						a := newActivityRead(serveEnv(t))
+						selected, refused := applySelection(a.plan(a.clock()), []string{"demo-a", "demo-b", "demo-c"})
+						if len(refused) > 0 {
+							t.Fatal(refused)
+						}
+						op := a.hq.newOp(applyLaunch(selected))
+						a.hq.runApply(context.Background(), op, selected)
+						if got := op.snapshot(); got.Phase != "failed" {
+							t.Fatalf("result=%+v", got)
+						}
+					}
+				}
+				_, records := launchLog(t, f)
+				creates := operation == "up" || operation == "screen-start"
+				wantRecords := len(before) + 1
+				if allMissing && !creates {
+					wantRecords = len(before)
+				}
+				if len(records) != wantRecords {
+					t.Fatalf("%d records, want %d", len(records), wantRecords)
+				}
+				if wantRecords == len(before) {
+					return
+				}
+				last := records[len(records)-1]
+				wantMembers := 2
+				if allMissing {
+					wantMembers = 0
+				}
+				if last.Team != "demo" || last.Definition != "demo" || last.Project != f.proj || len(last.Members) != wantMembers {
+					t.Fatalf("record=%+v", last)
+				}
+				for _, m := range last.Members {
+					if m.Name == "demo-b" {
+						t.Fatalf("unreceived member recorded: %+v", last)
+					}
+				}
+				if creates {
+					if last.WorkspaceID != "w1" {
+						t.Fatalf("missing workspace: %+v", last)
+					}
+					out.Reset()
+					stderr.Reset()
+					if code := Run([]string{"status", "demo"}, &out, &stderr); code != 0 {
+						t.Fatalf("status code=%d: %s", code, &stderr)
+					}
+					a := newActivityRead(serveEnv(t))
+					list := a.List()
+					if len(list.Items) != 1 || list.Items[0].Name != "demo" {
+						t.Fatalf("activity=%+v", list)
+					}
+					running := a.Running()
+					if len(running.Teams) != 1 || running.Teams[0].Definition != "demo" {
+						t.Fatalf("running=%+v", running)
+					}
+				}
+			})
+		}
+	}
+}
+
+func TestUndeliveredAliasCanReprompt(t *testing.T) {
+	for _, allMissing := range []bool{false, true} {
+		t.Run(fmt.Sprintf("all-missing=%t", allMissing), func(t *testing.T) {
+			f := newFixture(t)
+			receiptTeam(t, f)
+			file := os.Getenv("HERGY_HERDR")
+			original := readFile(t, file)
+			target := "alias-b"
+			if allMissing {
+				target = "*"
+			}
+			receiptHerdr(t, f, target, "agent_prompt_stalled", false)
+			if allMissing {
+				f.herdr(t, strings.Replace(readFile(t, file), `[ "$n" -le 2 ]`, `true`, 1))
+			}
+			var out, stderr bytes.Buffer
+			if code := Run([]string{"up", "demo", "--as", "alias", "--lang", "ja"}, &out, &stderr); code != 1 {
+				t.Fatalf("code=%d: %s", code, &stderr)
+			}
+			if !strings.Contains(stderr.String(), "hergy reprompt alias-b --team alias -C '"+f.proj+"'") {
+				t.Fatalf("missing recovery: %s", &stderr)
+			}
+			_, records := launchLog(t, f)
+			if len(records) != 1 || records[0].Team != "alias" || records[0].Definition != "demo" {
+				t.Fatalf("alias missing: %+v", records)
+			}
+			f.herdr(t, original) // The same fake agents now accept the recovery prompt.
+			out.Reset()
+			stderr.Reset()
+			if code := Run([]string{"reprompt", "alias-b", "--team", "alias", "-C", f.proj}, &out, &stderr); code != 0 {
+				t.Fatalf("recovery code=%d: %s", code, &stderr)
+			}
+			_, records = launchLog(t, f)
+			last := records[len(records)-1]
+			if last.Command != launchlog.CommandReprompt || last.Definition != "demo" || len(last.Members) != 1 || last.Members[0].Name != "alias-b" {
+				t.Fatalf("recovery=%+v", last)
 			}
 		})
 	}

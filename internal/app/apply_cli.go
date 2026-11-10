@@ -223,15 +223,13 @@ func applyTeamNow(ctx context.Context, env team.Env, group []plannedMember, time
 	}
 	all := make([]definition.Start, 0, len(group))
 	for _, member := range group {
+		all = append(all, member.start)
 		if !l.Received(member.start.Name) {
 			continue
 		}
-		all = append(all, member.start)
 		fmt.Fprintf(stdout, "%s\n", i18n.Tf("apply.applied", member.start.Short, applyHowWord(member.how)))
 	}
-	if len(all) > 0 {
-		recordLaunch(stderr, projectEnv, r, launchlog.CommandApply, all)
-	}
+	recordReceivedLaunch(stderr, projectEnv, r, launchlog.CommandApply, all, l, launchlog.Workspace{})
 	return errors.Join(undelivered...)
 }
 

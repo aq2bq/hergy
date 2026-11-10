@@ -217,15 +217,13 @@ func (h *hqRead) applyGroup(ctx context.Context, op *launchOp, env team.Env, cat
 	}
 	all := make([]definition.Start, 0, len(group))
 	for _, member := range group {
+		all = append(all, member.start)
 		if !l.Received(member.start.Name) {
 			continue
 		}
-		all = append(all, member.start)
 		h.stepApplied(op, member)
 	}
-	if len(all) > 0 {
-		recordLaunch(io.Discard, env, r, launchlog.CommandApply, all)
-	}
+	recordReceivedLaunch(io.Discard, env, r, launchlog.CommandApply, all, l, launchlog.Workspace{})
 	return errors.Join(undelivered...)
 }
 
