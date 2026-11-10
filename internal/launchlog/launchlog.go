@@ -56,10 +56,11 @@ type Hire struct {
 }
 
 // Member records the body before any apply/reprompt change-reason preamble.
-// Recording follows successful sending, but is not a receipt. Prompt is the hash of the
-// prompt text, which is in blobs/. Start and Env are the fingerprints of how the
-// member was started: what the comparison needs to tell a changed profile from a
-// changed prompt (d-36ef). A record written before they were kept has neither.
+// New launch records include only members whose prompt receipt was confirmed.
+// Prompt is the hash of the prompt text, which is in blobs/. Start and Env are
+// the fingerprints of how the member was started: what the comparison needs to
+// tell a changed profile from a changed prompt (d-36ef). A record written before
+// they were kept has neither.
 type Member struct {
 	// Docs names the documents this member read. Nil means a legacy record.
 	Docs   []string `json:"docs"`
