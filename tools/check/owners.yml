@@ -26,6 +26,14 @@ address_enforce: true
 # d-c5ce, d-b608).
 page_position_enforce: true
 enforce: true
+# Confirmed sending has one retry owner and one low-level argv builder.
+# ask remains a single-attempt question outside r-990d; deliver is no exception.
+# tell/nudge's unconfirmed Prompt is not constrained by these rules.
+confirmed_send:
+  owner: internal/herdr/receipt.go#Herdr.ConfirmPrompt
+  wait_builder: internal/herdr/herdr.go#Herdr.PromptWait
+  single_attempt:
+    - internal/app/turns.go#turnWatcher.ask
 #
 # Every entry needs the path, the name, why the owner is not the place for it,
 # and the decision that allowed it (gy's d-…). An entry without all four fails
