@@ -101,7 +101,10 @@ func TestApplyDryShowsATeamsNoteWhileItsMemberIsLeft(t *testing.T) {
 	f.runningHerdr(t, `{"tab_id":"t1","label":"demo"}`,
 		`{"name":"demo-lead","agent":"claude","agent_status":"working","pane_id":"p1","tab_id":"t1","state_change_seq":1}`)
 
-	out := mustRun(t, "apply", "--dry")
+	out, stderr, code := run("apply", "--dry")
+	if code != 1 {
+		t.Fatalf("apply --dry: exit %d, want 1\n%s", code, stderr)
+	}
 	if !strings.Contains(out, note) {
 		t.Errorf("apply --dry does not show the team's note %q:\n%s", note, out)
 	}

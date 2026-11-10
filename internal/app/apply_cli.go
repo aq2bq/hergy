@@ -43,12 +43,15 @@ func runApply(ctx context.Context, env team.Env, opts *options.Options, stdout, 
 		if err := printApplyPlan(stdout, plan, selected, remaining, opts.JSON); err != nil {
 			return err
 		}
+		if err := applyLeftError(remaining, true); err != nil {
+			return err
+		}
 		return applyBrokenError(len(broken))
 	}
 	if len(selected) == 0 {
 		fmt.Fprintln(stdout, i18n.T("apply.nothing"))
 		printRemaining(stdout, remaining)
-		if err := applyLeftError(remaining); err != nil {
+		if err := applyLeftError(remaining, false); err != nil {
 			return err
 		}
 		return applyBrokenError(len(broken))
@@ -60,7 +63,7 @@ func runApply(ctx context.Context, env team.Env, opts *options.Options, stdout, 
 		return err
 	}
 	printRemaining(stdout, remaining)
-	if err := applyLeftError(remaining); err != nil {
+	if err := applyLeftError(remaining, false); err != nil {
 		return err
 	}
 	return applyBrokenError(len(broken))
@@ -343,9 +346,12 @@ func printRemaining(stdout io.Writer, remaining []chosen) {
 
 // applyLeftError is the exit status: a member left is not a success, so hergy
 // says so and answers 1.
-func applyLeftError(remaining []chosen) error {
+func applyLeftError(remaining []chosen, dry bool) error {
 	if len(remaining) == 0 {
 		return nil
+	}
+	if dry {
+		return i18n.Errorf("apply.plan_left_count", len(remaining))
 	}
 	return i18n.Errorf("apply.left_count", len(remaining))
 }

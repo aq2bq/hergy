@@ -257,6 +257,7 @@
   "apply.applied": "applied %s: %s",
   "apply.left": "%s was left: %s",
   "apply.left_count": "%d member(s) could not be applied",
+  "apply.plan_left_count": "%d member(s) cannot be applied",
   "apply.how_resend": "sent the prompt again",
   "apply.how_start": "started it",
   "apply.how_restart": "restarted it, so its conversation goes",

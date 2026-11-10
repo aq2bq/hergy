@@ -257,6 +257,7 @@
   "apply.applied": "%s を%s",
   "apply.left": "%s は反映できません（%s）",
   "apply.left_count": "反映できずに残ったメンバーが %d 人います",
+  "apply.plan_left_count": "反映できずに残るメンバーが %d 人います",
   "apply.how_resend": "送り直しました",
   "apply.how_start": "起動しました",
   "apply.how_restart": "起動し直しました（会話が消えます）",
