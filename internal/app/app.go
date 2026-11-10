@@ -1472,14 +1472,27 @@ func runDown(ctx context.Context, env team.Env, opts *options.Options, stdout, s
 	}
 	printHeader(stdout, r, env, true)
 	l := newLauncher(r, opts.Timeout, stdout)
-	if err := runOperation(ctx, stderr, nil, nil, func() error {
+	err = runOperation(ctx, stderr, nil, nil, func() error {
 		_, err := l.Down(r.starts, selfPane, false)
 		return err
-	}); err != nil {
-		return err
+	})
+	return finishTeamDown(stdout, projectRoot, dirs, owner, err)
+}
+
+// finishTeamDown performs the CLI cleanup after closing panes, including a
+// name-release timeout. runOperation already reported that failure; retain it
+// after cleanup. Other failures and cancellation leave the turn intact.
+func finishTeamDown(stdout io.Writer, projectRoot string, dirs []string, owner leftoverOwner, result error) error {
+	if result != nil {
+		if _, timeout := errors.AsType[*launcher.TeamDownTimeout](result); !timeout {
+			return result
+		}
 	}
 	printLeftovers(stdout, projectRoot, dirs, owner, false)
-	return clearTurn(r.team.Name)
+	if err := clearTurn(owner.Name); err != nil {
+		return err
+	}
+	return result
 }
 
 // clearTurn forgets a closed team's turn, so a team of the same name starts
@@ -1566,14 +1579,11 @@ func downByName(ctx context.Context, chosen team.Running, reason error, opts *op
 	if err := requireHerdrPane(); err != nil {
 		return err
 	}
-	if err := runOperation(ctx, stderr, nil, nil, func() error {
+	err = runOperation(ctx, stderr, nil, nil, func() error {
 		_, err := l.DownByName(team.MemberAgents(tabs, chosen.Team), selfPane, false)
 		return err
-	}); err != nil {
-		return err
-	}
-	printLeftovers(stdout, projectRoot, dirs, owner, false)
-	return clearTurn(chosen.Team)
+	})
+	return finishTeamDown(stdout, projectRoot, dirs, owner, err)
 }
 
 // downStopped puts away a team that stopped before any of its agents ran: hergy
@@ -1657,14 +1667,11 @@ func downNoAgents(ctx context.Context, opts *options.Options, projectRoot, name 
 		return err
 	}
 	field(stdout, label("team"), name)
-	if err := runOperation(ctx, stderr, nil, nil, func() error {
+	err = runOperation(ctx, stderr, nil, nil, func() error {
 		_, err := l.DownStopped(name, selfPane, false)
 		return err
-	}); err != nil {
-		return err
-	}
-	printLeftovers(stdout, projectRoot, dirs, owner, false)
-	return clearTurn(name)
+	})
+	return finishTeamDown(stdout, projectRoot, dirs, owner, err)
 }
 
 // hasTeamTab reports whether a tab is this team's: one labelled with the team's
