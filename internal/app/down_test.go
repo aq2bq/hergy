@@ -171,6 +171,7 @@ if [ -z "$s" ]; then
   exit 0
 fi
 case "$g $s" in
+  "agent get") echo '{"error":{"code":"agent_not_found"}}' ;;
   "agent list") echo '{"result":{"agents":[`+agents+`]}}' ;;
   "tab list")   echo '{"result":{"tabs":[`+tabs+`]}}' ;;
   "pane list")  echo '{"result":{"panes":[`+panes+`]}}' ;;

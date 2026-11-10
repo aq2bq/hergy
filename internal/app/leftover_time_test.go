@@ -137,6 +137,7 @@ if [ -z "$s" ]; then
   exit 0
 fi
 case "$g $s" in
+  "agent get") echo '{"error":{"code":"agent_not_found"}}' ;;
   "agent list") echo '{"result":{"agents":[{"name":"draft-lead","agent":"claude","agent_status":"idle","pane_id":"p1","tab_id":"t1"},{"name":"draft-bench","agent":"claude","agent_status":"idle","pane_id":"p2","tab_id":"t2"}]}}' ;;
   "tab list")   echo '{"result":{"tabs":[{"tab_id":"t1","label":"draft"},{"tab_id":"t2","label":"worker:draft/bench"}]}}' ;;
   "pane list")  echo '{"result":{"panes":[{"pane_id":"p1","label":"draft-lead","tab_id":"t1","cwd":"`+f.proj+`"},{"pane_id":"p2","label":"draft-bench","tab_id":"t2","cwd":"`+f.proj+`"}]}}' ;;

@@ -430,7 +430,7 @@ func TestALaunchSaysWhereAStartupQuestionWaits(t *testing.T) {
 	if state.Waiting.Herdr != "core-lead" || state.Waiting.Pane != "core-lead" || state.Waiting.Command != "hergy up core" {
 		t.Errorf("waiting = %+v", state.Waiting)
 	}
-	h.observe(op, launcher.Event{State: "bootstrap submitted", Member: "lead"})
+	h.observe(op, launcher.Event{State: "bootstrap received", Member: "lead"})
 	h.observe(op, launcher.Event{Stage: "送っています"})
 	h.observe(op, launcher.Event{Waiting: nil})
 	state = op.snapshot()

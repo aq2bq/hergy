@@ -50,6 +50,8 @@ type reportedError struct {
 
 func (e reportedError) Error() string { return e.err.Error() }
 
+func (e reportedError) Unwrap() error { return e.err }
+
 // Run executes one command line and returns the process exit code.
 func Run(argv []string, stdout, stderr io.Writer) int {
 	// Load the locales and check them before anything can print. The failures
@@ -216,6 +218,7 @@ func dispatch(ctx context.Context, env team.Env, opts *options.Options, stdout, 
 // and the name it runs under), the members as starts, and where the values came
 // from.
 type resolved struct {
+	project      string
 	team         team.Team
 	starts       []definition.Start
 	profiles     map[string]profile.Profile
@@ -249,6 +252,7 @@ func buildResolved(cat *catalog.Catalog, base string, def *definition.Definition
 		return nil, err
 	}
 	return &resolved{
+		project:      base,
 		team:         team.Team{Name: runName, Definition: def},
 		starts:       starts,
 		profiles:     profiles,
@@ -1365,6 +1369,9 @@ func runUp(ctx context.Context, env team.Env, opts *options.Options, stdout, std
 	// says: the member, herdr's reason, what remains, and the command to go on
 	// with, in the project it is typed in (d-5f02).
 	say := func(err error) error {
+		if launcher.IsUndelivered(err) {
+			return err
+		}
 		failure := l.Failure(err)
 		return errors.New(startFailureText(failure, filepath.Base(env.ProjectRoot),
 			failedStartCommand(failure, r.team.Name, up)))
@@ -2217,13 +2224,14 @@ func runHire(ctx context.Context, env team.Env, opts *options.Options, stdout, s
 	}
 	printHeader(stdout, r, env, true)
 	l := newLauncher(r, opts.Timeout, stdout)
-	if err := runLaunch(ctx, stderr, l, nil, func() error { return l.Hire(worker) }); err != nil {
+	err = runLaunch(ctx, stderr, l, nil, func() error { return l.Hire(worker, opts.Task) })
+	if err != nil && !launcher.IsUndelivered(err) {
 		return err
 	}
 	// The worker is up, so the record says who added it (d-b4b9). The activity
 	// screen reads the line; the launch itself does not stand on it.
 	recordHire(stderr, env, r, *worker)
-	return nil
+	return err
 }
 
 // dryPlan is the --dry output: the same plan as JSON with --json, and a
@@ -2467,7 +2475,7 @@ func newLauncherWithPort(r *resolved, timeout int, out io.Writer, port herdr.Por
 	// The opencode plugin is hergy's to keep current wherever a start may
 	// happen; writing it again costs one read when it is already this hergy's.
 	ensurePlugin(out)
-	return launcher.New(r.starts, r.team.Name, herdr.New(port), timeout, out)
+	return launcher.New(r.starts, r.team.Name, r.project, herdr.New(port), timeout, out)
 }
 
 // requireHerdrPane refuses to touch Herdr outside a Herdr-managed shell pane.
