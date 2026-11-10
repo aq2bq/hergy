@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.9.9 - 2026-11-10
 
 ### Added
 
@@ -20,8 +20,10 @@
   same. `hergy down` removes the team's turn state. The contact guide in every
   prompt names `hergy tell` as the one way to hand on, and the `→ <name>` last
   line is gone.
-- **The watcher's pane is a band**: `hergy up` cuts the watcher a four-row
-  strip, and `hergy turns` draws three lines in it, redrawn in place: each
+- **The watcher's pane is a band**: `hergy up` cuts the watcher the smallest
+  strip herdr gives (it asks for four rows; herdr keeps six), and `hergy
+  turns` draws three lines in it, redrawn in place, labelled in English in
+  every language (`turn:`, `waiting:`, `human`): each
   member's state, who holds the turn and who waits for whose answer; the
   latest handoffs with their time and a mark (→ handed, ✓ to the human,
   ? asked, ⟲ rested, ✗ not delivered or unclear); and what is being asked.
@@ -58,6 +60,18 @@
   a change can fail here in about a minute, names the browser walks the change
   selects, and leaves e2e, coverage, vuln and the race detector to CI, which
   runs every gate on every push.
+
+### Fixed
+
+- **`hergy apply --dry` with nothing to apply says so**: a plan with no drift
+  printed its heading alone; it now says nothing changes, in the same words
+  as a real apply.
+- **`hergy apply --dry` fails when a member would be left**: a member that
+  cannot be applied made the real apply fail and the dry run succeed; the dry
+  run, and its JSON, now exit 1 the same way.
+- **The lists' labels read 優先 and 無効**: when a name exists in both the
+  project and the global place, the three screens label the project's row
+  優先 and the global one 無効, in place of 効いている and 隠れている.
 
 ## 0.9.8 - 2026-11-05
 
