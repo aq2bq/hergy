@@ -1588,7 +1588,7 @@ func (l *Launcher) submit(member *definition.Start, target string) error {
 		switch protocol.ErrorCode(err) {
 		case "agent_prompt_stalled", "timeout", "agent_blocked":
 			l.mark(member.Name, i18n.T("progress.mark.bootstrap_undelivered"))
-			return &Undelivered{Name: member.Name, Pane: l.paneOf(member.Name), Recovery: "hergy reprompt " + member.Name + " --team " + l.team + " -C " + shellWord(l.project), Cause: err}
+			return &Undelivered{Name: member.Name, Pane: l.paneOf(member.Name), Recovery: repromptRetry(l.project, l.team, member.Name), Cause: err}
 		default:
 			return err
 		}
