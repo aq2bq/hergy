@@ -29,6 +29,7 @@ if [ -z "$s" ]; then
   exit 0
 fi
 case "$g $s" in
+  "agent get") echo '{"error":{"code":"agent_not_found"}}' ;;
   "agent list") echo '{"result":{"agents":[]}}' ;;
   "tab list")   echo '{"result":{"tabs":[{"tab_id":"t1","label":"turnwalk"},{"tab_id":"t2","label":"other"}]}}' ;;
   "pane list")  echo '{"result":{"panes":[{"pane_id":"p1","label":"turnwalk-lead","tab_id":"t1"},{"pane_id":"p2","label":"turnwalk-builder","tab_id":"t1"},{"pane_id":"p3","tab_id":"t1"},{"pane_id":"p9","label":"other-lead","tab_id":"t2"}]}}' ;;
@@ -335,6 +336,7 @@ if [ -z "$s" ]; then
   exit 0
 fi
 case "$g $s" in
+  "agent get") echo '{"error":{"code":"agent_not_found"}}' ;;
   "agent list") echo '{"result":{"agents":[{"name":"draft-lead","agent":"claude","agent_status":"idle","pane_id":"p1","tab_id":"t1"}]}}' ;;
   "tab list")   echo '{"result":{"tabs":[{"tab_id":"t1","label":"draft"}]}}' ;;
   "pane list")  echo '{"result":{"panes":[{"pane_id":"p1","label":"draft-lead","tab_id":"t1","cwd":"`+cwd+`"}]}}' ;;

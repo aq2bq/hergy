@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/herdr"
@@ -1229,8 +1230,10 @@ func TestWaitGoneSaysWhichMemberToRefresh(t *testing.T) {
 	}
 	l, _ := downLauncher(t, port, "core-lead")
 	l.timeout = 1
+	now := time.Unix(0, 0)
+	l.WithWaitClock(func() time.Time { return now }, func(d time.Duration) { now = now.Add(d) })
 
-	err := l.waitGone("core-lead", i18n.Errorf("error.agent_not_gone", "core-lead", l.timeout, "core-lead"))
+	err := l.waitGone([]string{"core-lead"}, func([]string) error { return i18n.Errorf("error.agent_not_gone", "core-lead", l.timeout, "core-lead") })
 	if err == nil {
 		t.Fatal("waitGone answered no error while herdr still knew the agent")
 	}

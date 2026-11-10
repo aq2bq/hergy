@@ -39,6 +39,7 @@ esac
 // liveHerdr is a fake herdr that reports the demo team's two members as live, so
 // a down has panes to close.
 const liveHerdr = `#!/bin/sh
+closed="${HERGY_HERDR}.closed"
 g="$1"; s="$2"
 if [ -z "$s" ]; then
   echo "herdr $g"
@@ -47,7 +48,9 @@ if [ -z "$s" ]; then
 fi
 case "$g $s" in
   "agent list") echo '{"result":{"agents":[{"name":"demo-lead","agent":"claude","agent_status":"idle","pane_id":"p1"},{"name":"demo-builder","agent":"claude","agent_status":"idle","pane_id":"p2"}]}}' ;;
+  "pane close") touch "$closed"; echo '{"result":{}}' ;;
   "agent get")
+    if [ -f "$closed" ]; then echo '{"error":{"code":"agent_not_found"}}'; exit 0; fi
     case "$3" in
       demo-lead)   echo '{"result":{"agent":{"name":"demo-lead","agent":"claude","agent_status":"idle","pane_id":"p1"}}}' ;;
       demo-builder) echo '{"result":{"agent":{"name":"demo-builder","agent":"claude","agent_status":"idle","pane_id":"p2"}}}' ;;
@@ -235,6 +238,10 @@ case "$g $s" in
     done < "$tabs"
     printf ']}}'
     ;;
+  "pane close")
+    name="${3#p-}"
+    awk -v n="$name" '$2 != n' "$state" > "$state.tmp"; mv "$state.tmp" "$state"
+    echo '{"result":{}}' ;;
   "pane list") echo '{"result":{"panes":[]}}' ;;
   "tab create")
     label=""

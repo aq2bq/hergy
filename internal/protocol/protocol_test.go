@@ -214,13 +214,12 @@ func TestMessageIsHerdrsReasonInWords(t *testing.T) {
 	}
 }
 
-// A worker down now reads name release with agent get. A team down keeps its
-// former requirements because it does not wait for name release (r-990d).
+// Both kinds of down read name release with agent get.
 func TestWorkerDownRequiresNameReading(t *testing.T) {
 	for _, tc := range []struct {
 		mode    string
 		wantGet bool
-	}{{ModeDown, false}, {ModeDownWorker, true}} {
+	}{{ModeDown, true}, {ModeDownWorker, true}} {
 		found := false
 		for _, group := range RequiredCommands(tc.mode) {
 			if group.Name == "agent" {

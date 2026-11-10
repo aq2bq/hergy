@@ -56,6 +56,7 @@ fi
 case "$g $s" in
   "tab list") cat "$d/tabs.json" ;;
   "pane list") cat "$d/panes.json" ;;
+  "agent get") echo '{"error":{"code":"agent_not_found"}}' ;;
   "agent list") cat "$d/agents.json" ;;
   "workspace list") cat "$d/workspaces.json" ;;
   "pane current") echo '{"result":{"pane":{"workspace_id":"w1"}}}' ;;

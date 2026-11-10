@@ -461,7 +461,9 @@ export function runStart(launch: HQLaunch): void {
 function StopSheet({ team }: { team: string }): JSX.Element {
   const [error, setError] = useState('');
   const [result, setResult] = useState<HQStopped | null>(null);
-  const running = runningTeam(team);
+  // Closing panes can remove the row while this request still awaits name
+  // release. Keep the submitted operation and its eventual refusal visible.
+  const [running] = useState(() => Boolean(runningTeam(team)));
   const stop = async (): Promise<void> => {
     try {
       const request = { team } satisfies HQStopRequest;
@@ -482,8 +484,8 @@ function StopSheet({ team }: { team: string }): JSX.Element {
     return <><Head title="終了する" label={team} /><p class="hq-sub">このチームは動いていません。読み直してから、もう一度お試しください。</p></>;
   }
   return <>
-      <Head title="終了する" label={team} />
-      <p class="hq-sub" role="status">エージェントを終了してペインを閉じています。</p>
+      <Head title={error ? "終了できませんでした" : "終了する"} label={team} />
+      {!error ? <p class="hq-sub" role="status">ペインを閉じ、herdr から名前が消えるまで待っています。</p> : null}
       <Err text={error} />
       {error ? <div class="hq-acts"><button type="button" class="hq-btn" data-hqx="close" onClick={closeSheet}>閉じる</button></div> : null}
     </>;

@@ -1353,7 +1353,7 @@ function runStart(launch) {
 function StopSheet({ team }) {
   const [error, setError] = d("");
   const [result, setResult] = d(null);
-  const running = runningTeam2(team);
+  const [running] = d(() => Boolean(runningTeam2(team)));
   const stop = async () => {
     try {
       const request = { team };
@@ -1392,14 +1392,14 @@ function StopSheet({ team }) {
   return /* @__PURE__ */ u(S, {
     children: [
       /* @__PURE__ */ u(Head, {
-        title: "終了する",
+        title: error ? "終了できませんでした" : "終了する",
         label: team
       }),
-      /* @__PURE__ */ u("p", {
+      !error ? /* @__PURE__ */ u("p", {
         class: "hq-sub",
         role: "status",
-        children: "エージェントを終了してペインを閉じています。"
-      }),
+        children: "ペインを閉じ、herdr から名前が消えるまで待っています。"
+      }) : null,
       /* @__PURE__ */ u(Err, {
         text: error
       }),
