@@ -994,7 +994,7 @@ func (l *Launcher) Down(members []definition.Start, selfPane string, dry bool) (
 // worker tab's label, "worker:<team>/<worker>".
 func (l *Launcher) DownWorker(label, selfPane string, dry bool) (int, error) {
 	if !dry {
-		if err := l.herdr.Verify(protocol.ModeDown); err != nil {
+		if err := l.herdr.Verify(protocol.ModeDownWorker); err != nil {
 			return 0, err
 		}
 	}
