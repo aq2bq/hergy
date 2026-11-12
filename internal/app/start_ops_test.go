@@ -4,10 +4,13 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/aq2bq/hergy/internal/options"
 
 	domainname "github.com/aq2bq/hergy/internal/domain/name"
 	"github.com/aq2bq/hergy/internal/herdr"
@@ -113,5 +116,77 @@ func TestStartTeamCancellationUsesSharedProgressAndWritesNoRecord(t *testing.T) 
 	}
 	if strings.Contains(readFile(t, filepath.Join(f.cfg, "herdr.log")), "agent prompt ") {
 		t.Fatal("cancellation sent a bootstrap prompt")
+	}
+}
+
+type questionAfterStartPort struct {
+	herdr.Port
+	started bool
+}
+
+func (p *questionAfterStartPort) JSON(args ...string) (map[string]any, error) {
+	if args[0] == "agent" && args[1] == "start" {
+		p.started = true
+		return protocol.Result(args, `{"error":{"code":"agent_not_ready","message":"agent demo-a is blocked during startup and is not ready for prompts"}}`, "", 1)
+	}
+	if p.started && args[0] == "agent" && args[1] == "get" {
+		return map[string]any{"agent": map[string]any{"name": args[2], "agent": "claude", "agent_status": "blocked", "pane_id": "p1", "tab_id": "t1"}}, nil
+	}
+	return p.Port.JSON(args...)
+}
+
+func TestMemberOperationsCancelThroughTheirSharedContext(t *testing.T) {
+	for _, command := range []string{"refresh", "reprompt", "hire"} {
+		t.Run(command, func(t *testing.T) {
+			f := newFixture(t)
+			receiptTeam(t, f)
+			mustRun(t, "up", "demo")
+			log := receiptHerdr(t, f, "unused", "", false)
+			_, before := launchLog(t, f)
+			opts, err := options.Parse([]string{"refresh", "--all", "--team", "demo"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			env := serveEnv(t)
+			input := memberInput(env, opts, io.Discard, io.Discard)
+			question := false
+			input.Observe = func(event ops.Event) {
+				if event.Progress != nil && event.Progress.Waiting != nil {
+					question = true
+					cancel()
+				}
+			}
+			if command == "reprompt" {
+				input.Port = &applyCallbackPort{Port: herdrcli.New(os.Getenv("HERGY_HERDR")), onPrompt: cancel}
+				_, err = ops.Reprompt(ctx, input)
+			} else {
+				input.Port = &questionAfterStartPort{Port: herdrcli.New(os.Getenv("HERGY_HERDR"))}
+				if command == "refresh" {
+					_, err = ops.Refresh(ctx, input)
+				} else {
+					_, err = ops.Hire(ctx, ops.HireInput{MemberInput: input, Name: "worker", Purpose: "research", Task: "read", From: "a"})
+				}
+			}
+			if !errors.Is(err, context.Canceled) {
+				t.Fatalf("cancel: %v", err)
+			}
+			if command != "reprompt" && !question {
+				t.Fatal("no shared startup question event")
+			}
+			_, after := launchLog(t, f)
+			if len(after) != len(before) {
+				t.Fatalf("cancelled operation added a record: %d -> %d", len(before), len(after))
+			}
+			prompts := strings.Count(readFile(t, log), "agent prompt ")
+			want := 0
+			if command == "reprompt" {
+				want = 1
+			}
+			if prompts != want {
+				t.Fatalf("prompts after cancellation = %d, want %d", prompts, want)
+			}
+		})
 	}
 }

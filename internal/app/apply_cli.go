@@ -3,20 +3,14 @@ package app
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
+	"os"
 
 	"github.com/aq2bq/hergy/internal/ops"
 
-	domainname "github.com/aq2bq/hergy/internal/domain/name"
-
-	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/i18n"
-	"github.com/aq2bq/hergy/internal/launcher"
-	"github.com/aq2bq/hergy/internal/launchlog"
 	"github.com/aq2bq/hergy/internal/options"
-	"github.com/aq2bq/hergy/internal/source"
 	"github.com/aq2bq/hergy/internal/team"
 	"github.com/aq2bq/hergy/internal/web"
 )
@@ -28,80 +22,33 @@ import (
 
 // runApply is hergy apply [<member>...] [--team <team>] [--dry] [--json].
 func runApply(ctx context.Context, env team.Env, opts *options.Options, stdout, stderr io.Writer) error {
-	cat := env.Catalog(source.Disk{})
-	if err := sharedAgreementStops(cat); err != nil {
-		return err
+	printed := false
+	result, err := ops.Apply(ctx, ops.ApplyInput{Env: env, Selection: ops.ApplySelectionInput{Names: opts.Members, Team: opts.Team.String(), Policy: ops.ContinueAvailable},
+		Timeout: opts.Timeout, Dry: opts.Dry, RequirePane: true, ManagedPane: os.Getenv("HERDR_ENV") == "1", Observe: cliEvents(stdout, stderr, env),
+		Accepted: func(selection ops.ApplySelection) { printBroken(stdout, selection.Broken); printed = true }})
+	if !printed {
+		printBroken(stdout, result.Selection.Broken)
 	}
-	read := newActivityRead(env)
-	plan := read.plan(read.clock())
-	if !plan.apply.Herdr.OK {
-		return errors.New(plan.apply.Herdr.Text)
-	}
-	selected, remaining, err := chooseApply(plan, opts)
 	if err != nil {
-		return err
+		return operationError(err)
 	}
-	broken := brokenTeams(plan.apply.Teams)
-	printBroken(stdout, broken)
+	selection := result.Selection
 	if opts.Dry {
-		if err := printApplyPlan(stdout, plan, selected, remaining, opts.JSON); err != nil {
+		if err := printApplyPlan(stdout, result.Plan, selection.Selected, selection.Remaining, opts.JSON); err != nil {
 			return err
 		}
-		if err := applyLeftError(remaining, true); err != nil {
-			return err
-		}
-		return applyBrokenError(len(broken))
+		return result.FinalError
 	}
-	if len(selected) == 0 {
+	if len(selection.Selected) == 0 {
 		fmt.Fprintln(stdout, i18n.T("apply.nothing"))
-		printRemaining(stdout, remaining)
-		if err := applyLeftError(remaining, false); err != nil {
-			return err
-		}
-		return applyBrokenError(len(broken))
 	}
-	if err := requireHerdrPane(); err != nil {
-		return err
-	}
-	if err := applyNow(ctx, env, selected, opts.Timeout, stdout, stderr); err != nil {
-		return err
-	}
-	printRemaining(stdout, remaining)
-	if err := applyLeftError(remaining, false); err != nil {
-		return err
-	}
-	return applyBrokenError(len(broken))
-}
-
-// plannedByName finds one member of the plan by the name herdr sees first, then
-// by the short name team.yaml writes.
-func plannedByName(plan deliveryPlan, name string) (plannedMember, bool) {
-	if member, ok := plan.members[name]; ok {
-		return member, true
-	}
-	for _, member := range plan.members {
-		if member.start.Short.String() == name {
-			return member, true
-		}
-	}
-	return plannedMember{}, false
-}
-
-// brokenTeams is the running teams whose definition cannot be built: hergy has no
-// member to apply for them, and a person has to fix the settings (2.2).
-func brokenTeams(teams []web.ApplyTeam) []web.ApplyTeam {
-	var out []web.ApplyTeam
-	for _, team := range teams {
-		if team.Error != "" {
-			out = append(out, team)
-		}
-	}
-	return out
+	printRemaining(stdout, selection.Remaining)
+	return result.FinalError
 }
 
 // printBroken says why a team's definition cannot be built, and what to do: the
 // reason hergy status writes, then hergy validate.
-func printBroken(stdout io.Writer, broken []web.ApplyTeam) {
+func printBroken(stdout io.Writer, broken []ops.ApplyTeam) {
 	for _, team := range broken {
 		fmt.Fprintln(stdout, i18n.Tf("apply.broken_team", team.Team, team.Error))
 	}
@@ -110,140 +57,18 @@ func printBroken(stdout io.Writer, broken []web.ApplyTeam) {
 	}
 }
 
-// applyBrokenError is the exit status for a team whose definition does not
-// build: nothing named a member, and the person has to fix the file first.
-func applyBrokenError(count int) error {
-	if count == 0 {
-		return nil
-	}
-	return i18n.Errorf("apply.broken_left", count)
-}
+type chosen = ops.ApplyLeft
 
-// chosen is one member the command applies or leaves, with the sentence for
-// leaving it.
-type chosen struct {
-	member  plannedMember
-	whyLeft string
-}
-
-// chooseApply is the members the command line names, or every member with drift,
-// split into the ones hergy can apply and the ones it leaves. A name that is not
-// a member with drift is an error: the person typed something hergy does not see.
-func chooseApply(plan deliveryPlan, opts *options.Options) ([]plannedMember, []chosen, error) {
-	named := map[string]bool{}
-	for _, name := range opts.Members {
-		member, ok := plannedByName(plan, name)
-		if !ok {
-			return nil, nil, i18n.Errorf("apply.refused_unknown", name)
-		}
-		if !member.changed {
-			return nil, nil, i18n.Errorf("apply.no_change", name)
-		}
-		named[member.start.Name.String()] = true
-		named[member.start.Short.String()] = true
-	}
-	var selected []plannedMember
-	var remaining []chosen
-	for _, row := range plan.apply.Teams {
-		if opts.Team.String() != "" && row.Team != opts.Team.String() {
-			continue
-		}
-		for _, shown := range row.Members {
-			if len(named) > 0 && !named[shown.Name] && !named[shown.Short] {
-				continue
-			}
-			member, ok := plan.members[shown.Name]
-			if !ok {
-				continue
-			}
-			if member.canApply() {
-				selected = append(selected, member)
-				continue
-			}
-			why := member.whyNot
-			if why == "" {
-				why = i18n.Tf("apply.refused_state", member.start.Short.String())
-			}
-			remaining = append(remaining, chosen{member: member, whyLeft: why})
-		}
-	}
-	return selected, remaining, nil
-}
-
-// applyNow applies the selected members, one team at a time, with the launcher
-// the other commands use, and records what was handed to whom.
-func applyNow(ctx context.Context, env team.Env, selected []plannedMember, timeout int, stdout, stderr io.Writer) error {
-	var undelivered []error
-	for _, group := range groupByTeam(selected) {
-		if err := applyTeamNow(ctx, env, group, timeout, stdout, stderr); err != nil {
-			if !launcher.IsUndelivered(err) {
-				return err
-			}
-			undelivered = append(undelivered, err)
-		}
-	}
-	return errors.Join(undelivered...)
-}
-
-// applyTeamNow applies one team's members; only missing receipts let the caller
-// continue with another team. Confirmed recipients alone enter the launch log.
-func applyTeamNow(ctx context.Context, env team.Env, group []plannedMember, timeout int, stdout, stderr io.Writer) error {
-	var undelivered []error
-	projectEnv := env
-	if scoped, err := env.AtProject(group[0].team.Project); err == nil {
-		projectEnv = scoped
-	}
-	cat := projectEnv.Catalog(source.Disk{})
-	r, err := ops.BuildRunningIn(cat, projectEnv.ProjectRoot,
-		team.Running{Team: domainname.TeamFromObservation(group[0].team.Name.Observation()), Definition: group[0].team.Definition}, group[0].team.Place.Layer())
-	if err != nil {
-		return err
-	}
-	l := launcherFor(r, timeout, stdout).WithContext(ctx).WithoutNextHint()
-	var starts, resends []definition.Start
-	for _, member := range group {
-		if member.how == web.ApplyResend {
-			resends = append(resends, member.start)
-			continue
-		}
-		starts = append(starts, member.start)
-	}
-	if len(starts) > 0 {
-		if err := l.Refresh(starts, ops.CurrentPane()); err != nil {
-			if !launcher.IsUndelivered(err) {
-				return err
-			}
-			undelivered = append(undelivered, err)
-		}
-	}
-	if len(resends) > 0 {
-		if err := l.Reprompt(promptsToResend(cat, projectEnv.ProjectRoot, r, resends)); err != nil {
-			if !launcher.IsUndelivered(err) {
-				return err
-			}
-			undelivered = append(undelivered, err)
-		}
-	}
-	all := make([]definition.Start, 0, len(group))
-	for _, member := range group {
-		all = append(all, member.start)
-		if !l.Received(member.start.Name.String()) {
-			continue
-		}
-		fmt.Fprintf(stdout, "%s\n", i18n.Tf("apply.applied", member.start.Short.String(), applyHowWord(member.how)))
-	}
-	recordReceivedLaunch(stderr, projectEnv, r, launchlog.CommandApply, all, l)
-	return errors.Join(undelivered...)
-}
+func groupByTeam(members []plannedMember) [][]plannedMember { return ops.GroupByTeam(members) }
 
 // applyHowWord is one way of applying, as a person reads it after it was done.
-func applyHowWord(how string) string {
+func applyHowWord(how ops.ApplyHow) string {
 	switch how {
-	case web.ApplyStart:
+	case ops.ApplyStart:
 		return i18n.T("apply.how_start")
-	case web.ApplyRestart:
+	case ops.ApplyRestart:
 		return i18n.T("apply.how_restart")
-	case web.ApplyCannot:
+	case ops.ApplyCannot:
 		return i18n.T("apply.how_cannot")
 	default:
 		return i18n.T("apply.how_resend")
@@ -253,13 +78,13 @@ func applyHowWord(how string) string {
 // applyPlanWord is one way of applying, as the plan says it: the words the
 // sheet's mark uses (送り直し・起動・起動し直し), because nothing is done yet
 // (d-3d30, d-7b45).
-func applyPlanWord(how string) string {
+func applyPlanWord(how ops.ApplyHow) string {
 	switch how {
-	case web.ApplyStart:
+	case ops.ApplyStart:
 		return i18n.T("apply.plan_start")
-	case web.ApplyRestart:
+	case ops.ApplyRestart:
 		return i18n.T("apply.plan_restart")
-	case web.ApplyCannot:
+	case ops.ApplyCannot:
 		return i18n.T("apply.plan_cannot")
 	default:
 		return i18n.T("apply.plan_resend")
@@ -269,7 +94,7 @@ func applyPlanWord(how string) string {
 // teamNotes is each team's own notes, by team name: a worker's changed profile
 // is the team's note, not a member's change (d-36ef), and the command line says
 // it where the sheet does (r-7aad).
-func teamNotes(teams []web.ApplyTeam) map[string][]string {
+func teamNotes(teams []ops.ApplyTeam) map[string][]string {
 	out := map[string][]string{}
 	for _, team := range teams {
 		if len(team.Notes) > 0 {
@@ -283,30 +108,30 @@ func teamNotes(teams []web.ApplyTeam) map[string][]string {
 // The plan carries the teams' own notes the way GET /api/apply does, so the
 // command line and the sheet say the same thing.
 func printApplyPlan(stdout io.Writer, plan deliveryPlan, selected []plannedMember, remaining []chosen, asJSON bool) error {
-	notes := teamNotes(plan.apply.Teams)
+	notes := teamNotes(plan.Apply.Teams)
 	if asJSON {
 		list := web.ApplyList{Herdr: web.ActivityNote{OK: true}, Teams: []web.ApplyTeam{}}
 		byTeam := map[string]int{}
 		add := func(member plannedMember) {
-			index, ok := byTeam[member.team.Name.String()]
+			index, ok := byTeam[member.Team.Name.String()]
 			if !ok {
-				own := notes[member.team.Name.String()]
+				own := notes[member.Team.Name.String()]
 				if own == nil {
 					own = []string{}
 				}
 				list.Teams = append(list.Teams, web.ApplyTeam{
-					Team: member.team.Name.String(), Definition: member.team.Definition,
-					Project: member.team.Project, ProjectName: member.team.ProjectName,
+					Team: member.Team.Name.String(), Definition: member.Team.Definition,
+					Project: member.Team.Project, ProjectName: member.Team.ProjectName,
 					Notes: own, Members: []web.ApplyMember{},
 				})
 				index = len(list.Teams) - 1
-				byTeam[member.team.Name.String()] = index
+				byTeam[member.Team.Name.String()] = index
 			}
 			shown := web.ApplyMember{
-				Name: member.start.Name.String(), Short: member.start.Short.String(), Role: member.start.Role,
-				State: member.state, How: member.how, Changes: member.changes,
-				CanApply: member.canApply(), WhyNot: member.whyNot,
-				ConversationLost: member.how == web.ApplyRestart,
+				Name: member.Start.Name.String(), Short: member.Start.Short.String(), Role: member.Start.Role,
+				State: member.State, How: string(member.How), Changes: member.Changes,
+				CanApply: member.CanApply(), WhyNot: member.WhyNot,
+				ConversationLost: member.How == ops.ApplyRestart,
 			}
 			list.Teams[index].Members = append(list.Teams[index].Members, shown)
 		}
@@ -314,7 +139,7 @@ func printApplyPlan(stdout io.Writer, plan deliveryPlan, selected []plannedMembe
 			add(member)
 		}
 		for _, one := range remaining {
-			add(one.member)
+			add(one.Member)
 		}
 		for i := range list.Teams {
 			list.Count += len(list.Teams[i].Members)
@@ -333,14 +158,14 @@ func printApplyPlan(stdout io.Writer, plan deliveryPlan, selected []plannedMembe
 	fmt.Fprintln(stdout, i18n.T("apply.plan"))
 	applied := map[string]bool{}
 	for _, group := range groupByTeam(selected) {
-		applied[group[0].team.Name.String()] = true
-		fmt.Fprintf(stdout, "%s\n", group[0].team.Name)
-		for _, note := range notes[group[0].team.Name.String()] {
+		applied[group[0].Team.Name.String()] = true
+		fmt.Fprintf(stdout, "%s\n", group[0].Team.Name)
+		for _, note := range notes[group[0].Team.Name.String()] {
 			fmt.Fprintf(stdout, "  %s\n", note)
 		}
 		for _, member := range group {
-			fmt.Fprintf(stdout, "  %s: %s\n", member.start.Short.String(), applyPlanWord(member.how))
-			for _, change := range member.changes {
+			fmt.Fprintf(stdout, "  %s: %s\n", member.Start.Short.String(), applyPlanWord(member.How))
+			for _, change := range member.Changes {
 				fmt.Fprintf(stdout, "    - %s\n", change.Text)
 			}
 		}
@@ -349,9 +174,9 @@ func printApplyPlan(stdout io.Writer, plan deliveryPlan, selected []plannedMembe
 	// sheet shows them beside the members it cannot apply too.
 	left := map[string]bool{}
 	for _, one := range remaining {
-		left[one.member.team.Name.String()] = true
+		left[one.Member.Team.Name.String()] = true
 	}
-	for _, team := range plan.apply.Teams {
+	for _, team := range plan.Apply.Teams {
 		if applied[team.Team] || !left[team.Team] {
 			continue
 		}
@@ -367,18 +192,6 @@ func printApplyPlan(stdout io.Writer, plan deliveryPlan, selected []plannedMembe
 // printRemaining is the members that stay, with the sentence saying why.
 func printRemaining(stdout io.Writer, remaining []chosen) {
 	for _, one := range remaining {
-		fmt.Fprintf(stdout, "%s\n", i18n.Tf("apply.left", one.member.start.Short.String(), one.whyLeft))
+		fmt.Fprintf(stdout, "%s\n", i18n.Tf("apply.left", one.Member.Start.Short.String(), one.WhyLeft))
 	}
-}
-
-// applyLeftError is the exit status: a member left is not a success, so hergy
-// says so and answers 1.
-func applyLeftError(remaining []chosen, dry bool) error {
-	if len(remaining) == 0 {
-		return nil
-	}
-	if dry {
-		return i18n.Errorf("apply.plan_left_count", len(remaining))
-	}
-	return i18n.Errorf("apply.left_count", len(remaining))
 }

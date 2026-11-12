@@ -47,7 +47,7 @@ func (h *hqRead) stopInput(env team.Env, one runningTeam, read herdrNow) ops.Sto
 	target := ops.TeamStopTarget(running, read.tabs)
 	return ops.StopInput{Env: env, Target: target, Layer: one.Place.Layer(), Timeout: 30000,
 		SelfPane: ops.CurrentPane(), Port: h.act.herdrPort(), Now: h.stopNow, Pause: h.stopPause,
-		PendingLaunches: h.visitPendingLaunches}
+		PendingLaunches: h.visitPendingLaunches, Locks: h.locks}
 }
 
 // findRunning is one running team the headquarters shows, by name.
@@ -88,7 +88,7 @@ func (h *hqRead) visitPendingLaunches(visit func(ops.PendingLaunch)) {
 	for _, id := range h.order {
 		op := h.ops[id]
 		op.mu.Lock()
-		visit(ops.PendingLaunch{Team: op.launch.Team, Phase: op.launch.Phase, Cancel: op.cancel,
+		visit(ops.PendingLaunch{Team: op.launch.Team, Teams: op.teams, Phase: op.launch.Phase, Cancel: op.cancel,
 			Finish: func(phase string, at time.Time) {
 				op.launch.Phase = phase
 				op.launch.Waiting = nil

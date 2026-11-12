@@ -3,6 +3,8 @@ package ops
 import (
 	"os"
 
+	"github.com/aq2bq/hergy/internal/activity"
+
 	"github.com/aq2bq/hergy/internal/herdr"
 	"github.com/aq2bq/hergy/internal/herdrcli"
 	"github.com/aq2bq/hergy/internal/protocol"
@@ -21,6 +23,7 @@ func portOrDefault(port Port) Port {
 
 // Session is one herdr reading used by operation preconditions.
 type Session struct {
+	Seen       map[string]activity.Watch
 	Tabs       []team.Tab
 	Agents     []protocol.Agent
 	Workspaces []herdr.Workspace

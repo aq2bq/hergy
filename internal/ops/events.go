@@ -34,6 +34,7 @@ type Waiting struct{ Member, Herdr, Workspace, Tab, Pane string }
 // Event is the one stream for command output and screen operation state.
 // Only adapters choose where to display its text or warning.
 type Event struct {
+	Applied       *Applied
 	Plan          *Plan
 	Start         *StartPlan
 	Progress      *Progress
@@ -67,13 +68,13 @@ func (w eventWriter) Write(p []byte) (int, error) {
 
 func operationLauncher(ctx context.Context, r *Resolved, timeout int, port Port, observe func(Event)) *launcher.Launcher {
 	emit(observe, Event{Text: PluginNote()})
-	l := NewLauncherWithPort(r, timeout, eventWriter{observe}, portOrDefault(port)).WithContext(ctx)
-	l.Observe(func(e launcher.Event) { emit(observe, Event{Progress: ProgressOf(e)}) })
+	l := NewLauncherWithPort(r, timeout, eventWriter{observe}, stopPort{Port: portOrDefault(port), ctx: ctx}).WithContext(ctx)
+	l.Observe(func(e launcher.Event) { emit(observe, Event{Progress: progressOf(e)}) })
 	return l
 }
 
-// ProgressOf adapts the launcher while the remaining callers migrate.
-func ProgressOf(e launcher.Event) *Progress {
+// progressOf adapts the launcher while the remaining callers migrate.
+func progressOf(e launcher.Event) *Progress {
 	p := &Progress{Stage: e.Stage, Member: e.Member, State: e.State, Pane: e.Pane.String(), TabID: e.TabID, Workspace: e.Workspace, CreatedTab: e.CreatedTab, CreatedPanes: e.CreatedPanes}
 	if e.Waiting != nil {
 		p.Waiting = &Waiting{Member: e.Waiting.Member, Herdr: e.Waiting.Herdr, Workspace: e.Waiting.Workspace, Tab: e.Waiting.Tab, Pane: e.Waiting.Pane}

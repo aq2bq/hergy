@@ -275,7 +275,7 @@ func (h *hqRead) StartLaunch(in web.HQLaunchIn) (web.HQLaunch, error) {
 func (h *hqRead) startInput(env team.Env, in web.HQLaunchIn) ops.StartInput {
 	definition, _ := domainname.ParseDefinitionName(in.Definition)
 	return ops.StartInput{Env: env, Definition: definition, Name: in.Name, Place: in.Place,
-		Workspace: ops.WorkspaceInput{ID: in.Workspace.ID, New: in.Workspace.New}, ProjectName: h.projectNameIn(env.ProjectRoot), Timeout: 30000, Port: h.act.herdrPort()}
+		Workspace: ops.WorkspaceInput{ID: in.Workspace.ID, New: in.Workspace.New}, ProjectName: h.projectNameIn(env.ProjectRoot), Timeout: 30000, Port: h.act.herdrPort(), Locks: h.locks}
 }
 
 func (h *hqRead) finishOperation(ctx context.Context, op *launchOp, err error) {
@@ -414,8 +414,7 @@ func (h *hqRead) activeLaunch(teamName string) (string, bool) {
 	for _, id := range h.order {
 		op := h.ops[id]
 		op.mu.Lock()
-		match := op.launch.Team == teamName &&
-			(op.launch.Phase == "starting" || op.launch.Phase == "awaiting")
+		match := (ops.PendingLaunch{Team: op.launch.Team, Teams: op.teams, Phase: op.launch.Phase}).ActiveFor(teamName)
 		op.mu.Unlock()
 		if match {
 			return id, true

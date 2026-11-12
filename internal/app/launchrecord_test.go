@@ -2,6 +2,8 @@ package app
 
 import (
 	"bytes"
+	"fmt"
+	"io"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -387,5 +389,11 @@ func TestHireRecordsWhoAddedTheWorker(t *testing.T) {
 	}
 	if !found {
 		t.Errorf("the up's own launch line is gone: %+v", records)
+	}
+}
+
+func launchWarning(out io.Writer, note string) {
+	if note != "" {
+		fmt.Fprintln(out, note)
 	}
 }

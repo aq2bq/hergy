@@ -144,7 +144,7 @@ func TestImportDirection(t *testing.T) {
 					continue
 				}
 				// Stage C moves operational dependencies into ops one by one.
-				if pkg == "ops" && slices.Contains([]string{"launcher", "team", "herdrcli"}, imp) {
+				if pkg == "ops" && slices.Contains([]string{"launcher", "team", "herdrcli", "spawn"}, imp) {
 					continue
 				}
 				// A package nested inside a top-layer package

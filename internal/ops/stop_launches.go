@@ -1,6 +1,7 @@
 package ops
 
 import (
+	"slices"
 	"time"
 
 	domainname "github.com/aq2bq/hergy/internal/domain/name"
@@ -9,6 +10,7 @@ import (
 // PendingLaunch is a locked view of a serve's launch. The adapter owns storage
 // and DTO conversion; the stop operation owns when a launch is cancelled.
 type PendingLaunch struct {
+	Teams  []string
 	Team   string
 	Phase  string
 	Cancel func()
@@ -25,7 +27,7 @@ func finishLaunchFor(team domainname.Seen, visit func(func(PendingLaunch)), now 
 		now = time.Now
 	}
 	visit(func(launch PendingLaunch) {
-		if launch.Team != team.String() || (launch.Phase != "starting" && launch.Phase != "awaiting") {
+		if !launch.ActiveFor(team.String()) {
 			return
 		}
 		if launch.Cancel != nil {
@@ -33,4 +35,15 @@ func finishLaunchFor(team domainname.Seen, visit func(func(PendingLaunch)), now 
 		}
 		launch.Finish("cancelled", now())
 	})
+}
+
+// ActiveFor includes every team reserved by one pending operation.
+func (p PendingLaunch) ActiveFor(team string) bool {
+	if p.Phase != "starting" && p.Phase != "awaiting" {
+		return false
+	}
+	if p.Team == team {
+		return true
+	}
+	return slices.Contains(p.Teams, team)
 }

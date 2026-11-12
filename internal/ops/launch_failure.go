@@ -45,3 +45,11 @@ func FailedStartCommand(f launcher.StartFailure, team, up string) string {
 	}
 	return i18n.Tf("launch.fix_boot", team, up)
 }
+
+// LaunchFailure retains typed recovery facts for both CLI and screen adapters.
+type LaunchFailure struct {
+	Failed           launcher.StartFailure
+	Project, Command string
+}
+
+func (e *LaunchFailure) Error() string { return StartFailureText(e.Failed, e.Project, e.Command) }

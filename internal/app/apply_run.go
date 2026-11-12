@@ -3,28 +3,17 @@ package app
 import (
 	"context"
 	"errors"
-	"io"
-	"net/http"
-	"strings"
 
 	"github.com/aq2bq/hergy/internal/ops"
 
-	domainname "github.com/aq2bq/hergy/internal/domain/name"
-
-	"github.com/aq2bq/hergy/internal/catalog"
-	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/i18n"
-	"github.com/aq2bq/hergy/internal/launcher"
-	"github.com/aq2bq/hergy/internal/launchlog"
-	"github.com/aq2bq/hergy/internal/source"
-	"github.com/aq2bq/hergy/internal/team"
 	"github.com/aq2bq/hergy/internal/web"
 )
 
 // This file applies the drift between the saved definitions and the running
 // teams (d-36ef): the screens' POST /api/apply. The operation is the one sheet a
 // person works with; what hergy does for each member follows from the drift the
-// reading found (web.ApplyMember.how). The work goes on after the answer, so the
+// reading found (web.ApplyMember.How). The work goes on after the answer, so the
 // sheet reads its progress and any startup question the way it reads a start's.
 
 // ApplyMembers is POST /api/apply: apply the drift to the named members, by
@@ -32,68 +21,57 @@ import (
 // cannot be applied now: the sheet sends what it read, and a refusal names the
 // members to look at.
 func (h *hqRead) ApplyMembers(names []string) (web.HQLaunch, error) {
-	if len(names) == 0 {
-		return web.HQLaunch{}, hqRefuse(http.StatusUnprocessableEntity, i18n.T("apply.none_selected"))
-	}
-	now := h.act.clock()
-	plan := h.act.plan(now)
-	if !plan.apply.Herdr.OK {
-		return web.HQLaunch{}, hqRefuse(http.StatusServiceUnavailable, plan.apply.Herdr.Text)
-	}
-	selected, refusals := applySelection(plan, names)
-	if len(refusals) > 0 {
-		return web.HQLaunch{}, hqRefuse(http.StatusUnprocessableEntity, strings.Join(refusals, "\n"))
-	}
-	for _, group := range groupByTeam(selected) {
-		if _, busy := h.activeLaunch(group[0].team.Name.String()); busy {
-			return web.HQLaunch{}, hqRefuse(http.StatusConflict, i18n.Tf("apply.refused_busy", group[0].team.Name))
-		}
-	}
-	op := h.newOp(applyLaunch(selected))
 	ctx, cancel := context.WithCancel(h.context())
-	op.mu.Lock()
-	op.cancel = cancel
-	op.mu.Unlock()
-	go h.runApply(ctx, op, selected)
-	return op.snapshot(), nil
+	type answer struct {
+		launch web.HQLaunch
+		err    error
+	}
+	ready := make(chan answer, 1)
+	go func() {
+		defer cancel()
+		var op *launchOp
+		input := h.applyInput(names, func(event ops.Event) {
+			if op != nil {
+				h.observeApply(op, event)
+			}
+		})
+		input.Accepted = func(selection ops.ApplySelection) {
+			op = h.newOp(applyLaunch(selection.Selected))
+			op.mu.Lock()
+			op.cancel = cancel
+			op.teams = selection.Teams()
+			op.mu.Unlock()
+			ready <- answer{launch: op.snapshot()}
+		}
+		_, err := ops.Apply(ctx, input)
+		if op == nil {
+			ready <- answer{err: hqOperationError(err)}
+			return
+		}
+		h.finishOperation(ctx, op, err)
+	}()
+	result := <-ready
+	return result.launch, result.err
 }
 
-// applySelection is the members the request names, or one sentence for each name
-// that cannot be applied.
+func (h *hqRead) applyInput(names []string, observe func(ops.Event)) ops.ApplyInput {
+	return ops.ApplyInput{Now: h.act.clock, Env: h.act.env, Views: h.act.projectViews(), Read: func() ops.Session { return sessionOf(h.act.readHerdr(h.act.clock())) },
+		Selection: ops.ApplySelectionInput{Names: names, Policy: ops.RequireWholeSelection}, Timeout: 30000, Port: h.act.herdrPort(), Observe: observe, Locks: h.locks}
+}
+func (h *hqRead) observeApply(op *launchOp, event ops.Event) {
+	if event.Progress != nil {
+		h.observe(op, *event.Progress)
+	}
+	if event.Applied != nil {
+		h.stepApplied(op, event.Applied.Member)
+	}
+}
 func applySelection(plan deliveryPlan, names []string) ([]plannedMember, []string) {
-	selected := make([]plannedMember, 0, len(names))
-	var refusals []string
-	for _, name := range names {
-		member, ok := plan.members[name]
-		switch {
-		case !ok:
-			refusals = append(refusals, i18n.Tf("apply.refused_unknown", name))
-		case !member.changed:
-			refusals = append(refusals, i18n.Tf("apply.no_change", name))
-		case !member.canApply():
-			refusals = append(refusals, member.whyNot)
-		default:
-			selected = append(selected, member)
-		}
+	selection, err := ops.SelectApply(plan, ops.ApplySelectionInput{Names: names, Policy: ops.RequireWholeSelection})
+	if err != nil {
+		return nil, []string{err.Error()}
 	}
-	return selected, refusals
-}
-
-// groupByTeam is the selected members by running team, in the order the request
-// named them, so one team's members are applied together.
-func groupByTeam(members []plannedMember) [][]plannedMember {
-	var out [][]plannedMember
-	at := map[string]int{}
-	for _, member := range members {
-		index, ok := at[member.team.Name.String()]
-		if !ok {
-			at[member.team.Name.String()] = len(out)
-			out = append(out, []plannedMember{member})
-			continue
-		}
-		out[index] = append(out[index], member)
-	}
-	return out
+	return selection.Selected, selection.Refusals
 }
 
 // applyLaunch is the answer's starting state: the teams and members it applies,
@@ -105,10 +83,10 @@ func applyLaunch(selected []plannedMember) web.HQLaunch {
 		Action: web.ActionApply, Phase: "starting", Steps: []web.HQLaunchStep{},
 		Members: shortsOfStarts(selected),
 	}
-	first := selected[0].team
+	first := selected[0].Team
 	same := true
 	for _, member := range selected {
-		if member.team.Name != first.Name {
+		if member.Team.Name != first.Name {
 			same = false
 			break
 		}
@@ -129,7 +107,7 @@ func applyLaunch(selected []plannedMember) web.HQLaunch {
 func shortsOfStarts(members []plannedMember) []string {
 	out := make([]string, 0, len(members))
 	for _, member := range members {
-		out = append(out, member.start.Short.String())
+		out = append(out, member.Start.Short.String())
 	}
 	return out
 }
@@ -139,108 +117,28 @@ func shortsOfStarts(members []plannedMember) []string {
 // with the launcher the command line uses; the record keeps the plain prompt, so
 // the next comparison does not see the preamble as a change.
 func (h *hqRead) runApply(ctx context.Context, op *launchOp, selected []plannedMember) {
-	var undelivered []error
-	for _, group := range groupByTeam(selected) {
-		env, err := h.act.envAt(group[0].team.Project)
-		if err != nil {
-			h.finish(op, "failed", err.Error())
-			return
-		}
-		cat := env.Catalog(source.Disk{})
-		r, err := ops.BuildRunningIn(cat, env.ProjectRoot,
-			team.Running{Team: domainname.TeamFromObservation(group[0].team.Name.Observation()), Definition: group[0].team.Definition}, group[0].team.Place.Layer())
-		if err != nil {
-			h.finish(op, "failed", err.Error())
-			return
-		}
-		if err := h.applyGroup(ctx, op, env, cat, r, group); err != nil {
-			if launcher.IsUndelivered(err) {
-				undelivered = append(undelivered, err)
-				continue
-			}
-			if errors.Is(err, launcher.ErrCancelled) || ctx.Err() != nil {
-				h.finish(op, "cancelled", "")
-				return
-			}
-			h.finish(op, "failed", err.Error())
-			return
-		}
+	var names []string
+	for _, member := range selected {
+		names = append(names, member.Start.Name.String())
 	}
-	if err := errors.Join(undelivered...); err != nil {
-		h.finish(op, "failed", err.Error())
-		return
-	}
-	// The members are on their current prompts now, so the band is read again.
-	h.finish(op, "done", "")
-}
-
-// applyGroup applies one team's members, and records what they were handed.
-func (h *hqRead) applyGroup(ctx context.Context, op *launchOp, env team.Env, cat *catalog.Catalog, r *ops.Resolved, group []plannedMember) error {
-	l := launcherWithPort(r, 30000, io.Discard, h.act.herdrPort()).WithContext(ctx).WithoutNextHint()
-	l.Observe(func(event launcher.Event) { h.observe(op, *ops.ProgressOf(event)) })
-	var starts, restarts, resends []definition.Start
-	for _, member := range group {
-		switch member.how {
-		case web.ApplyStart:
-			starts = append(starts, member.start)
-		case web.ApplyRestart:
-			restarts = append(restarts, member.start)
-		default:
-			resends = append(resends, member.start)
-		}
-	}
-	var undelivered []error
-	if len(starts)+len(restarts) > 0 {
-		if err := l.Refresh(append(starts, restarts...), ops.CurrentPane()); err != nil {
-			if launcher.IsUndelivered(err) {
-				undelivered = append(undelivered, err)
-			} else {
-				if errors.Is(err, launcher.ErrCancelled) {
-					return err
-				}
-				// A start that stopped partway says who, why and what remains, the
-				// way a start from the team sheet does (d-5f02). An apply that never
-				// got to a start keeps the sentence it stopped with.
-				failure := l.Failure(err)
-				if failure.Member == "" && failure.Panes == 0 {
-					return err
-				}
-				return errors.New(startFailureText(failure,
-					h.projectNameIn(env.ProjectRoot), applyFixCommand(group)))
-			}
-		}
-	}
-	if len(resends) > 0 {
-		if err := l.Reprompt(promptsToResend(cat, env.ProjectRoot, r, resends)); err != nil {
-			if !launcher.IsUndelivered(err) {
-				return err
-			}
-			undelivered = append(undelivered, err)
-		}
-	}
-	all := make([]definition.Start, 0, len(group))
-	for _, member := range group {
-		all = append(all, member.start)
-		if !l.Received(member.start.Name.String()) {
-			continue
-		}
-		h.stepApplied(op, member)
-	}
-	recordReceivedLaunch(io.Discard, env, r, launchlog.CommandApply, all, l)
-	return errors.Join(undelivered...)
+	input := h.applyInput(names, func(event ops.Event) { h.observeApply(op, event) })
+	input.Accepted = func(selection ops.ApplySelection) { op.mu.Lock(); op.teams = selection.Teams(); op.mu.Unlock() }
+	_, err := ops.Apply(ctx, input)
+	h.finishOperation(ctx, op, err)
 }
 
 // stepApplied is one member's line of the apply's progress.
 func (h *hqRead) stepApplied(op *launchOp, member plannedMember) {
 	key := "apply.progress_resend"
-	switch member.how {
-	case web.ApplyStart:
+	switch member.How {
+	case ops.ApplyResend, ops.ApplyCannot:
+	case ops.ApplyStart:
 		key = "apply.progress_start"
-	case web.ApplyRestart:
+	case ops.ApplyRestart:
 		key = "apply.progress_restart"
 	}
 	op.mu.Lock()
-	op.stepLocked("member", i18n.Tf(key, member.start.Short.String()))
+	op.stepLocked("member", i18n.Tf(key, member.Start.Short.String()))
 	op.mu.Unlock()
 }
 

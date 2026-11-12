@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"maps"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -26,21 +25,13 @@ import (
 	"github.com/aq2bq/hergy/internal/check"
 	"github.com/aq2bq/hergy/internal/definition"
 	domainname "github.com/aq2bq/hergy/internal/domain/name"
-	"github.com/aq2bq/hergy/internal/herdr"
-	"github.com/aq2bq/hergy/internal/herdrcli"
 	"github.com/aq2bq/hergy/internal/i18n"
-	"github.com/aq2bq/hergy/internal/launcher"
-	"github.com/aq2bq/hergy/internal/launchlog"
 	"github.com/aq2bq/hergy/internal/newteam"
 	"github.com/aq2bq/hergy/internal/options"
 	"github.com/aq2bq/hergy/internal/profile"
 	"github.com/aq2bq/hergy/internal/scaffold"
-	"github.com/aq2bq/hergy/internal/screenlog"
 	"github.com/aq2bq/hergy/internal/source"
-	"github.com/aq2bq/hergy/internal/spawn"
-	"github.com/aq2bq/hergy/internal/status"
 	"github.com/aq2bq/hergy/internal/team"
-	"github.com/aq2bq/hergy/internal/turns"
 	"github.com/aq2bq/hergy/internal/version"
 )
 
@@ -810,18 +801,6 @@ func isFile(path string) bool {
 	return err == nil && !info.IsDir()
 }
 
-// sharedAgreementStops is the error a command that builds a prompt stops with
-// when a layer still holds agreement.yaml at its top, the file every team used
-// to share (d-31ad): hergy no longer reads it, and the rules it held would
-// silently stop reaching the members. It is nil when no layer holds one.
-func sharedAgreementStops(cat *catalog.Catalog) error {
-	docs := cat.SharedAgreements()
-	if len(docs) == 0 {
-		return nil
-	}
-	return sharedAgreementError(cat, docs)
-}
-
 // sharedAgreementError is the sentence for one or more leftover shared
 // agreements: the paths, and the two places a rule goes now, in the layer the
 // first file was found in.
@@ -847,6 +826,10 @@ func cliEvents(stdout, stderr io.Writer, env team.Env) func(ops.Event) {
 		}
 		if event.Text != "" {
 			fmt.Fprint(stdout, event.Text)
+		}
+		if event.Applied != nil {
+			member := event.Applied.Member
+			fmt.Fprintln(stdout, i18n.Tf("apply.applied", member.Start.Short.String(), applyHowWord(member.How)))
 		}
 		if event.Warning != "" {
 			fmt.Fprintln(stderr, event.Warning)
@@ -954,131 +937,55 @@ func printStopPlan(stdout io.Writer, plan ops.StopPlan, env team.Env) {
 // working. It only reads Herdr, so it runs outside a herdr-managed pane too.
 // With no team name it lists every running team, one block each.
 func runStatus(env team.Env, opts *options.Options, stdout io.Writer) error {
-	if opts.Team.String() == "" {
-		return runStatusList(env, opts, stdout)
-	}
-	r, err := ops.ResolveTeam(env.Catalog(source.Disk{}), env.ProjectRoot, opts)
-	if err != nil {
-		return statusOfARunningTeam(opts, err)
-	}
-	rows, err := launcherFor(r, opts.Timeout, stdout).Status(r.Starts)
+	rows, err := ops.Status(context.Background(), ops.StatusInput{MemberInput: memberInput(env, opts, stdout, io.Discard), Now: screenClock})
 	if err != nil {
 		return err
 	}
-	markScreens(rows)
-	if opts.JSON {
-		return writeStatusJSON(stdout, statusJSONTeam{
-			Team: r.Team.Name.String(), Definition: r.Team.Definition.Name.String(), Members: statusJSONRows(rows),
-		})
-	}
-	printHeader(stdout, r, env, true)
-	for _, row := range rows {
-		field(stdout, row.Name, row.Text())
-	}
-	printTurn(stdout, r.Team.Name.Observation())
-	return printStatusJudgement(stdout, rows, "")
-}
-
-// printTurn is the status lines about the turn: who holds it, from whom, why
-// the human does when hergy handed it over, whether the holder is being asked
-// who its result is for, who waits for whose answer; and whether the watcher's
-// pane is there at all (r-bc26, r-103d).
-func printTurn(stdout io.Writer, teamName domainname.Seen) {
-	dir, err := screenlog.DefaultDir()
-	if err != nil {
-		return
-	}
-	st, err := turns.Load(turns.Path(dir, teamName.String()), teamName)
-	if err != nil {
-		return
-	}
-	if st.Since.IsZero() {
-		// The watcher has not seen this team: there is no turn to speak of.
-		if !watcherPresent(teamName) {
-			fmt.Fprint(stdout, i18n.Tf("status.no_watcher", teamName))
-		}
-		return
-	}
-	switch {
-	case st.Holder == turns.Human:
-		why := ""
-		if st.Why != "" {
-			why = i18n.T("status.turn_why_" + st.Why)
-		}
-		field(stdout, i18n.T("status.turn"), i18n.Tf("status.turn_human", st.From, why))
-	case st.Asked[st.Holder].Seq != 0:
-		field(stdout, i18n.T("status.turn"), i18n.Tf("status.turn_holder_asked", st.Holder, st.From))
-	default:
-		field(stdout, i18n.T("status.turn"), i18n.Tf("status.turn_holder", st.Holder, st.From))
-	}
-	if waits := st.Waits(); len(waits) > 0 {
-		field(stdout, i18n.T("status.turn_waits"), strings.Join(waits, i18n.T("list.separator")))
-	}
-	if !watcherPresent(teamName) {
-		fmt.Fprint(stdout, i18n.Tf("status.no_watcher", teamName))
-	}
-}
-
-// watcherPresent is whether a pane named for the team's watcher is live in herdr.
-func watcherPresent(teamName domainname.Seen) bool {
-	panes, err := ops.HerdrPanes()
-	if err != nil {
-		return true // nothing to say when herdr cannot be asked
-	}
-	for _, pane := range panes {
-		if pane.Label.String() == launcher.WatcherPane(teamName).String() {
-			return true
-		}
-	}
-	return false
-}
-
-// statusOfARunningTeam keeps the reason a running team's definition cannot be
-// read, and adds the one thing that can still be done about it: down closes the
-// team's panes by name, so a team is not stuck when its definition is out of
-// reach (r-e494's follow-up).
-func statusOfARunningTeam(opts *options.Options, reason error) error {
-	running, err := ops.RunningTeams()
-	if err != nil {
-		return reason
-	}
-	if _, ok := team.FindRunning(running, opts.Team.String()); !ok {
-		return reason
-	}
-	return errors.New(reason.Error() + "\n" + i18n.Tf("status.can_down", opts.Team.String()))
-}
-
-// runStatusList is status with no team name: every running team, with its team
-// definition name, its counts, and the same judgement.
-func runStatusList(env team.Env, opts *options.Options, stdout io.Writer) error {
-	tabs, agents, agentsRead, err := ops.HerdrRead()
-	if err != nil {
-		return err
-	}
-	running := readRunningTeams(env, herdrNow{tabs: tabs, agents: agents, agentsRead: agentsRead})
-	if len(running) == 0 {
+	if opts.Team.String() != "" {
+		one := rows[0]
+		r := one.Team.Built
 		if opts.JSON {
+			return writeStatusJSON(stdout, statusJSONTeam{Team: one.Team.Name.String(), Definition: one.Team.Definition, Members: statusJSONRows(one.Rows)})
+		}
+		printHeader(stdout, r, env, true)
+		for _, row := range one.Rows {
+			field(stdout, row.Name, row.Text())
+		}
+		for _, row := range one.Turn {
+			field(stdout, row.Label, row.Value)
+		}
+		fmt.Fprint(stdout, one.NoWatcher)
+		if one.Judgement != "" {
+			fmt.Fprintln(stdout, one.Judgement)
+		}
+		return nil
+	}
+	return printStatusTeams(stdout, rows, opts.JSON)
+}
+func printStatusTeams(stdout io.Writer, rows []ops.TeamStatus, asJSON bool) error {
+	if len(rows) == 0 {
+		if asJSON {
 			return printStatusJSONList(stdout, nil)
 		}
 		fmt.Fprintln(stdout, i18n.T("status.none"))
 		return nil
 	}
 	var teams []statusJSONTeam
-	for i, entry := range running {
-		if !opts.JSON && i > 0 {
-			fmt.Fprintln(stdout)
-		}
-		r := entry.Built
-		if r == nil {
-			// A team booted from another project's definition is still listed,
-			// so one such team does not hide the rest. A definition that is here
-			// but does not read says why, with its file's path; only a
-			// definition that is not here says "another project".
-			if opts.JSON {
+	for i, one := range rows {
+		entry := one.Team
+		if asJSON {
+			if entry.Built == nil {
 				teams = append(teams, statusJSONTeam{Team: entry.Name.String(), Definition: entry.Definition, Error: entry.Broken})
 				continue
 			}
-			field(stdout, label("team"), startedFrom(entry.Name.String(), entry.Definition))
+			teams = append(teams, statusJSONTeam{Team: entry.Name.String(), Definition: entry.Definition, Error: entry.Broken, Members: statusJSONRows(one.Rows)})
+			continue
+		}
+		if i > 0 {
+			fmt.Fprintln(stdout)
+		}
+		field(stdout, label("team"), startedFrom(entry.Name.String(), entry.Definition))
+		if entry.Built == nil {
 			if entry.Elsewhere {
 				fmt.Fprintf(stdout, "  %s\n", i18n.T("status.definition_elsewhere"))
 			} else {
@@ -1086,26 +993,13 @@ func runStatusList(env team.Env, opts *options.Options, stdout io.Writer) error 
 			}
 			continue
 		}
-		rows, err := launcherFor(r, opts.Timeout, stdout).Status(r.Starts)
-		if err != nil {
-			return err
-		}
-		markScreens(rows)
-		if opts.JSON {
-			teams = append(teams, statusJSONTeam{
-				Team: r.Team.Name.String(), Definition: r.Team.Definition.Name.String(), Members: statusJSONRows(rows),
-			})
-			continue
-		}
-		field(stdout, label("team"), startedFrom(r.Team.Name.String(), r.Team.Definition.Name.String()))
-		membersCount, workers := status.Counts(rows)
-		indentField(stdout, 1, label("members"), strconv.Itoa(membersCount))
-		indentField(stdout, 1, label("workers"), strconv.Itoa(workers))
-		if err := printStatusJudgement(stdout, rows, "  "); err != nil {
-			return err
+		indentField(stdout, 1, label("members"), strconv.Itoa(one.Members))
+		indentField(stdout, 1, label("workers"), strconv.Itoa(one.Workers))
+		if one.Judgement != "" {
+			fmt.Fprintf(stdout, "  %s\n", one.Judgement)
 		}
 	}
-	if opts.JSON {
+	if asJSON {
 		return printStatusJSONList(stdout, teams)
 	}
 	return nil
@@ -1122,7 +1016,7 @@ type statusRowJSON struct {
 	Worker           bool   `json:"worker,omitempty"`
 }
 
-func statusJSONRows(rows []status.Row) []statusRowJSON {
+func statusJSONRows(rows []ops.StatusRow) []statusRowJSON {
 	out := make([]statusRowJSON, 0, len(rows))
 	for _, row := range rows {
 		state := row.State
@@ -1165,340 +1059,50 @@ func writeStatusJSON(w io.Writer, value any) error {
 	return enc.Encode(value)
 }
 
-// screenMarks is what status keeps between runs, for one command line: the
-// member screens read last time, and the ones this run will leave behind. now is
-// a field, so a test can fix the clock and check the "N min" wording.
-type screenMarks struct {
-	log  screenlog.Log
-	prev map[string]screenlog.Entry
-	next map[string]screenlog.Entry
-	now  func() time.Time
-}
-
-// screenClock is the clock status stamps a fresh screen with. It is a variable
-// so a test can fix the time and check the "N min" wording without waiting.
 var screenClock = time.Now
-
-// openScreenMarks reads this machine's record of member screens. A record that
-// cannot be read leaves the marks off: the extra line is not worth failing the
-// command for.
-func openScreenMarks() (*screenMarks, error) {
-	log, err := screenlog.Open()
-	if err != nil {
-		return nil, err
-	}
-	prev, err := log.Read()
-	if err != nil {
-		return nil, err
-	}
-	next := make(map[string]screenlog.Entry, len(prev))
-	maps.Copy(next, prev)
-	return &screenMarks{log: log, prev: prev, next: next, now: screenClock}, nil
-}
-
-// mark fills each row's unchanged mark and records this run's screens. A member
-// whose screen is the same as last time keeps the time that screen was first
-// seen, so the mark counts the whole time it has stood, not the time since the
-// last status. A member whose screen is new starts that clock now.
-func (m *screenMarks) mark(rows []status.Row) {
-	now := m.now()
-	for i := range rows {
-		row := &rows[i]
-		if row.Screen == "" {
-			continue
-		}
-		entry, seen := m.prev[row.Name]
-		if seen && entry.Hash == row.Screen {
-			if row.Live && row.State == "working" {
-				minutes := int(now.Sub(entry.At).Minutes())
-				row.UnchangedMinutes = &minutes
-			}
-			continue
-		}
-		m.next[row.Name] = screenlog.Entry{Hash: row.Screen, At: now}
-	}
-}
-
-// save writes the record. A record that cannot be written is left, not reported.
-func (m *screenMarks) save() { _ = m.log.Write(m.next) }
-
-// markScreens records the screens of one team's rows, best effort: a machine
-// whose state directory cannot be read still prints status.
-func markScreens(rows []status.Row) {
-	marks, err := openScreenMarks()
-	if err != nil {
-		return
-	}
-	marks.mark(rows)
-	marks.save()
-}
 
 // runFocus moves the focus to one member's pane.
 func runFocus(env team.Env, opts *options.Options, stdout io.Writer) error {
-	r, err := ops.ResolveTeam(env.Catalog(source.Disk{}), env.ProjectRoot, opts)
-	if err != nil {
-		return err
-	}
-	member, err := r.Member(opts.Member)
-	if err != nil {
-		return err
-	}
-	return launcherFor(r, opts.Timeout, stdout).Focus(member)
+	return ops.Focus(context.Background(), ops.FocusInput{MemberInput: memberInput(env, opts, stdout, io.Discard), Policy: ops.FocusConfigured})
 }
-
-// runNudge sends one member a short push to carry on, only when it is idle or
-// done. --dry prints the message and sends nothing.
 func runNudge(env team.Env, opts *options.Options, stdout io.Writer) error {
-	resolve := ops.ResolveTeam
-	if opts.Dry {
-		resolve = ops.ResolveTeamDry
-	}
-	r, err := resolve(env.Catalog(source.Disk{}), env.ProjectRoot, opts)
-	if err != nil {
-		return err
-	}
-	member, err := r.Member(opts.Member)
-	if err != nil {
-		return err
-	}
-	body := opts.Body
-	if body == "" {
-		body = i18n.T("nudge.default")
-	}
-	from := domainname.Seen{}
-	if !opts.Dry {
-		from = senderName(r, ops.CurrentPane())
-	}
-	text := sendText(from.String(), body)
-	if opts.Dry {
-		fmt.Fprintf(stdout, i18n.T("send.dry"), member.Name.String(), text)
-		return nil
-	}
-	return launcherFor(r, opts.Timeout, stdout).Nudge(member, text)
+	return ops.Nudge(context.Background(), memberInput(env, opts, stdout, io.Discard), opts.Body)
 }
-
-// runStop interrupts one member's current turn. --dry prints what would stop and
-// reads nothing.
 func runStop(env team.Env, opts *options.Options, stdout io.Writer) error {
-	resolve := ops.ResolveTeam
-	if opts.Dry {
-		resolve = ops.ResolveTeamDry
+	out, err := ops.StopMember(context.Background(), memberInput(env, opts, stdout, io.Discard))
+	if out.Next != "" {
+		printNext(stdout, out.Next)
 	}
-	r, err := resolve(env.Catalog(source.Disk{}), env.ProjectRoot, opts)
-	if err != nil {
-		return err
-	}
-	member, err := r.Member(opts.Member)
-	if err != nil {
-		return err
-	}
-	if opts.Dry {
-		fmt.Fprintf(stdout, i18n.T("stop.dry"), member.Name.String())
-		return nil
-	}
-	stopped, err := launcherFor(r, opts.Timeout, stdout).Stop(member, ops.CurrentPane())
-	if err != nil {
-		// esc twice did not end the turn. The next step is the same one a stop
-		// that worked names: the member has to be started again.
-		if _, ok := errors.AsType[launcher.StopNotStopped](err); ok {
-			printNext(stdout, "refresh "+member.Name.String()+" --team "+r.Team.Name.String())
-		}
-		return err
-	}
-	if stopped {
-		printNext(stdout, "refresh "+member.Name.String()+" --team "+r.Team.Name.String())
-	}
-	return nil
+	return err
+}
+func sendText(from, body string) string { return ops.SendText(from, body) }
+func senderName(r *ops.Resolved, pane domainname.PaneID) domainname.Seen {
+	return ops.SenderName(r, pane, nil)
 }
 
-// sendText heads a message with who it is from, the shape a member's own message
-// carries. An empty from is the human.
-func sendText(from, body string) string {
-	if from == "" {
-		from = i18n.T("send.who_human")
-	}
-	return i18n.Tf("send.from", from) + " " + body
+func memberInput(env team.Env, opts *options.Options, stdout, stderr io.Writer) ops.MemberInput {
+	return ops.MemberInput{Env: env, Team: opts.Team, Member: opts.Member, All: opts.All, Dry: opts.Dry, Timeout: opts.Timeout, RequirePane: true, ManagedPane: os.Getenv("HERDR_ENV") == "1", Observe: cliEvents(stdout, stderr, env)}
 }
-
-// senderName is which member of this team typed the command, read from the pane
-// hergy runs in: the herdr name of the member whose agent runs there, or "" when
-// the pane is not one of the team's members (the human).
-func senderName(r *ops.Resolved, selfPane domainname.PaneID) domainname.Seen {
-	if selfPane == "" {
-		return domainname.Seen{}
+func displayMemberResult(out ops.MemberResult, err error, env team.Env, opts *options.Options, stdout io.Writer) error {
+	if err == nil && opts.Dry && out.Plan != nil {
+		return dryPlan(stdout, env, out.Plan.Resolved, out.Plan.Mode, out.Plan.Members, opts, out.Plan.Next)
 	}
-	agent, err := herdr.New(herdrcli.New(os.Getenv("HERGY_HERDR"))).Agent(selfPane)
-	if err != nil {
-		return domainname.Seen{}
+	if out.Next != "" {
+		printNext(stdout, out.Next)
 	}
-	for i := range r.Starts {
-		if r.Starts[i].Name.String() == agent.Name.String() {
-			return agent.Name
-		}
-	}
-	return domainname.Seen{}
+	return operationError(err)
 }
-
-// brokenTeamLine is why a running team's definition cannot be read, as one line:
-// the file as a person writes it and the reason, the way hergy validate writes a
-// broken file.
-func brokenTeamLine(env team.Env, err error) string {
-	if readErr, ok := errors.AsType[*catalog.ReadError](err); ok {
-		return breakLine(env, readErr.Path, err)
-	}
-	return strings.Join(strings.Fields(err.Error()), " ")
-}
-
-// printStatusJudgement prints the judgement line for the rows: who is waiting on
-// the human, else that nobody is working. A working team with nobody blocked
-// gets no line. indent, when set, is written before the line.
-func printStatusJudgement(stdout io.Writer, rows []status.Row, indent string) error {
-	if line := status.Judge(rows).Text(); line != "" {
-		fmt.Fprintf(stdout, "%s%s\n", indent, line)
-	}
-	return nil
-}
-
 func runRefresh(ctx context.Context, env team.Env, opts *options.Options, stdout, stderr io.Writer) error {
-	cat := env.Catalog(source.Disk{})
-	if err := sharedAgreementStops(cat); err != nil {
-		return err
-	}
-	r, err := ops.ResolveTeam(cat, env.ProjectRoot, opts)
-	if err != nil {
-		return err
-	}
-	memberName := opts.Member
-	if opts.All {
-		memberName = ""
-	}
-	selected, err := r.SelectStarts(memberName)
-	if err != nil {
-		return err
-	}
-	// A member the team has no pane for is added by apply now (d-36ef): refresh
-	// restarts a member that is already running, or one whose pane is still
-	// there at its shell. The check reads herdr the same way the real refresh
-	// does, so --dry refuses what a real run would.
-	newPanes, err := launcherFor(r, opts.Timeout, stdout).RefreshDry(selected, ops.CurrentPane())
-	if err != nil {
-		return err
-	}
-	if len(newPanes.Members) > 0 {
-		shorts := make([]string, 0, len(newPanes.Members))
-		for _, name := range newPanes.Members {
-			shorts = append(shorts, domainname.ShortIn(name.Observation(), r.Team.Name.Observation()).String())
-		}
-		return i18n.Errorf("refresh.use_apply", strings.Join(shorts, i18n.T("list.separator")))
-	}
-	if opts.Dry {
-		// --dry stops and makes nothing, but it shows the same refusal the real
-		// refresh would, so it reads the live agents, tabs and panes too (like
-		// down --dry).
-		next := "refresh " + memberName
-		if opts.All {
-			next = "refresh --all"
-		}
-		next += " --team " + r.Team.Name.String()
-		return dryPlan(stdout, env, r, "restart", selected, opts, next)
-	}
-	if err := requireHerdrPane(); err != nil {
-		return err
-	}
-	printHeader(stdout, r, env, true)
-	l := launcherFor(r, opts.Timeout, stdout)
-	err = runLaunch(ctx, stderr, l, nil, func() error { return l.Refresh(selected, ops.CurrentPane()) })
-	if err != nil && !launcher.IsUndelivered(err) {
-		return err
-	}
-	recordReceivedLaunch(stderr, env, r, launchlog.CommandRefresh, selected, l)
-	return err
+	out, err := ops.Refresh(ctx, memberInput(env, opts, stdout, stderr))
+	return displayMemberResult(out, err, env, opts, stdout)
 }
-
 func runReprompt(ctx context.Context, env team.Env, opts *options.Options, stdout, stderr io.Writer) error {
-	cat := env.Catalog(source.Disk{})
-	if err := sharedAgreementStops(cat); err != nil {
-		return err
-	}
-	resolve := ops.ResolveTeam
-	if opts.Dry {
-		resolve = ops.ResolveTeamDry
-	}
-	r, err := resolve(cat, env.ProjectRoot, opts)
-	if err != nil {
-		return err
-	}
-	memberName := opts.Member
-	if opts.All {
-		memberName = ""
-	}
-	selected, err := r.SelectStarts(memberName)
-	if err != nil {
-		return err
-	}
-	if opts.Dry {
-		next := "reprompt " + memberName
-		if opts.All {
-			next = "reprompt --all"
-		}
-		next += " --team " + r.Team.Name.String()
-		return dryPlan(stdout, env, r, "reprompt", selected, opts, next)
-	}
-	if err := requireHerdrPane(); err != nil {
-		return err
-	}
-	printHeader(stdout, r, env, true)
-	l := launcherFor(r, opts.Timeout, stdout)
-	sent := promptsToResend(cat, env.ProjectRoot, r, selected)
-	err = runLaunch(ctx, stderr, l, nil, func() error { return l.Reprompt(sent) })
-	if err != nil && !launcher.IsUndelivered(err) {
-		return err
-	}
-	recordReceivedLaunch(stderr, env, r, launchlog.CommandReprompt, selected, l)
-	return err
+	out, err := ops.Reprompt(ctx, memberInput(env, opts, stdout, stderr))
+	return displayMemberResult(out, err, env, opts, stdout)
 }
-
 func runHire(ctx context.Context, env team.Env, opts *options.Options, stdout, stderr io.Writer) error {
-	cat := env.Catalog(source.Disk{})
-	if err := sharedAgreementStops(cat); err != nil {
-		return err
-	}
-	resolve := ops.ResolveTeam
-	if opts.Dry {
-		// A plan is made from the team definition alone: a team that is not
-		// running can be planned for, and herdr is not read (r-fe31).
-		resolve = ops.ResolveTeamDry
-	}
-	r, err := resolve(cat, env.ProjectRoot, opts)
-	if err != nil {
-		return err
-	}
-	worker, err := spawn.Plan(r.ModelTeamName(), r.Starts, r.Profiles, opts.Name, opts.Purpose, opts.Task, opts.From)
-	if err == nil {
-		ops.WireStart(worker, r.Team.Name.String())
-		printSignalNotes(stdout, []definition.Start{*worker})
-	}
-	if err != nil {
-		return err
-	}
-	if opts.Dry {
-		// A hire has no obvious next step: the worker is named by the member
-		// that hires it, so only the plan is shown.
-		return dryPlan(stdout, env, r, "spawn", []definition.Start{*worker}, opts, "")
-	}
-	if err := requireHerdrPane(); err != nil {
-		return err
-	}
-	printHeader(stdout, r, env, true)
-	l := launcherFor(r, opts.Timeout, stdout)
-	err = runLaunch(ctx, stderr, l, nil, func() error { return l.Hire(worker, opts.Task) })
-	if err != nil && !launcher.IsUndelivered(err) {
-		return err
-	}
-	// The worker is up, so the record says who added it (d-b4b9). The activity
-	// screen reads the line; the launch itself does not stand on it.
-	recordHire(stderr, env, r, *worker)
-	return err
+	out, err := ops.Hire(ctx, ops.HireInput{MemberInput: memberInput(env, opts, stdout, stderr), Name: opts.Name, Purpose: opts.Purpose, Task: opts.Task, From: opts.From})
+	return displayMemberResult(out, err, env, opts, stdout)
 }
 
 // dryPlan is the --dry output: the same plan as JSON with --json, and a
@@ -1513,50 +1117,6 @@ func dryPlan(stdout io.Writer, env team.Env, r *ops.Resolved, mode string, membe
 		printNext(stdout, next)
 	}
 	return nil
-}
-
-// runLaunch runs one Herdr operation, and on a failure prints the progress
-// record and stops. say, when set, turns the error of a failure into the sentence
-// a person reads before the record: a boot speaks the screen's own words
-// (d-5f02), and the other operations keep their error.
-func runLaunch(ctx context.Context, stderr io.Writer, l *launcher.Launcher, say func(error) error, fn func() error) error {
-	run := fn
-	if say != nil {
-		run = func() error {
-			err := fn()
-			if err == nil {
-				return nil
-			}
-			return say(err)
-		}
-	}
-	return runOperation(ctx, stderr, l.ReportFailure, l.ReportInterrupted, run)
-}
-
-// runOperation runs one Herdr operation, and on Ctrl-C stops with 130. failure,
-// when set, says where a failed operation stopped; interrupted, when set, says
-// where an interrupted one stopped. The two differ: an interruption while hergy
-// waits on a member's question adds how to go on.
-func runOperation(ctx context.Context, stderr io.Writer, failure, interrupted func(io.Writer), fn func() error) error {
-	done := make(chan error, 1)
-	go func() { done <- fn() }()
-	select {
-	case err := <-done:
-		if err != nil {
-			fail(stderr, err)
-			if failure != nil {
-				failure(stderr)
-			}
-			return reportedError{err: err, code: 1}
-		}
-		return nil
-	case <-ctx.Done():
-		fmt.Fprint(stderr, i18n.T("launcher.interrupted"))
-		if interrupted != nil {
-			interrupted(stderr)
-		}
-		return reportedError{err: context.Canceled, code: 130}
-	}
 }
 
 // printHeader is the short provenance every team command shows: the team it
@@ -1731,14 +1291,6 @@ func workersText(workers []definition.WorkerNode) string {
 		parts[i] = fmt.Sprintf(i18n.T("workers.allowed_item"), worker.Purpose, worker.Profile)
 	}
 	return strings.Join(parts, i18n.T("list.separator"))
-}
-
-// requireHerdrPane refuses to touch Herdr outside a Herdr-managed shell pane.
-func requireHerdrPane() error {
-	if os.Getenv("HERDR_ENV") != "1" || ops.CurrentPane() == "" {
-		return i18n.Errorf("error.not_under_herdr")
-	}
-	return nil
 }
 
 func envSummary(env map[string]string) string {

@@ -44,7 +44,7 @@ func TestPreviousDocumentsBelongToTheirReader(t *testing.T) {
 			for _, role := range []string{"first", "second"} {
 				member := launchlog.Member{Name: fixtureSeen("demo-" + role), Short: role}
 				prompt := "You are " + member.Name.String() + " (" + role + ") on team demo.\n\n" + rendered
-				old := oldDocs(log, record, member, prompt)
+				old := ops.OldDocs(log, record, member, prompt)
 				if len(old) != 1 || old["/roles/"+role+ext] != text {
 					t.Fatalf("%s read %+v", role, old)
 				}
@@ -85,12 +85,12 @@ func TestRecordedMemberDocsOverridePromptText(t *testing.T) {
 	}
 	record := launchlog.Record{Docs: []launchlog.Doc{{Path: "/roles/old.md", SHA256: hash}, {Path: "/roles/peer.md", SHA256: hash}}}
 	member := launchlog.Member{Docs: []string{"/roles/old.md"}}
-	got := oldDocs(log, record, member, "same text")
+	got := ops.OldDocs(log, record, member, "same text")
 	if len(got) != 1 || got["/roles/old.md"] != "same text" {
 		t.Fatalf("member documents: %+v", got)
 	}
 	member.Docs = []string{}
-	if got := oldDocs(log, record, member, "same text"); len(got) != 0 {
+	if got := ops.OldDocs(log, record, member, "same text"); len(got) != 0 {
 		t.Fatalf("empty reading: %+v", got)
 	}
 }
@@ -109,7 +109,7 @@ func TestRosterChangeHasNoOtherMembersDocumentsOnEitherDeliveryPath(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	resent := promptsToResend(cat, env.ProjectRoot, r, r.Starts)
+	resent := ops.PromptsToResend(cat, env.ProjectRoot, r, r.Starts)
 	for _, member := range resent {
 		if member.Short.String() == "lead" && strings.Contains(strings.Split(member.Prompt, "You are ")[0], "builder.md") {
 			t.Fatalf("reprompt leaked peer document: %s", member.Prompt)

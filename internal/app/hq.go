@@ -33,7 +33,8 @@ import (
 
 // hqRead is one serve's headquarters reading.
 type hqRead struct {
-	act *activityRead
+	act   *activityRead
+	locks *ops.OperationLocks
 	// mu guards the starts: an HTTP request reads one while its goroutine
 	// writes it.
 	mu sync.Mutex
@@ -52,6 +53,7 @@ type hqRead struct {
 // launchOp is one start from the screens, with the state the polling reads.
 type launchOp struct {
 	mu       sync.Mutex
+	teams    []string
 	launch   web.HQLaunch
 	cancel   func()
 	finished time.Time
@@ -59,7 +61,7 @@ type launchOp struct {
 
 // newHQRead builds the headquarters reading on one activity reading.
 func newHQRead(act *activityRead) *hqRead {
-	return &hqRead{act: act, ops: map[string]*launchOp{}, started: time.Now()}
+	return &hqRead{act: act, locks: &ops.OperationLocks{}, ops: map[string]*launchOp{}, started: time.Now()}
 }
 
 // The activityRead answers the headquarters interface itself, so the server that
@@ -442,6 +444,10 @@ func hqOperationError(err error) error {
 			status = http.StatusConflict
 		case "unavailable":
 			status = http.StatusServiceUnavailable
+		case "notfound":
+			status = http.StatusNotFound
+		case "internal":
+			status = http.StatusInternalServerError
 		}
 		return &web.HQError{Status: status, At: refusal.At, Text: refusal.Error(), SuggestedName: refusal.SuggestedName}
 	}

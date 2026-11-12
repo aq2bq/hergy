@@ -40,6 +40,7 @@ type WorkspaceInput struct {
 
 // StartInput is a team start, shared by CLI and screens.
 type StartInput struct {
+	Locks                         *OperationLocks
 	Env                           team.Env
 	Definition                    domainname.DefinitionName
 	Name                          string
@@ -92,6 +93,12 @@ func StartTeam(ctx context.Context, in StartInput) (*Plan, error) {
 	if _, err = startName(in, true); err != nil {
 		return nil, err
 	}
+	child, releaseOperation, err := in.Locks.acquire(ctx, []string{r.Team.Name.String()})
+	if err != nil {
+		return nil, err
+	}
+	defer releaseOperation()
+	ctx = child
 	workspace := herdr.Workspace{}
 	if !in.Workspace.Current {
 		workspace, err = ChooseWorkspace(in.Env, in.Workspace, in.Port)
@@ -118,7 +125,7 @@ func StartTeam(ctx context.Context, in StartInput) (*Plan, error) {
 		if project == "" {
 			project = filepath.Base(in.Env.ProjectRoot.String())
 		}
-		return errors.New(StartFailureText(f, project, FailedStartCommand(f, r.Team.Name.String(), command)))
+		return &LaunchFailure{Failed: f, Project: project, Command: FailedStartCommand(f, r.Team.Name.String(), command)}
 	}
 	err = execute(ctx, l, in.Observe, transform, func() error {
 		if in.Workspace.Current {

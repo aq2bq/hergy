@@ -25,6 +25,7 @@ import (
 // and cancellation adapter; the CLI requires a managed pane. PlanOnly and Dry
 // pass through the same resolution and leftover reading as execution.
 type StopInput struct {
+	Locks           *OperationLocks
 	Env             team.Env
 	Target          StopTarget
 	Layer           string
@@ -163,6 +164,7 @@ func StopTeam(ctx context.Context, in StopInput) (out StopResult, err error) {
 	out.Leftovers = team.GitLeftovers(plan.Project, plan.Owner.Since, dirs)
 	out.HasLeftovers = true
 	cleanupErr := clearTurn(plan.Team.Team.String())
+	in.Locks.CancelTeam(plan.Team.Team.String())
 	finishLaunchFor(plan.Team.Team.Observation(), in.PendingLaunches, in.Now)
 	if cleanupErr != nil {
 		return out, cleanupErr

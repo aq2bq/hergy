@@ -39,7 +39,7 @@ confirmed_send:
 # and the decision that allowed it (gy's d-…). An entry without all four fails
 # the gate before the code is read.
 allow:
-  - path: internal/app/app.go
+  - path: internal/ops/status.go
     name: Counts
     why: 動いているチームの人数と作業者を数える、一覧の行とは別の数え上げ（status.Counts）
     decision: d-4d88
