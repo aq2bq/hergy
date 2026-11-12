@@ -17,8 +17,9 @@ import {
   u
 } from "./nav-zn7g81kr.js";
 import {
+  mark,
   read2
-} from "./nav-5jb4c81a.js";
+} from "./nav-ncqt2ghs.js";
 
 // lib/confirm.tsx
 var currentAsk = y(null);
@@ -36,6 +37,7 @@ var takeBack = () => {
   currentAsk.value = null;
 };
 function ConfirmDialog() {
+  mark("confirm:render:start");
   const ask = currentAsk.value;
   const dialog = A(null);
   const cancel = A(null);
@@ -61,9 +63,11 @@ function ConfirmDialog() {
     cancel.current?.focus({ preventScroll: true });
     return;
   }, [ask]);
-  if (!ask)
+  if (!ask) {
+    mark("confirm:render:end", { open: false });
     return null;
-  return /* @__PURE__ */ u("dialog", {
+  }
+  const view = /* @__PURE__ */ u("dialog", {
     class: "confirm",
     ref: dialog,
     "aria-labelledby": "confirm-title",
@@ -104,6 +108,8 @@ function ConfirmDialog() {
       })
     ]
   });
+  mark("confirm:render:end", { open: true });
+  return view;
 }
 function confirmView(_host) {
   return k(ConfirmDialog, {});

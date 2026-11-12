@@ -20,15 +20,15 @@ import {
   bases2,
   roleModel2,
   teamModel2
-} from "../chunk/nav-5jb4c81a.js";
+} from "../chunk/nav-ncqt2ghs.js";
 import {
   dangerAttrs,
   runDanger
-} from "../chunk/nav-t8p8j4hq.js";
+} from "../chunk/nav-pfvc24x1.js";
 import {
   takeDraft2,
   setDirty2
-} from "../chunk/nav-vn3nd3vh.js";
+} from "../chunk/nav-bsvbpa2b.js";
 import {
   rowAddress,
   readOpen2,
@@ -42,7 +42,7 @@ import {
   Badge2,
   Vm2,
   RuleDoc2
-} from "../chunk/nav-mys60rer.js";
+} from "../chunk/nav-6kxs92mx.js";
 import {
   ConflictNotice,
   roleProblems,
@@ -51,12 +51,12 @@ import {
   restoreRole,
   editRoleAssignments,
   YamlTab2
-} from "../chunk/nav-bj16zp38.js";
+} from "../chunk/nav-hvx192pf.js";
 import {
   copyGroupOf,
   projectOfGroup,
   ProjectView
-} from "../chunk/nav-dyqtpxcd.js";
+} from "../chunk/nav-k6cajr7a.js";
 import {
   Field
 } from "../chunk/nav-9htrbyn7.js";
@@ -64,7 +64,7 @@ import {
   movePage,
   installWheel
 } from "../chunk/nav-31sebn46.js";
-import"../chunk/nav-74jj0fve.js";
+import"../chunk/nav-pxepfcmw.js";
 
 // roles/state.ts
 var view = document.getElementById("view");

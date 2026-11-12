@@ -1,3 +1,4 @@
+import { mark } from './diagnostics.js';
 import type { PromptRequest } from '../teams/prompt-source.js';
 import type { EditedRequest } from './editing.js';
 // lib/api.ts — the one way a screen talks to the server (spec-boundary 7, r-2cc2).
@@ -59,6 +60,7 @@ export class Refusal extends Error {
 // the header, so POST, PUT and DELETE are one shape (a DELETE carries no body at
 // all). Nothing here decides what a screen does with a non-OK answer.
 async function raw<T = unknown>(method: string, url: string, payload?: unknown, { signal: stop }: CallOptions = {}): Promise<RawAnswer<T>> {
+  mark('api:prepare:start', { method, url });
   const project = new URLSearchParams(location.search).get('project');
   if (project && /^\/api\/(team|role|profile)(\/|\?|$)/.test(url)) {
     const target = new URL(url, location.origin);
@@ -73,14 +75,17 @@ async function raw<T = unknown>(method: string, url: string, payload?: unknown, 
     headers['Content-Type'] = 'application/json';
     opts.body = JSON.stringify(payload);
   }
+  mark('api:request', { method, url });
   const response = await fetch(url, opts);
   const text = await response.text();
+  mark('api:response', { method, url, status: response.status, length: text.length });
   let json: T | null = null;
   if ((response.headers.get('content-type') || '').includes('application/json')) {
     // The boundary: the text the server wrote is the only place a shape is
     // entered from outside TypeScript. Every screen reads the typed answer.
     try { json = JSON.parse(text) as T; } catch { json = null; }
   }
+  mark('api:parsed', { method, url, length: text.length });
   return { ok: response.ok, status: response.status, json, text };
 }
 

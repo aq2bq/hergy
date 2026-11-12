@@ -17,8 +17,9 @@ import {
   u
 } from "./nav-zn7g81kr.js";
 import {
+  mark,
   problemText2
-} from "./nav-5jb4c81a.js";
+} from "./nav-ncqt2ghs.js";
 import {
   Field
 } from "./nav-9htrbyn7.js";
@@ -564,8 +565,9 @@ function ProseIdentity({ heading }) {
   });
 }
 function ProseHeader({ heading, text, children, position }) {
+  mark("prose:header:start", { id: heading.id || heading.name, length: text.length });
   const count = chars(text), template = heading.template || 0, total = count + template;
-  return /* @__PURE__ */ u("header", {
+  const view = /* @__PURE__ */ u("header", {
     class: "prose-head",
     children: [
       !heading.compact ? /* @__PURE__ */ u(ProseIdentity, {
@@ -616,10 +618,14 @@ function ProseHeader({ heading, text, children, position }) {
       })
     ]
   });
+  mark("prose:header:end", { id: heading.id || heading.name });
+  return view;
 }
 function ProseEditor({ text, heading, onChange, transfer }) {
+  mark("prose:render:start", { id: heading.id || heading.name, length: text.length });
   const [outline, setOutline] = d(false), [cursor, setCursor] = d(0), [focused, setFocused] = d(false);
   const parts = blocks(text);
+  mark("prose:blocks:end", { id: heading.id || heading.name, count: parts.length });
   const narrow = widths.value[heading.id || ""] === "narrow", showOutline = outline || narrow;
   const input = A(null);
   const [menu, setMenu] = d(null);
@@ -629,23 +635,34 @@ function ProseEditor({ text, heading, onChange, transfer }) {
     if (!field)
       return;
     const fit = () => {
-      if (!field.clientWidth)
-        return;
-      const board = field.closest(".prose-workspace");
-      if (board && board.getAttribute("data-mode") !== "single") {
-        field.style.height = "";
-        return;
+      mark("prose:measure:start", { id: heading.id || heading.name });
+      try {
+        const measuredWidth = field.clientWidth;
+        mark("prose:measure:width", { id: heading.id || heading.name, width: measuredWidth });
+        if (!measuredWidth)
+          return;
+        const board = field.closest(".prose-workspace");
+        if (board && board.getAttribute("data-mode") !== "single") {
+          field.style.height = "";
+          return;
+        }
+        field.style.height = "auto";
+        field.style.height = `${Math.max(320, field.scrollHeight + 2)}px`;
+      } finally {
+        mark("prose:measure:end", () => ({ id: heading.id || heading.name, height: field.style.height }));
       }
-      field.style.height = "auto";
-      field.style.height = `${Math.max(320, field.scrollHeight + 2)}px`;
     };
     fit();
     let width = field.clientWidth;
     const observer = new ResizeObserver(() => {
-      if (width !== field.clientWidth) {
-        width = field.clientWidth;
+      mark("prose:resize:start", { id: heading.id || heading.name });
+      const nextWidth = field.clientWidth;
+      mark("prose:resize:width", { id: heading.id || heading.name, before: width, after: nextWidth });
+      if (width !== nextWidth) {
+        width = nextWidth;
         fit();
       }
+      mark("prose:resize:end", { id: heading.id || heading.name });
     });
     observer.observe(field);
     document.fonts?.addEventListener("loadingdone", fit);
@@ -658,7 +675,7 @@ function ProseEditor({ text, heading, onChange, transfer }) {
     if (event.currentTarget instanceof HTMLTextAreaElement)
       setCursor(event.currentTarget.selectionStart);
   };
-  return /* @__PURE__ */ u("div", {
+  const view = /* @__PURE__ */ u("div", {
     class: "prose-editor",
     "data-width": widths.value[heading.id || ""],
     onDragOver: (e) => {
@@ -824,6 +841,7 @@ function ProseEditor({ text, heading, onChange, transfer }) {
         value: text,
         spellcheck: false,
         onInput: (event) => {
+          mark("prose:input", { id: heading.id || heading.name, length: event.currentTarget instanceof HTMLTextAreaElement ? event.currentTarget.value.length : 0 });
           position(event);
           if (event.currentTarget instanceof HTMLTextAreaElement)
             onChange(event.currentTarget.value);
@@ -839,6 +857,8 @@ function ProseEditor({ text, heading, onChange, transfer }) {
       })
     ]
   });
+  mark("prose:render:end", { id: heading.id || heading.name });
+  return view;
 }
 
 // lib/ruledoc.tsx

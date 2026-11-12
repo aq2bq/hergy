@@ -25,7 +25,7 @@ import {
   dropUndo,
   dangerAttrs,
   runDanger
-} from "../chunk/nav-t8p8j4hq.js";
+} from "../chunk/nav-pfvc24x1.js";
 import {
   call2,
   readPromptComparison2,
@@ -36,12 +36,12 @@ import {
   saved2,
   bases2,
   problemText2
-} from "../chunk/nav-5jb4c81a.js";
+} from "../chunk/nav-ncqt2ghs.js";
 import {
   carryTo2,
   takeDraft2,
   setDirty2
-} from "../chunk/nav-vn3nd3vh.js";
+} from "../chunk/nav-bsvbpa2b.js";
 import {
   num,
   documents,
@@ -57,7 +57,7 @@ import {
   Counts2,
   Vm2,
   RuleDoc2
-} from "../chunk/nav-mys60rer.js";
+} from "../chunk/nav-6kxs92mx.js";
 import {
   rowAddress,
   token2,
@@ -77,20 +77,20 @@ import {
   editTeam,
   restoreTeam,
   YamlTab2
-} from "../chunk/nav-bj16zp38.js";
+} from "../chunk/nav-hvx192pf.js";
 import {
   st,
   projectName2
-} from "../chunk/nav-3syf5wg5.js";
+} from "../chunk/nav-pvgkc05c.js";
 import {
   RunCell2
-} from "../chunk/nav-nx8y4n36.js";
+} from "../chunk/nav-9wayq1az.js";
 import {
   copyGroupOf,
   groupPlace,
   projectOfGroup,
   ProjectView
-} from "../chunk/nav-dyqtpxcd.js";
+} from "../chunk/nav-k6cajr7a.js";
 import {
   Field
 } from "../chunk/nav-9htrbyn7.js";
@@ -100,7 +100,7 @@ import {
 } from "../chunk/nav-31sebn46.js";
 import {
   resource
-} from "../chunk/nav-74jj0fve.js";
+} from "../chunk/nav-pxepfcmw.js";
 
 // teams/selection-table.ts
 var SIDE_RULES = [

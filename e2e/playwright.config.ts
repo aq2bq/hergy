@@ -27,7 +27,7 @@ export default defineConfig({
     // walk that reads a narrower window sets its own.
     viewport: { width: 2000, height: 1100 },
     actionTimeout: 8_000,
-    trace: 'retain-on-failure',
+    trace: process.env.HERGY_E2E_PERFORMANCE === 'trace' ? 'on' : 'retain-on-failure',
     video: 'off',
     screenshot: 'off',
   },

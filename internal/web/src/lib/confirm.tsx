@@ -1,3 +1,4 @@
+import { mark } from './diagnostics.js';
 import type { DangerDecision } from './danger.js';
 import type { DialogHost } from './dialogs.js';
 import type { ComponentChildren, JSX } from 'preact';
@@ -31,6 +32,7 @@ export const closeConfirm = (): void => { currentAsk.value = null; };
 const takeBack = (): void => { currentAsk.value = null; };
 
 function ConfirmDialog(): JSX.Element | null {
+  mark('confirm:render:start');
   const ask = currentAsk.value;
   const dialog = useRef<HTMLDialogElement>(null);
   const cancel = useRef<HTMLButtonElement>(null);
@@ -54,8 +56,8 @@ function ConfirmDialog(): JSX.Element | null {
     // (r-d480).
     return undefined;
   }, [ask]);
-  if (!ask) return null;
-  return <dialog class="confirm" ref={dialog} aria-labelledby="confirm-title"
+  if (!ask) { mark('confirm:render:end', {open: false}); return null; }
+  const view = <dialog class="confirm" ref={dialog} aria-labelledby="confirm-title"
     onCancel={(event) => { event.preventDefault(); takeBack(); }}>
     <h2 id="confirm-title">{ask.title}</h2>
     <div class="confirm-body">{ask.body}</div>
@@ -64,6 +66,8 @@ function ConfirmDialog(): JSX.Element | null {
       <button class="btn danger solid" type="button" onClick={() => { const run = ask.run; ran.current = true; closeConfirm(); void run(); }}>{ask.label}</button>
     </footer>
   </dialog>;
+  mark('confirm:render:end', {open: true});
+  return view;
 }
 
 export function confirmView(_host: DialogHost): JSX.Element { return h(ConfirmDialog, {}); }
