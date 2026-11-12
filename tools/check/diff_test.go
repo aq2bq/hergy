@@ -127,3 +127,17 @@ func TestTestPackagesForTestsWhatChanged(t *testing.T) {
 		}
 	}
 }
+
+func TestExistingTestPackagesExcludesTheOldSideOfAMove(t *testing.T) {
+	root := t.TempDir()
+	writeTree(t, root, "internal/current/current.go", "package current\n")
+	writeTree(t, root, "internal/assets/template.html", "<p>no Go package remains</p>")
+	got, err := existingTestPackages(root, []string{"./internal/removed", "./internal/assets", "./internal/current", "./..."})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"./internal/current", "./..."}
+	if !slices.Equal(got, want) {
+		t.Fatalf("packages=%v want=%v", got, want)
+	}
+}

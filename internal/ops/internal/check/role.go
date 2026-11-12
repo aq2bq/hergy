@@ -30,10 +30,8 @@ type RoleInput struct {
 	// tab's fields, read as a document. It is written back out with Emit to be
 	// checked as if it were saved, and it draws the Markdown preview. When it is
 	// empty, Text is the draft instead.
-	// Text is the YAML the YAML tab is typing, read as the draft: a problem it
-	// finds carries the YAML line, so the tab can mark the line. It is read when
-	// Draft is empty; an empty Text is a document with no lines, which is the
-	// error.file_empty a person deleting the whole file gets.
+	// Text is the complete Markdown document, preserved byte for byte.
+	// Empty prose is valid. The legacy YAML tab submits the same Markdown text.
 	Text string
 	// Original is the name the document is saved under when the draft renames
 	// it; empty means the name has not changed. It is where the saved file is
@@ -96,18 +94,9 @@ type DocReport struct {
 // document keeps its name (spec-teams 7).
 type RoleReport = DocReport
 
-// Role checks one role document the way the role screen needs it (C6, d-a575):
-// the document's own problems read to the end (C2), an id or a report name it
-// repeats, the model names its rules write (C8), the size of the part of it that
-// goes into the prompt (d-00a9), and the Markdown a member reads, with how that
-// changed from the saved document.
-//
-// The answer does not depend on which team definitions use the role (d-8bbf):
-// who hands the turn to whom is the team definition's (turns:, d-5ce4), and
-// Readers carries only who uses the role, by name, apart from the check.
-//
-// The draft is checked as if it were saved: the document is read through a
-// catalog that carries the draft in its place (C5), so the readers see it.
+// Role checks the role name and document size, and returns the unchanged
+// Markdown preview, its diff from the saved document and its readers. Prose
+// content currently has no stopping findings; size remains a warning.
 func Role(in RoleInput) DocReport {
 	if in.Catalog == nil {
 		return DocReport{}

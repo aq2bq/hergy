@@ -1,7 +1,9 @@
 package main
 
 import (
+	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"slices"
@@ -167,7 +169,10 @@ func (r *runner) diff() error {
 	}
 	r.local = true
 	r.write = true // webbuild and apitypes write their files here; CI compares
-	r.testPackages = testPackagesFor(paths)
+	r.testPackages, err = existingTestPackages(r.root, testPackagesFor(paths))
+	if err != nil {
+		return err
+	}
 	specs, err := filepath.Glob(filepath.Join(r.root, browserGlob))
 	if err != nil {
 		return err
@@ -217,8 +222,8 @@ func gateNames(gs []gate) string {
 // documents terms_test.go holds to the glossary). A file nothing here names
 // keeps ./..., which go test's cache makes cheap when it holds. The packages
 // that import a changed one (internal/cli imports nearly everything, and its
-// 259 tests take a minute) are CI's. A deleted directory is left out, so go
-// test does not refuse the run.
+// 259 tests take a minute) are CI's. existingTestPackages then removes the
+// deleted side of package moves before go test runs.
 func testPackagesFor(paths []string) []string {
 	seen := map[string]bool{}
 	var pkgs []string
@@ -319,4 +324,27 @@ func specScreen(name string) string {
 	default:
 		return "" // Includes navigation, copy, save, conflict and unknown walks.
 	}
+}
+
+// existingTestPackages omits a package deleted by a move, while preserving
+// wildcard selections and refusing filesystem errors other than absence.
+func existingTestPackages(root string, packages []string) ([]string, error) {
+	var out []string
+	for _, pkg := range packages {
+		if strings.Contains(pkg, "...") {
+			out = append(out, pkg)
+			continue
+		}
+		entries, err := os.ReadDir(filepath.Join(root, pkg))
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		if slices.ContainsFunc(entries, func(entry os.DirEntry) bool { return !entry.IsDir() && strings.HasSuffix(entry.Name(), ".go") }) {
+			out = append(out, pkg)
+		}
+	}
+	return out, nil
 }

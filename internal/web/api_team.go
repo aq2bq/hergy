@@ -27,8 +27,8 @@ import (
 
 // This file is the team kind (spec-boundary 4, 5, 8): the team definitions the
 // team screen reads and writes, together with the agreement that belongs to each
-// one. Its checks are all of check.Team and check.Agreement and its writes are
-// all definition.EditYAML and rules.Rewrite, so the kind makes no sentence of its
+// one. Resource operations own their checks, edits and writes. This adapter
+// decodes requests and lays out the operation results, so it makes no sentence of its
 // own (spec-teams X1) and every line an edit does not touch comes back byte for
 // byte.
 //

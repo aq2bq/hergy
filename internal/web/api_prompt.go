@@ -146,10 +146,8 @@ type promptBuilt struct {
 	Errors    map[string]error
 }
 
-// promptsFor is the one place a member's or worker's text is built (⑤ r-ba9b):
-// the name is chosen here, and prompt.Member / prompt.Worker are called here and
-// nowhere else in internal/web. The caller hands in the draft, or the catalog it
-// already built, and draws what comes back.
+// promptsFor adapts the HTTP draft and runtime reader to the ops preview,
+// then projects the complete prompt result into the WebUI's existing shape.
 func (s *Server) promptsFor(ask promptAsk) (*promptBuilt, *apiErr) {
 	in := ask.In
 	target, bad := s.resourceSeen(domainplace.Definition, in.Place.String(), in.Name)

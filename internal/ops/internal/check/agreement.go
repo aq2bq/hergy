@@ -16,7 +16,7 @@ type AgreementInput struct {
 	Catalog *catalog.Catalog // the team.yaml draft is already overlaid by the caller
 	Name    string           // the definition name
 	Place   string           // source.LayerLocal ("project") or source.LayerGlobal ("global")
-	Text    string           // the agreement's YAML as the YAML tab types it
+	Text    string           // the complete Markdown document
 }
 
 // Agreement answers the rules tab with the team definition's one check (d-a575):
