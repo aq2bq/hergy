@@ -12,8 +12,9 @@ import (
 	"github.com/aq2bq/hergy/internal/source"
 )
 
-// This file is the owner of one concept (AGENTS.md 概念の地図): which rows a
-// list draws, and therefore what the band's numbers are (r-ea17, d-4d88).
+// This file decides which rows a list draws, and therefore what the band's
+// numbers are (r-ea17, d-4d88). It lives under internal/ops/internal, so the
+// entrances cannot count rows of their own: they ask ops.
 //
 // A row is one name in one place: a team definition's directory, a role's
 // document (or, on the project's side, a name the list still shows without one:
