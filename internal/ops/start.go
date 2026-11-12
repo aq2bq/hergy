@@ -89,7 +89,7 @@ func StartTeam(ctx context.Context, in StartInput) (*Plan, error) {
 	}
 	plan.Resolved, plan.Members = r, r.Starts
 	if in.RequirePane && (!in.ManagedPane || CurrentPane() == "") {
-		return nil, i18n.Errorf("error.not_under_herdr")
+		return nil, words.Errorf("runtime.managed-pane", i18n.Language())
 	}
 	if _, err = startName(in, true); err != nil {
 		return nil, err

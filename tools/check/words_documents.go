@@ -21,10 +21,11 @@ func commandTable(lang string) string {
 	}
 	b.WriteString("|---|---|\n")
 	cell := func(text string) string {
-		return strings.ReplaceAll(strings.ReplaceAll(text, "|", "&#124;"), "\n", "<br>")
+		text = strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;", "|", "&#124;").Replace(text)
+		return strings.ReplaceAll(text, "\n", "<br>")
 	}
 	for _, kind := range options.Kinds {
-		fmt.Fprintf(&b, "| `%s` | %s |\n", cell(options.Synopsis(kind, lang)), cell(options.Description(kind, lang)))
+		fmt.Fprintf(&b, "| `%s` | %s |\n", strings.ReplaceAll(options.Synopsis(kind, lang), "|", "\\|"), cell(options.Description(kind, lang)))
 	}
 	b.WriteString("\n")
 	for _, flag := range options.FlagSummaries() {
@@ -38,7 +39,7 @@ func projectedDocuments(root string) (map[string][]byte, error) {
 	for _, doc := range []struct {
 		path, lang string
 		regions    []string
-	}{{"README.md", "en", []string{"new", "rule-documents", "identity", "resolution", "placeholders", "reference"}}, {"README.ja.md", "ja", []string{"new", "rule-documents", "identity", "resolution", "placeholders", "reference"}}, {"skills/hergy/SKILL.md", "en", []string{"reference"}}} {
+	}{{"README.md", "en", []string{"new", "rule-documents", "identity", "resolution", "placeholders", "reference", "prompt-preview"}}, {"README.ja.md", "ja", []string{"new", "rule-documents", "identity", "resolution", "placeholders", "reference", "prompt-preview"}}, {"skills/hergy/SKILL.md", "en", []string{"reference"}}} {
 		raw, err := os.ReadFile(filepath.Join(root, doc.path))
 		if err != nil {
 			return nil, err
@@ -49,10 +50,11 @@ func projectedDocuments(root string) (map[string][]byte, error) {
 		}
 		regions := map[string]string{
 			"new":            words.Describe(words.ForCommand("new"), doc.lang),
-			"reference":      words.Reference(doc.lang),
+			"reference":      "```text\n" + words.Reference(doc.lang) + "```",
 			"rule-documents": words.Find("reference.rule-documents").Explain(doc.lang),
 			"identity":       words.Find("team.identity").Explain(doc.lang),
 			"resolution":     words.Find("reference.resolution").Explain(doc.lang),
+			"prompt-preview": words.Find("web.prompt-preview").Explain(doc.lang),
 			"placeholders":   words.Find("reference.bootstrap-prompt-placeholders").Explain(doc.lang),
 		}
 		for _, name := range doc.regions {

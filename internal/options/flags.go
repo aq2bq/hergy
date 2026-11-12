@@ -14,8 +14,6 @@ import (
 // every Text has it.
 type Text = words.Text
 
-func text(en, ja string) Text { return Text{"en": en, "ja": ja} }
-
 // Flag is how one flag is read: its names, whether it takes a value, and what
 // it sets. A flag is defined here once; which commands accept it, and what it
 // means for each, is the table in spec.go.
@@ -68,23 +66,23 @@ var (
 	// --profile is gone too (段 6b): the profile comes from the workers: entry,
 	// so a hire does not choose one. It still takes a value, so the word after
 	// it is not read as the worker's name.
-	flagProfile = &Flag{Name: "profile", Value: text("<profile>", "<プロファイル>"), Set: sets(func(*Options) {})}
+	flagProfile = &Flag{Name: "profile", Value: words.Label("value.profile"), Set: sets(func(*Options) {})}
 
-	flagDir = &Flag{Name: "dir", Short: "C", Value: text("<dir>", "<ディレクトリ>"),
+	flagDir = &Flag{Name: "dir", Short: "C", Value: words.Label("value.dir"),
 		Set: setsValue(func(o *Options, v string) { o.Dir = v })}
-	flagTeam = &Flag{Name: "team", Value: text("<team>", "<チーム名>"),
+	flagTeam = &Flag{Name: "team", Value: words.Label("value.team"),
 		Set: setsValue(func(o *Options, v string) { o.Team = Input{raw: v} })}
-	flagAs = &Flag{Name: "as", Value: text("<team>", "<チーム名>"),
+	flagAs = &Flag{Name: "as", Value: words.Label("value.team"),
 		Set: setsValue(func(o *Options, v string) { o.As = v })}
-	flagPurpose = &Flag{Name: "purpose", Value: text("<purpose>", "<目的>"),
+	flagPurpose = &Flag{Name: "purpose", Value: words.Label("value.purpose"),
 		Set: setsValue(func(o *Options, v string) { o.Purpose = v })}
-	flagTask = &Flag{Name: "task", Value: text("<task>", "<依頼>"),
+	flagTask = &Flag{Name: "task", Value: words.Label("value.task"),
 		Set: setsValue(func(o *Options, v string) { o.Task = v })}
-	flagFrom = &Flag{Name: "from", Value: text("<member>", "<メンバー>"),
+	flagFrom = &Flag{Name: "from", Value: words.Label("value.member"),
 		Set: setsValue(func(o *Options, v string) { o.From = v })}
-	flagLang = &Flag{Name: "lang", Value: text("en|ja", "en|ja"),
+	flagLang = &Flag{Name: "lang", Value: words.Label("value.lang"),
 		Set: setsValue(func(o *Options, v string) { o.Lang = v })}
-	flagTimeout = &Flag{Name: "timeout", Value: text("<ms>", "<ミリ秒>"),
+	flagTimeout = &Flag{Name: "timeout", Value: words.Label("value.timeout"),
 		Set: func(o *Options, v string) error {
 			ms, err := strconv.Atoi(v)
 			if err != nil {
@@ -93,7 +91,7 @@ var (
 			o.Timeout = ms
 			return nil
 		}}
-	flagPort = &Flag{Name: "port", Value: text("<port>", "<ポート>"),
+	flagPort = &Flag{Name: "port", Value: words.Label("value.port"),
 		Set: func(o *Options, v string) error {
 			port, err := strconv.Atoi(v)
 			if err != nil {

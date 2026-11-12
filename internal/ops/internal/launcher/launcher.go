@@ -583,7 +583,7 @@ func (l *Launcher) Nudge(member *definition.Start, text string) error {
 		return err
 	}
 	if agent.Status != "idle" && agent.Status != "done" {
-		return i18n.Errorf("error.nudge_busy", member.Name.String(), agent.Status)
+		return words.Errorf("control.nudge-state", i18n.Language(), member.Name.String(), agent.Status)
 	}
 	if err := l.herdr.Prompt(member.Name, text); err != nil {
 		return err
@@ -614,7 +614,7 @@ func (l *Launcher) Stop(member *definition.Start, selfPane domainname.PaneID) (s
 		return false, err
 	}
 	if selfPane != "" && agent.PaneID == selfPane {
-		return false, i18n.Errorf("error.stop_self", member.Name.String())
+		return false, words.Errorf("control.stop-self", i18n.Language(), member.Name.String())
 	}
 	if agent.Status != "working" {
 		fmt.Fprintf(l.out, i18n.T("stop.not_working"), member.Name.String(), agent.Status)
@@ -805,7 +805,7 @@ func (l *Launcher) teamTab(member *definition.Start) (teamTab, error) {
 			}
 		}
 	}
-	return teamTab{}, i18n.Errorf("error.refresh_no_pane", member.Name.String())
+	return teamTab{}, words.Errorf("refresh.no-team-pane", i18n.Language(), member.Name.String())
 }
 
 // addMember makes one member's pane in the team's tab and starts the member in it,
@@ -1548,7 +1548,7 @@ func (l *Launcher) preflight(members []definition.Start) (string, error) {
 func (l *Launcher) preflightIn(workspace string, members []definition.Start) error {
 	for i := range members {
 		if !isDir(members[i].Cwd) {
-			return i18n.Errorf("error.cwd_not_dir", members[i].Cwd)
+			return words.Errorf("start.cwd-directory", i18n.Language(), members[i].Cwd)
 		}
 	}
 	if err := l.herdr.Verify(protocol.ModeBoot); err != nil {
@@ -1562,7 +1562,7 @@ func (l *Launcher) preflightIn(workspace string, members []definition.Start) err
 		return err
 	}
 	if conflicts := intersect(namesOf(members), live); len(conflicts) > 0 {
-		return i18n.Errorf("error.live_names_in_use", strings.Join(conflicts, ", "))
+		return words.Errorf("start.live-names", i18n.Language(), strings.Join(conflicts, ", "))
 	}
 	return nil
 }

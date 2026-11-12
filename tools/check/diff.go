@@ -73,7 +73,7 @@ func (r *runner) git(args ...string) (string, error) {
 // files and environment their tests read, have changed (terms_test.go reads
 // the documents, so a change to a README reruns it).
 func gatesFor(paths []string) []gate {
-	want := map[string]bool{}
+	want := map[string]bool{"words": slices.ContainsFunc(paths, wordsPath)}
 	add := func(names ...string) {
 		for _, n := range names {
 			want[n] = true
@@ -81,9 +81,6 @@ func gatesFor(paths []string) []gate {
 	}
 	for _, p := range paths {
 		add("test")
-		if wordsPath(p) {
-			add("words")
-		}
 		switch {
 		case p == "go.mod" || p == "go.sum":
 			add("tidy", "lint", "deadcode", "e2e", "vuln")

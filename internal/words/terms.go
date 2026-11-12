@@ -2,6 +2,7 @@
 // select records; they never restate an operation's facts.
 package words
 
+// TermID identifies a canonical concept in both languages.
 type TermID string
 
 // Term names one concept. Meaning is for maintainers, not display text.
@@ -72,8 +73,10 @@ var terms = []Term{
 	{ID: "headquarters", English: "headquarters", Japanese: "本部", Meaning: "hergy serve reading every project listed under projects: in the global config.yaml (d-73fc). The screens use it in the sheet's title 本部に並べるプロジェクト / Projects in the headquarters and in the notice about an unlisted project, and nowhere else"},
 }
 
+// Terms returns the vocabulary records in their defined order.
 func Terms() []Term { return append([]Term(nil), terms...) }
 
+// Text returns a term in the requested language, falling back to English.
 func (id TermID) Text(lang string) string {
 	for _, term := range terms {
 		if term.ID == id {

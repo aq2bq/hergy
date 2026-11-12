@@ -1,11 +1,12 @@
 package options
 
 import (
-	"github.com/aq2bq/hergy/internal/words"
 	"os"
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/aq2bq/hergy/internal/words"
 )
 
 // hergyCommand finds a command mention. A command is written as "hergy <word>"

@@ -240,8 +240,6 @@ func wrapDetail(text string, width int) string {
 // IDs; the Spec holds syntax, never a second account of the operation.
 func Description(kind Kind, lang string) string { return words.Describe(specOf(kind).Rules, lang) }
 
-func Summary(kind Kind, lang string) string { return specOf(kind).Summary[lang] }
-
 // FlagDescriptions groups uses by the actual shared description. A flag may
 // mean different things on different commands (especially --dry and --json).
 func FlagDescriptions(name, lang string) string {

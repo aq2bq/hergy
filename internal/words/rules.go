@@ -11,6 +11,7 @@ import (
 // from the vocabulary. Renderers cannot substitute another name for a term.
 type Text map[string]string
 
+// RuleID identifies one public operation fact.
 type RuleID string
 
 // Rule owns one public fact and its recovery. Slots supply neutral subjects
@@ -39,8 +40,10 @@ func expand(s, lang string) string {
 	})
 }
 
+// In resolves vocabulary and shared-rule references in a template.
 func (text Text) In(lang string) string { return expand(text[lang], lang) }
 
+// Label reads a presentation label from the vocabulary-backed catalog.
 func Label(id string) Text {
 	text, ok := labels[id]
 	if !ok {
@@ -49,6 +52,7 @@ func Label(id string) Text {
 	return bilingual(text.In("en"), text.In("ja"))
 }
 
+// Find returns the canonical record, failing on an unknown programmer-supplied ID.
 func Find(id RuleID) Rule {
 	for _, rule := range rules {
 		if rule.ID == id {
@@ -58,8 +62,10 @@ func Find(id RuleID) Rule {
 	panic("unknown rule: " + string(id))
 }
 
+// Rules returns public records for projections and consistency checks.
 func Rules() []Rule { return append([]Rule(nil), rules...) }
 
+// Pattern joins the single cause and recovery, retaining runtime format slots.
 func (r Rule) Pattern(lang string) string {
 	parts := []string{r.Statement.In(lang)}
 	if recovery := r.Recovery.In(lang); recovery != "" {
@@ -68,17 +74,23 @@ func (r Rule) Pattern(lang string) string {
 	return strings.Join(parts, " ")
 }
 
+// Explain supplies neutral vocabulary names for a precondition description.
 func (r Rule) Explain(lang string) string {
 	args := make([]any, len(r.Slots))
 	for i, slot := range r.Slots {
-		args[i] = slot.Text(lang)
+		args[i] = "<" + slot.Text(lang) + ">"
 	}
-	if len(args) == 0 {
-		return r.Pattern(lang)
+	text := r.Pattern(lang)
+	if len(args) > 0 {
+		text = fmt.Sprintf(text, args...)
 	}
-	return fmt.Sprintf(r.Pattern(lang), args...)
+	if r.ErrorKey != "" {
+		return Label("rule.refusal")[lang] + text
+	}
+	return text
 }
 
+// Describe projects a sequence of rule records in one language.
 func Describe(ids []RuleID, lang string) string {
 	var parts []string
 	for _, id := range ids {
@@ -107,6 +119,7 @@ type Refusal struct {
 
 func (e *Refusal) Error() string { return fmt.Sprintf(Find(e.Rule).Pattern(e.Lang), e.Args...) }
 
+// Errorf attaches an operation reason and its runtime subjects to a refusal.
 func Errorf(rule RuleID, lang string, args ...any) error {
 	return &Refusal{Rule: rule, Lang: lang, Args: args}
 }

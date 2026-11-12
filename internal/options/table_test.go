@@ -1,11 +1,12 @@
 package options
 
 import (
-	"github.com/aq2bq/hergy/internal/words"
+	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/aq2bq/hergy/internal/i18n"
+	"github.com/aq2bq/hergy/internal/words"
 )
 
 // wantText fails when a Text is missing a language hergy ships, or has one it
@@ -128,6 +129,17 @@ func TestSummaryIsInTheFullList(t *testing.T) {
 			if !strings.Contains(list, "  "+s.Summary[lang]+"\n") {
 				t.Errorf("[%s] the summary of hergy %s, %q, is not a row of the full list (hergy --help)", lang, s.Name, s.Summary[lang])
 			}
+		}
+	}
+}
+
+// The documented timeout is held to the parser's actual default and bounds,
+// so a change to runtime values cannot silently leave every generated page old.
+func TestTimeoutRuleMatchesParserBounds(t *testing.T) {
+	text := words.Find("startup.timeout").Explain("en")
+	for _, value := range []int{DefaultTimeoutMS, minTimeoutMS, maxTimeoutMS} {
+		if !strings.Contains(text, strconv.Itoa(value)) {
+			t.Errorf("timeout rule omits parser value %d: %s", value, text)
 		}
 	}
 }

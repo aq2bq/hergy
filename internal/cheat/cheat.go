@@ -11,6 +11,7 @@ import (
 	"github.com/aq2bq/hergy/internal/words"
 )
 
+// People reads the generated cheatsheet in the selected language.
 func People() string { return i18n.T("cheat.people") }
 
 // Machine is always English. Conditions and flag meanings are projections of

@@ -87,7 +87,7 @@ func memberPlan(in MemberInput, mode string, dryRead bool) (*Plan, error) {
 
 func requireMemberPane(in MemberInput) error {
 	if in.RequirePane && (!in.ManagedPane || CurrentPane() == "") {
-		return i18n.Errorf("error.not_under_herdr")
+		return words.Errorf("runtime.managed-pane", i18n.Language())
 	}
 	return nil
 }

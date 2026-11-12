@@ -67,8 +67,8 @@ var specs = []Spec{
 		Kind: Up, Name: "up", Rules: words.ForCommand("up"),
 		Summary: words.Label("up.summary"),
 		Args: []Arg{{
-			Name: words.Label("up.3"), Optional: true,
-			Desc: words.Label("up.4"),
+			Name: words.Label("argument.definition"), Optional: true,
+			Desc: words.Label("argument.up-definition"),
 		}},
 		Flags: []Use{
 			use(flagAs, words.Sentences("flag.as.up")),
@@ -82,8 +82,8 @@ var specs = []Spec{
 		Kind: Down, Name: "down", Rules: words.ForCommand("down"),
 		Summary: words.Label("down.summary"),
 		Args: []Arg{{
-			Name: words.Label("down.3"), Optional: true,
-			Desc: words.Label("down.4"),
+			Name: words.Label("argument.team-or-worker"), Optional: true,
+			Desc: words.Label("argument.down-target"),
 		}},
 		Flags: []Use{
 			use(flagDry, words.Sentences("flag.dry.down")),
@@ -95,8 +95,8 @@ var specs = []Spec{
 		Kind: Status, Name: "status", Rules: words.ForCommand("status"),
 		Summary: words.Label("status.summary"),
 		Args: []Arg{{
-			Name: words.Label("status.3"), Optional: true,
-			Desc: words.Label("status.4"),
+			Name: words.Label("argument.team"), Optional: true,
+			Desc: words.Label("argument.status-team"),
 		}},
 		Flags: []Use{
 			use(flagJSON, words.Sentences("flag.json.status")),
@@ -107,8 +107,8 @@ var specs = []Spec{
 		Kind: Refresh, Name: "refresh", Rules: words.ForCommand("refresh"),
 		Summary: words.Label("refresh.summary"),
 		Args: []Arg{{
-			Name: words.Label("refresh.3"), Or: flagAll,
-			Desc: words.Label("refresh.4"),
+			Name: words.Label("argument.member"), Or: flagAll,
+			Desc: words.Label("argument.refresh-member"),
 		}},
 		Flags: []Use{
 			use(flagAll, words.Sentences("flag.all.refresh")),
@@ -123,8 +123,8 @@ var specs = []Spec{
 		Kind: Reprompt, Name: "reprompt", Rules: words.ForCommand("reprompt"),
 		Summary: words.Label("reprompt.summary"),
 		Args: []Arg{{
-			Name: words.Label("refresh.3"), Or: flagAll,
-			Desc: words.Label("reprompt.3"),
+			Name: words.Label("argument.member"), Or: flagAll,
+			Desc: words.Label("argument.reprompt-member"),
 		}},
 		Flags: []Use{
 			use(flagAll, words.Sentences("flag.all.reprompt")),
@@ -138,8 +138,8 @@ var specs = []Spec{
 		Kind: Apply, Name: "apply", Rules: words.ForCommand("apply"), Variadic: true,
 		Summary: words.Label("apply.summary"),
 		Args: []Arg{{
-			Name: words.Label("refresh.3"), Optional: true,
-			Desc: words.Label("apply.3"),
+			Name: words.Label("argument.member"), Optional: true,
+			Desc: words.Label("argument.apply-members"),
 		}},
 		Flags: []Use{
 			use(flagTeam, descTeam),
@@ -153,8 +153,8 @@ var specs = []Spec{
 		Kind: Focus, Name: "focus", Rules: words.ForCommand("focus"),
 		Summary: words.Label("focus.summary"),
 		Args: []Arg{{
-			Name: words.Label("refresh.3"),
-			Desc: words.Label("focus.3"),
+			Name: words.Label("argument.member"),
+			Desc: words.Label("argument.focus-member"),
 		}},
 		Flags: []Use{
 			use(flagTeam, descTeam),
@@ -166,12 +166,12 @@ var specs = []Spec{
 		Summary: words.Label("nudge.summary"),
 		Args: []Arg{
 			{
-				Name: words.Label("refresh.3"),
-				Desc: words.Label("nudge.3"),
+				Name: words.Label("argument.member"),
+				Desc: words.Label("argument.nudge-member"),
 			},
 			{
-				Name: words.Label("nudge.4"), Optional: true,
-				Desc: words.Label("nudge.5"),
+				Name: words.Label("argument.text"), Optional: true,
+				Desc: words.Label("argument.nudge-text"),
 			},
 		},
 		Flags: []Use{
@@ -184,8 +184,8 @@ var specs = []Spec{
 		Kind: Stop, Name: "stop", Rules: words.ForCommand("stop"),
 		Summary: words.Label("stop.summary"),
 		Args: []Arg{{
-			Name: words.Label("refresh.3"),
-			Desc: words.Label("stop.3"),
+			Name: words.Label("argument.member"),
+			Desc: words.Label("argument.stop-member"),
 		}},
 		Flags: []Use{
 			use(flagTeam, descTeam),
@@ -198,12 +198,12 @@ var specs = []Spec{
 		Summary: words.Label("tell.summary"),
 		Args: []Arg{
 			{
-				Name: words.Label("tell.3"),
-				Desc: words.Label("tell.4"),
+				Name: words.Label("argument.name"),
+				Desc: words.Label("argument.tell-recipient"),
 			},
 			{
-				Name: words.Label("nudge.4"), Optional: true,
-				Desc: words.Label("tell.5"),
+				Name: words.Label("argument.text"), Optional: true,
+				Desc: words.Label("argument.tell-text"),
 			},
 		},
 		Flags: []Use{
@@ -217,8 +217,8 @@ var specs = []Spec{
 		Kind: Hire, Name: "hire", Rules: words.ForCommand("hire"),
 		Summary: words.Label("hire.summary"),
 		Args: []Arg{{
-			Name: words.Label("tell.3"),
-			Desc: words.Label("hire.3"),
+			Name: words.Label("argument.name"),
+			Desc: words.Label("argument.hire-name"),
 		}},
 		Flags: []Use{
 			required(flagPurpose, words.Sentences("flag.purpose.hire")),
@@ -235,8 +235,8 @@ var specs = []Spec{
 		Kind: Turns, Name: "turns", Rules: words.ForCommand("turns"),
 		Summary: words.Label("turns.summary"),
 		Args: []Arg{{
-			Name: words.Label("status.3"), Optional: true,
-			Desc: words.Label("turns.3"),
+			Name: words.Label("argument.team"), Optional: true,
+			Desc: words.Label("argument.turns-team"),
 		}},
 		Flags: []Use{
 			use(flagLog, words.Sentences("flag.log.turns")),
@@ -247,9 +247,9 @@ var specs = []Spec{
 		Kind: TurnDone, Name: "turn-done", Rules: words.ForCommand("turn-done"),
 		Summary: words.Label("turn-done.summary"),
 		Args: []Arg{
-			{Name: words.Label("status.3"), Desc: words.Label("turn-done.3")},
-			{Name: words.Label("refresh.3"), Desc: words.Label("turn-done.4")},
-			{Name: words.Label("turn-done.5"), Optional: true, Desc: words.Label("turn-done.6")},
+			{Name: words.Label("argument.team"), Desc: words.Label("argument.team-name")},
+			{Name: words.Label("argument.member"), Desc: words.Label("argument.turn-done-member")},
+			{Name: words.Label("argument.payload"), Optional: true, Desc: words.Label("argument.turn-done-payload")},
 		},
 	},
 	{
@@ -263,8 +263,8 @@ var specs = []Spec{
 		Kind: Show, Name: "show", Rules: words.ForCommand("show"),
 		Summary: words.Label("show.summary"),
 		Args: []Arg{{
-			Name: words.Label("up.3"),
-			Desc: words.Label("show.3"),
+			Name: words.Label("argument.definition"),
+			Desc: words.Label("argument.show-definition"),
 		}},
 		Flags: []Use{
 			use(flagDir, descDir),
@@ -274,8 +274,8 @@ var specs = []Spec{
 		Kind: New, Name: "new", Rules: words.ForCommand("new"),
 		Summary: words.Label("new.summary"),
 		Args: []Arg{{
-			Name: words.Label("up.3"),
-			Desc: words.Label("new.3"),
+			Name: words.Label("argument.definition"),
+			Desc: words.Label("argument.new-definition"),
 		}},
 		Flags: []Use{
 			use(flagDir, descDir),
