@@ -109,7 +109,7 @@ func (r *runner) unitGate() error {
 	// tsconfig of the directory it runs in, and a module the tests import as
 	// .tsx needs its jsx settings (jsxImportSource preact). Run in jstest, bun
 	// found none and looked for react/jsx-dev-runtime.
-	return r.execIn(filepath.Join(r.root, "internal", "web"), env, bun, "test", "--isolate", "--preload", filepath.Join(dir, "setup.js"), filepath.Base(webTests), "src")
+	return r.execIn(filepath.Join(r.root, "internal", "web"), env, bun, "test", "--isolate", "--preload", filepath.Join(dir, "setup.js"), filepath.Base(webTests))
 }
 
 // apiSpec and apiTypes are the API's promise and the types made from it, from
