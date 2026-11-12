@@ -513,8 +513,6 @@ test('COPY-S1 a team definition copied from another listed project to the global
   // The copy's save is offered: the row stands on beta's file.
   await readTo<boolean>(page, `${saveOfCopy('beta-dev')}.disabled`, 'the save of the copy is not shut').toBe(false);
   await readTo<string>(page, whyOfCopy('beta-dev'), 'the foot of a copy that can be saved says no reason').toBe('');
-  await page.getByRole('button', { name: 'ロール builder をグローバルに書く', exact: true }).click();
-  await page.getByRole('button', { name: 'プロファイル beta-fast をグローバルに書く', exact: true }).click();
   await press(page, saveOfCopy('beta-dev'));
   await wait(page, `!!${rowIn(TEAMS, GLOBAL, 'beta-dev')}.querySelector('.ok')`);
 
@@ -530,7 +528,7 @@ test('COPY-S1 a team definition copied from another listed project to the global
   expect(readFileSync(dstFile, 'utf8'), 'the global file is still the copy after opening the page again').toContain('見積もりの計算をそろえる');
 });
 
-test('COPY-S2 the server refuses a new copy whose source has a stopping problem', async ({ page, app }) => {
+test('COPY-S2 a team definition whose source is broken is copied and saved as it is', async ({ page, app }) => {
   // The 0.9.5 shape: team.yaml still writes mission:, and no description.
   const dir = betaFile(app, path.join('teams', 'old-dev'));
   mkdirSync(dir, { recursive: true });
@@ -553,16 +551,20 @@ test('COPY-S2 the server refuses a new copy whose source has a stopping problem'
   await wait(page, there(TEAMS));
   await open(page, TEAMS, BETA, 'old-dev');
 
-  // The source's problem remains visible; saving must recheck the new folder.
+  // The check says what is wrong with the source, and the save is still offered:
+  // the error was there before the copy stood (d-9abb, spec-teams X3).
   await press(page, copyButton(TEAMS, BETA, 'old-dev', 'project'));
   await wait(page, `!!${rowIn(TEAMS, GLOBAL, 'old-dev')}`);
   await readTo<string>(page, `${rowIn(TEAMS, GLOBAL, 'old-dev')}.querySelector('.vlist').textContent`, 'the copy says what is wrong with the source').toContain('mission:');
   await readTo<boolean>(page, `${saveOfCopy('old-dev')}.disabled`, 'the save of a copy whose source is broken is not shut').toBe(false);
   await press(page, saveOfCopy('old-dev'));
-  const draft = page.locator('.tdef').filter({ has: page.getByRole('textbox', { name: 'チーム定義名', exact: true }) });
-  await expect(draft.locator('.pf .refusal')).toContainText('mission:');
-  expect(existsSync(dstFile), 'the refused copy wrote no folder').toBe(false);
-  expect(readFileSync(path.join(dir, 'team.yaml'), 'utf8'), 'refusal left the source intact').toBe(before);
+  // The save writes the folder as it stands. The row then reads as the saved
+  // definition it wrote, and a saved definition that does not read draws the
+  // check column alone (spec-teams 1.9).
+  await expect.poll(() => existsSync(dstFile), { timeout: 8_000, message: 'the copy wrote the global folder' }).toBe(true);
+  await wait(page, `${rowIn(TEAMS, GLOBAL, 'old-dev')}.classList.contains('open')`);
+  expect(readFileSync(dstFile, 'utf8'), 'the copy kept the source text as it is').toBe(before);
+  await readTo<string>(page, `${rowIn(TEAMS, GLOBAL, 'old-dev')}.querySelector('.vlist').textContent`, 'the saved copy still says what is wrong with it').toContain('mission:');
 });
 
 // draftRowIn is the row under one head that is not there yet: it is the one with
@@ -726,7 +728,7 @@ test('COPY-C1 the copy says it brings the definition alone, and names what the g
   await readTo<string>(page, CARRY_PROBLEMS('beta-dev'), 'the role problem names the place it is missing from').toContain('ロール builder の文書はグローバルにありません');
 });
 
-test('COPY-C2 a copy with missing dependencies is refused without writing', async ({ page, app }) => {
+test('COPY-C2 a copy with nothing chosen writes the definition alone', async ({ page, app }) => {
   const profiles = path.join(app.cfg, 'hergy', 'profiles.yaml');
   const role = path.join(app.cfg, 'hergy', 'roles', 'builder.md');
   const beforeProfiles = readFileSync(profiles, 'utf8');
@@ -737,10 +739,12 @@ test('COPY-C2 a copy with missing dependencies is refused without writing', asyn
   await open(page, TEAMS, BETA, 'beta-dev');
   await press(page, copyButton(TEAMS, BETA, 'beta-dev', 'project'));
   await wait(page, `!!${rowIn(TEAMS, GLOBAL, 'beta-dev')}`);
-  const draft = page.locator('.tdef').filter({ has: page.getByRole('textbox', { name: 'チーム定義名', exact: true }) });
-  await draft.locator('[data-act=t-save]').click();
-  await expect(draft.locator('.pf .refusal')).toContainText('プロファイル');
-  expect(existsSync(path.join(app.cfg, 'hergy', 'teams', 'beta-dev', 'team.yaml')), 'the refused copy wrote no definition').toBe(false);
+  await press(page, saveOfCopy('beta-dev'));
+  await wait(page, `!!${rowIn(TEAMS, GLOBAL, 'beta-dev')}.querySelector('.ok')`);
+
+  // The definition is there, and the global layer's own profiles and roles are
+  // as they were, byte for byte (ac-2a35).
+  expect(existsSync(path.join(app.cfg, 'hergy', 'teams', 'beta-dev', 'team.yaml')), 'the copy wrote the definition').toBe(true);
   expect(readFileSync(profiles, 'utf8'), 'nothing chosen left the global profiles.yaml as it was').toBe(beforeProfiles);
   expect(existsSync(role), 'nothing chosen wrote no role document into the global layer').toBe(false);
 });
@@ -792,7 +796,6 @@ test('COPY-C4 a name the global layer holds when the save comes is not written o
   await press(page, copyButton(TEAMS, BETA, 'beta-dev', 'project'));
   await wait(page, `!!${rowIn(TEAMS, GLOBAL, 'beta-dev')}`);
   await press(page, CARRY_ROLE('builder'));
-  await page.getByRole('button', { name: 'プロファイル beta-fast をグローバルに書く', exact: true }).click();
 
   // The global layer gets a builder of its own after the person chose the name:
   // the save leaves it as it is (ac-2a35).

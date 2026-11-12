@@ -345,6 +345,10 @@ func (s ResourceScope) CheckDefinitionDraft(in ResourceDraftInput, ops []definit
 	if bad != nil {
 		return ResourceDraftChecked{}, bad
 	}
+	return s.checkDefinitionDraft(in, row, ops)
+}
+
+func (s ResourceScope) checkDefinitionDraft(in ResourceDraftInput, row ResourceDraft, ops []definition.Op) (ResourceDraftChecked, *ResourceFailure) {
 	name := in.Name
 	if name == "" {
 		name = "t2draft"
@@ -385,7 +389,7 @@ func (s ResourceScope) SaveDefinitionDraft(ref domainplace.Ref, in ResourceDraft
 	if bad != nil {
 		return ResourceSaved{}, bad
 	}
-	return s.createDefinition(ref, definitionFolder{Draft: DefinitionDraft{Team: row.Team, Agreement: row.Agree, AgreementExists: row.AgreementExists}, Ops: ops, Agreement: agreement, Starter: row.Starter, StarterRoles: row.StarterRoles, StarterProfile: row.StarterProfile, Carry: s.carryIn(in)})
+	return s.createDefinition(ref, definitionFolder{Draft: row, Input: in, Ops: ops, Agreement: agreement})
 }
 
 // ReadResourceDraft reads the authoritative starter or copy basis.

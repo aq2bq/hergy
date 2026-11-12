@@ -351,10 +351,6 @@ test.describe('the one project, teams', () => {
     // The screen puts the cursor in the name once the check has answered.
     await expect(added.locator('.in-name'), 'the new row offers its name').toBeFocused();
     await added.locator('.in-name').fill('place-t1');
-    for (const member of ['lead', 'builder']) {
-      await added.locator(`.cv-n.member[data-cv-n=${member}]`).click();
-      await added.locator('.cv-side [data-cv-f=m-profile]').selectOption('sonnet-fast');
-    }
     await added.locator('.detail [data-act=t-save]').click();
     // A definition being named shows its name in the field, not in .nm, so the
     // row is found by its name once the save has drawn it.
@@ -390,10 +386,6 @@ test.describe('the one project, teams', () => {
     // The screen puts the cursor in the name once the check has answered.
     await expect(added.locator('.in-name'), 'the new row offers its name').toBeFocused();
     await added.locator('.in-name').fill('place-t2');
-    for (const member of ['lead', 'builder']) {
-      await added.locator(`.cv-n.member[data-cv-n=${member}]`).click();
-      await added.locator('.cv-side [data-cv-f=m-profile]').selectOption('sonnet-fast');
-    }
     await added.locator('.detail [data-act=t-save]').click();
     const row = page.locator('#view .list .tdef').filter({ has: page.locator('.c-name .nm', { hasText: 'place-t2' }) });
     await expect(row.locator('.ok'), 'the save answered').toBeVisible();
@@ -432,10 +424,6 @@ test.describe('the headquarters, teams', () => {
     // The screen puts the cursor in the name once the check has answered.
     await expect(added.locator('.in-name'), 'the new row offers its name').toBeFocused();
     await added.locator('.in-name').fill('place-t3');
-    for (const member of ['lead', 'builder']) {
-      await added.locator(`.cv-n.member[data-cv-n=${member}]`).click();
-      await added.locator('.cv-side [data-cv-f=m-profile]').selectOption('coder');
-    }
     await added.locator('.detail [data-act=t-save]').click();
     const row = page.locator('#view .list .tdef').filter({ has: page.locator('.c-name .nm', { hasText: 'place-t3' }) });
     await expect(row.locator('.ok'), 'the save answered').toBeVisible();
@@ -467,10 +455,6 @@ test.describe('the headquarters, teams', () => {
     // The screen puts the cursor in the name once the check has answered.
     await expect(added.locator('.in-name'), 'the new row offers its name').toBeFocused();
     await added.locator('.in-name').fill('place-t4');
-    for (const member of ['lead', 'builder']) {
-      await added.locator(`.cv-n.member[data-cv-n=${member}]`).click();
-      await added.locator('.cv-side [data-cv-f=m-profile]').selectOption('coder');
-    }
     await added.locator('.detail [data-act=t-save]').click();
     const row = page.locator('#view .list .tdef').filter({ has: page.locator('.c-name .nm', { hasText: 'place-t4' }) });
     await expect(row.locator('.ok'), 'the save answered').toBeVisible();

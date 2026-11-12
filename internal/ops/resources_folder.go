@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/aq2bq/hergy/internal/definition"
 	domainname "github.com/aq2bq/hergy/internal/domain/name"
@@ -43,11 +44,10 @@ func ReadDefinitionDraft(cat *catalog.Catalog, target ResourceTarget) (Definitio
 // definitionFolder carries the kind-specific plan, never a caller-supplied write
 // function. The operation validates every planned file before writing the folder.
 type definitionFolder struct {
-	Draft                                 DefinitionDraft
-	Ops                                   []definition.Op
-	Agreement                             *string
-	Starter, StarterRoles, StarterProfile bool
-	Carry                                 *newteam.Carry
+	Draft     ResourceDraft
+	Input     ResourceDraftInput
+	Ops       []definition.Op
+	Agreement *string
 }
 
 // createDefinition reads or changes the selected resource.
@@ -73,42 +73,16 @@ func (s ResourceScope) createDefinition(ref domainplace.Ref, in definitionFolder
 			return ResourceFile{Path: filepath.Join(dir, "team.yaml"), Hash: source.Hash("")}, nil
 		},
 		edit: func(before ResourceFile) (string, *ResourceFailure) {
-			text := in.Draft.Team
-			for _, op := range in.Ops {
-				out, err := definition.EditYAML([]byte(text), s.Catalog.Display(before.Path), op)
-				if err != nil {
-					return "", &ResourceFailure{Text: err.Error()}
-				}
-				text = string(out)
+			text, err := editDefinitionText(in.Draft.Team, s.Catalog.Display(before.Path), in.Ops)
+			if err != nil {
+				return "", &ResourceFailure{Text: err.Error()}
 			}
 			return text, nil
 		},
 		check: func(_ ResourceFile, text string) *ResourceFailure {
-			agree := in.Draft.Agreement
-			if in.Agreement != nil {
-				agree = *in.Agreement
-			}
-			files := []scaffold.File{{Path: "team.yaml", Data: []byte(text)}}
-			if in.Draft.AgreementExists || in.Agreement != nil {
-				files = append(files, scaffold.File{Path: "agreement.md", Data: []byte(agree)})
-			}
-			written = newteam.In{Catalog: s.Catalog, Layer: ref.Place().Layer(), Name: ref.Name(), Lang: i18n.Language(), Files: files, Starter: in.Starter, StarterRoles: in.StarterRoles, StarterProfile: in.StarterProfile, Carry: in.Carry}
-			planned, err := newteam.Overlay(written)
-			if err != nil {
-				return &ResourceFailure{Text: err.Error()}
-			}
-			// A newly created resource has no grandfathered stopping problems.
-			for _, finding := range check.Team(check.TeamInput{Catalog: planned, Name: ref.Name(), Layer: ref.Place().Layer()}).Problems {
-				if finding.Stops {
-					return &ResourceFailure{Text: finding.Text}
-				}
-			}
-			for _, problem := range check.Agreement(check.AgreementInput{Catalog: planned, Name: ref.Name(), Place: ref.Place().Layer(), Text: agree}).Problems {
-				if problem.Sev == "err" {
-					return &ResourceFailure{Text: problem.Text}
-				}
-			}
-			return nil
+			var bad *ResourceFailure
+			written, bad = s.checkDefinitionFolder(ref, in, text)
+			return bad
 		},
 		write: func(_ ResourceFile, _ string) *ResourceFailure {
 			if _, err := newteam.Write(written); err != nil {
@@ -118,4 +92,48 @@ func (s ResourceScope) createDefinition(ref domainplace.Ref, in definitionFolder
 		},
 	}
 	return saveResource(source.Hash(""), false, spec)
+}
+
+func (s ResourceScope) checkDefinitionFolder(ref domainplace.Ref, in definitionFolder, text string) (newteam.In, *ResourceFailure) {
+	agree := in.Draft.Agree
+	if in.Agreement != nil {
+		agree = *in.Agreement
+	}
+	files := []scaffold.File{{Path: "team.yaml", Data: []byte(text)}}
+	if in.Draft.AgreementExists || in.Agreement != nil {
+		files = append(files, scaffold.File{Path: "agreement.md", Data: []byte(agree)})
+	}
+	written := newteam.In{Catalog: s.Catalog, Layer: ref.Place().Layer(), Name: ref.Name(), Lang: i18n.Language(), Files: files, Starter: in.Draft.Starter, StarterRoles: in.Draft.StarterRoles, StarterProfile: in.Draft.StarterProfile, Carry: s.carryIn(in.Input)}
+	planned, err := newteam.Overlay(written)
+	if err != nil {
+		return written, &ResourceFailure{Text: err.Error()}
+	}
+	// The screen compares the checked starter/copy basis with its edits.
+	// Keep its existing errors, including missing unchosen dependencies;
+	// only a new stopping sentence outside node: closes the save.
+	baseline, bad := s.checkDefinitionDraft(in.Input, in.Draft, nil)
+	if bad != nil {
+		return written, bad
+	}
+	edited, bad := s.checkDefinitionDraft(in.Input, in.Draft, in.Ops)
+	if bad != nil {
+		return written, bad
+	}
+	known := map[string]bool{}
+	for _, finding := range baseline.Findings {
+		if finding.Stops {
+			known[finding.Text] = true
+		}
+	}
+	for _, finding := range edited.Findings {
+		if finding.Stops && !strings.HasPrefix(finding.Field, "node:") && !known[finding.Text] {
+			return written, &ResourceFailure{Text: finding.Text}
+		}
+	}
+	for _, problem := range check.Agreement(check.AgreementInput{Catalog: planned, Name: ref.Name(), Place: ref.Place().Layer(), Text: agree}).Problems {
+		if problem.Sev == "err" {
+			return written, &ResourceFailure{Text: problem.Text}
+		}
+	}
+	return written, nil
 }

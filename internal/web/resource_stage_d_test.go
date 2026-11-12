@@ -1,6 +1,7 @@
 package web
 
 import (
+	"encoding/json"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -68,13 +69,23 @@ func TestResourcesCopyMissingAndUnreadableAgreement(t *testing.T) {
 }
 
 func TestResourcesFolderSaveChecksNewStops(t *testing.T) {
-	f := newFixture(t)
-	status, body := put(t, f.server(t), "/api/team/copied", `{"place":"project","name":"copied","part":"folder","base":{"place":"project","name":"demo"},"doc":{"ops":[{"kind":"memberProfile","member":"lead","profile":"absent"}]}}`)
-	if status != 422 {
-		t.Fatalf("invalid folder saved: %d %s", status, body)
-	}
-	if _, err := os.Stat(filepath.Join(f.proj, ".hergy/teams/copied")); !os.IsNotExist(err) {
-		t.Fatalf("folder created: %v", err)
+	for _, tc := range []struct{ name, creation string }{
+		{"copy", `"base":{"place":"project","name":"demo"}`},
+		{"new", `"new":true`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newFixture(t)
+			if tc.name == "new" {
+				f.write(t, "profiles.yaml", readFile(t, filepath.Join(f.proj, ".hergy/profiles.yaml"))+"  claude-default:\n    kind: claude\n")
+			}
+			status, body := put(t, f.server(t), "/api/team/copied", `{"place":"project","name":"copied","part":"folder",`+tc.creation+`,"doc":{"ops":[{"kind":"memberProfile","member":"lead","profile":"absent"}]}}`)
+			if status != 422 {
+				t.Fatalf("invalid folder saved: %d %s", status, body)
+			}
+			if _, err := os.Stat(filepath.Join(f.proj, ".hergy/teams/copied")); !os.IsNotExist(err) {
+				t.Fatalf("folder created: %v", err)
+			}
+		})
 	}
 }
 
@@ -179,5 +190,36 @@ func TestResourcesProjectRenameLeavesSharedDefinitionsIntact(t *testing.T) {
 				t.Fatal("project definition was not updated")
 			}
 		})
+	}
+}
+
+// Saving profiles has always rejected every stopping problem in the resulting
+// file, including one already in its baseline. The shared sequence preserves it.
+func TestResourcesProfilesPreserveExistingRefusal(t *testing.T) {
+	f := newFixture(t)
+	text := "version: 1\nprofiles:\n  Bad Name:\n    kind: codex\n"
+	f.write(t, "profiles.yaml", text)
+	status, body := put(t, f.server(t), "/api/profile/yaml", `{"place":"project","text":`+strconvQuote(text)+`,"hash":`+strconvQuote(source.Hash(text))+`}`)
+	if status != 422 {
+		t.Fatalf("profile file with existing stopping problem saved: %d %s", status, body)
+	}
+}
+
+func TestResourcesTeamYAMLSaveKeepsErrorText(t *testing.T) {
+	f := newFixture(t)
+	before := readFile(t, f.teamYAML())
+	text := strings.Replace(before, "profile: coder", "profile: absent", 1)
+	status, body := put(t, f.server(t), "/api/team/demo", `{"place":"project","part":"team","hash":`+strconvQuote(source.Hash(before))+`,"text":`+strconvQuote(text)+`}`)
+	if status != 422 {
+		t.Fatalf("invalid YAML saved: %d %s", status, body)
+	}
+	var refusal struct {
+		Text string `json:"text"`
+	}
+	if err := json.Unmarshal([]byte(body), &refusal); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(refusal.Text, "members[0].profile:") {
+		t.Fatalf("YAML refusal changed its existing text: %s", refusal.Text)
 	}
 }

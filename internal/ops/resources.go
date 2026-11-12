@@ -265,6 +265,11 @@ func (s ResourceScope) saveResourceRef(ref domainplace.Ref, in ResourceEdit) (Re
 		edit: func(before ResourceFile) (string, *ResourceFailure) { return s.editResourceText(path, before, in) },
 		check: func(before ResourceFile, text string) *ResourceFailure {
 			if bad := s.checkResourceText(ref, in.Part, before, text); bad != nil {
+				// A complete YAML text historically omits its own file prefix;
+				// operation-based edits keep the checker's complete sentence.
+				if ref.Kind() == domainplace.Definition && in.Part == ResourceMain && in.Ops == nil {
+					bad.Text = strings.TrimPrefix(bad.Text, s.Catalog.Display(path)+": ")
+				}
 				return bad
 			}
 			if in.RenameUsers && in.Original != nil && in.Original.Name() != ref.Name() {
@@ -336,7 +341,8 @@ func resourceWriteFailure(err error, path string, refs []resourceRewrite) *Resou
 
 func (s ResourceScope) checkResourceText(ref domainplace.Ref, part ResourcePart, before ResourceFile, text string) *ResourceFailure {
 	known := map[string]bool{}
-	if before.Exists {
+	// Profiles have always refused every error in the resulting whole file.
+	if before.Exists && ref.Kind() != domainplace.Profile {
 		for _, p := range s.resourceProblems(ref, part, before.Path, before.Text) {
 			known[p] = true
 		}
