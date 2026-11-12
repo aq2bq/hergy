@@ -43,6 +43,17 @@ func expand(s, lang string) string {
 // In resolves vocabulary and shared-rule references in a template.
 func (text Text) In(lang string) string { return expand(text[lang], lang) }
 
+// Labels lists every label's id, sorted: the summaries and fixed lines the
+// help and the cheatsheets print. The glossary's check reads them all.
+func Labels() []string {
+	ids := make([]string, 0, len(labels))
+	for id := range labels {
+		ids = append(ids, id)
+	}
+	slices.Sort(ids)
+	return ids
+}
+
 // Label reads a presentation label from the vocabulary-backed catalog.
 func Label(id string) Text {
 	text, ok := labels[id]
