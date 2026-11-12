@@ -38,7 +38,7 @@ import {
   searchHook,
   teamCount,
   openSheet
-} from "./nav-nkknfkvh.js";
+} from "./nav-mvjbr7t3.js";
 import {
   token2,
   parseOpen2,

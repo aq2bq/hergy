@@ -18,14 +18,14 @@ import {
 } from "../chunk/nav-zn7g81kr.js";
 import {
   runDanger
-} from "../chunk/nav-dp96tqg6.js";
+} from "../chunk/nav-n7k9prc1.js";
 import {
   profileModel2
-} from "../chunk/nav-rkjyh2fn.js";
+} from "../chunk/nav-5wk0yvna.js";
 import {
   takeDraft2,
   setDirty2
-} from "../chunk/nav-595dg3fr.js";
+} from "../chunk/nav-6xksh4n8.js";
 import {
   ConflictNotice,
   resourceIdentity,
@@ -34,11 +34,11 @@ import {
   editYaml,
   profileFiles,
   YamlTab2
-} from "../chunk/nav-g1xg6rm5.js";
+} from "../chunk/nav-9as7qv3s.js";
 import {
   copyGroupOf,
   ProjectView
-} from "../chunk/nav-g00n7gwn.js";
+} from "../chunk/nav-hcs16qxf.js";
 import {
   Field
 } from "../chunk/nav-9htrbyn7.js";
@@ -184,9 +184,9 @@ var keyGroup = (group) => GROUPED ? group : group === "global" ? "global" : "";
 var openKeys = y(new Set(OPEN_ROWS.map((t) => t.name + "|" + keyGroup(t.group || ""))));
 var nextId = 1;
 var newKey = () => "new-" + nextId++;
-function panelOf(p, group, rowKey) {
+function panelOf(p, group, rowKey, retained) {
   const identity = identityOf(p.file, group, p.saved ? p.savedName : undefined);
-  const editing = editProfile(identity, {
+  const editing = retained || editProfile(identity, {
     saved: p.saved && identity.name ? { name: identity.name, kind: p.savedKind, args: stringList(p.savedArgs), env: envList(p.savedEnv) } : null,
     draft: { name: p.name || "", kind: p.kind || "claude", args: (p.args || []).slice(), env: (p.env || []).map((pair) => ({ ...pair })) },
     hash: p.hash || fileBases.hash(identity),
@@ -242,7 +242,7 @@ function panelOf(p, group, rowKey) {
     }
   };
 }
-function rowOf(row, index) {
+function rowOf(row, index, retained) {
   const key = (row.name || "") + "|" + (row.group || "") + (row.name ? "" : "|" + index);
   return {
     key,
@@ -262,7 +262,7 @@ function rowOf(row, index) {
     places: row.places || [],
     isNew: !!row.new,
     open: openKeys.value.has(key) || isOpenRow(row),
-    panels: (row.panels || []).map((p) => panelOf(p, row.group || "", key))
+    panels: (row.panels || []).map((p) => panelOf(p, row.group || "", key, retained && row.name === retained.saved?.name && (row.group || "") === retained.group && p.file === retained.file ? retained.editing : undefined))
   };
 }
 function modelOf(list, group) {
@@ -285,11 +285,11 @@ function readInitial() {
       all.push(...modelOf(g.list || null, key).rows);
     });
     learnFiles(CURRENT, ISLAND.profile || null);
-    return { rows: all.map(rowOf), files: modelOf(ISLAND.profile || null).files || [] };
+    return { rows: all.map((row, i) => rowOf(row, i)), files: modelOf(ISLAND.profile || null).files || [] };
   }
   learnFiles("", ISLAND.profile || null);
   const model = modelOf(ISLAND.profile || null);
-  return { rows: model.rows.map(rowOf), files: model.files || [] };
+  return { rows: model.rows.map((row, i) => rowOf(row, i)), files: model.files || [] };
 }
 {
   const first = readInitial();
@@ -582,7 +582,7 @@ async function deletePanel(key) {
     applySaved(panel, answer.json);
 }
 function applySaved(panel, answer) {
-  const carry = panel.editing.dirty.value ? panel.editing.take() : null;
+  const retainedEdit = panel.editing.dirty.value ? panel : undefined;
   const previous = allPanels().map(({ panel }) => panel);
   const list = {
     items: answer && answer.items || null,
@@ -602,7 +602,7 @@ function applySaved(panel, answer) {
     if (held)
       held.push(row);
   });
-  const answered = model.rows.map(rowOf);
+  const answered = model.rows.map((row, i) => rowOf(row, i, retainedEdit));
   const own = new Map;
   answered.forEach((row) => {
     const key = row.group || "";
@@ -620,8 +620,8 @@ function applySaved(panel, answer) {
   if (found) {
     open.add(found.key);
     const target = found.panels.find((p) => p.file === panel.file);
-    if (carry && target)
-      target.editing.restore(carry);
+    if (retainedEdit && target)
+      target.editing.check();
   } else if (panel.saved)
     open.add((panel.draft.name || "") + "|" + group);
   openKeys.value = open;

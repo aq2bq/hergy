@@ -1,4 +1,5 @@
 import type { EditedRequest } from './editing.js';
+import type { LegacyEditedRequest } from './legacy-editing-api.js';
 // lib/api.ts — the one way a screen talks to the server (spec-boundary 7, r-2cc2).
 //
 // Every kind of thing a screen reads and writes answers under /api/ in one shape
@@ -17,7 +18,7 @@ import type { EditedRequest } from './editing.js';
 // bodies come from internal/apicontract/api-types.d.ts, made from openapi.yaml
 // (n-e3de, r-5a03), so a screen reads an answer's fields through the type the
 // server is held to. Nothing here writes a field's name on its own.
-import type { components, operations } from '../../../apicontract/api-types';
+import type { components, operations, paths } from '../../../apicontract/api-types';
 
 // Schemas is the shapes the API answers and takes, by their names in the promise.
 export type Schemas = components['schemas'];
@@ -57,7 +58,7 @@ export class Refusal extends Error {
 // whatever the status. A write carries its body as JSON, and the token rides in
 // the header, so POST, PUT and DELETE are one shape (a DELETE carries no body at
 // all). Nothing here decides what a screen does with a non-OK answer.
-export async function raw<T = unknown>(method: string, url: string, payload?: unknown, { signal: stop }: CallOptions = {}): Promise<RawAnswer<T>> {
+async function raw<T = unknown>(method: string, url: string, payload?: unknown, { signal: stop }: CallOptions = {}): Promise<RawAnswer<T>> {
   const project = new URLSearchParams(location.search).get('project');
   if (project && /^\/api\/(team|role|profile)(\/|\?|$)/.test(url)) {
     const target = new URL(url, location.origin);
@@ -85,7 +86,7 @@ export async function raw<T = unknown>(method: string, url: string, payload?: un
 
 // call is one request whose refusal is an error: {status, json, text} when the
 // server took it, a Refusal (with the sentence in it) when it did not.
-export async function call<T = unknown>(method: string, url: string, payload?: unknown, opts?: CallOptions): Promise<RawAnswer<T>> {
+async function send<T = unknown>(method: string, url: string, payload?: unknown, opts?: CallOptions): Promise<RawAnswer<T>> {
   const a = await raw<T>(method, url, payload, opts);
   if (!a.ok) throw new Refusal(a.status, sentenceOf(a.json) || a.text, a.json);
   // A write is the one moment the band's numbers can move without a reload:
@@ -100,6 +101,19 @@ function sentenceOf(json: unknown): string {
   if (typeof json !== 'object' || json === null || !('text' in json)) return '';
   return typeof json.text === 'string' ? json.text : '';
 }
+
+// Direct calls cover operations outside resource editing. Resource save/check
+// routes are excluded from this type, so call cannot bypass the editing brand.
+type Route<P extends string> = P extends `${infer Head}{${string}}${infer Tail}` ? `${Head}${string}${Route<Tail>}` : P;
+type DirectPath = Route<Exclude<keyof paths, `/api/${'team' | 'role' | 'profile'}/{name}` | `/api/${'team' | 'role' | 'profile'}/check`>>;
+type DirectURL = DirectPath | `${DirectPath}?${string}`;
+export const call = <T = unknown>(method: string, url: DirectURL, payload?: unknown, opts?: CallOptions): Promise<RawAnswer<T>> =>
+  send<T>(method, url, payload, opts);
+
+// Only the temporary legacy module can construct this separate capability.
+// It remains the old unbranded check/save interface for unmigrated editors.
+export const sendLegacy = <K extends Kind, A extends 'check' | 'save'>(input: LegacyEditedRequest<K, A>, opts?: CallOptions): Promise<RawAnswer<Answer<K, A>>> =>
+  send<Answer<K, A>>(input.action === 'check' ? 'POST' : 'PUT', input.action === 'check' ? `/api/${input.kind}/check` : `/api/${input.kind}/${enc(input.name)}`, input.body, opts);
 
 // ---- 書き込みと読み込みの形（spec-boundary 5）------------------------------
 // One place writes the addresses, so a screen asks for what it wants and not for
@@ -148,7 +162,7 @@ type ListItem<K extends Kind> = NonNullable<Answer<K, 'list'>['items']>[number];
 
 // read is a GET whose json is the answer: a list or one document.
 export async function read<T>(url: string, opts?: CallOptions): Promise<T> {
-  return answerOf(await call<T>('GET', url, undefined, opts), url);
+  return answerOf(await send<T>('GET', url, undefined, opts), url);
 }
 
 // answerOf is the JSON an operation answered with. A 200 that wrote none is the
@@ -162,13 +176,13 @@ export const list = <K extends Kind>(kind: K, opts?: CallOptions): Promise<Answe
 export const get = <K extends Kind>(kind: K, name: string, place?: Place | '', project?: string, opts?: CallOptions): Promise<Answer<K, 'get'>> =>
   read<Answer<K, 'get'>>(urls.get(kind, name, place || '', project || ''), opts);
 // check is POST /api/{kind}/check: what is wrong with a draft or a text.
-export const check = <K extends Kind>(kind: K, payload: EditedRequest<K, 'check'>, opts?: CallOptions): Promise<RawAnswer<Answer<K, 'check'>>> =>
-  call<Answer<K, 'check'>>('POST', `/api/${kind}/check`, payload.body, opts);
+export const check = <K extends Kind>(kind: K, payload: EditedRequest<NoInfer<K>, 'check'>, opts?: CallOptions): Promise<RawAnswer<Answer<K, 'check'>>> =>
+  send<Answer<K, 'check'>>('POST', `/api/${kind}/check`, payload.body, opts);
 // save is PUT /api/{kind}/{name}: write one document.
-export const save = <K extends Kind>(kind: K, payload: EditedRequest<K, 'save'>, opts?: CallOptions): Promise<RawAnswer<Answer<K, 'save'>>> =>
-  call<Answer<K, 'save'>>('PUT', `/api/${kind}/${enc(payload.name)}`, payload.body, opts);
+export const save = <K extends Kind>(kind: K, payload: EditedRequest<NoInfer<K>, 'save'>, opts?: CallOptions): Promise<RawAnswer<Answer<K, 'save'>>> =>
+  send<Answer<K, 'save'>>('PUT', `/api/${kind}/${enc(payload.name)}`, payload.body, opts);
 export const del = <K extends Kind>(kind: K, name: string, place: Place, hash: string, agreementHash?: string, project?: string, opts?: CallOptions): Promise<RawAnswer<Answer<K, 'del'>>> =>
-  call<Answer<K, 'del'>>('DELETE', urls.del(kind, name, place, hash, agreementHash || '', project || ''), undefined, opts);
+  send<Answer<K, 'del'>>('DELETE', urls.del(kind, name, place, hash, agreementHash || '', project || ''), undefined, opts);
 
 // ---- 反映 (n-4b22, d-36ef) -----------------------------------------------
 // applyList is GET /api/apply: the members whose definition change is not in the
@@ -181,7 +195,7 @@ export const applyCount = (opts?: CallOptions): Promise<ApiAnswer<'countApply'>>
 // answers 202 with the launch to watch (the progress and any startup question
 // are read at /api/hq/launches/{id}); a refusal comes back as a Refusal.
 export async function applyMembers(members: string[], opts?: CallOptions): Promise<ApiAccepted<'applyMembers'>> {
-  const a = await call<ApiAccepted<'applyMembers'>>('POST', '/api/apply', { members } satisfies ApiBody<'applyMembers'>, opts);
+  const a = await send<ApiAccepted<'applyMembers'>>('POST', '/api/apply', { members } satisfies ApiBody<'applyMembers'>, opts);
   return answerOf(a, '/api/apply');
 }
 // hqList is one headquarters reading: the groups of teams, roles or profiles a

@@ -20,7 +20,7 @@ import {
 } from "./nav-zn7g81kr.js";
 import {
   runDanger
-} from "./nav-dp96tqg6.js";
+} from "./nav-n7k9prc1.js";
 import {
   Refusal2,
   call2,
@@ -29,11 +29,11 @@ import {
   applyCount2,
   applyMembers2,
   problemText2
-} from "./nav-rkjyh2fn.js";
+} from "./nav-5wk0yvna.js";
 import {
   setCount2,
   setActivity2
-} from "./nav-595dg3fr.js";
+} from "./nav-6xksh4n8.js";
 import {
   token2
 } from "./nav-hr74m0fy.js";
@@ -271,7 +271,7 @@ function unlistProject(path, host) {
     const opts = {
       run: async () => {
         try {
-          const answer = await call2("DELETE", "/api/hq/projects?path=" + encodeURIComponent(String(path)));
+          const answer = await call2("DELETE", `/api/hq/projects?path=${encodeURIComponent(String(path))}`);
           const json = answer.json;
           if (json) {
             at = json.removed_at ?? -1;
@@ -1180,7 +1180,7 @@ function RunSheet({ id, launch: first }) {
   ].filter(Boolean).join(" · ");
   const abort = async () => {
     try {
-      const answer = await call2("DELETE", "/api/hq/launches/" + encodeURIComponent(id));
+      const answer = await call2("DELETE", `/api/hq/launches/${encodeURIComponent(id)}`);
       const next = answer.json && answer.json.launch;
       if (next)
         watched.value = Object.assign({}, watched.value, { [id]: next });

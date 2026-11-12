@@ -5,7 +5,7 @@
 // 一覧（プロファイルの行と、行の中のプロジェクト/グローバルの面）、
 // 割り当て（チーム定義のメンバーのプロファイル）、YAML（profiles.yaml の面）。
 import { signal, computed } from '../lib/preact.js';
-import { editProfile, editProfileAssignments, editYaml, profileFiles, type ProfileAssignments, type YamlEditing } from '../lib/editing.js';
+import { editProfile, editProfileAssignments, editYaml, profileFiles, type ProfileAssignments, type YamlEditing, type ProfileEditing } from '../lib/editing.js';
 import { resourceIdentity } from '../lib/resource-identity.js';
 import { profileModel, list as apiList, type Answer, type Place, type ProfilePanel, type ProfileRow } from '../lib/api.js';
 import { readOpen, rowsFor, writeOpen } from '../lib/address.js';
@@ -179,9 +179,9 @@ const newKey = (): string => 'new-' + nextId++;
 
 // panelOf reads one server panel as the panel's state: what the file holds
 // (saved), and the draft the fields start from.
-function panelOf(p: ProfilePanel, group: string | undefined, rowKey: string): Panel {
+function panelOf(p: ProfilePanel, group: string | undefined, rowKey: string, retained?: ProfileEditing): Panel {
   const identity = identityOf(p.file, group, p.saved ? p.savedName : undefined);
-  const editing = editProfile(identity, {
+  const editing = retained || editProfile(identity, {
     saved: p.saved && identity.name ? { name: identity.name, kind: p.savedKind, args: stringList(p.savedArgs), env: envList(p.savedEnv) } : null,
     draft: { name: p.name || '', kind: p.kind || 'claude', args: (p.args || []).slice(), env: (p.env || []).map((pair) => ({ ...pair })) },
     hash: p.hash || fileBases.hash(identity), readable: !p.problem, savedLine: p.savedLine,
@@ -207,7 +207,7 @@ function panelOf(p: ProfilePanel, group: string | undefined, rowKey: string): Pa
 
 // rowOf reads one row of the model: its summary columns, and the panels it
 // opens into.
-function rowOf(row: ProfileRow & { group?: string }, index: number): Row {
+function rowOf(row: ProfileRow & { group?: string }, index: number, retained?: Panel): Row {
   const key = (row.name || '') + '|' + (row.group || '') + (row.name ? '' : '|' + index);
   return {
     key,
@@ -227,7 +227,8 @@ function rowOf(row: ProfileRow & { group?: string }, index: number): Row {
     places: row.places || [],
     isNew: !!row.new,
     open: openKeys.value.has(key) || isOpenRow(row),
-    panels: (row.panels || []).map((p) => panelOf(p, row.group || '', key)),
+    panels: (row.panels || []).map((p) => panelOf(p, row.group || '', key,
+      retained && row.name === retained.saved?.name && (row.group || '') === retained.group && p.file === retained.file ? retained.editing : undefined)),
   };
 }
 
@@ -267,11 +268,11 @@ function readInitial(): { rows: Row[]; files: YamlFile[] } {
     // The island's own list is this serve's project's: a write to its group
     // carries the hashes that list read (r-57d8).
     learnFiles(CURRENT, ISLAND.profile || null);
-    return { rows: all.map(rowOf), files: modelOf(ISLAND.profile || null).files || [] };
+    return { rows: all.map((row, i) => rowOf(row, i)), files: modelOf(ISLAND.profile || null).files || [] };
   }
   learnFiles('', ISLAND.profile || null);
   const model = modelOf(ISLAND.profile || null);
-  return { rows: model.rows.map(rowOf), files: model.files || [] };
+  return { rows: model.rows.map((row, i) => rowOf(row, i)), files: model.files || [] };
 }
 {
   const first = readInitial();
@@ -498,7 +499,7 @@ type SavedAnswer = Answer<'profile', 'save'> | Answer<'profile', 'del'>;
 // rows, keeping open the rows a person had open and opening the one just
 // written by its new name.
 function applySaved(panel: Panel, answer: SavedAnswer | null): void {
-  const carry = panel.editing.dirty.value ? panel.editing.take() : null;
+  const retainedEdit = panel.editing.dirty.value ? panel : undefined;
   const previous = allPanels().map(({ panel }) => panel);
   const list: ProfileList = {
     items: (answer && answer.items) || null,
@@ -521,7 +522,7 @@ function applySaved(panel: Panel, answer: SavedAnswer | null): void {
   // The answer's rows go into the frame of their own place (the item's
   // Effective): a save under one head carries the global rows too, and they
   // must stay under the global head (r-ea17).
-  const answered = model.rows.map(rowOf);
+  const answered = model.rows.map((row, i) => rowOf(row, i, retainedEdit));
   const own = new Map<string, Row[]>();
   answered.forEach((row) => {
     const key = row.group || '';
@@ -537,7 +538,7 @@ function applySaved(panel: Panel, answer: SavedAnswer | null): void {
   if (found) {
     open.add(found.key);
     const target = found.panels.find((p) => p.file === panel.file);
-    if (carry && target) target.editing.restore(carry);
+    if (retainedEdit && target) void target.editing.check();
   }
   else if (panel.saved) open.add((panel.draft.name || '') + '|' + group);
   openKeys.value = open;

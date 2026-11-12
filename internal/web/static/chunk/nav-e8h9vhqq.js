@@ -9,8 +9,8 @@
 
 import {
   Refusal2,
-  call2
-} from "./nav-rkjyh2fn.js";
+  sendLegacy2
+} from "./nav-5wk0yvna.js";
 import {
   y
 } from "./nav-zn7g81kr.js";
@@ -19,8 +19,11 @@ import {
 } from "./nav-74jj0fve.js";
 
 // lib/legacy-editing-api.ts
-var check2 = (kind, payload, opts) => call2("POST", `/api/${kind}/check`, payload, opts);
-var save2 = (kind, name, payload, opts) => call2("PUT", `/api/${kind}/${encodeURIComponent(name)}`, payload, opts);
+function request(kind, action, name, body) {
+  return { kind, action, name, body };
+}
+var check2 = (kind, payload, opts) => sendLegacy2(request(kind, "check", "", payload), opts);
+var save2 = (kind, name, payload, opts) => sendLegacy2(request(kind, "save", name, payload), opts);
 
 // lib/role-editor.ts
 function record(value) {
