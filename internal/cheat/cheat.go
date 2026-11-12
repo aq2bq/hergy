@@ -239,6 +239,7 @@ Resolution:
   A team definition is teams/<definition>/ under the project's .hergy/, or under $XDG_CONFIG_HOME/hergy (or ~/.config/hergy when unset).
   A definition name is looked up local first, then global; a name in both resolves to the project's own.
   The project root is the git root (else the current directory); -C, --dir overrides it.
+  Relative and absolute paths, trailing slashes and symbolic-link aliases name the same project. Project paths shown by the CLI and API use the normalized absolute spelling.
   up with no name uses the one team definition of the project; otherwise the candidates are listed and it stops.
   A team command with no team name uses the one running team; none or several stops with the running team names.
   hergy's own state is $XDG_STATE_HOME/hergy (or ~/.local/state/hergy when unset): launches/log.jsonl records up, apply, refresh and reprompt, and launches/blobs/<sha256> holds the prompt texts and rule file contents each line points at. Members are confirmed recipients only. After success or missing receipts, up (including starts from the screens) records the team even when no prompt was received; refresh, reprompt and apply write only with at least one confirmed recipient. Other sending/startup failures and cancellation write none. A launch that cannot be recorded still runs, with one line on stderr.

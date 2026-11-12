@@ -15,6 +15,8 @@ The shape of every command and flag lives in `hergy cheat --ai`. Read that befor
 - Reaching a teammate, driving a pane: herdr.
 - Whether anyone is waiting on the human, or nobody is working: `hergy status`. A member whose screen has not changed while it works is marked with how long it has stood.
 
+Project paths are normalized to absolute paths with existing symbolic links resolved. Relative and absolute spellings, trailing slashes and symlink aliases identify the same project. The CLI and API return the normalized spelling; existing launch records retain their stored spelling.
+
 ## Team definitions and team names
 
 - A team definition is the directory `teams/<name>/` with its `team.yaml`; `hergy up`, `hergy new` and `hergy show` take a team definition name.
