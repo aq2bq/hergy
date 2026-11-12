@@ -197,6 +197,7 @@ if [ -z "$s" ]; then
   exit 0
 fi
 case "$g $s" in
+  "workspace list") echo '{"result":{"workspaces":[{"workspace_id":"w1","label":"workspace"}]}}' ;;
   "pane current") echo '{"result":{"pane":{"workspace_id":"w1"}}}' ;;
   "agent list")
     printf '{"result":{"agents":['
@@ -236,7 +237,7 @@ case "$g $s" in
     while read -r id label; do
       [ -z "$id" ] && continue
       if [ $first -eq 1 ]; then first=0; else printf ','; fi
-      printf '{"tab_id":"%s","label":"%s"}' "$id" "$label"
+      printf '{"tab_id":"%s","label":"%s","workspace_id":"w1"}' "$id" "$label"
     done < "$tabs"
     printf ']}}'
     ;;
@@ -1306,7 +1307,8 @@ func TestDownDryWithoutLiveMembersHasNoNext(t *testing.T) {
 func TestUpProductionShowsNoPerMemberProvenance(t *testing.T) {
 	f := newFixture(t)
 	mustRun(t, "new", "demo")
-	f.herdr(t, passingHerdr)
+	// This fixture starts a new team; its legacy tab must not already exist.
+	f.herdr(t, strings.Replace(passingHerdr, `"tabs":[{"tab_id":"t1","label":"team:demo@demo"}]`, `"tabs":[]`, 1))
 	t.Setenv("HERDR_ENV", "1")
 	t.Setenv("HERDR_PANE_ID", "p9")
 	got := mustRun(t, "up", "demo")

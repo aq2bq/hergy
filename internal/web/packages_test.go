@@ -39,6 +39,9 @@ func TestOnlyTheOneModuleImportsThePackages(t *testing.T) {
 			return err
 		}
 		if d.IsDir() {
+			if d.Name() != "." && strings.HasPrefix(d.Name(), ".") {
+				return fs.SkipDir
+			}
 			return nil
 		}
 		switch filepath.Ext(path) {

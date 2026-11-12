@@ -36,6 +36,9 @@ func importsOf(t *testing.T) map[string][]string {
 		if err != nil {
 			return err
 		}
+		if d.IsDir() && d.Name() != "." && strings.HasPrefix(d.Name(), ".") {
+			return fs.SkipDir
+		}
 		if d.IsDir() || !strings.HasSuffix(file, ".go") || strings.HasSuffix(file, "_test.go") {
 			return nil
 		}

@@ -37,7 +37,7 @@ func aliasProjectRun(t *testing.T, recordAlias bool) (team.Env, string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeLaunch(log, env, r, launchlog.CommandUp, r.Starts, launchlog.Workspace{}); err != nil {
+	if err := ops.WriteLaunch(log, env, r, launchlog.CommandUp, r.Starts, launchlog.Workspace{}); err != nil {
 		t.Fatal(err)
 	}
 	records, err := log.Read()

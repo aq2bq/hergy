@@ -232,7 +232,7 @@ func applyTeamNow(ctx context.Context, env team.Env, group []plannedMember, time
 		}
 		fmt.Fprintf(stdout, "%s\n", i18n.Tf("apply.applied", member.start.Short.String(), applyHowWord(member.how)))
 	}
-	recordReceivedLaunch(stderr, projectEnv, r, launchlog.CommandApply, all, l, launchlog.Workspace{})
+	recordReceivedLaunch(stderr, projectEnv, r, launchlog.CommandApply, all, l)
 	return errors.Join(undelivered...)
 }
 

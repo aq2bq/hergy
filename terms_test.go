@@ -700,6 +700,9 @@ func TestGlossaryBannedWordsStayOut(t *testing.T) {
 				return err
 			}
 			if entry.IsDir() {
+				if entry.Name() != "." && strings.HasPrefix(entry.Name(), ".") {
+					return filepath.SkipDir
+				}
 				return nil
 			}
 			if !screenSource(path) {
@@ -779,6 +782,9 @@ func TestScreensNameTheirNameFields(t *testing.T) {
 				return err
 			}
 			if entry.IsDir() {
+				if entry.Name() != "." && strings.HasPrefix(entry.Name(), ".") {
+					return filepath.SkipDir
+				}
 				return nil
 			}
 			if !screenSource(path) {

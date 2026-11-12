@@ -40,7 +40,7 @@ func recordDev(t *testing.T, f *fixture) launchlog.Record {
 		t.Fatal(err)
 	}
 	var stderr bytes.Buffer
-	recordLaunch(&stderr, env, r, launchlog.CommandUp, r.Starts)
+	launchWarning(&stderr, ops.RecordLaunch(env, r, launchlog.CommandUp, r.Starts))
 	if stderr.Len() > 0 {
 		t.Fatalf("recording dev failed: %s", stderr.String())
 	}

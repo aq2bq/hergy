@@ -830,50 +830,47 @@ func sharedAgreementError(cat *catalog.Catalog, docs []source.Doc) error {
 }
 
 func runUp(ctx context.Context, env team.Env, opts *options.Options, stdout, stderr io.Writer) error {
-	cat := env.Catalog(source.Disk{})
-	if err := sharedAgreementStops(cat); err != nil {
-		return err
+	plan, err := ops.StartTeam(ctx, ops.StartInput{Env: env, Definition: opts.Definition.DefinitionName(), Name: opts.As,
+		Workspace: ops.WorkspaceInput{Current: true}, Command: hergyCommand(opts), Timeout: opts.Timeout,
+		RequirePane: true, ManagedPane: os.Getenv("HERDR_ENV") == "1", Dry: opts.Dry,
+		Observe: cliEvents(stdout, stderr, env)})
+	if opts.Dry && err == nil {
+		return dryPlan(stdout, env, plan.Resolved, plan.Mode, plan.Members, opts, plan.Next)
 	}
-	r, err := ops.ReadDefinition(cat, env.ProjectRoot, opts.Definition.DefinitionName().String(), opts.As)
-	if err != nil {
-		return err
-	}
-	if opts.Dry {
-		return dryPlan(stdout, env, r, "boot", r.Starts, opts, "up "+r.Team.Definition.Name.String()+asSuffix(opts))
-	}
-	release, err := source.LockTeamStart(r.Team.Definition.TeamYAML.String())
-	if err != nil {
-		return i18n.Errorf("web.rename.busy")
-	}
-	defer release()
-	// A rename may have finished after the first read, before this lock.
-	r, err = ops.ReadDefinition(env.Catalog(source.Disk{}), env.ProjectRoot, opts.Definition.DefinitionName().String(), opts.As)
-	if err != nil {
-		return err
-	}
-	if err := requireHerdrPane(); err != nil {
-		return err
-	}
-	printHeader(stdout, r, env, true)
-	printSignalNotes(stdout, r.Starts)
-	l := launcherFor(r, opts.Timeout, stdout).WithWatcher(watcherCommand(r.Team.Name.String(), env.ProjectRoot))
-	up := hergyCommand(opts)
-	// A boot that stops partway says the same thing the screen's start sheet
-	// says: the member, herdr's reason, what remains, and the command to go on
-	// with, in the project it is typed in (d-5f02).
-	say := func(err error) error {
-		if launcher.IsUndelivered(err) {
-			return err
+	return operationError(err)
+}
+
+func cliEvents(stdout, stderr io.Writer, env team.Env) func(ops.Event) {
+	return func(event ops.Event) {
+		if event.Plan != nil {
+			printHeader(stdout, event.Plan.Resolved, env, true)
 		}
-		failure := l.Failure(err)
-		return errors.New(startFailureText(failure, filepath.Base(env.ProjectRoot.String()),
-			failedStartCommand(failure, r.Team.Name.String(), up)))
+		if event.Text != "" {
+			fmt.Fprint(stdout, event.Text)
+		}
+		if event.Warning != "" {
+			fmt.Fprintln(stderr, event.Warning)
+		}
+		if event.Cancelled {
+			fmt.Fprint(stderr, i18n.T("launcher.interrupted"))
+		}
+		if event.Failure != nil {
+			fail(stderr, event.Failure)
+		}
+		if event.Diagnostics != "" {
+			fmt.Fprint(stderr, event.Diagnostics)
+		}
 	}
-	err = runLaunch(ctx, stderr, l, say, func() error { return l.Boot(up) })
-	if err != nil && !launcher.IsUndelivered(err) {
-		return err
+}
+
+func operationError(err error) error {
+	if op, ok := errors.AsType[*ops.OperationError](err); ok {
+		code := 1
+		if op.Cancelled {
+			code = 130
+		}
+		return reportedError{err: op.Err, code: code}
 	}
-	recordReceivedLaunch(stderr, env, r, launchlog.CommandUp, r.Starts, l, launchlog.Workspace{Label: l.WorkspaceLabel(), ID: l.WorkspaceID()})
 	return err
 }
 
@@ -980,12 +977,6 @@ func runStatus(env team.Env, opts *options.Options, stdout io.Writer) error {
 	}
 	printTurn(stdout, r.Team.Name.Observation())
 	return printStatusJudgement(stdout, rows, "")
-}
-
-// watcherCommand is what a boot runs in the watcher's strip: this hergy, hergy
-// turns <team>, in the project, in the language the command line runs in.
-func watcherCommand(teamName string, projectRoot domainplace.Project) []string {
-	return []string{ops.Executable(), "turns", teamName, "-C", projectRoot.String(), "--lang", i18n.Language()}
 }
 
 // printTurn is the status lines about the turn: who holds it, from whom, why
@@ -1420,7 +1411,7 @@ func runRefresh(ctx context.Context, env team.Env, opts *options.Options, stdout
 	if err != nil && !launcher.IsUndelivered(err) {
 		return err
 	}
-	recordReceivedLaunch(stderr, env, r, launchlog.CommandRefresh, selected, l, launchlog.Workspace{})
+	recordReceivedLaunch(stderr, env, r, launchlog.CommandRefresh, selected, l)
 	return err
 }
 
@@ -1463,7 +1454,7 @@ func runReprompt(ctx context.Context, env team.Env, opts *options.Options, stdou
 	if err != nil && !launcher.IsUndelivered(err) {
 		return err
 	}
-	recordReceivedLaunch(stderr, env, r, launchlog.CommandReprompt, selected, l, launchlog.Workspace{})
+	recordReceivedLaunch(stderr, env, r, launchlog.CommandReprompt, selected, l)
 	return err
 }
 
@@ -1762,14 +1753,6 @@ func envSummary(env map[string]string) string {
 		}
 	}
 	return strings.Join(keys, ", ")
-}
-
-// asSuffix repeats --as on the up command a dry run names next.
-func asSuffix(opts *options.Options) string {
-	if opts.As == "" {
-		return ""
-	}
-	return " --as " + opts.As
 }
 
 func reportLegacyProse(env team.Env, cat *catalog.Catalog, report func(string, error)) {

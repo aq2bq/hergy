@@ -10,6 +10,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/aq2bq/hergy/internal/ops"
+
 	domainplace "github.com/aq2bq/hergy/internal/domain/place"
 
 	"github.com/aq2bq/hergy/internal/catalog"
@@ -427,4 +429,21 @@ func clockText(at time.Time) string { return at.Format(time.RFC3339) }
 type removedProject struct {
 	at    int
 	lines []string
+}
+
+func hqOperationError(err error) error {
+	if err == nil {
+		return nil
+	}
+	if refusal, ok := errors.AsType[*ops.Refusal](err); ok {
+		status := http.StatusUnprocessableEntity
+		switch refusal.Kind {
+		case "conflict":
+			status = http.StatusConflict
+		case "unavailable":
+			status = http.StatusServiceUnavailable
+		}
+		return &web.HQError{Status: status, At: refusal.At, Text: refusal.Error(), SuggestedName: refusal.SuggestedName}
+	}
+	return hqError(err)
 }

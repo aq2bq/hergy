@@ -177,7 +177,7 @@ func (h *hqRead) runApply(ctx context.Context, op *launchOp, selected []plannedM
 // applyGroup applies one team's members, and records what they were handed.
 func (h *hqRead) applyGroup(ctx context.Context, op *launchOp, env team.Env, cat *catalog.Catalog, r *ops.Resolved, group []plannedMember) error {
 	l := launcherWithPort(r, 30000, io.Discard, h.act.herdrPort()).WithContext(ctx).WithoutNextHint()
-	l.Observe(func(event launcher.Event) { h.observe(op, event) })
+	l.Observe(func(event launcher.Event) { h.observe(op, *ops.ProgressOf(event)) })
 	var starts, restarts, resends []definition.Start
 	for _, member := range group {
 		switch member.how {
@@ -226,7 +226,7 @@ func (h *hqRead) applyGroup(ctx context.Context, op *launchOp, env team.Env, cat
 		}
 		h.stepApplied(op, member)
 	}
-	recordReceivedLaunch(io.Discard, env, r, launchlog.CommandApply, all, l, launchlog.Workspace{})
+	recordReceivedLaunch(io.Discard, env, r, launchlog.CommandApply, all, l)
 	return errors.Join(undelivered...)
 }
 
