@@ -140,16 +140,16 @@ func TestRunningTeamsFindsATeamByItsNamedPane(t *testing.T) {
 // team's (r-87c8).
 func TestRunningTeamsReadsTheRecordOfTheProjectItsPanesStandIn(t *testing.T) {
 	launches := []Launch{
-		{Team: fixtureSeen("core"), Definition: "alpha-core", Project: "/work/alpha"},
-		{Team: fixtureSeen("core"), Definition: "beta-core", Project: "/work/beta"}, // the newest of the name
+		{Team: fixtureSeen("core"), Definition: "alpha-core", Project: projectPath("/work/alpha")},
+		{Team: fixtureSeen("core"), Definition: "beta-core", Project: projectPath("/work/beta")}, // the newest of the name
 	}
 	tabs := []Tab{{
 		ID: "t1", Label: fixtureSeen("core"),
 		Panes:    fixtureSeenList([]string{"core-lead"}),
-		PaneDirs: []string{"/work/alpha"},
+		PaneDirs: seenPaths([]string{"/work/alpha"}),
 	}}
 	got := RunningTeams(tabs, launches, true)
-	want := []Running{{Team: fixtureRunningTeam("core"), Definition: "alpha-core", Project: "/work/alpha"}}
+	want := []Running{{Team: fixtureRunningTeam("core"), Definition: "alpha-core", Project: projectPath("/work/alpha")}}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("RunningTeams = %+v, want %+v", got, want)
 	}
@@ -160,7 +160,7 @@ func TestRunningTeamsReadsTheRecordOfTheProjectItsPanesStandIn(t *testing.T) {
 	other := []Tab{{
 		ID: "t2", Label: fixtureSeen("core"),
 		Panes:    fixtureSeenList([]string{"core-lead"}),
-		PaneDirs: []string{"/work/gamma"},
+		PaneDirs: seenPaths([]string{"/work/gamma"}),
 	}}
 	want = []Running{{Team: fixtureRunningTeam("core"), Definition: "core"}}
 	if got := RunningTeams(other, launches, true); !reflect.DeepEqual(got, want) {

@@ -5,9 +5,12 @@ import (
 	"errors"
 	"net/http"
 
+	domainplace "github.com/aq2bq/hergy/internal/domain/place"
+
 	domainname "github.com/aq2bq/hergy/internal/domain/name"
 
 	"github.com/aq2bq/hergy/internal/catalog"
+	"github.com/aq2bq/hergy/internal/projectinput"
 	"github.com/aq2bq/hergy/internal/source"
 )
 
@@ -29,7 +32,7 @@ type HQ interface {
 	RemoveProject(path string) (HQProjects, int, error)
 	Running() HQRunning
 	Workspaces() HQWorkspaces
-	LaunchOptions(project, definition, place string) (HQLaunchOptions, error)
+	LaunchOptions(project domainplace.Input, definition, place string) (HQLaunchOptions, error)
 	StartLaunch(in HQLaunchIn) (HQLaunch, error)
 	LaunchState(id string) (HQLaunch, bool)
 	CancelLaunch(id string) (HQLaunch, bool)
@@ -69,19 +72,19 @@ type HQProjects struct {
 // called, and what it holds. Path is the identity (d-73fc); Name is what a person
 // reads, with the parent added only when two names would look alike.
 type HQProject struct {
-	Path          string       `json:"path"`
-	Name          string       `json:"name"`
-	Display       string       `json:"display"`
-	Listed        bool         `json:"listed"`
-	Current       bool         `json:"current"`
-	Exists        bool         `json:"exists"`
-	HasHergy      bool         `json:"has_hergy"`
-	Defs          int          `json:"definitions"`
-	Roles         int          `json:"roles"`
-	Profiles      int          `json:"profiles"`
-	Running       int          `json:"running"`
-	LastLaunch    string       `json:"last_launch,omitempty"`
-	LastWorkspace *HQWorkspace `json:"last_workspace,omitempty"`
+	Path          domainplace.Project `json:"path"`
+	Name          string              `json:"name"`
+	Display       string              `json:"display"`
+	Listed        bool                `json:"listed"`
+	Current       bool                `json:"current"`
+	Exists        bool                `json:"exists"`
+	HasHergy      bool                `json:"has_hergy"`
+	Defs          int                 `json:"definitions"`
+	Roles         int                 `json:"roles"`
+	Profiles      int                 `json:"profiles"`
+	Running       int                 `json:"running"`
+	LastLaunch    string              `json:"last_launch,omitempty"`
+	LastWorkspace *HQWorkspace        `json:"last_workspace,omitempty"`
 	// Source says why a project is here without being listed: "launch" is the
 	// machine's launch record, "current" is the project serve was started in.
 	Source string `json:"source,omitempty"`
@@ -112,9 +115,9 @@ type HQGroup struct {
 // HQRef is one project as a group names it, and as the workspace and launch
 // answers name the project a team belongs to.
 type HQRef struct {
-	Path    string `json:"path"`
-	Name    string `json:"name"`
-	Display string `json:"display"`
+	Path    domainplace.Project `json:"path"`
+	Name    string              `json:"name"`
+	Display string              `json:"display"`
 }
 
 // HQGroups is GET /api/hq/teams, /roles and /profiles: the projects' groups in
@@ -132,18 +135,18 @@ type HQRunning struct {
 
 // HQRunningTeam is one running team with the project and workspace it runs in.
 type HQRunningTeam struct {
-	Team        domainname.TeamRef `json:"team"`
-	Definition  string             `json:"definition"`
-	Place       string             `json:"place"`
-	Project     string             `json:"project"`
-	ProjectName string             `json:"project_name"`
-	Workspace   HQWorkspace        `json:"workspace"`
-	Tab         HQTab              `json:"tab"`
-	Starting    bool               `json:"starting"`
-	Launch      string             `json:"launch,omitempty"`
-	Members     []HQMember         `json:"members"`
-	Workers     []HQWorker         `json:"workers"`
-	Waiting     []string           `json:"waiting"`
+	Team        domainname.TeamRef  `json:"team"`
+	Definition  string              `json:"definition"`
+	Place       string              `json:"place"`
+	Project     domainplace.Project `json:"project"`
+	ProjectName string              `json:"project_name"`
+	Workspace   HQWorkspace         `json:"workspace"`
+	Tab         HQTab               `json:"tab"`
+	Starting    bool                `json:"starting"`
+	Launch      string              `json:"launch,omitempty"`
+	Members     []HQMember          `json:"members"`
+	Workers     []HQWorker          `json:"workers"`
+	Waiting     []string            `json:"waiting"`
 	// NotUp is the members the definition has that no agent of the team is live
 	// for, by short name: the ones a screen offers 起動 for (r-5d1a).
 	NotUp []string `json:"not_up"`
@@ -156,12 +159,12 @@ type HQRunningTeam struct {
 // HQWorkspace is one herdr workspace: its id, its label, and the team that is in
 // it (one team to a workspace, d-73fc).
 type HQWorkspace struct {
-	ID          string `json:"id"`
-	Label       string `json:"label"`
-	Focused     bool   `json:"focused,omitempty"`
-	Team        string `json:"team,omitempty"`
-	TeamProject string `json:"team_project,omitempty"`
-	LastTeam    string `json:"last_team,omitempty"`
+	ID          string              `json:"id"`
+	Label       string              `json:"label"`
+	Focused     bool                `json:"focused,omitempty"`
+	Team        string              `json:"team,omitempty"`
+	TeamProject domainplace.Project `json:"team_project,omitzero"`
+	LastTeam    string              `json:"last_team,omitempty"`
 }
 
 // HQTab is one team's tab.
@@ -211,16 +214,16 @@ type HQLaunchOptions struct {
 // HQLaunchProject is one project a global definition can be started in. A
 // project that defines the same name itself cannot be chosen (spec 5 章).
 type HQLaunchProject struct {
-	Path      string `json:"path"`
-	Name      string `json:"name"`
-	Available bool   `json:"available"`
-	Reason    string `json:"reason"`
+	Path      domainplace.Project `json:"path"`
+	Name      string              `json:"name"`
+	Available bool                `json:"available"`
+	Reason    string              `json:"reason"`
 }
 
 // HQClash is a running team already using the definition's name.
 type HQClash struct {
-	Team    string `json:"team"`
-	Project string `json:"project"`
+	Team    string              `json:"team"`
+	Project domainplace.Project `json:"project"`
 }
 
 // HQWorkspaceChoice is one workspace in the start sheet: why it is where it is in
@@ -233,11 +236,11 @@ type HQWorkspaceChoice struct {
 
 // HQLaunchIn is POST /api/hq/launch's body.
 type HQLaunchIn struct {
-	Project    string        `json:"project"`
-	Definition string        `json:"definition"`
-	Place      string        `json:"place"`
-	Name       string        `json:"name"`
-	Workspace  HQWorkspaceIn `json:"workspace"`
+	Project    domainplace.Input     `json:"project"`
+	Definition string                `json:"definition"`
+	Place      domainplace.Selection `json:"place"`
+	Name       string                `json:"name"`
+	Workspace  HQWorkspaceIn         `json:"workspace"`
 }
 
 // The actions a launch answer is about: a team starting, or the members of a
@@ -259,19 +262,19 @@ type HQWorkspaceIn struct {
 
 // HQLaunch is one start, as it is now.
 type HQLaunch struct {
-	ID          string         `json:"id"`
-	Action      string         `json:"action"`
-	Team        string         `json:"team"`
-	Definition  string         `json:"definition"`
-	Place       string         `json:"place"`
-	Project     string         `json:"project"`
-	ProjectName string         `json:"project_name"`
-	Workspace   HQWorkspace    `json:"workspace"`
-	Tab         HQTab          `json:"tab"`
-	Phase       string         `json:"phase"`
-	Steps       []HQLaunchStep `json:"steps"`
-	Waiting     *HQWaiting     `json:"waiting"`
-	Error       string         `json:"error"`
+	ID          string              `json:"id"`
+	Action      string              `json:"action"`
+	Team        string              `json:"team"`
+	Definition  string              `json:"definition"`
+	Place       string              `json:"place"`
+	Project     domainplace.Project `json:"project"`
+	ProjectName string              `json:"project_name"`
+	Workspace   HQWorkspace         `json:"workspace"`
+	Tab         HQTab               `json:"tab"`
+	Phase       string              `json:"phase"`
+	Steps       []HQLaunchStep      `json:"steps"`
+	Waiting     *HQWaiting          `json:"waiting"`
+	Error       string              `json:"error"`
 	// Members are the members a refresh starts, by short name: empty for a start,
 	// whose members the start sheet reads from the definition.
 	Members []string `json:"members,omitempty"`
@@ -297,12 +300,12 @@ type HQWaiting struct {
 
 // HQStopped is POST /api/hq/stop's answer.
 type HQStopped struct {
-	Team       string      `json:"team"`
-	Definition string      `json:"definition,omitempty"`
-	Project    string      `json:"project"`
-	Workspace  HQWorkspace `json:"workspace"`
-	Closed     HQClosed    `json:"closed"`
-	StoppedAt  string      `json:"stopped_at"`
+	Team       string              `json:"team"`
+	Definition string              `json:"definition,omitempty"`
+	Project    domainplace.Project `json:"project"`
+	Workspace  HQWorkspace         `json:"workspace"`
+	Closed     HQClosed            `json:"closed"`
+	StoppedAt  string              `json:"stopped_at"`
 	// Leftovers is what the closed panes left in git, for the stop sheet's result
 	// (r-b65e).
 	Leftovers HQLeftovers `json:"leftovers"`
@@ -318,11 +321,11 @@ type HQLeftovers struct {
 // HQWorktree is one worktree of the stopped team's project that came while the
 // team ran, with what removing it would lose.
 type HQWorktree struct {
-	Path   string `json:"path"`
-	Branch string `json:"branch"`
-	Dirty  bool   `json:"dirty"`
-	Ahead  int    `json:"ahead"`
-	Base   string `json:"base"`
+	Path   domainplace.Project `json:"path"`
+	Branch string              `json:"branch"`
+	Dirty  bool                `json:"dirty"`
+	Ahead  int                 `json:"ahead"`
+	Base   string              `json:"base"`
 	// PaneCwd says a closed pane's working directory was this worktree (d-970c).
 	PaneCwd bool `json:"pane_cwd"`
 }
@@ -336,7 +339,7 @@ type HQClosed struct {
 // CatalogProvider builds the catalog of one listed project, for the reads and
 // writes a screen makes with a project beside a name.
 type CatalogProvider interface {
-	ProjectCatalog(path string) (*catalog.Catalog, error)
+	ProjectCatalog(path domainplace.Project) (*catalog.Catalog, error)
 	GlobalCatalog() *catalog.Catalog
 }
 
@@ -357,8 +360,8 @@ func (s *Server) globalCatalog() *catalog.Catalog {
 
 // catalogAt is the catalog of one project, or this server's own for an empty
 // path.
-func (s *Server) catalogAt(project string) (*catalog.Catalog, *apiErr) {
-	if project == "" {
+func (s *Server) catalogAt(project domainplace.Project) (*catalog.Catalog, *apiErr) {
+	if project.IsZero() {
 		return s.cat, nil
 	}
 	if s.projects == nil {
@@ -377,7 +380,7 @@ func (s *Server) catalogAt(project string) (*catalog.Catalog, *apiErr) {
 // withProject is this server reading one project's layer. Everything a kind does
 // reads through s.cat, so a copy with the catalog swapped is the same kind over
 // another project.
-func (s *Server) withProject(project string) (*Server, *apiErr) {
+func (s *Server) withProject(project domainplace.Project) (*Server, *apiErr) {
 	cat, refusal := s.catalogAt(project)
 	if refusal != nil {
 		return nil, refusal
@@ -431,7 +434,9 @@ func readHQIn[T any](w http.ResponseWriter, r *http.Request) (T, bool) {
 }
 
 // projectQuery is the project one read or write names.
-func projectQuery(r *http.Request) string { return r.URL.Query().Get("project") }
+func projectQuery(r *http.Request) domainplace.Input {
+	return domainplace.Input(r.URL.Query().Get("project"))
+}
 
 // hqScreenIsland is the headquarters part of a list screen's data island: the
 // projects reading, and the groups of each kind the screen draws (spec 4 章).
@@ -508,7 +513,7 @@ func (s *Server) hqGroupsOf(projects HQProjects, kindName string) (HQGroups, *ap
 			return HQGroups{}, refusal
 		}
 		for _, item := range group.List.Items {
-			owners[item.Name] = append(owners[item.Name], project.Path)
+			owners[item.Name] = append(owners[item.Name], project.Path.String())
 		}
 		out.Groups = append(out.Groups, group)
 	}
@@ -575,7 +580,7 @@ func (s *Server) hqKindGroup(kindName string, project HQProject) (HQGroup, *apiE
 		return HQGroup{}, refusal
 	}
 	ref := &HQRef{Path: project.Path, Name: project.Name, Display: project.Display}
-	return HQGroup{Project: ref, Name: project.Name, Path: project.Path, Display: project.Display, List: list}, nil
+	return HQGroup{Project: ref, Name: project.Name, Path: project.Path.String(), Display: project.Display, List: list}, nil
 }
 
 // hqGlobalGroup is the global layer's own names of one kind, read once.
@@ -692,7 +697,7 @@ func (s *Server) hqLaunchOptions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	q := r.URL.Query()
-	options, err := s.hq.LaunchOptions(q.Get("project"), q.Get("definition"), q.Get("place"))
+	options, err := s.hq.LaunchOptions(projectQuery(r), q.Get("definition"), q.Get("place"))
 	answerHQ(w, options, err)
 }
 
@@ -762,4 +767,16 @@ func hqRefusal(err error) *apiErr {
 		return refuse(hq.Status, hq.Text)
 	}
 	return refuse(http.StatusInternalServerError, err.Error())
+}
+
+// withProjectInput resolves HTTP's raw spelling once; internal readers use withProject.
+func (s *Server) withProjectInput(input domainplace.Input) (*Server, *apiErr) {
+	if input == "" {
+		return s, nil
+	}
+	project, err := projectinput.Read(input)
+	if err != nil {
+		return nil, refuse(http.StatusUnprocessableEntity, err.Error())
+	}
+	return s.withProject(project)
 }

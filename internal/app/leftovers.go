@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"path/filepath"
+
+	domainplace "github.com/aq2bq/hergy/internal/domain/place"
+
 	"sort"
 	"time"
 
@@ -55,9 +57,9 @@ func workerNamesOf(tabs []team.Tab, teamName domainname.Seen) []domainname.Seen 
 // tab labelled with the team's name and in the worker tabs hergy made for it.
 // It is read before the panes close, so the worktrees are known afterwards
 // (r-b65e).
-func teamPaneDirs(tabs []team.Tab, name domainname.Seen) []string {
+func teamPaneDirs(tabs []team.Tab, name domainname.Seen) []domainplace.Seen {
 	workerTeam := name
-	var dirs []string
+	var dirs []domainplace.Seen
 	for _, tab := range tabs {
 		if !protocol.NamesTeam(tab.Label.String(), name.String()) && !domainname.IsWorkerTab(tab.Label.Observation(), workerTeam) {
 			continue
@@ -68,10 +70,10 @@ func teamPaneDirs(tabs []team.Tab, name domainname.Seen) []string {
 }
 
 // workerPaneDirs is where one worker's pane stood, read before it closes.
-func workerPaneDirs(tabs []team.Tab, label domainname.Seen) []string {
+func workerPaneDirs(tabs []team.Tab, label domainname.Seen) []domainplace.Seen {
 	for _, tab := range tabs {
 		if tab.Label == label {
-			return append([]string(nil), tab.PaneDirs...)
+			return append([]domainplace.Seen(nil), tab.PaneDirs...)
 		}
 	}
 	return nil
@@ -92,28 +94,28 @@ type leftoverOwner struct {
 
 // teamLeftovers is the owner of a team's leftover list, read from the newest up
 // line of that team in that project.
-func teamLeftovers(projectRoot, teamName string) leftoverOwner {
+func teamLeftovers(projectRoot domainplace.Project, teamName string) leftoverOwner {
 	since, known := teamStartedAt(projectRoot, teamName)
 	return leftoverOwner{Name: teamName, Since: since, Known: known}
 }
 
 // workerLeftovers is the owner of one worker's leftover list, read from the hire
 // line that named it.
-func workerLeftovers(projectRoot, teamName, herdrName string) leftoverOwner {
+func workerLeftovers(projectRoot domainplace.Project, teamName, herdrName string) leftoverOwner {
 	since, known := workerHiredAt(projectRoot, teamName, herdrName)
 	return leftoverOwner{Name: herdrName, Since: since, Known: known, Hired: true}
 }
 
 // teamStartedAt is when hergy last started this team in this project: the newest
 // up line of the launch record for that team and project.
-func teamStartedAt(projectRoot, teamName string) (time.Time, bool) {
+func teamStartedAt(projectRoot domainplace.Project, teamName string) (time.Time, bool) {
 	records, ok := readLaunchRecords()
 	if !ok {
 		return time.Time{}, false
 	}
 	var best time.Time
 	for _, record := range records {
-		if record.Command != launchlog.CommandUp || record.Team.String() != teamName || !sameProject(record.Project, projectRoot) {
+		if record.Command != launchlog.CommandUp || record.Team.String() != teamName || record.Project.Project().Compare(projectRoot) == domainplace.Different {
 			continue
 		}
 		if at, ok := recordTime(record); ok && at.After(best) {
@@ -126,7 +128,7 @@ func teamStartedAt(projectRoot, teamName string) (time.Time, bool) {
 // workerHiredAt is when hergy recorded hiring this worker: the newest hire line
 // that named it. A worker hired before hergy wrote hire lines has no line, and
 // its team's start is the earliest time it can have been hired.
-func workerHiredAt(projectRoot, teamName, herdrName string) (time.Time, bool) {
+func workerHiredAt(projectRoot domainplace.Project, teamName, herdrName string) (time.Time, bool) {
 	records, ok := readLaunchRecords()
 	if !ok {
 		return time.Time{}, false
@@ -136,7 +138,7 @@ func workerHiredAt(projectRoot, teamName, herdrName string) (time.Time, bool) {
 		if !record.IsHire() || record.Hire == nil || record.Hire.Worker.String() != herdrName {
 			continue
 		}
-		if !sameProject(record.Project, projectRoot) {
+		if record.Project.Project().Compare(projectRoot) == domainplace.Different {
 			continue
 		}
 		if at, ok := recordTime(record); ok && at.After(best) {
@@ -157,16 +159,6 @@ func recordTime(record launchlog.Record) (time.Time, bool) {
 		return time.Time{}, false
 	}
 	return at, true
-}
-
-// sameProject reports whether a record's project is the one the team runs in. A
-// line written before the project was kept names none, and is not another
-// project: the team's name still tells the team apart.
-func sameProject(recorded, projectRoot string) bool {
-	if recorded == "" || projectRoot == "" {
-		return true
-	}
-	return filepath.Clean(recorded) == filepath.Clean(projectRoot)
 }
 
 // readLaunchRecords is this machine's launch record. A record hergy cannot read
@@ -206,7 +198,7 @@ func leftoverHeading(owner leftoverOwner, dry bool) string {
 // the project's stashes, and the commands that remove them. hergy removes
 // nothing (d-778e), and says nothing when nothing is left. dry shows the same
 // list as a plan.
-func printLeftovers(w io.Writer, projectRoot string, dirs []string, owner leftoverOwner, dry bool) {
+func printLeftovers(w io.Writer, projectRoot domainplace.Project, dirs []domainplace.Seen, owner leftoverOwner, dry bool) {
 	since := owner.Since
 	if !owner.Known {
 		// Without a start line hergy cannot narrow the list by time, so it

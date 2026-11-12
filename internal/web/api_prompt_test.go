@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	domainplace "github.com/aq2bq/hergy/internal/domain/place"
+
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/prompt"
 	"github.com/aq2bq/hergy/internal/source"
@@ -81,17 +83,17 @@ type promptReaderFixture struct {
 	runsErr error
 }
 
-func (f promptReaderFixture) PromptRuns(_, _, _ string) ([]PromptRun, error) {
+func (f promptReaderFixture) PromptRuns(_ domainplace.Project, _, _ string) ([]PromptRun, error) {
 	return f.runs, f.runsErr
 }
-func (f promptReaderFixture) PromptHistory(_, _, _, _, _ string) (PromptHistory, error) {
+func (f promptReaderFixture) PromptHistory(_ domainplace.Project, _, _, _, _ string) (PromptHistory, error) {
 	return f.history, nil
 }
 func TestPromptComparisonPreservesHistoryForInvalidDraft(t *testing.T) {
 	f := newFixture(t)
 	s := f.server(t)
 	s.act = promptReaderFixture{
-		runs:    []PromptRun{{Team: fixtureTeam("demo"), Project: ""}},
+		runs:    []PromptRun{{Team: fixtureTeam("demo"), Project: projectPath("")}},
 		history: PromptHistory{Status: "recorded", Recorded: &RecordedPrompt{Text: "old\r\n \t", Command: "up", Time: "2026-11-04T00:00:00Z"}},
 	}
 	text := readFile(t, f.teamYAML())
@@ -117,7 +119,7 @@ func TestPromptComparisonSegmentsUseRunningAlias(t *testing.T) {
 	f := newFixture(t)
 	s := f.server(t)
 	s.act = promptReaderFixture{
-		runs:    []PromptRun{{Team: fixtureTeam("sample-run"), Project: ""}},
+		runs:    []PromptRun{{Team: fixtureTeam("sample-run"), Project: projectPath("")}},
 		history: PromptHistory{Status: "missing"},
 	}
 	out, failure := s.comparePrompt(promptComparisonIn{apiIn: apiIn{Name: "demo", Place: "project", Hash: source.Hash(readFile(t, f.teamYAML())), Doc: json.RawMessage(`{"ops":[]}`)}, Member: "lead"})
@@ -149,11 +151,11 @@ func TestPromptsForChoosesTheName(t *testing.T) {
 		status  string
 	}{
 		{"none running", nil, nil, "", "demo", "definition", "none"},
-		{"one running", []PromptRun{{Team: fixtureTeam("demo"), Project: f.proj}}, nil, "", "demo", "run", "single"},
-		{"one alias", []PromptRun{{Team: fixtureTeam("demo-hotfix"), Project: f.proj}}, nil, "", "demo-hotfix", "run", "single"},
-		{"two unchosen", []PromptRun{{Team: fixtureTeam("demo"), Project: f.proj}, {Team: fixtureTeam("demo-hotfix"), Project: f.proj}}, nil, "", "demo", "definition", "choose"},
-		{"two chosen", []PromptRun{{Team: fixtureTeam("demo"), Project: f.proj}, {Team: fixtureTeam("demo-hotfix"), Project: f.proj}}, nil, "demo-hotfix", "demo-hotfix", "run", "picked"},
-		{"pick stopped", []PromptRun{{Team: fixtureTeam("demo"), Project: f.proj}}, nil, "demo-old", "demo", "definition", "choose"},
+		{"one running", []PromptRun{{Team: fixtureTeam("demo"), Project: projectPath(f.proj)}}, nil, "", "demo", "run", "single"},
+		{"one alias", []PromptRun{{Team: fixtureTeam("demo-hotfix"), Project: projectPath(f.proj)}}, nil, "", "demo-hotfix", "run", "single"},
+		{"two unchosen", []PromptRun{{Team: fixtureTeam("demo"), Project: projectPath(f.proj)}, {Team: fixtureTeam("demo-hotfix"), Project: projectPath(f.proj)}}, nil, "", "demo", "definition", "choose"},
+		{"two chosen", []PromptRun{{Team: fixtureTeam("demo"), Project: projectPath(f.proj)}, {Team: fixtureTeam("demo-hotfix"), Project: projectPath(f.proj)}}, nil, "demo-hotfix", "demo-hotfix", "run", "picked"},
+		{"pick stopped", []PromptRun{{Team: fixtureTeam("demo"), Project: projectPath(f.proj)}}, nil, "demo-old", "demo", "definition", "choose"},
 		{"unreadable", nil, errors.New("herdr is not there"), "", "demo", "definition", "error"},
 	}
 	for _, tc := range cases {
@@ -225,8 +227,8 @@ func TestWorkerPreviewUsesTheRunningNameAndTheDraft(t *testing.T) {
 		team string
 	}{
 		{"no running team", nil, "demo"},
-		{"one running team", []PromptRun{{Team: fixtureTeam("demo"), Project: ""}}, "demo"},
-		{"an alias", []PromptRun{{Team: fixtureTeam("demo-hotfix"), Project: ""}}, "demo-hotfix"},
+		{"one running team", []PromptRun{{Team: fixtureTeam("demo"), Project: projectPath("")}}, "demo"},
+		{"an alias", []PromptRun{{Team: fixtureTeam("demo-hotfix"), Project: projectPath("")}}, "demo-hotfix"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

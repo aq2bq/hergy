@@ -5,7 +5,8 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/aq2bq/hergy/internal/catalog"
+	domainplace "github.com/aq2bq/hergy/internal/domain/place"
+
 	"github.com/aq2bq/hergy/internal/profile"
 )
 
@@ -276,11 +277,11 @@ func (s *Server) p2AssignData(data p2Data, project, shared p2File, defs []p2Def,
 // file (r-f8b9).
 func (s *Server) p2Team(def p2Def, project, shared p2File) p2Team {
 	options, kinds := p2Resolved(def, project, shared)
-	place := catalog.PlaceGlobal
+	location := domainplace.Global()
 	if def.local {
-		place = catalog.PlaceProject
+		location = domainplace.In(s.cat.Base())
 	}
-	out := p2Team{Name: def.name, Place: place, Path: def.display, Members: len(def.members), Workers: len(def.workers), Hash: def.hash}
+	out := p2Team{Name: def.name, Place: location.API(), Path: def.display, Members: len(def.members), Workers: len(def.workers), Hash: def.hash}
 	for i, member := range def.members {
 		row := p2ARow{Kind: "m", ID: fmt.Sprintf("m-%d", i), Name: member.Name, Role: member.Role, Profile: member.Profile}
 		p2FillRow(&row, fmt.Sprintf("members[%d]", i), options, kinds)

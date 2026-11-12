@@ -72,7 +72,7 @@ type stopTarget struct {
 // names hergy gave its panes.
 func (h *hqRead) stopTargets(env team.Env, one runningTeam, read herdrNow) stopTarget {
 	cat := env.Catalog(source.Disk{})
-	r, buildErr := buildRunningIn(cat, env.ProjectRoot, team.Running{Team: domainname.TeamFromObservation(one.Name.Observation()), Definition: one.Definition}, one.Place)
+	r, buildErr := buildRunningIn(cat, env.ProjectRoot, team.Running{Team: domainname.TeamFromObservation(one.Name.Observation()), Definition: one.Definition}, one.Place.Layer())
 	workers := workerNamesOf(read.tabs, one.Name)
 	if buildErr != nil {
 		l := newLauncherWithPort(&resolved{team: team.Team{Name: domainname.TeamFromObservation(one.Name)}}, 30000, io.Discard, h.act.herdrPort()).WithWaitClock(h.stopNow, h.stopPause)

@@ -25,6 +25,8 @@ import (
 	"strconv"
 	"strings"
 
+	domainplace "github.com/aq2bq/hergy/internal/domain/place"
+
 	domainname "github.com/aq2bq/hergy/internal/domain/name"
 )
 
@@ -106,14 +108,14 @@ type Doc struct {
 // A record written before these were kept has neither, and nothing can be
 // rebuilt from it.
 type Record struct {
-	Time       string          `json:"time"` // RFC 3339, where hergy ran
-	Command    string          `json:"command"`
-	Hergy      string          `json:"hergy"` // which hergy wrote this: version.Line()
-	Project    string          `json:"project"`
-	Layer      string          `json:"layer"`
-	Definition string          `json:"definition"`
-	Team       domainname.Seen `json:"team"`
-	TeamYAML   string          `json:"team_yaml"`
+	Time       string                `json:"time"` // RFC 3339, where hergy ran
+	Command    string                `json:"command"`
+	Hergy      string                `json:"hergy"` // which hergy wrote this: version.Line()
+	Project    domainplace.Seen      `json:"project"`
+	Layer      domainplace.Selection `json:"layer"`
+	Definition string                `json:"definition"`
+	Team       domainname.Seen       `json:"team"`
+	TeamYAML   domainplace.Seen      `json:"team_yaml"`
 	// Workspace is the herdr workspace the team was started in: the label a
 	// person reads, and the id it had then. The headquarters offers the last one
 	// as "前に動いた所" (d-73fc). A record written before this was kept has
@@ -375,13 +377,13 @@ func (l Log) Read() ([]Record, error) {
 // holds every project's launches, and two projects can hold a definition of the
 // same name, so the layer and the name alone would hand back another project's
 // launch (M1).
-func (l Log) Latest(teamYAML string) (Record, bool, error) {
+func (l Log) Latest(teamYAML domainplace.Project) (Record, bool, error) {
 	records, err := l.Read()
 	if err != nil {
 		return Record{}, false, err
 	}
 	for _, record := range slices.Backward(records) {
-		if record.TeamYAML == teamYAML {
+		if record.TeamYAML.Project().Compare(teamYAML) == domainplace.Same || (record.TeamYAML.Project().IsZero() && teamYAML.IsZero()) {
 			return record, true, nil
 		}
 	}

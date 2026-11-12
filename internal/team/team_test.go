@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/aq2bq/hergy/internal/catalog"
+	domainplace "github.com/aq2bq/hergy/internal/domain/place"
 	"github.com/aq2bq/hergy/internal/source"
 )
 
@@ -25,7 +26,7 @@ func newEnv(t *testing.T) Env {
 	t.Helper()
 	root := t.TempDir()
 	return Env{
-		ProjectRoot: root,
+		ProjectRoot: projectPath(root),
 		GlobalDir:   filepath.Join(root, "global"),
 		LocalDir:    filepath.Join(root, "local"),
 	}
@@ -97,5 +98,21 @@ func TestNewPlaceFollowsK2(t *testing.T) {
 	}
 	if got, want := cat.NewPlace(catalog.NewProfile, "lead"), filepath.Join(env.LocalDir, "profiles.yaml"); got != want {
 		t.Errorf("NewPlace(NewProfile, lead) = %q, want %q", got, want)
+	}
+}
+
+// Unknown project identity must not make a filesystem query select the cwd.
+func TestUnknownProjectDoesNotSelectCwd(t *testing.T) {
+	env := Env{}
+	for _, move := range []struct {
+		name  string
+		apply func(domainplace.Project) (Env, error)
+	}{{"AtProject", env.AtProject}, {"WithProject", env.WithProject}} {
+		t.Run(move.name, func(t *testing.T) {
+			got, err := move.apply(domainplace.Project{})
+			if err == nil || !got.ProjectRoot.IsZero() {
+				t.Fatalf("unknown project became %+v, error=%v", got, err)
+			}
+		})
 	}
 }

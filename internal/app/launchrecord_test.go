@@ -68,13 +68,13 @@ func TestUpRecordsTheLaunch(t *testing.T) {
 	if rec.Command != launchlog.CommandUp {
 		t.Errorf("command = %q, want %q", rec.Command, launchlog.CommandUp)
 	}
-	if rec.Project != f.proj {
+	if rec.Project.String() != f.proj {
 		t.Errorf("project = %q, want %q", rec.Project, f.proj)
 	}
 	if rec.Layer != source.LayerLocal || rec.Definition != "demo" || rec.Team.String() != "demo" {
 		t.Errorf("layer/definition/team = %q/%q/%q, want local/demo/demo", rec.Layer, rec.Definition, rec.Team)
 	}
-	if want := filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml"); rec.TeamYAML != want {
+	if want := filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml"); rec.TeamYAML.String() != want {
 		t.Errorf("team_yaml = %q, want %q", rec.TeamYAML, want)
 	}
 	if len(rec.Hash) != 64 {
@@ -369,10 +369,10 @@ func TestHireRecordsWhoAddedTheWorker(t *testing.T) {
 	if *last.Hire != want {
 		t.Errorf("hire = %+v, want %+v", *last.Hire, want)
 	}
-	if last.Project != f.proj || last.Team.String() != "dev" || last.Definition != "dev" {
+	if last.Project.String() != f.proj || last.Team.String() != "dev" || last.Definition != "dev" {
 		t.Errorf("project/team/definition = %q/%q/%q", last.Project, last.Team, last.Definition)
 	}
-	if len(last.Members) != 0 || len(last.Docs) != 0 || last.TeamYAML != "" {
+	if len(last.Members) != 0 || len(last.Docs) != 0 || last.TeamYAML.String() != "" {
 		t.Errorf("a hire line carries members, docs or team_yaml: %+v", last)
 	}
 	// The launch the up wrote keeps its own line: a hire is one more line, not

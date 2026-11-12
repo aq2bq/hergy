@@ -52,7 +52,7 @@ type t2DraftRow struct {
 // from the scaffold (spec-teams B2), and the named definition's own files for a
 // duplicate or a copy (spec-teams B3).
 func (s *Server) t2DraftRowOf(in apiIn) (t2DraftRow, *apiErr) {
-	out := t2DraftRow{Place: in.Place, Layer: catalog.Layer(in.Place)}
+	out := t2DraftRow{Place: in.Place.String(), Layer: in.Place.Layer()}
 	if in.New {
 		files, err := scaffold.Team(i18n.Language())
 		if err != nil {
@@ -78,11 +78,11 @@ func (s *Server) t2DraftRowOf(in apiIn) (t2DraftRow, *apiErr) {
 	// a listed project's head is that project's file, not this serve's own
 	// (r-a028): reading the wrong project's file left the copy without a base,
 	// and its save could not be pressed at all.
-	from, refusal := s.withProject(in.Base.Project)
+	from, refusal := s.withProjectInput(in.Base.Project)
 	if refusal != nil {
 		return t2DraftRow{}, refusal
 	}
-	src := catalog.Layer(in.Base.Place)
+	src := in.Base.Place.Layer()
 	path := from.cat.TeamYAML(in.Base.Name, src)
 	text, err := from.cat.Reader().Read(source.Doc{Path: path})
 	if err != nil {
@@ -120,7 +120,7 @@ func (s *Server) t2NameProblems(in apiIn) []apiProblem {
 	if _, err := domainname.NewDefinitionName(name); err != nil {
 		return []apiProblem{{Sev: "err", At: "name", Field: "name", Text: tf("error.new_name_pattern", name)}}
 	}
-	dir := filepath.Join(s.cat.LayerDir(catalog.Layer(in.Place)), "teams", name)
+	dir := filepath.Join(s.cat.LayerDir(in.Place.Layer()), "teams", name)
 	if _, err := os.Stat(dir); err == nil {
 		return []apiProblem{{Sev: "err", At: "name", Field: "name", Text: tf("error.new_exists", name, s.cat.Display(dir))}}
 	}
@@ -357,7 +357,7 @@ func (k apiTeam) checkDraft(in apiIn) (any, *apiErr) {
 		Problems: problems,
 		Doc:      s.t2DocWithAgree(def, s.t2AgreeOfText(in.Name, row.Layer, row.Agree)),
 		Draft: &apiCheckDraft{
-			Name: in.Name, Place: in.Place, Starter: row.Starter, Path: display, Hash: source.Hash(""),
+			Name: in.Name, Place: in.Place.String(), Starter: row.Starter, Path: display, Hash: source.Hash(""),
 			Writes: s.t2DraftWrites(row, in, in.Name, draft), HasRoles: hasRoles, HasProfiles: hasProfiles,
 			Carry: apiCarry,
 		},
@@ -407,7 +407,7 @@ func (k apiTeam) saveFolder(name string, in apiIn) (any, *apiErr) {
 	if problems := s.t2NameProblems(in); len(problems) > 0 {
 		return nil, refuseAt("name", problems[0].Text)
 	}
-	if err := s.t2LayerDir(in.Place); err != nil {
+	if err := s.t2LayerDir(in.Place.String()); err != nil {
 		return nil, refuse(http.StatusUnprocessableEntity, err.Error())
 	}
 	row, refusal := s.t2DraftRowOf(in)
@@ -440,5 +440,5 @@ func (k apiTeam) saveFolder(name string, in apiIn) (any, *apiErr) {
 	}
 	// The save wrote rule files — the agreement, and the role documents a
 	// starter definition brings — so their rules get hergy's ids now (d-4aab).
-	return k.savedAnswer(name, in.Place), nil
+	return k.savedAnswer(name, in.Place.String()), nil
 }

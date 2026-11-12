@@ -6,7 +6,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/aq2bq/hergy/internal/catalog"
+	domainplace "github.com/aq2bq/hergy/internal/domain/place"
+
 	"github.com/aq2bq/hergy/internal/definition"
 	domainname "github.com/aq2bq/hergy/internal/domain/name"
 	"github.com/aq2bq/hergy/internal/i18n"
@@ -32,8 +33,8 @@ func (s *Server) renamePreview(old, next, place string) (*apiRenamePreview, *api
 	if place == "global" {
 		cat = s.globalCatalog()
 	}
-	from := cat.TeamYAML(old, catalog.Layer(place))
-	to := cat.TeamYAML(next, catalog.Layer(place))
+	from := cat.TeamYAML(old, domainplace.Selection(place).Layer())
+	to := cat.TeamYAML(next, domainplace.Selection(place).Layer())
 	if _, err := os.Lstat(filepath.Dir(to)); err == nil {
 		return nil, refuse(http.StatusConflict, i18n.T("web.rename.taken"))
 	} else if !errors.Is(err, os.ErrNotExist) {
@@ -74,7 +75,7 @@ func (s *Server) apiTeamRename(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	scoped, refusal := s.withProject(in.Project)
+	scoped, refusal := s.withProjectInput(in.Project)
 	if refusal != nil {
 		apiAnswer(w, nil, refusal)
 		return
@@ -87,7 +88,7 @@ func (s *Server) renameTeam(old string, in apiIn) (any, *apiErr) {
 	if in.RenameTo == nil || in.AgreementExists == nil || in.Hash == "" || in.AgreementHash == "" {
 		return nil, refuseAt("name", i18n.T("web.rename.read_again"))
 	}
-	_, refusal := s.renamePreview(old, *in.RenameTo, in.Place)
+	_, refusal := s.renamePreview(old, *in.RenameTo, in.Place.String())
 	if refusal != nil {
 		return nil, refusal
 	}
@@ -95,13 +96,13 @@ func (s *Server) renameTeam(old string, in apiIn) (any, *apiErr) {
 	if in.Place == "global" {
 		cat = s.globalCatalog()
 	}
-	oldPath, newPath := cat.TeamYAML(old, catalog.Layer(in.Place)), cat.TeamYAML(*in.RenameTo, catalog.Layer(in.Place))
+	oldPath, newPath := cat.TeamYAML(old, in.Place.Layer()), cat.TeamYAML(*in.RenameTo, in.Place.Layer())
 	release, err := source.LockTeams(oldPath, newPath)
 	if err != nil {
 		return nil, refuse(http.StatusConflict, i18n.T("web.rename.busy"))
 	}
 	defer release()
-	preview, refusal := s.renamePreview(old, *in.RenameTo, in.Place)
+	preview, refusal := s.renamePreview(old, *in.RenameTo, in.Place.String())
 	if refusal != nil {
 		return nil, refusal
 	}
@@ -118,11 +119,13 @@ func (s *Server) renameTeam(old string, in apiIn) (any, *apiErr) {
 	if source.Hash(string(text)) != in.Hash || source.Hash(string(agree)) != in.AgreementHash || (agreeErr == nil) != *in.AgreementExists {
 		return nil, refuse(http.StatusConflict, i18n.T("web.rename.read_again"))
 	}
-	checker, ok := s.act.(interface{ CheckDefinitionRename(string) error })
+	checker, ok := s.act.(interface {
+		CheckDefinitionRename(domainplace.Project) error
+	})
 	if !ok {
 		return nil, refuse(http.StatusServiceUnavailable, i18n.T("web.rename.unavailable"))
 	}
-	if err := checker.CheckDefinitionRename(oldPath); err != nil {
+	if err := checker.CheckDefinitionRename(cat.TeamPath(old, in.Place.Layer())); err != nil {
 		if hq, yes := errors.AsType[*HQError](err); yes {
 			return nil, refuse(hq.Status, hq.Text)
 		}
@@ -136,7 +139,7 @@ func (s *Server) renameTeam(old string, in apiIn) (any, *apiErr) {
 	if agreeErr == nil {
 		trial = trial.With(filepath.Join(filepath.Dir(newPath), "agreement.md"), string(agree))
 	}
-	def, err := trial.Definition(*in.RenameTo, catalog.Layer(in.Place))
+	def, err := trial.Definition(*in.RenameTo, in.Place.Layer())
 	if err != nil {
 		return nil, refuse(http.StatusUnprocessableEntity, err.Error())
 	}
@@ -150,7 +153,7 @@ func (s *Server) renameTeam(old string, in apiIn) (any, *apiErr) {
 	if err := moveDefinition(oldPath, newPath, in.Hash, text, edited); err != nil {
 		return nil, refuse(http.StatusInternalServerError, err.Error())
 	}
-	out := apiTeam{s: s}.savedAnswer(*in.RenameTo, in.Place)
+	out := apiTeam{s: s}.savedAnswer(*in.RenameTo, in.Place.String())
 	return struct {
 		apiSaved
 		Name   string            `json:"name"`

@@ -893,8 +893,8 @@ func TestSharedAgreementIsNotReadAndStops(t *testing.T) {
 
 			// The projection does not read it: the rule stands in no member's
 			// prompt, even though the file is there.
-			cat := catalog.New(filepath.Join(f.cfg, "hergy"), filepath.Join(f.proj, ".hergy"), f.proj, source.Disk{}, func(path string) string { return path })
-			r, err := readDefinition(cat, f.proj, "demo", "")
+			cat := catalog.New(filepath.Join(f.cfg, "hergy"), filepath.Join(f.proj, ".hergy"), projectPath(f.proj), source.Disk{}, func(path string) string { return path })
+			r, err := readDefinition(cat, projectPath(f.proj), "demo", "")
 			if err != nil {
 				t.Fatalf("the definition does not read: %v", err)
 			}

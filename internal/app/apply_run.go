@@ -116,7 +116,7 @@ func applyLaunch(selected []plannedMember) web.HQLaunch {
 		launch.Definition = first.Definition
 		launch.Project = first.Project
 		launch.ProjectName = first.ProjectName
-		launch.Place = apiPlaceOf(first.Place)
+		launch.Place = first.Place.API()
 		launch.Workspace = web.HQWorkspace{ID: first.WorkspaceID, Label: first.WorkspaceLabel}
 		launch.Tab = web.HQTab{ID: first.TabID, Label: first.Name.String()}
 	}
@@ -146,7 +146,7 @@ func (h *hqRead) runApply(ctx context.Context, op *launchOp, selected []plannedM
 		}
 		cat := env.Catalog(source.Disk{})
 		r, err := buildRunningIn(cat, env.ProjectRoot,
-			team.Running{Team: domainname.TeamFromObservation(group[0].team.Name.Observation()), Definition: group[0].team.Definition}, group[0].team.Place)
+			team.Running{Team: domainname.TeamFromObservation(group[0].team.Name.Observation()), Definition: group[0].team.Definition}, group[0].team.Place.Layer())
 		if err != nil {
 			h.finish(op, "failed", err.Error())
 			return

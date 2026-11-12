@@ -29,7 +29,7 @@ func TestCountsAreOneLayersOwn(t *testing.T) {
 		writeFile(t, filepath.Join(one.dir, "profiles.yaml"), "version: 1\nprofiles:\n  fast:\n    kind: claude\n")
 	}
 	writeFile(t, filepath.Join(local, "roles", "builder.md"), "# builder\n")
-	cat := New(global, local, local, source.Disk{}, func(p string) string { return p })
+	cat := New(global, local, projectPath(local), source.Disk{}, func(p string) string { return p })
 	defs, roles, profiles := cat.Counts(source.LayerLocal)
 	if defs != 1 || roles != 2 || profiles != 1 {
 		t.Errorf("Counts(project) = %d, %d, %d, want 1, 2, 1", defs, roles, profiles)
@@ -54,7 +54,7 @@ func TestListedRolesCountsTheRowsTheListDraws(t *testing.T) {
 	writeFile(t, filepath.Join(global, "roles", "lead.md"), "# lead\n")
 	writeFile(t, filepath.Join(global, "roles", "docs.md"), "# docs\n")
 	writeFile(t, filepath.Join(local, "teams", "core", "team.yaml"), "version: 1\nmembers:\n  - name: a\n    role: ghost\n    profile: fast\n")
-	cat := New(global, local, local, source.Disk{}, func(p string) string { return p })
+	cat := New(global, local, projectPath(local), source.Disk{}, func(p string) string { return p })
 	if got := len(cat.ShownRows(KindRole, source.LayerLocal)); got != 4 {
 		t.Errorf("ListedRoles(project) = %d, want 4 (lead, builder, old, ghost)", got)
 	}
@@ -78,7 +78,7 @@ func TestListedRolesLeavesOutUnreadableDocuments(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = os.Chmod(bad, 0o644) })
-	cat := New(global, local, local, source.Disk{}, func(p string) string { return p })
+	cat := New(global, local, projectPath(local), source.Disk{}, func(p string) string { return p })
 	if got := len(cat.ShownRows(KindRole, source.LayerLocal)); got != 2 {
 		t.Errorf("role rows (project) = %d, want 2 (good and bad)", got)
 	}
@@ -110,7 +110,7 @@ func TestListedRowsAreTheRowsTheListsDraw(t *testing.T) {
 	// Profiles: one in each layer.
 	writeFile(t, filepath.Join(local, "profiles.yaml"), "version: 1\nprofiles:\n  fast:\n    kind: claude\n")
 	writeFile(t, filepath.Join(global, "profiles.yaml"), "version: 1\nprofiles:\n  shared:\n    kind: claude\n")
-	cat := New(global, local, local, source.Disk{}, func(p string) string { return p })
+	cat := New(global, local, projectPath(local), source.Disk{}, func(p string) string { return p })
 
 	if got := len(cat.ShownRows(KindTeam, source.LayerLocal)); got != 3 {
 		t.Errorf("team rows (project) = %d, want 3 (core, broken, ghost)", got)
@@ -150,7 +150,7 @@ func TestAProfilesFileThatCannotBeReadStandsAsOneRow(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = os.Chmod(filepath.Join(local, "profiles.yaml"), 0o644) })
-	cat := New(global, local, local, source.Disk{}, func(p string) string { return p })
+	cat := New(global, local, projectPath(local), source.Disk{}, func(p string) string { return p })
 
 	rows := cat.ShownRows(KindProfile, source.LayerLocal)
 	if len(rows) != 1 {

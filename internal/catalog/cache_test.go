@@ -31,7 +31,7 @@ func cacheCatalog(t *testing.T) (*Catalog, *source.Memo) {
 	cacheWrite(t, filepath.Join(local, "profiles.yaml"),
 		"version: 1\nprofiles:\n  coder:\n    kind: claude\n")
 	memo := source.NewMemo()
-	return New(global, local, filepath.Join(root, "proj"), memo, func(p string) string { return p }), memo
+	return New(global, local, projectPath(filepath.Join(root, "proj")), memo, func(p string) string { return p }), memo
 }
 
 // TestADefinitionIsParsedOnceAndAgainWhenAFileChanges: a second request parses

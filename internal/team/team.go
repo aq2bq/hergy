@@ -11,21 +11,23 @@ import (
 	"path/filepath"
 	"strings"
 
+	domainplace "github.com/aq2bq/hergy/internal/domain/place"
+
 	domainname "github.com/aq2bq/hergy/internal/domain/name"
 
 	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/definition"
-	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/profile"
+	"github.com/aq2bq/hergy/internal/projectinput"
 	"github.com/aq2bq/hergy/internal/source"
 	"go.yaml.in/yaml/v3"
 )
 
 // Env is where teams and profiles live for this invocation.
 type Env struct {
-	ProjectRoot string // the git root, or the current directory
-	GlobalDir   string // $XDG_CONFIG_HOME/hergy, or ~/.config/hergy
-	LocalDir    string // <project>/.hergy
+	ProjectRoot domainplace.Project // the git root, or the current directory
+	GlobalDir   string              // $XDG_CONFIG_HOME/hergy, or ~/.config/hergy
+	LocalDir    string              // <project>/.hergy
 	// inRepo says the project root is a real git repository, which is what tells
 	// hergy new where to write (K2).
 	inRepo bool
@@ -38,10 +40,14 @@ func NewEnv() (Env, error) {
 		return Env{}, err
 	}
 	root, inRepo := gitRoot(cwd)
+	project, err := domainplace.NewProject(root)
+	if err != nil {
+		return Env{}, err
+	}
 	return Env{
-		ProjectRoot: root,
+		ProjectRoot: project,
 		GlobalDir:   globalDir(),
-		LocalDir:    filepath.Join(root, ".hergy"),
+		LocalDir:    filepath.Join(project.String(), ".hergy"),
 		inRepo:      inRepo,
 	}, nil
 }
@@ -73,7 +79,7 @@ func (e Env) Catalog(reader source.Reader) *catalog.Catalog {
 // otherwise. The project wins over the home directory, so a project under the
 // home directory still shows its project-relative form.
 func (e Env) Display(path string) string {
-	if rel, ok := relativeUnder(e.ProjectRoot, path); ok {
+	if rel, ok := relativeUnder(e.ProjectRoot.String(), path); ok {
 		return rel
 	}
 	if home, err := os.UserHomeDir(); err == nil {
@@ -171,28 +177,34 @@ func (e Env) EnsureGlobalConfig(lang string) (string, bool, error) {
 // layer becomes that project's .hergy/ (d-73fc: the headquarters reads every
 // listed project through its own layer). Whether that project is a git
 // repository is read here, the way NewEnv reads this one.
-func (e Env) AtProject(dir string) (Env, error) {
-	abs, err := filepath.Abs(dir)
+func (e Env) AtProject(dir domainplace.Project) (Env, error) {
+	if dir.IsZero() {
+		return Env{}, errors.New("unknown project")
+	}
+	root, inRepo := gitRoot(dir.String())
+	project, err := domainplace.NewProject(root)
+	e.ProjectRoot = project
 	if err != nil {
 		return Env{}, err
 	}
-	root, inRepo := gitRoot(abs)
-	e.ProjectRoot = root
-	e.LocalDir = filepath.Join(root, ".hergy")
+	e.LocalDir = filepath.Join(e.ProjectRoot.String(), ".hergy")
 	e.inRepo = inRepo
 	return e, nil
 }
 
 // WithProject pins the project root, so a hire run from outside the project
 // (or with a different cwd) still resolves the local layer.
-func (e Env) WithProject(dir string) (Env, error) {
-	abs, err := filepath.Abs(dir)
+func (e Env) WithProject(dir domainplace.Project) (Env, error) {
+	if dir.IsZero() {
+		return Env{}, errors.New("unknown project")
+	}
+	root, inRepo := gitRoot(dir.String())
+	project, err := domainplace.NewProject(root)
+	e.ProjectRoot = project
 	if err != nil {
 		return Env{}, err
 	}
-	root, inRepo := gitRoot(abs)
-	e.ProjectRoot = root
-	e.LocalDir = filepath.Join(root, ".hergy")
+	e.LocalDir = filepath.Join(e.ProjectRoot.String(), ".hergy")
 	e.inRepo = inRepo
 	return e, nil
 }
@@ -318,10 +330,10 @@ func (e Env) ReadConfigFile() (Config, error) {
 // directory hergy can know, and the sentence says which entry and where the file
 // is. An entry that cannot be read as a path stops the whole list, so a broken
 // setting is never half served.
-func (e Env) ProjectPaths(cfg Config) (paths []string, present bool, err error) {
-	seen := map[string]bool{}
+func (e Env) ProjectPaths(cfg Config) (paths []domainplace.Project, present bool, err error) {
+	seen := map[domainplace.Project]bool{}
 	for _, raw := range cfg.Projects {
-		path, err := ExpandProjectPath(raw)
+		path, err := projectinput.Read(domainplace.Input(raw))
 		if err != nil {
 			return nil, cfg.HasProjects, err
 		}
@@ -332,31 +344,6 @@ func (e Env) ProjectPaths(cfg Config) (paths []string, present bool, err error) 
 		paths = append(paths, path)
 	}
 	return paths, cfg.HasProjects, nil
-}
-
-// ExpandProjectPath reads one projects: entry as the directory it names: ~ and
-// ~/ are the home directory, a relative path is refused, and the path is made
-// absolute and resolved through symbolic links when it is there.
-func ExpandProjectPath(raw string) (string, error) {
-	text := strings.TrimSpace(raw)
-	if text == "" {
-		return "", i18n.Errorf("error.project_path_empty")
-	}
-	if text == "~" || strings.HasPrefix(text, "~/") {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return "", err
-		}
-		text = filepath.Join(home, strings.TrimPrefix(text, "~"))
-	}
-	if !filepath.IsAbs(text) {
-		return "", i18n.Errorf("error.project_path_relative", raw)
-	}
-	text = filepath.Clean(text)
-	if resolved, err := filepath.EvalSymlinks(text); err == nil {
-		return resolved, nil
-	}
-	return text, nil
 }
 
 // GlobalYAML is the global config.yaml hergy new writes when the file is

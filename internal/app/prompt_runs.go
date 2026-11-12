@@ -6,6 +6,8 @@ import (
 	"sync"
 	"time"
 
+	domainplace "github.com/aq2bq/hergy/internal/domain/place"
+
 	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/launchlog"
 	"github.com/aq2bq/hergy/internal/web"
@@ -49,7 +51,7 @@ func (a *activityRead) liveRunning() web.HQRunning {
 
 // PromptRuns is every team of one definition that runs, in herdr's order: the
 // same filter PromptHistory used when it chose a team itself.
-func (a *activityRead) PromptRuns(project, definition, place string) ([]web.PromptRun, error) {
+func (a *activityRead) PromptRuns(project domainplace.Project, definition, place string) ([]web.PromptRun, error) {
 	live := a.liveRunning()
 	if !live.Herdr.OK {
 		return nil, fmt.Errorf("%s", live.Herdr.Text)
@@ -59,13 +61,13 @@ func (a *activityRead) PromptRuns(project, definition, place string) ([]web.Prom
 
 // promptRunsOf is the filter both readers use: the teams of one definition, in
 // the project and place it names.
-func promptRunsOf(live web.HQRunning, project, definition, place string) []web.PromptRun {
+func promptRunsOf(live web.HQRunning, project domainplace.Project, definition, place string) []web.PromptRun {
 	out := []web.PromptRun{}
 	for _, r := range live.Teams {
 		if r.Definition != definition || r.Place != place {
 			continue
 		}
-		if place != catalog.PlaceGlobal && !samePath(r.Project, project) {
+		if place != catalog.PlaceGlobal && r.Project.Compare(project) != domainplace.Same {
 			continue
 		}
 		out = append(out, web.PromptRun{Team: r.Team, Project: r.Project})
@@ -76,7 +78,7 @@ func promptRunsOf(live web.HQRunning, project, definition, place string) []web.P
 // PromptHistory is the recorded body of one member and the live state of the
 // team it was asked for. The team is chosen by the web owner now; this reads the
 // record and says whether the member is live.
-func (a *activityRead) PromptHistory(_, definition, place, member, running string) (web.PromptHistory, error) {
+func (a *activityRead) PromptHistory(_ domainplace.Project, definition, place, member, running string) (web.PromptHistory, error) {
 	out := web.PromptHistory{Runs: []web.PromptRun{}, Status: "missing", Reason: "このメンバーへ渡した本文の記録がありません"}
 	live := a.liveRunning()
 	if !live.Herdr.OK {
@@ -110,7 +112,7 @@ func (a *activityRead) PromptHistory(_, definition, place, member, running strin
 	if err != nil {
 		return out, err
 	}
-	path := cat.TeamYAML(definition, catalog.Layer(place))
+	path := cat.TeamPath(definition, domainplace.Selection(place).Layer())
 	log, err := launchlog.Open()
 	if err != nil {
 		return out, err
@@ -138,3 +140,5 @@ func (a *activityRead) PromptHistory(_, definition, place, member, running strin
 	out.Recorded = &web.RecordedPrompt{Text: string(text), Command: record.Command, Time: record.Time}
 	return out, nil
 }
+
+var _ web.PromptReader = (*activityRead)(nil)

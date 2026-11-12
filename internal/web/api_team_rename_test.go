@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	domainplace "github.com/aq2bq/hergy/internal/domain/place"
+
 	"github.com/aq2bq/hergy/internal/source"
 )
 
@@ -15,7 +17,7 @@ type renameActivity struct {
 	refusal error
 }
 
-func (a renameActivity) CheckDefinitionRename(string) error { return a.refusal }
+func (a renameActivity) CheckDefinitionRename(domainplace.Project) error { return a.refusal }
 
 func TestTeamRenameFilesAndRefusals(t *testing.T) {
 	for _, problem := range []string{"", "taken", "format", "team changed", "agreement changed", "agreement appeared", "running", "unavailable", "locked"} {

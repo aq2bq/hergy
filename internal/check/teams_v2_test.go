@@ -35,7 +35,7 @@ func teamsV2Catalog(t *testing.T) *catalog.Catalog {
 	global := filepath.Join(root, "config", "hergy")
 	teamsV2Copy(t, filepath.Join(src, "project"), proj)
 	teamsV2Copy(t, filepath.Join(src, "config", "hergy"), global)
-	return catalog.New(global, filepath.Join(proj, ".hergy"), proj, source.Disk{},
+	return catalog.New(global, filepath.Join(proj, ".hergy"), projectPath(proj), source.Disk{},
 		func(path string) string { return path })
 }
 

@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	domainplace "github.com/aq2bq/hergy/internal/domain/place"
+
 	"github.com/aq2bq/hergy/internal/definition"
 	domainname "github.com/aq2bq/hergy/internal/domain/name"
 	"github.com/aq2bq/hergy/internal/i18n"
@@ -22,7 +24,7 @@ type Run struct {
 	// reads; empty means "hergy".
 	Executable string
 	// Base is the project root, for cwd values and the embedded hire command.
-	Base string
+	Base domainplace.Project
 	// Lang is the language the prompt is written in: the launch record's when a
 	// prompt is rebuilt to compare it with what was handed out (C9), and empty
 	// for the language in use.
@@ -154,10 +156,10 @@ func Member(def *definition.Definition, node *definition.MemberNode, run Run) (*
 	switch {
 	case node.HasPrompt:
 		template = node.Prompt
-		templateOrigin = definition.PromptOrigin{Kind: "member", Name: node.Name.String(), Path: run.shown(def.TeamYAML), Place: promptPlace(def.Layer)}
+		templateOrigin = definition.PromptOrigin{Kind: "member", Name: node.Name.String(), Path: run.shown(def.TeamYAML.String()), Place: promptPlace(def.Layer)}
 	case def.Prompt != "":
 		template = def.Prompt
-		templateOrigin = definition.PromptOrigin{Kind: "team", Name: run.Team.String(), Path: run.shown(def.TeamYAML), Place: promptPlace(def.Layer)}
+		templateOrigin = definition.PromptOrigin{Kind: "team", Name: run.Team.String(), Path: run.shown(def.TeamYAML.String()), Place: promptPlace(def.Layer)}
 	}
 	if err := checkTemplate(run, def, node, template); err != nil {
 		return nil, err
@@ -179,7 +181,7 @@ func Member(def *definition.Definition, node *definition.MemberNode, run Run) (*
 	}
 
 	memberName := run.Team.Member(node.Name)
-	teamOrigin := definition.PromptOrigin{Kind: "team", Name: run.Team.String(), Path: run.shown(def.TeamYAML), Place: promptPlace(def.Layer)}
+	teamOrigin := definition.PromptOrigin{Kind: "team", Name: run.Team.String(), Path: run.shown(def.TeamYAML.String()), Place: promptPlace(def.Layer)}
 	simple := map[string]func() string{
 		"team": func() string { return run.Team.String() },
 		"role": func() string { return node.Role },
@@ -289,10 +291,8 @@ func oneSegment(kind, text string, origin definition.PromptOrigin) []definition.
 // promptPlace is a document's layer in the words a screen uses for its place.
 func promptPlace(layer string) string {
 	switch layer {
-	case source.LayerLocal:
-		return "project"
-	case source.LayerGlobal:
-		return "global"
+	case source.LayerLocal, source.LayerGlobal:
+		return domainplace.Selection(layer).API()
 	}
 	return ""
 }
@@ -390,7 +390,7 @@ func hireCommand(run Run, shortName string) string {
 		executable = "hergy"
 	}
 	return run.textf("hire.command",
-		shellQuote(executable), run.Team, run.language(), shellQuote(run.Base), shortName)
+		shellQuote(executable), run.Team, run.language(), shellQuote(run.Base.String()), shortName)
 }
 
 func shellQuote(s string) string {
@@ -406,7 +406,7 @@ func shellQuote(s string) string {
 // team.yaml it read and, when the template is a member's own, the member, so a
 // person knows which file to open (spec/32 D2).
 func checkTemplate(run Run, def *definition.Definition, node *definition.MemberNode, template string) error {
-	old := source.Doc{Path: filepath.Join(filepath.Dir(def.TeamYAML), "agreement.yaml")}
+	old := source.Doc{Path: filepath.Join(filepath.Dir(def.TeamYAML.String()), "agreement.yaml")}
 	if run.Reader.IsFile(old) {
 		return run.errorf("error.legacy_prose", run.shown(old.Path))
 	}
@@ -425,7 +425,7 @@ func checkTemplate(run Run, def *definition.Definition, node *definition.MemberN
 	}
 	for _, part := range []string{"role_doc", "docs"} {
 		if !strings.Contains(template, "%{"+part+"}") {
-			return withWhere(WhereTemplate, run.errorf("error.prompt_missing_part", run.shown(def.TeamYAML), where, part))
+			return withWhere(WhereTemplate, run.errorf("error.prompt_missing_part", run.shown(def.TeamYAML.String()), where, part))
 		}
 	}
 	return nil

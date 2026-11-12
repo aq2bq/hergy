@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"path/filepath"
 
+	domainplace "github.com/aq2bq/hergy/internal/domain/place"
+
 	domainname "github.com/aq2bq/hergy/internal/domain/name"
 
 	"github.com/aq2bq/hergy/internal/catalog"
@@ -18,17 +20,17 @@ import (
 // never sends or records a prompt.
 type PromptReader interface {
 	// PromptRuns is every team of one definition that runs, in herdr's order.
-	PromptRuns(project, definition, place string) ([]PromptRun, error)
+	PromptRuns(project domainplace.Project, definition, place string) ([]PromptRun, error)
 	// PromptHistory is the recorded body of one member of the team named by
 	// running. The team is chosen by promptsFor; this reads the record and says
 	// whether the member is live.
-	PromptHistory(project, definition, place, member, running string) (PromptHistory, error)
+	PromptHistory(project domainplace.Project, definition, place, member, running string) (PromptHistory, error)
 }
 
 // PromptRun identifies a live instance and its execution project.
 type PromptRun struct {
-	Team    domainname.TeamRef `json:"team"`
-	Project string             `json:"project"`
+	Team    domainname.TeamRef  `json:"team"`
+	Project domainplace.Project `json:"project"`
 }
 
 // RecordedPrompt is the exact blob body, without a sending preamble.
@@ -56,7 +58,7 @@ type promptComparison struct {
 	Current    *string                    `json:"current"`
 	Problems   []apiProblem               `json:"problems"`
 	Diff       []PromptDiffLine           `json:"diff"`
-	Project    string                     `json:"project"`
+	Project    domainplace.Project        `json:"project"`
 	Executable string                     `json:"executable"`
 	Language   string                     `json:"language"`
 	Team       string                     `json:"team"`
@@ -72,7 +74,7 @@ func (s *Server) apiPromptComparison(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	scoped, refusal := s.withProject(in.Project)
+	scoped, refusal := s.withProjectInput(in.Project)
 	if refusal != nil {
 		apiAnswer(w, nil, refusal)
 		return
@@ -136,7 +138,7 @@ type promptBuilt struct {
 	Worker    *promptText
 	WorkerErr error
 	Problems  []apiProblem
-	Project   string
+	Project   domainplace.Project
 	Cat       *catalog.Catalog
 	Def       *definition.Definition
 	DefErr    error
@@ -159,7 +161,7 @@ func (s *Server) promptsFor(ask promptAsk) (*promptBuilt, *apiErr) {
 	}
 	out.Project = project
 	if ask.WithRuns {
-		runs, err := s.promptRuns(project, in.Name, in.Place)
+		runs, err := s.promptRuns(project, in.Name, in.Place.String())
 		if err != nil {
 			out.Names.Status, out.Names.Reason = "error", err.Error()
 		} else {
@@ -193,7 +195,7 @@ func (s *Server) promptsFor(ask promptAsk) (*promptBuilt, *apiErr) {
 // problems are checked against, the overlay the text reads through, and the
 // definition itself.
 type promptBasis struct {
-	project      string
+	project      domainplace.Project
 	cat, overlay *catalog.Catalog
 	def          *definition.Definition
 	defErr       error
@@ -202,13 +204,13 @@ type promptBasis struct {
 // promptBasisFor is the catalog and definition the name's prompt is built from.
 // The caller's own catalog is used when it has one (the check); otherwise the
 // comparison's catalog is read, in the project the chosen run stands in.
-func (s *Server) promptBasisFor(ask promptAsk, project string, names promptNames) (*promptBasis, *apiErr) {
+func (s *Server) promptBasisFor(ask promptAsk, project domainplace.Project, names promptNames) (*promptBasis, *apiErr) {
 	if ask.Cat != nil {
 		basis := &promptBasis{project: project, cat: ask.Cat, overlay: ask.Cat, def: ask.Def}
-		basis.readDefinition(ask.In.Name, ask.In.Place)
+		basis.readDefinition(ask.In.Name, ask.In.Place.String())
 		return basis, nil
 	}
-	if names.Selected != nil && !sameProjectPath(names.Selected.Project, project) {
+	if names.Selected != nil && names.Selected.Project.Compare(project) != domainplace.Same && (!names.Selected.Project.IsZero() || !project.IsZero()) {
 		scoped, refusal := s.withProject(names.Selected.Project)
 		if refusal != nil {
 			return nil, refusal
@@ -224,12 +226,12 @@ func (s *Server) promptBasisFor(ask promptAsk, project string, names promptNames
 	if refusal != nil {
 		return nil, refusal
 	}
-	overlay, failure := (apiTeam{s: &Server{cat: cat}}).overlay(ask.In.Name, ask.In.Place, body.ops)
+	overlay, failure := (apiTeam{s: &Server{cat: cat}}).overlay(ask.In.Name, ask.In.Place.String(), body.ops)
 	if failure != nil {
 		return nil, failure
 	}
 	basis := &promptBasis{project: project, cat: cat, overlay: overlay}
-	basis.readDefinition(ask.In.Name, ask.In.Place)
+	basis.readDefinition(ask.In.Name, ask.In.Place.String())
 	return basis, nil
 }
 
@@ -238,7 +240,7 @@ func (b *promptBasis) readDefinition(name, place string) {
 	if b.def != nil || b.overlay == nil {
 		return
 	}
-	b.def, b.defErr = b.overlay.Definition(name, catalog.Layer(place))
+	b.def, b.defErr = b.overlay.Definition(name, domainplace.Selection(place).Layer())
 }
 
 // promptWorkerText builds the one worker's preview with the team name the
@@ -260,7 +262,7 @@ func promptWorkerText(team domainname.Naming, def *definition.Definition, worker
 
 // promptMemberTexts builds every member's text, or the one the caller named. A
 // member whose text cannot be built is left out; the caller's problems say why.
-func promptMemberTexts(team domainname.Naming, project string, overlay *catalog.Catalog, def *definition.Definition, member string, failures map[string]error) []promptText {
+func promptMemberTexts(team domainname.Naming, project domainplace.Project, overlay *catalog.Catalog, def *definition.Definition, member string, failures map[string]error) []promptText {
 	run := prompt.Run{
 		Team: team, Base: project, Executable: promptExecutable(),
 		Lang: i18n.Language(), Reader: overlay.Reader(), Sources: overlay, Display: overlay.Display,
@@ -283,25 +285,11 @@ func promptMemberTexts(team domainname.Naming, project string, overlay *catalog.
 
 // promptRuns reads the live teams through the reader, or answers none when the
 // server has no live reading (a command, or a test without one).
-func (s *Server) promptRuns(project, definition, place string) ([]PromptRun, error) {
+func (s *Server) promptRuns(project domainplace.Project, definition, place string) ([]PromptRun, error) {
 	if reader, ok := s.act.(PromptReader); ok {
 		return reader.PromptRuns(project, definition, place)
 	}
 	return []PromptRun{}, nil
-}
-
-// sameProjectPath is whether two spellings name one project: the run's project
-// (as herdr and the launch record name it) and this catalog's own.
-func sameProjectPath(a, b string) bool {
-	if a == "" || b == "" {
-		return a == b
-	}
-	if filepath.Clean(a) == filepath.Clean(b) {
-		return true
-	}
-	ra, errA := filepath.EvalSymlinks(a)
-	rb, errB := filepath.EvalSymlinks(b)
-	return errA == nil && errB == nil && ra == rb
 }
 
 // selectPromptName is the one name rule: the picked team when it runs, the only
@@ -389,14 +377,14 @@ func (s *Server) comparePrompt(in promptComparisonIn) (*promptComparison, *apiEr
 			readerOK = true
 			if built.Names.Selected != nil {
 				asked = true
-				history, readErr = reader.PromptHistory(built.Project, in.Name, in.Place, in.Member, built.Names.Selected.Team.String())
+				history, readErr = reader.PromptHistory(built.Project, in.Name, in.Place.String(), in.Member, built.Names.Selected.Team.String())
 			}
 		}
 	}
 	out.PromptHistory = legacyHistory(built.Names, readerOK, asked, history, readErr)
 	if built.Cat != nil {
-		report := check.Team(check.TeamInput{Catalog: built.Cat, Name: in.Name, Layer: catalog.Layer(in.Place), Ops: body.ops})
-		out.Problems = t2FigureProblems(report.Problems, built.Cat.Display(built.Cat.TeamYAML(in.Name, catalog.Layer(in.Place))))
+		report := check.Team(check.TeamInput{Catalog: built.Cat, Name: in.Name, Layer: in.Place.Layer(), Ops: body.ops})
+		out.Problems = t2FigureProblems(report.Problems, built.Cat.Display(built.Cat.TeamYAML(in.Name, in.Place.Layer())))
 		for _, p := range out.Problems {
 			if p.Sev == "err" {
 				return out, nil
@@ -422,13 +410,13 @@ func (s *Server) comparePrompt(in promptComparisonIn) (*promptComparison, *apiEr
 }
 
 func (s *Server) promptCatalog(in promptComparisonIn) (*catalog.Catalog, *apiErr) {
-	path := s.cat.TeamYAML(in.Name, catalog.Layer(in.Place))
+	path := s.cat.TeamYAML(in.Name, in.Place.Layer())
 	if in.New || in.Base != nil {
 		row, refusal := s.t2DraftRowOf(in.apiIn)
 		if refusal != nil {
 			return nil, refusal
 		}
-		return s.cat.With(path, row.Team).With(s.t2AgreeFile(in.Name, catalog.Layer(in.Place)), row.Agree), nil
+		return s.cat.With(path, row.Team).With(s.t2AgreeFile(in.Name, in.Place.Layer()), row.Agree), nil
 	}
 	text, err := s.cat.Reader().Read(source.Doc{Path: path})
 	if err != nil {

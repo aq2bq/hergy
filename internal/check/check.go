@@ -241,7 +241,7 @@ func promptFindings(in Input, def *definition.Definition) []Finding {
 		}
 		finding := Finding{
 			Field: key,
-			Text:  BreakLine(in.Catalog.Display, def.TeamYAML, err),
+			Text:  BreakLine(in.Catalog.Display, def.TeamYAML.String(), err),
 			Kind:  KindPrompt,
 			Stops: true,
 		}
@@ -283,7 +283,7 @@ func roleNameFindings(in Input, def *definition.Definition) []Finding {
 		label := fmt.Sprintf("members[%d]", i)
 		out = append(out, Finding{
 			Field: label + ".role",
-			Text:  BreakLine(in.Catalog.Display, def.TeamYAML, err),
+			Text:  BreakLine(in.Catalog.Display, def.TeamYAML.String(), err),
 			Kind:  KindRead,
 			Stops: true,
 		})
@@ -308,7 +308,7 @@ func profileFindings(in Input, def *definition.Definition) []Finding {
 		label := fmt.Sprintf("members[%d]", i)
 		out = append(out, Finding{
 			Field: label + ".profile",
-			Text:  BreakLine(in.Catalog.Display, def.TeamYAML, i18n.Errorf("error.no_profile", label, node.Profile)),
+			Text:  BreakLine(in.Catalog.Display, def.TeamYAML.String(), i18n.Errorf("error.no_profile", label, node.Profile)),
 			Kind:  KindRead,
 			Stops: true,
 		})
@@ -321,7 +321,7 @@ func profileFindings(in Input, def *definition.Definition) []Finding {
 		label := fmt.Sprintf("workers[%d]", i)
 		out = append(out, Finding{
 			Field: label,
-			Text:  BreakLine(in.Catalog.Display, def.TeamYAML, i18n.Errorf("error.workers_no_profile", label, worker.Profile)),
+			Text:  BreakLine(in.Catalog.Display, def.TeamYAML.String(), i18n.Errorf("error.workers_no_profile", label, worker.Profile)),
 			Kind:  KindRead,
 			Stops: true,
 		})

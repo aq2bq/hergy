@@ -1,9 +1,10 @@
 package team
 
 import (
-	"path/filepath"
 	"slices"
 	"strings"
+
+	domainplace "github.com/aq2bq/hergy/internal/domain/place"
 
 	domainname "github.com/aq2bq/hergy/internal/domain/name"
 
@@ -16,7 +17,7 @@ import (
 type Running struct {
 	Team       domainname.TeamRef
 	Definition string
-	Project    string
+	Project    domainplace.Project
 }
 
 // Tab is one of herdr's tabs as telling hergy's own tabs apart needs it: its id,
@@ -35,7 +36,7 @@ type Tab struct {
 	Panes []domainname.Seen
 	// PaneDirs is where those panes stand, one per Pane. A team this machine has
 	// no launch record of is read as the project its panes stand in (d-73fc).
-	PaneDirs []string
+	PaneDirs []domainplace.Seen
 }
 
 // Launch is one team this machine recorded a launch of: the name it ran under,
@@ -45,7 +46,7 @@ type Tab struct {
 type Launch struct {
 	Team       domainname.Seen
 	Definition string
-	Project    string
+	Project    domainplace.Project
 }
 
 // RunningTeams reads herdr's tabs and this machine's launch record, and returns
@@ -119,8 +120,10 @@ func (l *launches) forTab(name domainname.Seen, tab Tab) (Launch, bool) {
 	dirs := namedPaneDirs(name, tab)
 	if len(dirs) > 0 {
 		for _, record := range slices.Backward(records) {
-			if record.Project != "" && underAny(record.Project, dirs) {
-				return record, true
+			for _, dir := range dirs {
+				if record.Project.Contains(dir.Project()) {
+					return record, true
+				}
 			}
 		}
 		return Launch{}, false
@@ -131,8 +134,8 @@ func (l *launches) forTab(name domainname.Seen, tab Tab) (Launch, bool) {
 // namedPaneDirs is where the panes hergy named for one team in this tab stand, in
 // the order of the panes. A pane a person opened has no name of the team's, and
 // the tab's PaneDirs pair with its Panes by position.
-func namedPaneDirs(name domainname.Seen, tab Tab) []string {
-	var out []string
+func namedPaneDirs(name domainname.Seen, tab Tab) []domainplace.Seen {
+	var out []domainplace.Seen
 	for i, pane := range tab.Panes {
 		if !domainname.BelongsTo(pane, name) || i >= len(tab.PaneDirs) {
 			continue
@@ -142,24 +145,13 @@ func namedPaneDirs(name domainname.Seen, tab Tab) []string {
 	return out
 }
 
-// underAny reports whether one of the directories stands in the project.
-func underAny(project string, dirs []string) bool {
-	for _, dir := range dirs {
-		if rel, err := filepath.Rel(project, dir); err == nil &&
-			rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-			return true
-		}
-	}
-	return false
-}
-
 // runningOf reads one tab: the team it stands for, the definition behind it, and
 // the project the record it was read from names. known is the launch record and
 // agentsRead says whether the live agents could be read.
-func runningOf(tab Tab, known *launches, agentsRead bool) (name domainname.Seen, definition, project string, ok bool) {
+func runningOf(tab Tab, known *launches, agentsRead bool) (name domainname.Seen, definition string, project domainplace.Project, ok bool) {
 	name, definition, ok = tab.Label.TeamLabel()
 	if !ok {
-		return domainname.Seen{}, "", "", false
+		return domainname.Seen{}, "", domainplace.Project{}, false
 	}
 	recorded, found := known.forTab(name, tab)
 	if strings.HasPrefix(tab.Label.String(), "team:") {
@@ -172,10 +164,10 @@ func runningOf(tab Tab, known *launches, agentsRead bool) (name domainname.Seen,
 		if !agentsRead && found {
 			return name, recorded.Definition, recorded.Project, true
 		}
-		return domainname.Seen{}, "", "", false
+		return domainname.Seen{}, "", domainplace.Project{}, false
 	}
 	if !found {
-		return name, definition, "", true
+		return name, definition, domainplace.Project{}, true
 	}
 	return name, recorded.Definition, recorded.Project, true
 }

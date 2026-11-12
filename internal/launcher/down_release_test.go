@@ -39,7 +39,7 @@ func releaseLauncher(t *testing.T, survive int) (*Launcher, *fakePort, *time.Dur
 		delete(base.agents, name)
 		base.live = slices.DeleteFunc(base.live, func(a protocol.Agent) bool { return a.Name.String() == name })
 	}
-	l := New(starts, fixtureSeen("demo"), t.TempDir(), herdr.New(&receiptPort{fakePort: base}), 400, io.Discard)
+	l := New(starts, fixtureSeen("demo"), projectPath(t.TempDir()), herdr.New(&receiptPort{fakePort: base}), 400, io.Discard)
 	elapsed := new(time.Duration)
 	l.now = func() time.Time { return time.Unix(0, 0).Add(*elapsed) }
 	l.pause = func(d time.Duration) { *elapsed += d }

@@ -147,7 +147,10 @@ func TestROLES_P16_TheAssignmentSaveTouchesOneRoleLineAndRefusesTheUndocumented(
 func rbHomeServer(t *testing.T) (*Server, *fixture) {
 	t.Helper()
 	src := filepath.Join("..", "..", "testdata", "roles-v2")
-	root := t.TempDir()
+	root, rootErr := filepath.EvalSymlinks(t.TempDir())
+	if rootErr != nil {
+		t.Fatal(rootErr)
+	}
 	home := filepath.Join(root, "home")
 	proj := filepath.Join(root, "project")
 	global := filepath.Join(home, ".config", "hergy")
@@ -160,7 +163,7 @@ func rbHomeServer(t *testing.T) (*Server, *fixture) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if env.ProjectRoot != proj {
+	if env.ProjectRoot.String() != proj {
 		t.Fatalf("the environment's project root is %q, want the working project %q", env.ProjectRoot, proj)
 	}
 	server, err := New(env.Catalog(source.Disk{}), nil)

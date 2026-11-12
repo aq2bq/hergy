@@ -19,8 +19,8 @@ import (
 
 const modulePath = "github.com/aq2bq/hergy"
 
-// leaves import no package of this module.
-var leaves = []string{"browser", "domain/name", "i18n", "layout", "scaffold", "source", "version"}
+// leaves have no operational dependencies; source uses place, which uses name.
+var leaves = []string{"browser", "domain/name", "domain/place", "i18n", "layout", "scaffold", "source", "version"}
 
 // topLayer is imported by internal/app only. The name is the path under
 // internal/, so a package nested under another (internal/web/rulesview) is told
@@ -100,6 +100,11 @@ func TestImportDirection(t *testing.T) {
 				continue
 			}
 			for _, imp := range imports[f] {
+				// The model's place depends only on typed names. The source
+				// boundary uses place to give locks the same project identity.
+				if (pkg == "domain/place" && imp == "domain/name") || (pkg == "source" && imp == "domain/place") {
+					continue
+				}
 				t.Errorf("%s: %s is a leaf but imports internal/%s", f, pkg, imp)
 			}
 		}

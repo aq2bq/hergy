@@ -473,7 +473,7 @@ func TestReceiptLaunchRecords(t *testing.T) {
 				if allMissing {
 					wantMembers = 0
 				}
-				if last.Team.String() != "demo" || last.Definition != "demo" || last.Project != f.proj || len(last.Members) != wantMembers {
+				if last.Team.String() != "demo" || last.Definition != "demo" || last.Project.String() != f.proj || len(last.Members) != wantMembers {
 					t.Fatalf("record=%+v", last)
 				}
 				for _, m := range last.Members {

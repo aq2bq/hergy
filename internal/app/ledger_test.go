@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	domainplace "github.com/aq2bq/hergy/internal/domain/place"
+
 	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/launchlog"
@@ -98,7 +100,7 @@ fi
 	if err := log.Append(launchlog.Record{
 		Command:  launchlog.CommandUp,
 		Team:     fixtureSeen("demo-2"),
-		TeamYAML: filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml"),
+		TeamYAML: domainplace.Observe(filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml")),
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -171,7 +173,7 @@ func TestTeamNamesAddsTheNamesTheRecordShows(t *testing.T) {
 	f := newFixture(t)
 	def := &definition.Definition{
 		Name:     fixtureDefinitionName("demo"),
-		TeamYAML: filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml"),
+		TeamYAML: domainplace.Observe(filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml")),
 	}
 	log, err := launchlog.Open()
 	if err != nil {
@@ -180,7 +182,7 @@ func TestTeamNamesAddsTheNamesTheRecordShows(t *testing.T) {
 	for _, record := range []launchlog.Record{
 		{Command: launchlog.CommandUp, Team: fixtureSeen("demo-2"), TeamYAML: def.TeamYAML},
 		{Command: launchlog.CommandUp, Team: fixtureSeen("demo"), TeamYAML: def.TeamYAML}, // its own name: not repeated
-		{Command: launchlog.CommandUp, Team: fixtureSeen("other"), TeamYAML: filepath.Join(f.proj, ".hergy", "teams", "other", "team.yaml")},
+		{Command: launchlog.CommandUp, Team: fixtureSeen("other"), TeamYAML: domainplace.Observe(filepath.Join(f.proj, ".hergy", "teams", "other", "team.yaml"))},
 		{Command: launchlog.CommandUp, Team: fixtureSeen(""), TeamYAML: def.TeamYAML},
 	} {
 		if err := log.Append(record); err != nil {

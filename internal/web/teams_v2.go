@@ -3,6 +3,9 @@ package web
 import (
 	"bytes"
 	"encoding/json"
+
+	domainplace "github.com/aq2bq/hergy/internal/domain/place"
+
 	"html/template"
 	"net/http"
 	"os"
@@ -30,7 +33,7 @@ type t2PageData struct {
 // t2Page draws one tab of the team screen. The client script draws the tabs,
 // the rows, the figure and the agreement from the data island.
 func (s *Server) t2Page(w http.ResponseWriter, r *http.Request, tab string) {
-	scoped, refusal := s.withProject(projectQuery(r))
+	scoped, refusal := s.withProjectInput(projectQuery(r))
 	if refusal != nil {
 		writeJSON(w, refusal.status, refusal)
 		return
@@ -71,14 +74,14 @@ type t2Island struct {
 
 // t2Island reads the catalog into the page's island.
 func (s *Server) t2Island() t2Island {
-	out := t2Island{Project: filepath.Base(s.cat.Base()), Team: s.t2List(), HQ: s.hqScreenIsland(apiTeamKind)}
+	out := t2Island{Project: filepath.Base(s.cat.Base().String()), Team: s.t2List(), HQ: s.hqScreenIsland(apiTeamKind)}
 	out.Places = map[string]string{
 		catalog.PlaceProject: "プロジェクト",
 		catalog.PlaceGlobal:  "グローバル",
 	}
 	out.Dirs = map[string]string{
-		catalog.PlaceProject: s.cat.Display(s.cat.LayerDir(catalog.Layer(catalog.PlaceProject))) + "/teams/",
-		catalog.PlaceGlobal:  s.cat.Display(s.cat.LayerDir(catalog.Layer(catalog.PlaceGlobal))) + "/teams/",
+		catalog.PlaceProject: s.cat.Display(s.cat.LayerDir(domainplace.Selection(catalog.PlaceProject).Layer())) + "/teams/",
+		catalog.PlaceGlobal:  s.cat.Display(s.cat.LayerDir(domainplace.Selection(catalog.PlaceGlobal).Layer())) + "/teams/",
 	}
 	out.Texts = map[string]string{
 		"separator": t("list.separator"),
@@ -91,7 +94,7 @@ func (s *Server) t2Island() t2Island {
 // whose .hergy is gone has no place to put a team definition (spec-teams 1.7,
 // C5).
 func (s *Server) t2LayerDir(place string) error {
-	dir := s.cat.LayerDir(catalog.Layer(place))
+	dir := s.cat.LayerDir(domainplace.Selection(place).Layer())
 	// dir is one of the catalog's two layer directories: the place is the
 	// screen's own word, and catalog.Layer answers a layer for any word, so no
 	// request names a directory of its own.

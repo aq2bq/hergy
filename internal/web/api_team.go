@@ -11,6 +11,8 @@ import (
 	"strconv"
 	"strings"
 
+	domainplace "github.com/aq2bq/hergy/internal/domain/place"
+
 	domainname "github.com/aq2bq/hergy/internal/domain/name"
 
 	"go.yaml.in/yaml/v3"
@@ -164,18 +166,16 @@ func (s *Server) t2ListLayers(layers []string) apiList {
 	out := apiList{Hashes: map[string]string{}}
 	ver := s.cat.Version()
 	seenFile := map[string]bool{}
-	for _, one := range []struct{ layer, place string }{
-		{source.LayerLocal, catalog.PlaceProject},
-		{source.LayerGlobal, catalog.PlaceGlobal},
-	} {
-		if !slices.Contains(layers, one.layer) {
+	for _, layer := range []string{source.LayerLocal, source.LayerGlobal} {
+		place := domainplace.Selection(layer).API()
+		if !slices.Contains(layers, layer) {
 			continue
 		}
-		for _, listed := range s.cat.ShownRows(catalog.KindTeam, one.layer) {
-			item := s.t2ItemAt(listed.Name, one.place, ver)
+		for _, listed := range s.cat.ShownRows(catalog.KindTeam, layer) {
+			item := s.t2ItemAt(listed.Name, place, ver)
 			item.Mark = markWord(listed)
 			out.Items = append(out.Items, item)
-			for _, file := range s.t2FilesAt(listed.Name, one.place) {
+			for _, file := range s.t2FilesAt(listed.Name, place) {
 				if seenFile[file.Path] {
 					continue
 				}
@@ -190,7 +190,7 @@ func (s *Server) t2ListLayers(layers []string) apiList {
 // t2ItemAt is one definition at one place: the place's reading, the problem
 // when its team.yaml cannot be read, and the place's own summary.
 func (s *Server) t2ItemAt(name, place, ver string) apiItem {
-	layer := catalog.Layer(place)
+	layer := domainplace.Selection(place).Layer()
 	path := s.cat.TeamYAML(name, layer)
 	item := apiItem{Name: name, Places: map[string]apiPlace{}, Effective: place}
 	if why, state := s.unreadable(path, ""); why != "" {
@@ -217,7 +217,7 @@ func (s *Server) t2ItemAt(name, place, ver string) apiItem {
 // fileMark is the row's mark for one of its files: the owner's answer, so the
 // YAML tab's badge is not the file's layer (r-ea17).
 func (s *Server) fileMark(name, place string) string {
-	layer := catalog.Layer(place)
+	layer := domainplace.Selection(place).Layer()
 	for _, row := range s.cat.ShownRows(catalog.KindTeam, layer) {
 		if row.Name == name {
 			return markWord(row)
@@ -227,7 +227,7 @@ func (s *Server) fileMark(name, place string) string {
 }
 
 func (s *Server) t2FilesAt(name, place string) []apiFile {
-	layer := catalog.Layer(place)
+	layer := domainplace.Selection(place).Layer()
 	var out []apiFile
 	for _, one := range []struct{ kind, path string }{
 		{"team", s.cat.TeamYAML(name, layer)},
@@ -288,7 +288,7 @@ func promptExecutable() string {
 
 // t2SummaryOf is the list's columns for one definition.
 func (s *Server) t2SummaryOf(name, layer string, def *definition.Definition, ver string) apiTeamSummary {
-	key := "team.summary|" + s.cat.Base() + "|" + name + "|" + layer + "|" + ver
+	key := "team.summary|" + s.cat.Base().String() + "|" + name + "|" + layer + "|" + ver
 	return s.cached(key, func() any { return s.buildSummaryOf(name, layer, def) }).(apiTeamSummary)
 }
 
@@ -365,7 +365,7 @@ func (s *Server) t2AgreeFile(name, layer string) string {
 // the one check's findings, counted the way the list's column does (spec-teams
 // 1.2). The row, the panel and the YAML head read this same check (d-a575).
 func (s *Server) t2CountsOf(name, layer, ver string) apiCounts {
-	key := "team.counts|" + s.cat.Base() + "|" + name + "|" + layer + "|" + ver
+	key := "team.counts|" + s.cat.Base().String() + "|" + name + "|" + layer + "|" + ver
 	return s.cached(key, func() any { return s.buildCountsOf(name, layer) }).(apiCounts)
 }
 
@@ -389,14 +389,14 @@ func (s *Server) buildCountsOf(name, layer string) apiCounts {
 // key it names travels beside it (spec-teams 1.8).
 func (s *Server) t2FileOf(place, kind, name, path string) apiFile {
 	text, _ := s.cat.Reader().Read(source.Doc{Path: path})
-	key := "team.file|" + s.cat.Base() + "|" + place + "|" + kind + "|" + name + "|" + path + "|" + source.Hash(text) + "|" + s.fileMark(name, place)
+	key := "team.file|" + s.cat.Base().String() + "|" + place + "|" + kind + "|" + name + "|" + path + "|" + source.Hash(text) + "|" + s.fileMark(name, place)
 	return s.cached(key, func() any { return s.buildFileOf(place, kind, name, path, text) }).(apiFile)
 }
 
 // buildFileOf is one YAML tab file with its problems, built when no held answer
 // stands for the file's version.
 func (s *Server) buildFileOf(place, kind, name, path, text string) apiFile {
-	layer := catalog.Layer(place)
+	layer := domainplace.Selection(place).Layer()
 	display := s.cat.Display(path)
 	out := apiFile{
 		Place: place, Name: name, Kind: kind, Label: t2PlaceWord(place),
@@ -492,7 +492,7 @@ func (k apiTeam) Get(name, place string) (any, *apiErr) {
 	if place != catalog.PlaceProject && place != catalog.PlaceGlobal {
 		return nil, refuse(http.StatusBadRequest, "unknown place")
 	}
-	layer := catalog.Layer(place)
+	layer := domainplace.Selection(place).Layer()
 	path := s.cat.TeamYAML(name, layer)
 	text, err := s.cat.Reader().Read(source.Doc{Path: path})
 	if err != nil {
@@ -511,7 +511,7 @@ func (k apiTeam) Get(name, place string) (any, *apiErr) {
 // is a whole text the YAML tab is typing.
 func (k apiTeam) Check(in apiIn) (any, *apiErr) {
 	if in.RenameTo != nil {
-		preview, refusal := k.s.renamePreview(in.Name, *in.RenameTo, in.Place)
+		preview, refusal := k.s.renamePreview(in.Name, *in.RenameTo, in.Place.String())
 		return apiCheck{Problems: []apiProblem{}, Rename: preview}, refusal
 	}
 	if in.Part == "worker" {
@@ -638,7 +638,7 @@ func (k apiTeam) checkFigure(in apiIn) (any, *apiErr) {
 		return nil, refusal
 	}
 	s := k.s
-	layer := catalog.Layer(in.Place)
+	layer := in.Place.Layer()
 	path := s.cat.TeamYAML(in.Name, layer)
 	own := s.cat.Display(path)
 	team := check.Team(check.TeamInput{Catalog: s.cat, Name: in.Name, Layer: layer, Ops: body.ops})
@@ -664,7 +664,7 @@ func (k apiTeam) checkFigure(in apiIn) (any, *apiErr) {
 	// that shows it against the provisional budget (r-2f83). It is the same
 	// number the size warning counts, and the one the list's row carries.
 	out.Limit = check.TeamCharLimit
-	if overlay, refusal := k.overlay(in.Name, in.Place, body.ops); refusal == nil {
+	if overlay, refusal := k.overlay(in.Name, in.Place.String(), body.ops); refusal == nil {
 		if def, err := overlay.Definition(in.Name, layer); err == nil {
 			out.Size = check.TeamSizeChars(overlay, def)
 		}
@@ -682,12 +682,12 @@ func (k apiTeam) checkAgreement(in apiIn) (any, *apiErr) {
 	if body.in.Doc == nil {
 		return nil, refuse(http.StatusUnprocessableEntity, "agreement: one document is needed")
 	}
-	cat, refusal := k.overlay(in.Name, in.Place, body.ops)
+	cat, refusal := k.overlay(in.Name, in.Place.String(), body.ops)
 	if refusal != nil {
 		return nil, refusal
 	}
 	report := check.Agreement(check.AgreementInput{
-		Catalog: cat, Name: in.Name, Place: catalog.Layer(in.Place), Text: body.in.Doc.Text,
+		Catalog: cat, Name: in.Name, Place: in.Place.Layer(), Text: body.in.Doc.Text,
 	})
 	return r2CheckAnswer(report, false), nil
 }
@@ -720,7 +720,7 @@ func t2DecodeOps(in apiIn) (t2Body, *apiErr) {
 // text with the ops applied: the text an agreement check reads through, so its
 // arrows are judged against the figure's draft turns.
 func (k apiTeam) overlay(name, place string, ops []definition.Op) (*catalog.Catalog, *apiErr) {
-	layer := catalog.Layer(place)
+	layer := domainplace.Selection(place).Layer()
 	path := k.s.cat.TeamYAML(name, layer)
 	text, err := k.s.cat.Reader().Read(source.Doc{Path: path})
 	if err != nil {
@@ -792,7 +792,7 @@ func (k apiTeam) checkYAML(in apiIn) (any, *apiErr) {
 	if !ok {
 		return nil, refuse(http.StatusNotFound, t("web.error.not_found"))
 	}
-	layer := catalog.Layer(place)
+	layer := domainplace.Selection(place).Layer()
 	out := apiCheck{}
 	if kind == "agreement" {
 		report := check.Agreement(check.AgreementInput{Catalog: k.s.cat, Name: in.Name, Place: layer, Text: in.Text})
@@ -826,7 +826,7 @@ func (k apiTeam) fileOf(name string, in apiIn) (place, kind string, ok bool) {
 	if name == "" || (in.Place != catalog.PlaceProject && in.Place != catalog.PlaceGlobal) {
 		return "", "", false
 	}
-	return in.Place, kind, true
+	return in.Place.String(), kind, true
 }
 
 // Save is PUT /api/team/{name}: the figure's ops, the agreement's document, or
@@ -853,10 +853,10 @@ func (k apiTeam) saveFigure(name string, in apiIn) (any, *apiErr) {
 	if refusal != nil {
 		return nil, refusal
 	}
-	if err := s.t2LayerDir(in.Place); err != nil {
+	if err := s.t2LayerDir(in.Place.String()); err != nil {
 		return nil, refuse(http.StatusUnprocessableEntity, err.Error())
 	}
-	layer := catalog.Layer(in.Place)
+	layer := in.Place.Layer()
 	path := s.cat.TeamYAML(name, layer)
 	display := s.cat.Display(path)
 	if bad := s.docUnreadableRefusal(path); bad != nil {
@@ -887,7 +887,7 @@ func (k apiTeam) saveFigure(name string, in apiIn) (any, *apiErr) {
 	if err := source.WriteIfUnchanged(path, hash, edited); err != nil {
 		return s.r2WriteError(err, display, path, s.teamDoc(name, layer))
 	}
-	return k.savedAnswer(name, in.Place), nil
+	return k.savedAnswer(name, in.Place.String()), nil
 }
 
 // saveAgreement writes a team's own agreement.md from the panel's document.
@@ -901,10 +901,10 @@ func (k apiTeam) saveAgreement(name string, in apiIn) (any, *apiErr) {
 	if body.in.Doc == nil {
 		return nil, refuse(http.StatusUnprocessableEntity, "agreement: one document is needed")
 	}
-	if err := s.t2LayerDir(in.Place); err != nil {
+	if err := s.t2LayerDir(in.Place.String()); err != nil {
 		return nil, refuse(http.StatusUnprocessableEntity, err.Error())
 	}
-	layer := catalog.Layer(in.Place)
+	layer := in.Place.Layer()
 	path := s.t2AgreeFile(name, layer)
 	display := s.cat.Display(path)
 	if bad := s.docUnreadableRefusal(path); bad != nil {
@@ -922,8 +922,8 @@ func (k apiTeam) saveAgreement(name string, in apiIn) (any, *apiErr) {
 	if err := source.WriteIfUnchanged(path, hash, edited); err != nil {
 		return s.r2WriteError(err, display, path, ruleDoc(display))
 	}
-	out := k.savedAnswer(name, in.Place)
-	if one, refusal := k.Get(name, in.Place); refusal == nil {
+	out := k.savedAnswer(name, in.Place.String())
+	if one, refusal := k.Get(name, in.Place.String()); refusal == nil {
 		if got, ok := one.(apiTeamGet); ok {
 			agree := got.Doc.Agreement
 			text := s.writtenText(path, edited)
@@ -944,7 +944,7 @@ func (k apiTeam) saveYAML(name string, in apiIn) (any, *apiErr) {
 	if err := s.t2LayerDir(place); err != nil {
 		return nil, refuse(http.StatusUnprocessableEntity, err.Error())
 	}
-	layer := catalog.Layer(place)
+	layer := domainplace.Selection(place).Layer()
 	path := s.cat.TeamYAML(name, layer)
 	if kind == "agreement" {
 		path = s.t2AgreeFile(name, layer)
@@ -1044,7 +1044,7 @@ func (k apiTeam) savedAnswer(name, place string) apiSaved {
 // the screen is not removed.
 func (k apiTeam) Delete(name string, in apiIn) (any, *apiErr) {
 	s := k.s
-	files, _, _, _ := s.teamTargets(in.Place, name)
+	files, _, _, _ := s.teamTargets(in.Place.String(), name)
 	teamPath, agreePath := "", ""
 	if len(files) > 0 {
 		teamPath = files[0]

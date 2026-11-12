@@ -43,7 +43,7 @@ func TestProjectPathsExpandsHomeAndRefusesRelative(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !present || len(paths) != 1 || paths[0] != filepath.Join(home, "src", "shop") {
+	if !present || len(paths) != 1 || paths[0].String() != filepath.Join(home, "src", "shop") {
 		t.Errorf("ProjectPaths = %v, %v, want the one expanded path", paths, present)
 	}
 	if _, _, err := env.ProjectPaths(Config{HasProjects: true, Projects: []string{"src/shop"}}); err == nil {
@@ -92,7 +92,7 @@ func TestAddProjectWritesHomeAsTilde(t *testing.T) {
 	}
 	paths, _, err := env.ProjectPaths(cfg)
 	resolved, _ := filepath.EvalSymlinks(dir)
-	if err != nil || len(paths) != 1 || paths[0] != resolved {
+	if err != nil || len(paths) != 1 || paths[0].String() != resolved {
 		t.Errorf("the written file reads as %v, %v", paths, err)
 	}
 }
@@ -152,17 +152,20 @@ func TestRemoveProjectLeavesAnEmptyList(t *testing.T) {
 // TestAtProjectReadsAnotherLayer: the global directory and language stay, and
 // the project root and .hergy/ become the other project's.
 func TestAtProjectReadsAnotherLayer(t *testing.T) {
-	root := t.TempDir()
+	root, rootErr := filepath.EvalSymlinks(t.TempDir())
+	if rootErr != nil {
+		t.Fatal(rootErr)
+	}
 	other := filepath.Join(root, "other")
 	if err := os.MkdirAll(other, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	env := Env{ProjectRoot: root, GlobalDir: filepath.Join(root, "cfg"), LocalDir: filepath.Join(root, ".hergy")}
-	got, err := env.AtProject(other)
+	env := Env{ProjectRoot: projectPath(root), GlobalDir: filepath.Join(root, "cfg"), LocalDir: filepath.Join(root, ".hergy")}
+	got, err := env.AtProject(projectPath(other))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.ProjectRoot != other || got.LocalDir != filepath.Join(other, ".hergy") || got.GlobalDir != env.GlobalDir {
+	if got.ProjectRoot.String() != other || got.LocalDir != filepath.Join(other, ".hergy") || got.GlobalDir != env.GlobalDir {
 		t.Errorf("AtProject = %+v", got)
 	}
 }

@@ -12,6 +12,7 @@ package definition
 
 import (
 	domainname "github.com/aq2bq/hergy/internal/domain/name"
+	domainplace "github.com/aq2bq/hergy/internal/domain/place"
 	"github.com/aq2bq/hergy/internal/source"
 )
 
@@ -30,7 +31,7 @@ type Definition struct {
 	// Dir is the definition's own directory, and TeamYAML the file it was read
 	// from.
 	Dir      string
-	TeamYAML string
+	TeamYAML domainplace.Seen
 	// Layer is where it was found (local or global). The layer stays inside
 	// hergy: it is not a word a person reads (I11).
 	Layer string

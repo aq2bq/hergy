@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	domainplace "github.com/aq2bq/hergy/internal/domain/place"
+
 	domainname "github.com/aq2bq/hergy/internal/domain/name"
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/profile"
@@ -56,7 +58,7 @@ type Input struct {
 	Layer        string
 	TeamYAMLPath string
 	TeamDir      string
-	Base         string // the project root, for cwd values
+	Base         domainplace.Project // the project root, for cwd values
 	Reader       source.Reader
 }
 
@@ -198,7 +200,7 @@ func Read(in Input) (*Definition, error) {
 		Description:  description,
 		Graph:        graph,
 		Dir:          in.TeamDir,
-		TeamYAML:     in.TeamYAMLPath,
+		TeamYAML:     domainplace.Observe(in.TeamYAMLPath),
 		Layer:        in.Layer,
 		Version:      version,
 		Agreement:    agreement,
@@ -438,7 +440,7 @@ func parseMember(rm rawMember, teamCwd string, in Input, index int) (MemberNode,
 		cwd = "."
 	}
 	if !filepath.IsAbs(cwd) {
-		cwd = filepath.Join(in.Base, cwd)
+		cwd = filepath.Join(in.Base.String(), cwd)
 	}
 	prompt, err := memberPrompt(rm, label)
 	if err != nil {

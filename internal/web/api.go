@@ -7,6 +7,8 @@ import (
 	"io"
 	"net/http"
 
+	domainplace "github.com/aq2bq/hergy/internal/domain/place"
+
 	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/i18n"
@@ -30,14 +32,14 @@ type apiIn struct {
 	// Project names the listed project a read or write is about (d-73fc): the
 	// kind then reads and writes that project's .hergy/ instead of the project
 	// serve was started in. Empty keeps the old behaviour.
-	Project  string          `json:"project"`
-	Place    string          `json:"place"`
-	Name     string          `json:"name"`
-	Part     string          `json:"part"`
-	Original string          `json:"original"`
-	Doc      json.RawMessage `json:"doc"`
-	Text     string          `json:"text"`
-	Hash     string          `json:"hash"`
+	Project  domainplace.Input     `json:"project"`
+	Place    domainplace.Selection `json:"place"`
+	Name     string                `json:"name"`
+	Part     string                `json:"part"`
+	Original string                `json:"original"`
+	Doc      json.RawMessage       `json:"doc"`
+	Text     string                `json:"text"`
+	Hash     string                `json:"hash"`
 	// RunningTeam is the running team a screen picked for a prompt reading
 	// (⑤ r-ba9b): empty means it picked none.
 	RunningTeam     string          `json:"running_team"`
@@ -77,9 +79,9 @@ type apiIn struct {
 // project, and a copy of one of them stands in that project's place (r-a028,
 // d-73fc). Empty keeps the old reading, which is serve's own project.
 type apiBase struct {
-	Place   string `json:"place"`
-	Name    string `json:"name"`
-	Project string `json:"project,omitempty"`
+	Place   domainplace.Selection `json:"place"`
+	Name    string                `json:"name"`
+	Project domainplace.Input     `json:"project,omitempty"`
 }
 
 // apiErr is a refusal: the status, the sentence a person reads, and, when the
@@ -378,7 +380,7 @@ const (
 
 // apiList answers GET /api/{kind}.
 func (s *Server) apiList(w http.ResponseWriter, r *http.Request) {
-	scoped, refusal := s.withProject(projectQuery(r))
+	scoped, refusal := s.withProjectInput(projectQuery(r))
 	if refusal != nil {
 		apiAnswer(w, nil, refusal)
 		return
@@ -394,7 +396,7 @@ func (s *Server) apiList(w http.ResponseWriter, r *http.Request) {
 
 // apiGet answers GET /api/{kind}/{name}.
 func (s *Server) apiGet(w http.ResponseWriter, r *http.Request) {
-	scoped, refusal := s.withProject(projectQuery(r))
+	scoped, refusal := s.withProjectInput(projectQuery(r))
 	if refusal != nil {
 		apiAnswer(w, nil, refusal)
 		return
@@ -414,7 +416,7 @@ func (s *Server) apiCheck(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	scoped, refusal := s.withProject(in.Project)
+	scoped, refusal := s.withProjectInput(in.Project)
 	if refusal != nil {
 		apiAnswer(w, nil, refusal)
 		return
@@ -434,7 +436,7 @@ func (s *Server) apiSave(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	scoped, refusal := s.withProject(in.Project)
+	scoped, refusal := s.withProjectInput(in.Project)
 	if refusal != nil {
 		apiAnswer(w, nil, refusal)
 		return
@@ -454,7 +456,7 @@ func (s *Server) apiDelete(w http.ResponseWriter, r *http.Request) {
 	if !s.apiGuard(w, r) {
 		return
 	}
-	scoped, refusal := s.withProject(projectQuery(r))
+	scoped, refusal := s.withProjectInput(projectQuery(r))
 	if refusal != nil {
 		apiAnswer(w, nil, refusal)
 		return
@@ -466,7 +468,7 @@ func (s *Server) apiDelete(w http.ResponseWriter, r *http.Request) {
 	}
 	value, refusal := kind.Delete(r.PathValue("name"), apiIn{
 		Project:       projectQuery(r),
-		Place:         r.URL.Query().Get("place"),
+		Place:         domainplace.Selection(r.URL.Query().Get("place")),
 		Hash:          r.URL.Query().Get("hash"),
 		AgreementHash: r.URL.Query().Get("agreement_hash"),
 	})

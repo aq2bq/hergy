@@ -18,6 +18,8 @@ import (
 	"strings"
 	"sync"
 
+	domainplace "github.com/aq2bq/hergy/internal/domain/place"
+
 	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/profile"
@@ -27,11 +29,12 @@ import (
 // Catalog reads the two layers. Display is how a path is shown to a person; the
 // app hands the environment's own.
 type Catalog struct {
-	globalDir string
-	localDir  string
-	base      string
-	reader    source.Reader
-	display   func(string) string
+	globalDir  string
+	localDir   string
+	base       domainplace.Project
+	globalBase domainplace.Project
+	reader     source.Reader
+	display    func(string) string
 	// inRepo says the project root is a git repository, which is what tells
 	// NewPlace where something new goes (K2). It is the environment's fact
 	// (team.Env), not something a path can be read back from, so the catalog is
@@ -79,14 +82,16 @@ type defResult struct {
 }
 
 // New builds a catalog over the two layer directories and the project root.
-func New(globalDir, localDir, base string, reader source.Reader, display func(string) string) *Catalog {
+func New(globalDir, localDir string, base domainplace.Project, reader source.Reader, display func(string) string) *Catalog {
+	globalBase, _ := domainplace.NewProject(globalDir)
 	return &Catalog{
-		globalDir: globalDir,
-		localDir:  localDir,
-		base:      base,
-		reader:    reader,
-		display:   display,
-		held:      &heldReadings{defs: map[[32]byte]defResult{}, dirs: map[string]dirResult{}},
+		globalBase: globalBase,
+		globalDir:  globalDir,
+		localDir:   localDir,
+		base:       base,
+		reader:     reader,
+		display:    display,
+		held:       &heldReadings{defs: map[[32]byte]defResult{}, dirs: map[string]dirResult{}},
 	}
 }
 
@@ -278,7 +283,7 @@ func (e *ReadError) Unwrap() error { return e.Err }
 
 // Base is the project root the catalog resolves against: the folder cwd values
 // and a member's embedded hire command are written from.
-func (c *Catalog) Base() string { return c.base }
+func (c *Catalog) Base() domainplace.Project { return c.base }
 
 // LayerDir is where one layer's files live.
 func (c *Catalog) LayerDir(layer string) string {
@@ -792,4 +797,14 @@ func (c *Catalog) layers() []layerDir {
 		{dir: c.localDir, name: source.LayerLocal},
 		{dir: c.globalDir, name: source.LayerGlobal},
 	}
+}
+
+// GlobalBase is the catalog's already normalized global configuration root.
+func (c *Catalog) GlobalBase() domainplace.Project { return c.globalBase }
+
+// TeamPath resolves a definition's file identity at the filesystem catalog boundary.
+// TeamYAML keeps the spelling used for file I/O and display.
+func (c *Catalog) TeamPath(name, layer string) domainplace.Project {
+	project, _ := domainplace.NewProject(c.TeamYAML(name, layer))
+	return project
 }

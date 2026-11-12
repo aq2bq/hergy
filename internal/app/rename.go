@@ -6,6 +6,8 @@ import (
 	"slices"
 	"time"
 
+	domainplace "github.com/aq2bq/hergy/internal/domain/place"
+
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/launchlog"
 	"github.com/aq2bq/hergy/internal/team"
@@ -13,7 +15,8 @@ import (
 
 // CheckDefinitionRename reads the entire connected session, before the screen's
 // project filter. It is called under the same file locks that protect up.
-func (a *activityRead) CheckDefinitionRename(path string) error {
+func (a *activityRead) CheckDefinitionRename(target domainplace.Project) error {
+
 	read := a.readHerdr(time.Now())
 	if read.err != nil {
 		return hqRefuse(http.StatusServiceUnavailable, i18n.T("web.rename.unavailable"))
@@ -28,13 +31,13 @@ func (a *activityRead) CheckDefinitionRename(path string) error {
 	}
 	for _, running := range team.RunningTeams(read.tabs, launchTeams(), read.agentsRead) {
 		record, known := renameLaunch(records, running)
-		if !known || record.TeamYAML == "" {
-			if running.Definition == filepath.Base(filepath.Dir(path)) {
+		if !known || record.TeamYAML.String() == "" {
+			if running.Definition == filepath.Base(filepath.Dir(target.String())) {
 				return hqRefuse(http.StatusConflict, i18n.Tf("web.rename.unknown", running.Team.String()))
 			}
 			continue
 		}
-		if samePath(record.TeamYAML, path) {
+		if record.TeamYAML.Project().Compare(target) == domainplace.Same {
 			return hqRefuse(http.StatusConflict, i18n.Tf("web.rename.running", running.Team.String()))
 		}
 	}
@@ -43,7 +46,7 @@ func (a *activityRead) CheckDefinitionRename(path string) error {
 
 func renameLaunch(records []launchlog.Record, running team.Running) (launchlog.Record, bool) {
 	for _, one := range slices.Backward(records) {
-		if !one.IsHire() && one.Team.String() == running.Team.String() && (running.Project == "" || samePath(one.Project, running.Project)) {
+		if !one.IsHire() && one.Team.String() == running.Team.String() && (running.Project.IsZero() || one.Project.Project().Compare(running.Project) == domainplace.Same) {
 			return one, true
 		}
 	}

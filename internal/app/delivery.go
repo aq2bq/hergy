@@ -1,7 +1,8 @@
 package app
 
 import (
-	"path/filepath"
+	domainplace "github.com/aq2bq/hergy/internal/domain/place"
+
 	"time"
 
 	domainname "github.com/aq2bq/hergy/internal/domain/name"
@@ -111,7 +112,7 @@ func byHerdrOf(judged activity.Team) map[string]activity.Node {
 // planTeam adds one running team's drift to the plan: the members whose prompt,
 // start or env differs, the members the definition has and no agent is live for,
 // and the members the definition no longer has.
-func (a *activityRead) planTeam(one *deliveryPlan, running runningTeam, judged activity.Team, byHerdr map[string]activity.Node, records map[string]map[string]map[string]launchlog.Record, log launchlog.Log, logErr error) {
+func (a *activityRead) planTeam(one *deliveryPlan, running runningTeam, judged activity.Team, byHerdr map[string]activity.Node, records map[domainplace.Project]map[string]map[string]launchlog.Record, log launchlog.Log, logErr error) {
 	row := web.ApplyTeam{
 		Team: running.Name.String(), Definition: running.Definition,
 		Project: running.Project, ProjectName: running.ProjectName,
@@ -371,13 +372,13 @@ func (a *activityRead) memberChanges(cat *catalog.Catalog, log launchlog.Log, lo
 		return false, nil
 	}
 	run := prompt.Run{
-		Team: domainname.RunningNames(running.Built.team.Name), Executable: record.Executable, Base: record.Project, Lang: record.Lang,
+		Team: domainname.RunningNames(running.Built.team.Name), Executable: record.Executable, Base: record.Project.Project(), Lang: record.Lang,
 		Reader: cat.Reader(), Sources: cat, Display: cat.Display,
 	}
 	if run.Executable == "" {
 		run.Executable = executable()
 	}
-	if run.Base == "" {
+	if run.Base.IsZero() {
 		// The team's own project, not the one serve was started in: a team of
 		// another listed project is built from that project (r-2e49).
 		run.Base = running.Project
@@ -408,8 +409,8 @@ func (a *activityRead) memberChanges(cat *catalog.Catalog, log launchlog.Log, lo
 // record is the one its own project wrote (r-2e49). A record that names no project
 // — one written before the record kept it — stands under "", and is read for a
 // team whose project has no record of its own (teamsRecorded).
-func latestMemberRecords() map[string]map[string]map[string]launchlog.Record {
-	out := map[string]map[string]map[string]launchlog.Record{}
+func latestMemberRecords() map[domainplace.Project]map[string]map[string]launchlog.Record {
+	out := map[domainplace.Project]map[string]map[string]launchlog.Record{}
 	log, err := launchlog.Open()
 	if err != nil {
 		return out
@@ -422,10 +423,7 @@ func latestMemberRecords() map[string]map[string]map[string]launchlog.Record {
 		if record.Team.String() == "" || record.Definition == "" || record.IsHire() {
 			continue
 		}
-		project := ""
-		if record.Project != "" {
-			project = filepath.Clean(record.Project)
-		}
+		project := record.Project.Project()
 		if out[project] == nil {
 			out[project] = map[string]map[string]launchlog.Record{}
 		}
@@ -447,16 +445,11 @@ func latestMemberRecords() map[string]map[string]map[string]launchlog.Record {
 // way the record names the project: the same directory, symlinks and all. A
 // project with no record of its own falls back to the records that name none
 // (r-2e49).
-func teamsRecorded(records map[string]map[string]map[string]launchlog.Record, project string) map[string]map[string]launchlog.Record {
-	if teams, ok := records[filepath.Clean(project)]; ok {
+func teamsRecorded(records map[domainplace.Project]map[string]map[string]launchlog.Record, project domainplace.Project) map[string]map[string]launchlog.Record {
+	if teams, ok := records[project]; ok {
 		return teams
 	}
-	for key, teams := range records {
-		if key != "" && samePath(key, project) {
-			return teams
-		}
-	}
-	return records[""]
+	return records[domainplace.Project{}]
 }
 
 // currentDocs is the rule documents of one current prompt, with the path a

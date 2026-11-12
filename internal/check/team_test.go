@@ -161,7 +161,7 @@ func TestTeamStopsOnAnOpTheFileCannotHold(t *testing.T) {
 // takes the break away (d-31ad, T13 R1).
 func TestALeftoverSharedAgreementIsOneBreakOnEveryDefinition(t *testing.T) {
 	cat := teamsV2Catalog(t)
-	path := filepath.Join(cat.Base(), ".hergy", "agreement.yaml")
+	path := filepath.Join(cat.Base().String(), ".hergy", "agreement.yaml")
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatal(err)
 	}

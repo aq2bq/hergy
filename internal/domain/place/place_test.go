@@ -21,20 +21,20 @@ func project(t *testing.T, path string) place.Project {
 
 func TestCanonicalProjectIdentity(t *testing.T) {
 	root := t.TempDir()
-	real := filepath.Join(root, "real")
-	if err := os.MkdirAll(filepath.Join(real, "child"), 0700); err != nil {
+	realDir := filepath.Join(root, "realDir")
+	if err := os.MkdirAll(filepath.Join(realDir, "child"), 0700); err != nil {
 		t.Fatal(err)
 	}
 	alias := filepath.Join(root, "alias")
-	if err := os.Symlink(real, alias); err != nil {
+	if err := os.Symlink(realDir, alias); err != nil {
 		t.Fatal(err)
 	}
-	relative, err := filepath.Rel(mustCwd(t), real)
+	relative, err := filepath.Rel(mustCwd(t), realDir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := project(t, real)
-	for _, path := range []string{alias, real + "/", filepath.Join(real, "child", ".."), relative} {
+	want := project(t, realDir)
+	for _, path := range []string{alias, realDir + "/", filepath.Join(realDir, "child", ".."), relative} {
 		got := project(t, path)
 		if got != want || got.Compare(want) != place.Same {
 			t.Errorf("%q = %v, want %v", path, got, want)
@@ -43,7 +43,7 @@ func TestCanonicalProjectIdentity(t *testing.T) {
 	if !want.Contains(project(t, filepath.Join(alias, "child"))) {
 		t.Fatal("aliased child not inside project")
 	}
-	if want.Contains(project(t, real+"-other")) {
+	if want.Contains(project(t, realDir+"-other")) {
 		t.Fatal("sibling counted as child")
 	}
 }
@@ -135,9 +135,17 @@ func TestPlaceAndTypedResourceReferences(t *testing.T) {
 	definition, _ := name.ParseDefinitionName("demo")
 	role, _ := name.ParseRoleName("builder")
 	profile, _ := name.ParseProfileName("default")
-	for _, ref := range []place.Ref{place.DefinitionRef(local, definition), place.RoleRef(local, role), place.ProfileRef(local, profile)} {
-		if ref.Place() != local || ref.Name() == "" {
-			t.Fatal(ref)
+	for _, tc := range []struct {
+		ref  place.Ref
+		kind place.Kind
+		name string
+	}{
+		{place.DefinitionRef(local, definition), place.Definition, "demo"},
+		{place.RoleRef(local, role), place.Role, "builder"},
+		{place.ProfileRef(local, profile), place.Profile, "default"},
+	} {
+		if tc.ref.Place() != local || tc.ref.Kind() != tc.kind || tc.ref.Name() != tc.name {
+			t.Fatal(tc.ref)
 		}
 	}
 }

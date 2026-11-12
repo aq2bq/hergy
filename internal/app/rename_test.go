@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 
+	domainplace "github.com/aq2bq/hergy/internal/domain/place"
+
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/launchlog"
 	"github.com/aq2bq/hergy/internal/source"
@@ -41,25 +43,25 @@ func TestRenameReadsUnlistedRunningProjects(t *testing.T) {
 	reader := newActivityRead(env)
 	path := filepath.Join(f.cfg, "hergy", "teams", "demo", "team.yaml")
 	// An unrecorded tab must not be interpreted as a stopped definition.
-	if err := reader.CheckDefinitionRename(path); err == nil {
+	if err := reader.CheckDefinitionRename(projectPath(path)); err == nil {
 		t.Fatal("accepted an unknown running definition")
 	}
 	log, err := launchlog.Open()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := log.Append(launchlog.Record{Team: fixtureSeen("foreign"), Definition: "demo", Project: filepath.Join(f.proj, "unlisted"), Layer: source.LayerGlobal, TeamYAML: path}); err != nil {
+	if err := log.Append(launchlog.Record{Team: fixtureSeen("foreign"), Definition: "demo", Project: domainplace.Observe(filepath.Join(f.proj, "unlisted")), Layer: source.LayerGlobal, TeamYAML: domainplace.Observe(path)}); err != nil {
 		t.Fatal(err)
 	}
-	if err := reader.CheckDefinitionRename(path); err == nil {
+	if err := reader.CheckDefinitionRename(projectPath(path)); err == nil {
 		t.Fatal("missed global use by an unlisted project")
 	}
 	// A same-named, independent project definition is not this global file.
-	if err := reader.CheckDefinitionRename(filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml")); err != nil {
+	if err := reader.CheckDefinitionRename(projectPath(filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml"))); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv("HERGY_HERDR", filepath.Join(f.cfg, "missing"))
-	if err := reader.CheckDefinitionRename(path); err == nil {
+	if err := reader.CheckDefinitionRename(projectPath(path)); err == nil {
 		t.Fatal("accepted unavailable herdr")
 	}
 }
@@ -84,7 +86,7 @@ func TestRenameIgnoresUnrelatedUnknownDefinitions(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				err = newActivityRead(env).CheckDefinitionRename(filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml"))
+				err = newActivityRead(env).CheckDefinitionRename(projectPath(filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml")))
 				if (err != nil) != (definition == "demo") {
 					t.Fatalf("rename refusal = %v, definition = %s", err, definition)
 				}
@@ -132,7 +134,7 @@ func TestWebStartOnlyRefusesConflictingRenameLock(t *testing.T) {
 			}
 			// An invalid workspace stops before booting any asynchronous launcher.
 			_, err := newActivityRead(env).StartLaunch(web.HQLaunchIn{
-				Project: env.ProjectRoot, Definition: "wave", Place: "project", Workspace: web.HQWorkspaceIn{ID: "missing"},
+				Project: domainplace.Input(env.ProjectRoot.String()), Definition: "wave", Place: "project", Workspace: web.HQWorkspaceIn{ID: "missing"},
 			})
 			refusal, ok := errors.AsType[*web.HQError](err)
 			want := http.StatusUnprocessableEntity

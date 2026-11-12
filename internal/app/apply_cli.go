@@ -193,7 +193,7 @@ func applyTeamNow(ctx context.Context, env team.Env, group []plannedMember, time
 	}
 	cat := projectEnv.Catalog(source.Disk{})
 	r, err := buildRunningIn(cat, projectEnv.ProjectRoot,
-		team.Running{Team: domainname.TeamFromObservation(group[0].team.Name.Observation()), Definition: group[0].team.Definition}, group[0].team.Place)
+		team.Running{Team: domainname.TeamFromObservation(group[0].team.Name.Observation()), Definition: group[0].team.Definition}, group[0].team.Place.Layer())
 	if err != nil {
 		return err
 	}

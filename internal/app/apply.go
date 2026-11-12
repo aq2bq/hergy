@@ -4,6 +4,7 @@ import (
 	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/deliver"
+	domainplace "github.com/aq2bq/hergy/internal/domain/place"
 	"github.com/aq2bq/hergy/internal/launchlog"
 	"github.com/aq2bq/hergy/internal/source"
 )
@@ -18,7 +19,7 @@ import (
 // current prompt, with the preamble when the launch record shows a change. A
 // member the record does not know, or one whose prompt is the prompt it already
 // read, is sent as it is.
-func promptsToResend(cat *catalog.Catalog, project string, r *resolved, members []definition.Start) []definition.Start {
+func promptsToResend(cat *catalog.Catalog, project domainplace.Project, r *resolved, members []definition.Start) []definition.Start {
 	out := append([]definition.Start(nil), members...)
 	log, err := launchlog.Open()
 	if err != nil {

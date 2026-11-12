@@ -42,19 +42,19 @@ func TestRunningHoldKeepsOneReadingForTwoSeconds(t *testing.T) {
 // names are the same teams PromptHistory used to choose from.
 func TestPromptRunsOfFiltersByDefinitionPlaceAndProject(t *testing.T) {
 	live := web.HQRunning{Teams: []web.HQRunningTeam{
-		{Team: fixtureRunningTeam("core"), Definition: "core", Place: "project", Project: "/p/one"},
-		{Team: fixtureRunningTeam("core-hotfix"), Definition: "core", Place: "project", Project: "/p/one"},
-		{Team: fixtureRunningTeam("other"), Definition: "other", Place: "project", Project: "/p/one"},
-		{Team: fixtureRunningTeam("docs"), Definition: "core", Place: "global", Project: "/p/two"},
-		{Team: fixtureRunningTeam("core-elsewhere"), Definition: "core", Place: "project", Project: "/p/two"},
+		{Team: fixtureRunningTeam("core"), Definition: "core", Place: "project", Project: projectPath("/p/one")},
+		{Team: fixtureRunningTeam("core-hotfix"), Definition: "core", Place: "project", Project: projectPath("/p/one")},
+		{Team: fixtureRunningTeam("other"), Definition: "other", Place: "project", Project: projectPath("/p/one")},
+		{Team: fixtureRunningTeam("docs"), Definition: "core", Place: "global", Project: projectPath("/p/two")},
+		{Team: fixtureRunningTeam("core-elsewhere"), Definition: "core", Place: "project", Project: projectPath("/p/two")},
 	}}
-	if got := promptRunsOf(live, "/p/one", "core", "project"); len(got) != 2 || got[0].Team.String() != "core" || got[1].Team.String() != "core-hotfix" {
+	if got := promptRunsOf(live, projectPath("/p/one"), "core", "project"); len(got) != 2 || got[0].Team.String() != "core" || got[1].Team.String() != "core-hotfix" {
 		t.Errorf("project runs = %+v", got)
 	}
-	if got := promptRunsOf(live, "/p/one", "core", "global"); len(got) != 1 || got[0].Team.String() != "docs" {
+	if got := promptRunsOf(live, projectPath("/p/one"), "core", "global"); len(got) != 1 || got[0].Team.String() != "docs" {
 		t.Errorf("global runs = %+v", got)
 	}
-	if got := promptRunsOf(live, "/p/three", "core", "project"); len(got) != 0 {
+	if got := promptRunsOf(live, projectPath("/p/three"), "core", "project"); len(got) != 0 {
 		t.Errorf("another project's runs = %+v", got)
 	}
 }

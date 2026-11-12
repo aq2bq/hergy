@@ -14,6 +14,8 @@ import (
 	"syscall"
 	"time"
 
+	domainplace "github.com/aq2bq/hergy/internal/domain/place"
+
 	domainname "github.com/aq2bq/hergy/internal/domain/name"
 
 	"github.com/aq2bq/hergy/internal/definition"
@@ -31,7 +33,7 @@ import (
 type Launcher struct {
 	starts  []definition.Start
 	team    domainname.Seen
-	project string
+	project domainplace.Project
 	timeout int
 	herdr   *herdr.Herdr
 	out     io.Writer
@@ -76,7 +78,7 @@ type Launcher struct {
 
 // New builds a launcher over the members of one team: the team name, and the
 // members as starts. project is the absolute project path used by recovery commands.
-func New(starts []definition.Start, team domainname.Seen, project string, h *herdr.Herdr, timeoutMS int, out io.Writer) *Launcher {
+func New(starts []definition.Start, team domainname.Seen, project domainplace.Project, h *herdr.Herdr, timeoutMS int, out io.Writer) *Launcher {
 	return &Launcher{
 		starts:   starts,
 		team:     team,
@@ -934,7 +936,7 @@ func (l *Launcher) Hire(worker *definition.Start, task string) error {
 	}
 	if err := l.start(worker, NextHire(), label); err != nil {
 		if missing, ok := errors.AsType[*Undelivered](err); ok {
-			missing.Recovery = hireRetry(l.project, l.team.String(), worker, task)
+			missing.Recovery = hireRetry(l.project.String(), l.team.String(), worker, task)
 		}
 		return err
 	}
@@ -1644,7 +1646,7 @@ func (l *Launcher) submit(member *definition.Start, target domainname.Target) er
 		switch protocol.ErrorCode(err) {
 		case "agent_prompt_stalled", "timeout", "agent_blocked":
 			l.mark(member.Name.String(), i18n.T("progress.mark.bootstrap_undelivered"))
-			return &Undelivered{Name: member.Name.String(), Pane: l.paneOf(member.Name.String()), Recovery: repromptRetry(l.project, l.team.String(), member.Name.String()), Cause: err}
+			return &Undelivered{Name: member.Name.String(), Pane: l.paneOf(member.Name.String()), Recovery: repromptRetry(l.project.String(), l.team.String(), member.Name.String()), Cause: err}
 		default:
 			return err
 		}

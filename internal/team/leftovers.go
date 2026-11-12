@@ -8,12 +8,14 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	domainplace "github.com/aq2bq/hergy/internal/domain/place"
 )
 
 // Worktree is one git worktree of the project, other than the project's own
 // root, with what removing it would lose.
 type Worktree struct {
-	Path   string
+	Path   domainplace.Project
 	Branch string
 	Dirty  bool
 	// Ahead is how many commits the worktree's HEAD has that Base does not:
@@ -51,12 +53,12 @@ func (l Leftovers) Empty() bool { return len(l.Worktrees) == 0 && l.Stashes == 0
 // read is listed only when a pane stood in it. A directory that is not in a git
 // worktree of this project is skipped: another repository a pane happened to
 // stand in is not the team's leftover.
-func GitLeftovers(projectRoot string, since time.Time, dirs []string) Leftovers {
-	root := resolvePath(projectRoot)
-	if root == "" {
+func GitLeftovers(projectRoot domainplace.Project, since time.Time, dirs []domainplace.Seen) Leftovers {
+	root := projectRoot
+	if root.IsZero() {
 		return Leftovers{}
 	}
-	common := resolveAgainst(root, gitLine(root, "rev-parse", "--git-common-dir"))
+	common := gitCommon(root)
 	panes := paneWorktrees(root, common, dirs)
 	admins := worktreeAdmins(common)
 	out := Leftovers{}
@@ -75,24 +77,24 @@ func GitLeftovers(projectRoot string, since time.Time, dirs []string) Leftovers 
 		worktree.PaneCwd = panes[path]
 		out.Worktrees = append(out.Worktrees, worktree)
 	}
-	sort.Slice(out.Worktrees, func(i, j int) bool { return out.Worktrees[i].Path < out.Worktrees[j].Path })
-	out.Stashes = len(gitLines(root, "stash", "list", "--format=%gd"))
+	sort.Slice(out.Worktrees, func(i, j int) bool { return out.Worktrees[i].Path.String() < out.Worktrees[j].Path.String() })
+	out.Stashes = len(gitLines(root.String(), "stash", "list", "--format=%gd"))
 	return out
 }
 
 // paneWorktrees is the worktrees of this project that the given directories
 // stand in, by resolved path, other than the project's own root.
-func paneWorktrees(root, common string, dirs []string) map[string]bool {
-	out := map[string]bool{}
+func paneWorktrees(root, common domainplace.Project, dirs []domainplace.Seen) map[domainplace.Project]bool {
+	out := map[domainplace.Project]bool{}
 	for _, dir := range dirs {
-		if strings.TrimSpace(dir) == "" {
+		if strings.TrimSpace(dir.String()) == "" {
 			continue
 		}
-		worktree := resolvePath(gitLine(dir, "rev-parse", "--show-toplevel"))
-		if worktree == "" || worktree == root {
+		worktree, _ := domainplace.NewProject(gitLine(dir.String(), "rev-parse", "--show-toplevel"))
+		if worktree.IsZero() || worktree == root {
 			continue
 		}
-		if common == "" || resolveAgainst(worktree, gitLine(worktree, "rev-parse", "--git-common-dir")) != common {
+		if common.IsZero() || gitCommon(worktree) != common {
 			continue
 		}
 		out[worktree] = true
@@ -104,21 +106,21 @@ func paneWorktrees(root, common string, dirs []string) map[string]bool {
 // project's own root, by resolved path. A worktree whose directory is gone is
 // left out: it is not a place to remove, and the branch and changes a person
 // would check before removing it cannot be read there.
-func gitWorktrees(root string) []string {
-	var out []string
-	for _, line := range gitLines(root, "worktree", "list", "--porcelain") {
+func gitWorktrees(root domainplace.Project) []domainplace.Project {
+	var out []domainplace.Project
+	for _, line := range gitLines(root.String(), "worktree", "list", "--porcelain") {
 		path, ok := strings.CutPrefix(line, "worktree ")
 		if !ok {
 			continue
 		}
-		path = resolvePath(path)
-		if path == "" || path == root {
+		project, _ := domainplace.NewProject(strings.TrimSpace(path))
+		if project.IsZero() || project == root {
 			continue
 		}
-		if info, err := os.Stat(path); err != nil || !info.IsDir() {
+		if info, err := os.Stat(project.String()); err != nil || !info.IsDir() {
 			continue
 		}
-		out = append(out, path)
+		out = append(out, project)
 	}
 	return out
 }
@@ -127,12 +129,12 @@ func gitWorktrees(root string) []string {
 // it, <common>/worktrees/<id>. git writes the worktree's own path into that
 // directory's gitdir file, so the mapping is read from git's files rather than
 // guessed from the worktree's name.
-func worktreeAdmins(common string) map[string]string {
-	out := map[string]string{}
-	if common == "" {
+func worktreeAdmins(common domainplace.Project) map[domainplace.Project]string {
+	out := map[domainplace.Project]string{}
+	if common.IsZero() {
 		return out
 	}
-	entries, err := os.ReadDir(filepath.Join(common, "worktrees"))
+	entries, err := os.ReadDir(filepath.Join(common.String(), "worktrees"))
 	if err != nil {
 		return out
 	}
@@ -140,7 +142,7 @@ func worktreeAdmins(common string) map[string]string {
 		if !entry.IsDir() {
 			continue
 		}
-		admin := filepath.Join(common, "worktrees", entry.Name())
+		admin := filepath.Join(common.String(), "worktrees", entry.Name())
 		text, err := os.ReadFile(filepath.Join(admin, "gitdir"))
 		if err != nil {
 			continue
@@ -150,7 +152,8 @@ func worktreeAdmins(common string) map[string]string {
 		if path == "" {
 			continue
 		}
-		out[resolvePath(path)] = admin
+		project, _ := domainplace.NewProject(strings.TrimSpace(path))
+		out[project] = admin
 	}
 	return out
 }
@@ -183,21 +186,21 @@ func worktreeMadeAt(admin string) (time.Time, bool) {
 
 // worktreeOf reads one worktree's branch, whether it has uncommitted changes, and
 // how far it is ahead of main or its upstream.
-func worktreeOf(path string) Worktree {
+func worktreeOf(path domainplace.Project) Worktree {
 	worktree := Worktree{Path: path}
-	worktree.Branch = gitLine(path, "rev-parse", "--abbrev-ref", "HEAD")
+	worktree.Branch = gitLine(path.String(), "rev-parse", "--abbrev-ref", "HEAD")
 	if worktree.Branch == "HEAD" {
 		worktree.Branch = ""
 	}
-	worktree.Dirty = gitLine(path, "status", "--porcelain") != ""
+	worktree.Dirty = gitLine(path.String(), "status", "--porcelain") != ""
 	switch {
-	case gitOK(path, "rev-parse", "--verify", "--quiet", "main"):
+	case gitOK(path.String(), "rev-parse", "--verify", "--quiet", "main"):
 		worktree.Base = "main"
-	case gitOK(path, "rev-parse", "--verify", "--quiet", "@{upstream}"):
-		worktree.Base = gitLine(path, "rev-parse", "--abbrev-ref", "@{upstream}")
+	case gitOK(path.String(), "rev-parse", "--verify", "--quiet", "@{upstream}"):
+		worktree.Base = gitLine(path.String(), "rev-parse", "--abbrev-ref", "@{upstream}")
 	}
 	if worktree.Base != "" {
-		if n, err := strconv.Atoi(gitLine(path, "rev-list", "--count", "HEAD", "^"+worktree.Base)); err == nil {
+		if n, err := strconv.Atoi(gitLine(path.String(), "rev-list", "--count", "HEAD", "^"+worktree.Base)); err == nil {
 			worktree.Ahead = n
 		}
 	}
@@ -235,27 +238,15 @@ func gitOK(dir string, args ...string) bool {
 	return cmd.Run() == nil
 }
 
-// resolvePath is a path with symbolic links resolved, or the cleaned path when it
-// is not there.
-func resolvePath(path string) string {
-	path = strings.TrimSpace(path)
-	if path == "" {
-		return ""
+// gitCommon reads git's directory relative to the worktree at the git boundary.
+func gitCommon(worktree domainplace.Project) domainplace.Project {
+	raw := gitLine(worktree.String(), "rev-parse", "--git-common-dir")
+	if raw == "" {
+		return domainplace.Project{}
 	}
-	if resolved, err := filepath.EvalSymlinks(path); err == nil {
-		return resolved
+	if !filepath.IsAbs(raw) {
+		raw = filepath.Join(worktree.String(), raw)
 	}
-	return filepath.Clean(path)
-}
-
-// resolveAgainst is a git path made absolute: git answers the common directory
-// relative to the worktree in the main one, and absolute in a linked worktree.
-func resolveAgainst(dir, path string) string {
-	if path == "" {
-		return ""
-	}
-	if !filepath.IsAbs(path) {
-		path = filepath.Join(dir, path)
-	}
-	return resolvePath(path)
+	project, _ := domainplace.NewProject(strings.TrimSpace(raw))
+	return project
 }

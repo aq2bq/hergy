@@ -68,7 +68,7 @@ func TestBootstrapReceipt(t *testing.T) {
 					base.agents["team-a"] = protocol.Agent{Name: fixtureSeen("team-a"), Kind: "claude", Status: "idle", PaneID: "p1", TabID: "t1"}
 				}
 				var out bytes.Buffer
-				l := New(members, fixtureSeen("team"), t.TempDir(), herdr.New(port), 1000, &out)
+				l := New(members, fixtureSeen("team"), projectPath(t.TempDir()), herdr.New(port), 1000, &out)
 				l.kill = func(int) error { base.gone["team-a"] = true; return nil }
 				var err error
 				switch operation {
@@ -128,7 +128,7 @@ func TestBootstrapContinuesOnlyAfterMissingReceipt(t *testing.T) {
 					}
 				}
 				var out bytes.Buffer
-				l := New(members, fixtureSeen("team"), t.TempDir(), herdr.New(port), 1000, &out)
+				l := New(members, fixtureSeen("team"), projectPath(t.TempDir()), herdr.New(port), 1000, &out)
 				l.kill = func(pgid int) error {
 					for name, agent := range base.agents {
 						if base.process[agent.PaneID.String()][0] == pgid {
@@ -182,7 +182,7 @@ func TestWorkerDownWaitsForNameBeforeRehire(t *testing.T) {
 	agent := protocol.Agent{Name: fixtureSeen("team-worker"), Kind: "claude", Status: "idle", PaneID: "old", TabID: "worker-tab"}
 	base := &fakePort{agents: map[string]protocol.Agent{agent.Name.String(): agent}, gone: map[string]bool{}, live: []protocol.Agent{agent}, tabs: []protocol.Tab{{ID: "worker-tab", Label: fixtureSeen("worker:team/worker")}}, panes: []protocol.Pane{{ID: "old", Label: agent.Name, TabID: "worker-tab"}}}
 	port := &receiptPort{fakePort: base}
-	l := New(nil, fixtureSeen("team"), t.TempDir(), herdr.New(port), 1000, &bytes.Buffer{})
+	l := New(nil, fixtureSeen("team"), projectPath(t.TempDir()), herdr.New(port), 1000, &bytes.Buffer{})
 	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	l.now = func() time.Time { return now }
 	pauses := 0
@@ -215,7 +215,7 @@ func TestWorkerDownNameReleaseTimeout(t *testing.T) {
 	agent := protocol.Agent{Name: fixtureSeen("team-worker"), Kind: "claude", Status: "idle", PaneID: "old", TabID: "worker-tab"}
 	base := &fakePort{agents: map[string]protocol.Agent{agent.Name.String(): agent}, live: []protocol.Agent{agent}, tabs: []protocol.Tab{{ID: "worker-tab", Label: fixtureSeen("worker:team/worker")}}}
 	var out bytes.Buffer
-	l := New(nil, fixtureSeen("team"), t.TempDir(), herdr.New(base), 1, &out)
+	l := New(nil, fixtureSeen("team"), projectPath(t.TempDir()), herdr.New(base), 1, &out)
 	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	l.now = func() time.Time { return now }
 	l.pause = func(d time.Duration) { now = now.Add(d) }

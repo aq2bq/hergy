@@ -83,7 +83,7 @@ func newLayer(t *testing.T, shared string) layer {
 // up in, over this layer. The global layer is a directory that is not there, so
 // every lookup is answered by this layer.
 func (l layer) sources() prompt.Sources {
-	return catalog.New(filepath.Join(l.root, "global"), l.root, l.root, source.Disk{},
+	return catalog.New(filepath.Join(l.root, "global"), l.root, projectPath(l.root), source.Disk{},
 		func(path string) string { return path })
 }
 
@@ -130,7 +130,7 @@ func TestReadHandsBackADefinitionWhoseTurnsCannotHold(t *testing.T) {
 		Layer:        source.LayerLocal,
 		TeamYAMLPath: filepath.Join(l.team, "team.yaml"),
 		TeamDir:      l.team,
-		Base:         l.team,
+		Base:         projectPath(l.team),
 		Reader:       source.Disk{},
 	})
 	var gerr *definition.GraphError
@@ -162,7 +162,7 @@ func parse(text, name, runName string, l layer, profiles map[string]profile.Prof
 		Layer:        source.LayerLocal,
 		TeamYAMLPath: filepath.Join(l.team, "team.yaml"),
 		TeamDir:      l.team,
-		Base:         l.team,
+		Base:         projectPath(l.team),
 		Reader:       source.Disk{},
 	})
 	if err != nil {
@@ -181,7 +181,7 @@ func parse(text, name, runName string, l layer, profiles map[string]profile.Prof
 // startsOf is the member projection app builds: the herdr name, the profile's
 // engine, and prompt.Member's text.
 func startsOf(def *definition.Definition, runName string, l layer, profiles map[string]profile.Profile) ([]definition.Start, error) {
-	run := prompt.Run{Team: fixtureNaming(runName), Executable: "hergy", Base: l.team, Reader: source.Disk{}, Sources: l.sources()}
+	run := prompt.Run{Team: fixtureNaming(runName), Executable: "hergy", Base: projectPath(l.team), Reader: source.Disk{}, Sources: l.sources()}
 	out := make([]definition.Start, 0, len(def.Graph.Members))
 	for i := range def.Graph.Members {
 		node := &def.Graph.Members[i]

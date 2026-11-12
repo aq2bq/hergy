@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 
+	domainplace "github.com/aq2bq/hergy/internal/domain/place"
+
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/web"
 )
@@ -101,7 +103,7 @@ func TestALaunchThatFailsPartwayNamesTheMemberAndWhatIsLeft(t *testing.T) {
 	env := serveEnv(t)
 	read := newActivityRead(env)
 	launch, err := read.StartLaunch(web.HQLaunchIn{
-		Project: env.ProjectRoot, Definition: "demo", Place: "project",
+		Project: domainplace.Input(env.ProjectRoot.String()), Definition: "demo", Place: "project",
 		Workspace: web.HQWorkspaceIn{ID: "w1"},
 	})
 	if err != nil {
@@ -144,7 +146,7 @@ func TestAStartSaysItsFirstLineAtOnce(t *testing.T) {
 	env := serveEnv(t)
 	read := newActivityRead(env)
 	launch, err := read.StartLaunch(web.HQLaunchIn{
-		Project: env.ProjectRoot, Definition: "demo", Place: "project",
+		Project: domainplace.Input(env.ProjectRoot.String()), Definition: "demo", Place: "project",
 		Workspace: web.HQWorkspaceIn{ID: "w1"},
 	})
 	if err != nil {

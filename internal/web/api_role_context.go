@@ -6,31 +6,33 @@ import (
 	"os"
 	"path/filepath"
 
+	domainplace "github.com/aq2bq/hergy/internal/domain/place"
+
 	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/source"
 )
 
 type apiRoleUse struct {
-	Project     string   `json:"project"`
-	ProjectName string   `json:"project_name"`
-	Place       string   `json:"place"`
-	Name        string   `json:"name"`
-	Members     []string `json:"members"`
+	Project     domainplace.Project `json:"project"`
+	ProjectName string              `json:"project_name"`
+	Place       string              `json:"place"`
+	Name        string              `json:"name"`
+	Members     []string            `json:"members"`
 }
 
 type apiRoleContext struct {
-	Name    string       `json:"name"`
-	Project string       `json:"project"`
-	Place   string       `json:"place"`
-	Path    string       `json:"path"`
-	State   string       `json:"state"`
-	Text    string       `json:"text"`
-	Hash    string       `json:"hash"`
-	Doc     *r2Doc       `json:"doc,omitempty"`
-	Uses    []apiRoleUse `json:"uses"`
-	Scanned []string     `json:"scanned"`
-	Errors  []string     `json:"errors"`
-	Problem string       `json:"problem"`
+	Name    string              `json:"name"`
+	Project domainplace.Project `json:"project"`
+	Place   string              `json:"place"`
+	Path    string              `json:"path"`
+	State   string              `json:"state"`
+	Text    string              `json:"text"`
+	Hash    string              `json:"hash"`
+	Doc     *r2Doc              `json:"doc,omitempty"`
+	Uses    []apiRoleUse        `json:"uses"`
+	Scanned []string            `json:"scanned"`
+	Errors  []string            `json:"errors"`
+	Problem string              `json:"problem"`
 }
 
 func (s *Server) apiRoleContext(w http.ResponseWriter, r *http.Request) {
@@ -44,7 +46,7 @@ func (s *Server) apiRoleContext(w http.ResponseWriter, r *http.Request) {
 		apiAnswer(w, nil, refuseAt("name", t("web.role_context.name")))
 		return
 	}
-	scoped, refusal := s.withProject(projectQuery(r))
+	scoped, refusal := s.withProjectInput(projectQuery(r))
 	if refusal != nil {
 		apiAnswer(w, nil, refusal)
 		return
@@ -53,12 +55,16 @@ func (s *Server) apiRoleContext(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Query().Get("context") == "global" {
 		cat = s.globalCatalog()
 	}
-	out := scoped.roleContext(name, cat, projectQuery(r), r.URL.Query().Get("context") == "global")
+	project := domainplace.Project{}
+	if projectQuery(r) != "" {
+		project = scoped.cat.Base()
+	}
+	out := scoped.roleContext(name, cat, project, r.URL.Query().Get("context") == "global")
 	apiAnswer(w, out, nil)
 }
 
-func (s *Server) roleContext(name string, cat *catalog.Catalog, project string, global bool) apiRoleContext {
-	if project == "" && !global {
+func (s *Server) roleContext(name string, cat *catalog.Catalog, project domainplace.Project, global bool) apiRoleContext {
+	if project.IsZero() && !global {
 		project = cat.Base()
 	}
 	out := apiRoleContext{Name: name, Project: project, Place: "project", State: "missing", Uses: []apiRoleUse{}, Scanned: []string{}, Errors: []string{}, Problem: t("web.role_context.missing")}
@@ -71,9 +77,7 @@ func (s *Server) roleContext(name string, cat *catalog.Catalog, project string, 
 		}
 		return out
 	}
-	if doc.Layer == source.LayerGlobal {
-		out.Place = "global"
-	}
+	out.Place = domainplace.Selection(doc.Layer).API()
 	out.Path = cat.Display(doc.Path)
 	if why, state := cat.Unreadable(doc.Path); why != "" {
 		out.State, out.Problem = state, why
@@ -89,10 +93,10 @@ func (s *Server) roleContext(name string, cat *catalog.Catalog, project string, 
 	out.State = "readable"
 	out.Problem = ""
 	if out.Place == "project" {
-		out.addUses(cat, doc.Path, project, filepath.Base(cat.Base()), "project")
+		out.addUses(cat, doc.Path, project, filepath.Base(cat.Base().String()), "project")
 		return out
 	}
-	out.addUses(s.globalCatalog(), doc.Path, "", "グローバル", "global")
+	out.addUses(s.globalCatalog(), doc.Path, domainplace.Project{}, "グローバル", "global")
 	if s.hq == nil {
 		out.Errors = append(out.Errors, t("web.role_context.usage_failed"))
 		return out
@@ -113,7 +117,7 @@ func (s *Server) roleContext(name string, cat *catalog.Catalog, project string, 
 	return out
 }
 
-func (out *apiRoleContext) addUses(cat *catalog.Catalog, path, project, label, place string) {
+func (out *apiRoleContext) addUses(cat *catalog.Catalog, path string, project domainplace.Project, label, place string) {
 	out.Scanned = append(out.Scanned, label)
 	role, ok := cat.Role(out.Name)
 	if !ok {
@@ -141,7 +145,7 @@ func (out *apiRoleContext) addUses(cat *catalog.Catalog, path, project, label, p
 			places = append(places, "global")
 		}
 		for _, defPlace := range places {
-			def, err := cat.Definition(listing.Name, catalog.Layer(defPlace))
+			def, err := cat.Definition(listing.Name, domainplace.Selection(defPlace).Layer())
 			if def == nil {
 				if err != nil {
 					out.Errors = append(out.Errors, label+" / "+listing.Name+": "+err.Error())
@@ -180,7 +184,7 @@ func (s *Server) roleContextStillCurrent(in apiIn) *apiErr {
 		cat = s.globalCatalog()
 	}
 	resolved, ok := cat.Role(doc.Name)
-	if !ok || catalog.Layer(in.Place) != resolved.Layer {
+	if !ok || in.Place.Layer() != resolved.Layer {
 		return refuse(http.StatusConflict, t("web.role_context.changed"))
 	}
 	return nil

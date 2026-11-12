@@ -12,6 +12,8 @@ import (
 	"sync"
 	"testing"
 
+	domainplace "github.com/aq2bq/hergy/internal/domain/place"
+
 	"github.com/aq2bq/hergy/internal/protocol"
 	"go.uber.org/goleak"
 )
@@ -134,7 +136,7 @@ func TestSocketPortReadsSnapshotAndIndividualMethods(t *testing.T) {
 	if len(snapshot.Tabs) != 1 || snapshot.Tabs[0] != (protocol.Tab{ID: "t1", Label: fixtureSeen("core"), WorkspaceID: "w1"}) {
 		t.Errorf("tabs = %+v", snapshot.Tabs)
 	}
-	if len(snapshot.Panes) != 1 || snapshot.Panes[0] != (protocol.Pane{ID: "p1", Label: fixtureSeen("core-lead"), TabID: "t1", Cwd: "/project"}) {
+	if len(snapshot.Panes) != 1 || snapshot.Panes[0] != (protocol.Pane{ID: "p1", Label: fixtureSeen("core-lead"), TabID: "t1", Cwd: domainplace.Observe("/project")}) {
 		t.Errorf("panes = %+v", snapshot.Panes)
 	}
 	if len(snapshot.Agents) != 1 || snapshot.Agents[0].Name.String() != "core-lead" || snapshot.Agents[0].Seq != 17 || snapshot.Agents[0].Title != "ready" {

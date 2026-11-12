@@ -5,6 +5,7 @@ package place
 
 import (
 	"path/filepath"
+	"strings"
 
 	"github.com/aq2bq/hergy/internal/domain/name"
 )
@@ -29,8 +30,13 @@ func NewProject(path string) (Project, error) {
 	return Project{path: absolute}, nil
 }
 
-func (p Project) String() string               { return p.path }
-func (p Project) IsZero() bool                 { return p.path == "" }
+// String returns the normalized absolute path.
+func (p Project) String() string { return p.path }
+
+// IsZero reports unknown project identity.
+func (p Project) IsZero() bool { return p.path == "" }
+
+// MarshalText writes the canonical path as a JSON or text string.
 func (p Project) MarshalText() ([]byte, error) { return []byte(p.path), nil }
 
 // UnmarshalText is the JSON/record boundary, not an unchecked cast.
@@ -45,6 +51,7 @@ func (p *Project) UnmarshalText(text []byte) error {
 // Comparison distinguishes unknown identity from known inequality.
 type Comparison uint8
 
+// Results of comparing two project identities.
 const (
 	Unknown Comparison = iota
 	Same
@@ -68,10 +75,7 @@ func (p Project) Contains(dir Project) bool {
 		return false
 	}
 	rel, err := filepath.Rel(p.path, dir.path)
-	return err == nil && rel != ".." && !startsParent(rel)
-}
-func startsParent(path string) bool {
-	return len(path) > 3 && path[:3] == ".."+string(filepath.Separator)
+	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 
 // Seen preserves an external path's spelling, including an empty observation,
@@ -86,9 +90,17 @@ func Observe(raw string) Seen {
 	project, _ := NewProject(raw)
 	return Seen{raw: raw, project: project}
 }
-func (p Seen) String() string                   { return p.raw }
-func (p Seen) Project() Project                 { return p.project }
-func (p Seen) MarshalText() ([]byte, error)     { return []byte(p.raw), nil }
+
+// String returns the external spelling unchanged.
+func (p Seen) String() string { return p.raw }
+
+// Project returns the identity computed at observation.
+func (p Seen) Project() Project { return p.project }
+
+// MarshalText preserves an existing record's spelling.
+func (p Seen) MarshalText() ([]byte, error) { return []byte(p.raw), nil }
+
+// UnmarshalText normalizes a path once at the record boundary.
 func (p *Seen) UnmarshalText(text []byte) error { *p = Observe(string(text)); return nil }
 
 // Seen returns a canonical model path ready for a new record.
@@ -101,16 +113,27 @@ type Place struct {
 	local   bool
 }
 
-func Global() Place              { return Place{} }
-func In(project Project) Place   { return Place{project: project, local: true} }
+// Global is the shared configuration location.
+func Global() Place { return Place{} }
+
+// In is the configuration location of one project.
+func In(project Project) Place { return Place{project: project, local: true} }
+
+// Project returns the project branch, or an unknown value for global.
 func (p Place) Project() Project { return p.project }
-func (p Place) IsGlobal() bool   { return !p.local }
+
+// IsGlobal reports the global branch.
+func (p Place) IsGlobal() bool { return !p.local }
+
+// API returns the HTTP spelling of this location.
 func (p Place) API() string {
 	if p.IsGlobal() {
 		return "global"
 	}
 	return "project"
 }
+
+// Layer returns the internal spelling of this location.
 func (p Place) Layer() string {
 	if p.IsGlobal() {
 		return "global"
@@ -122,18 +145,26 @@ func (p Place) Layer() string {
 // Both API and internal spellings are interpreted only here.
 type Selection string
 
+// String preserves an unresolved selector for the existing operation adapters.
+func (s Selection) String() string { return string(s) }
+
+// At resolves the selector in one project. Unknown selectors retain the local default.
 func (s Selection) At(project Project) Place {
 	if s == "global" {
 		return Global()
 	}
 	return In(project)
 }
+
+// Layer adapts a boundary selector to the existing layer-based operations.
 func (s Selection) Layer() string {
 	if s == "global" {
 		return "global"
 	}
 	return "local"
 }
+
+// API adapts an internal selector to the HTTP spelling.
 func (s Selection) API() string {
 	if s == "global" {
 		return "global"
@@ -144,6 +175,7 @@ func (s Selection) API() string {
 // Kind is the kind of resource identified by a Ref.
 type Kind uint8
 
+// Kinds of resource addressed by a Ref.
 const (
 	Definition Kind = iota
 	Role
@@ -159,13 +191,24 @@ type Ref struct {
 	profile    name.ProfileName
 }
 
+// DefinitionRef identifies a definition with its typed name.
 func DefinitionRef(at Place, n name.DefinitionName) Ref {
 	return Ref{kind: Definition, place: at, definition: n}
 }
-func RoleRef(at Place, n name.RoleName) Ref       { return Ref{kind: Role, place: at, role: n} }
+
+// RoleRef identifies a role with its typed name.
+func RoleRef(at Place, n name.RoleName) Ref { return Ref{kind: Role, place: at, role: n} }
+
+// ProfileRef identifies a profile with its typed name.
 func ProfileRef(at Place, n name.ProfileName) Ref { return Ref{kind: Profile, place: at, profile: n} }
-func (r Ref) Kind() Kind                          { return r.kind }
-func (r Ref) Place() Place                        { return r.place }
+
+// Kind returns the resource kind.
+func (r Ref) Kind() Kind { return r.kind }
+
+// Place returns the resource location.
+func (r Ref) Place() Place { return r.place }
+
+// Name returns the name of the selected resource kind.
 func (r Ref) Name() string {
 	switch r.kind {
 	case Role:
@@ -176,3 +219,7 @@ func (r Ref) Name() string {
 		return r.definition.String()
 	}
 }
+
+// Input is a path still written as the caller supplied it. It has no identity
+// until the CLI, HTTP or configuration boundary resolves it to a Project.
+type Input string

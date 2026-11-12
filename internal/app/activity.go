@@ -10,6 +10,8 @@ import (
 	"sync"
 	"time"
 
+	domainplace "github.com/aq2bq/hergy/internal/domain/place"
+
 	domainname "github.com/aq2bq/hergy/internal/domain/name"
 
 	"github.com/aq2bq/hergy/internal/activity"
@@ -57,10 +59,10 @@ type runningTeam struct {
 	// record's project, or the project whose layer holds the definition. Name is
 	// what a person reads, and Catalog is that project's reading, which the
 	// delivery check and the opened part use.
-	Project string
+	Project domainplace.Project
 	// Place is the definition's layer: "local" for a project's definition,
 	// "global" for one started in a project from the global layer.
-	Place       string
+	Place       domainplace.Place
 	ProjectName string
 	Catalog     *catalog.Catalog
 	// Workspace is the herdr workspace the team's tab stands in.
@@ -79,14 +81,14 @@ type runningTeam struct {
 // be used for all the team lookups in this answer.
 func readRunningTeams(env team.Env, read herdrNow) []runningTeam {
 	cat := env.Catalog(source.Disk{})
-	view := projectView{Path: env.ProjectRoot, Name: filepath.Base(env.ProjectRoot), Env: env, Cat: cat}
+	view := projectView{Path: env.ProjectRoot, Name: filepath.Base(env.ProjectRoot.String()), Env: env, Cat: cat}
 	return readRunningTeamsIn([]projectView{view}, read, true)
 }
 
 // projectView is one project the activity reads: its root, the name a person
 // reads, the environment its layer lives in, and the catalog over that layer.
 type projectView struct {
-	Path string
+	Path domainplace.Project
 	Name string
 	Env  team.Env
 	Cat  *catalog.Catalog
@@ -111,14 +113,14 @@ func readRunningTeamsIn(views []projectView, read herdrNow, lenient bool) []runn
 		one := runningTeam{
 			Name: entry.Team.Observation(), Definition: entry.Definition,
 			Project: view.Path, ProjectName: view.Name, Catalog: view.Cat,
-			Place: recorded.Layer,
+			Place: recorded.Layer.At(view.Path),
 		}
 		if tab, found := teamTab(read.tabs, entry.Team.Observation()); found {
 			one.TabID = tab.ID
 			one.WorkspaceID = tab.WorkspaceID
 			one.WorkspaceLabel = workspaceLabel(read.spaces, tab.WorkspaceID)
 		}
-		r, err := buildRunningIn(view.Cat, view.Env.ProjectRoot, entry, recorded.Layer)
+		r, err := buildRunningIn(view.Cat, view.Env.ProjectRoot, entry, recorded.Layer.String())
 		if err != nil {
 			// A definition that does not read is not this reading's failure: the
 			// row says why in the definition's own words (2.2), as hergy status
@@ -129,7 +131,7 @@ func readRunningTeamsIn(views []projectView, read herdrNow, lenient bool) []runn
 			continue
 		}
 		one.Built = r
-		one.Place = r.team.Definition.Layer
+		one.Place = domainplace.Selection(r.team.Definition.Layer).At(view.Path)
 		out = append(out, one)
 	}
 	return out
@@ -144,9 +146,9 @@ func readRunningTeamsIn(views []projectView, read herdrNow, lenient bool) []runn
 // view whose layer holds its definition, or, when the record says nothing, whose
 // panes its own stand among (d-73fc).
 func projectOf(entry team.Running, records launchRecords, views []projectView, tabs []team.Tab, lenient bool) (projectView, launchlog.Record, bool) {
-	if entry.Project != "" {
+	if !entry.Project.IsZero() {
 		for _, view := range views {
-			if samePath(entry.Project, view.Path) {
+			if entry.Project.Compare(view.Path) == domainplace.Same {
 				record, _ := records.at(view.Path, entry.Team.String())
 				return view, record, true
 			}
@@ -182,7 +184,7 @@ func projectOf(entry team.Running, records launchRecords, views []projectView, t
 
 // panesIn reports whether one team's named panes stand in a project. The panes
 // are paired with their tab's PaneDirs by position.
-func panesIn(project string, tabs []team.Tab, name domainname.Seen) bool {
+func panesIn(project domainplace.Project, tabs []team.Tab, name domainname.Seen) bool {
 	for _, tab := range tabs {
 		if !protocol.NamesTeam(tab.Label.String(), name.String()) {
 			continue
@@ -191,8 +193,8 @@ func panesIn(project string, tabs []team.Tab, name domainname.Seen) bool {
 			if !domainname.BelongsTo(pane, name) || i >= len(tab.PaneDirs) {
 				continue
 			}
-			if rel, err := filepath.Rel(project, tab.PaneDirs[i]); err == nil &&
-				rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+			dir := tab.PaneDirs[i].Project()
+			if project.Contains(dir) {
 				return true
 			}
 		}
@@ -203,14 +205,19 @@ func panesIn(project string, tabs []team.Tab, name domainname.Seen) bool {
 // launchRecords is this machine's launch record as reading a running team needs
 // it: the newest record of each project and team name, and of each team name
 // alone, for a team whose tab does not say where it stands (r-87c8).
+type launchKey struct {
+	project domainplace.Project
+	team    string
+}
+
 type launchRecords struct {
-	byPlace map[string]launchlog.Record
+	byPlace map[launchKey]launchlog.Record
 	byTeam  map[string]launchlog.Record
 }
 
 // at is the newest record of one team in one project.
-func (r launchRecords) at(project, name string) (launchlog.Record, bool) {
-	record, ok := r.byPlace[project+"\x00"+name]
+func (r launchRecords) at(project domainplace.Project, name string) (launchlog.Record, bool) {
+	record, ok := r.byPlace[launchKey{project, name}]
 	return record, ok
 }
 
@@ -226,7 +233,7 @@ func latestLaunches() launchRecords {
 		return launchRecords{}
 	}
 	out := launchRecords{
-		byPlace: make(map[string]launchlog.Record, len(records)),
+		byPlace: make(map[launchKey]launchlog.Record, len(records)),
 		byTeam:  make(map[string]launchlog.Record, len(records)),
 	}
 	for _, record := range records {
@@ -234,8 +241,8 @@ func latestLaunches() launchRecords {
 			continue
 		}
 		out.byTeam[record.Team.String()] = record
-		if record.Project != "" {
-			out.byPlace[record.Project+"\x00"+record.Team.String()] = record
+		if !record.Project.Project().IsZero() {
+			out.byPlace[launchKey{record.Project.Project(), record.Team.String()}] = record
 		}
 	}
 	return out
@@ -259,22 +266,6 @@ func workspaceLabel(spaces []herdr.Workspace, id string) string {
 		}
 	}
 	return id
-}
-
-// samePath reports whether two paths name the same directory. A launch records
-// the project root as it was then, and this serve has its own: a path through a
-// symbolic link (macOS's /tmp beside /private/tmp) is the same project, so both
-// spellings are tried before the two are called different projects.
-func samePath(a, b string) bool {
-	if a == "" || b == "" {
-		return false
-	}
-	if filepath.Clean(a) == filepath.Clean(b) {
-		return true
-	}
-	ra, errA := filepath.EvalSymlinks(a)
-	rb, errB := filepath.EvalSymlinks(b)
-	return errA == nil && errB == nil && ra == rb
 }
 
 // herdrNow is one read of herdr as the activity needs it: the tabs, each with the
@@ -315,7 +306,7 @@ type activityRead struct {
 	// finds a project's root runs once per project and not once per request
 	// (d-e00b).
 	envMu sync.Mutex
-	envs  map[string]team.Env
+	envs  map[domainplace.Project]team.Env
 
 	watcherMu sync.Mutex
 	watcher   *activity.Watcher
@@ -337,7 +328,7 @@ func newActivityRead(env team.Env) *activityRead {
 // project the same version-keyed reader, so a file is opened once and read
 // again only when it changed (d-e00b).
 func newActivityReadWith(env team.Env, reader source.Reader) *activityRead {
-	read := &activityRead{env: env, reader: reader, watcher: activity.NewWatcherAt(activityStatePath()), envs: map[string]team.Env{}}
+	read := &activityRead{env: env, reader: reader, watcher: activity.NewWatcherAt(activityStatePath()), envs: map[domainplace.Project]team.Env{}}
 	read.hq = newHQRead(read)
 	return read
 }
@@ -345,11 +336,7 @@ func newActivityReadWith(env team.Env, reader source.Reader) *activityRead {
 // envAt is one project's environment, placed once: the git command that finds
 // the root is not run again for every answer (d-e00b). A project whose path is
 // new is placed on its first use.
-func (a *activityRead) envAt(path string) (team.Env, error) {
-	want, err := team.ExpandProjectPath(path)
-	if err != nil {
-		return team.Env{}, err
-	}
+func (a *activityRead) envAt(want domainplace.Project) (team.Env, error) {
 	a.envMu.Lock()
 	if env, ok := a.envs[want]; ok {
 		a.envMu.Unlock()
@@ -362,7 +349,7 @@ func (a *activityRead) envAt(path string) (team.Env, error) {
 	}
 	a.envMu.Lock()
 	if a.envs == nil {
-		a.envs = map[string]team.Env{}
+		a.envs = map[domainplace.Project]team.Env{}
 	}
 	a.envs[want] = env
 	a.envMu.Unlock()
@@ -484,7 +471,7 @@ func (a *activityRead) projectViews() []projectView {
 // viewOf is one project's view of this environment.
 func (a *activityRead) viewOf(env team.Env) projectView {
 	return projectView{
-		Path: env.ProjectRoot, Name: filepath.Base(env.ProjectRoot),
+		Path: env.ProjectRoot, Name: filepath.Base(env.ProjectRoot.String()),
 		Env: env, Cat: env.Catalog(a.fileReader()),
 	}
 }
@@ -499,7 +486,7 @@ func nameProjects(views []projectView) []projectView {
 	}
 	for i := range views {
 		if count[views[i].Name] > 1 {
-			views[i].Name = filepath.Join(filepath.Base(filepath.Dir(views[i].Path)), views[i].Name)
+			views[i].Name = filepath.Join(filepath.Base(filepath.Dir(views[i].Path.String())), views[i].Name)
 		}
 	}
 	return views
@@ -541,9 +528,9 @@ type activityRow struct {
 	team        activity.Team
 	definition  string
 	broken      string
-	project     string
+	project     domainplace.Project
 	projectName string
-	place       string
+	place       domainplace.Place
 	workspace   web.ActivitySpace
 }
 
@@ -664,7 +651,7 @@ func itemOf(row activityRow, now time.Time) web.ActivityItem {
 		Error:       row.broken,
 		Project:     row.project,
 		ProjectName: row.projectName,
-		Place:       apiPlaceOf(row.place),
+		Place:       row.place.API(),
 		Workspace:   row.workspace,
 	}
 	// いつから is left out for a working team and for one with no live agent
@@ -972,7 +959,7 @@ func docHired(t activity.Team, teamName domainname.Seen, now time.Time, titles, 
 // lines of this machine's launch record (d-b4b9). The newest line for one worker
 // wins; a worker hired before those lines were written has none, and the screen
 // says no "が追加" for it.
-func hireSources(project, teamName string) map[string]string {
+func hireSources(project domainplace.Project, teamName string) map[string]string {
 	out := map[string]string{}
 	log, err := launchlog.Open()
 	if err != nil {
@@ -986,7 +973,7 @@ func hireSources(project, teamName string) map[string]string {
 		if !record.IsHire() || record.Hire == nil || record.Team.String() != teamName {
 			continue
 		}
-		if record.Project != "" && !samePath(record.Project, project) {
+		if !record.Project.Project().IsZero() && record.Project.Project().Compare(project) != domainplace.Same {
 			continue
 		}
 		if record.Hire.Worker.String() != "" && record.Hire.From != "" {

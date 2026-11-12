@@ -4,6 +4,8 @@ import (
 	"io"
 	"strings"
 
+	domainplace "github.com/aq2bq/hergy/internal/domain/place"
+
 	domainname "github.com/aq2bq/hergy/internal/domain/name"
 
 	"github.com/aq2bq/hergy/internal/check"
@@ -56,7 +58,7 @@ func (c *ledgerCheck) load() {
 		return
 	}
 	c.loaded = true
-	ledger, ok := gycli.OpenLedger(c.env.ProjectRoot)
+	ledger, ok := gycli.OpenLedger(c.env.ProjectRoot.String())
 	if !ok {
 		return
 	}
@@ -81,7 +83,7 @@ func teamNames(def *definition.Definition) []domainname.Naming {
 		return names
 	}
 	for _, record := range records {
-		if record.TeamYAML != def.TeamYAML || record.Team.String() == "" || seen[record.Team.String()] {
+		if (record.TeamYAML.Project().Compare(def.TeamYAML.Project()) != domainplace.Same && (record.TeamYAML.String() != "" || def.TeamYAML.String() != "")) || record.Team.String() == "" || seen[record.Team.String()] {
 			continue
 		}
 		seen[record.Team.String()] = true

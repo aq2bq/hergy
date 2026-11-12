@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 
+	domainplace "github.com/aq2bq/hergy/internal/domain/place"
+
 	domainname "github.com/aq2bq/hergy/internal/domain/name"
 	"github.com/aq2bq/hergy/internal/i18n"
 )
@@ -121,7 +123,7 @@ type Pane struct {
 	// Cwd is the directory the pane stands in. The headquarters reads it to tell
 	// an unrecorded team's project: a tab and its named panes are in the project
 	// the work runs in (d-73fc).
-	Cwd string
+	Cwd domainplace.Seen
 }
 
 // PaneFrom builds a Pane from a Herdr pane object. The name hergy gives a pane
@@ -134,7 +136,8 @@ func PaneFrom(object map[string]any) Pane {
 	rawLabel, _ := object["label"].(string)
 	pane.Label = domainname.Observe(rawLabel)
 	pane.TabID, _ = object["tab_id"].(string)
-	pane.Cwd, _ = object["cwd"].(string)
+	cwd, _ := object["cwd"].(string)
+	pane.Cwd = domainplace.Observe(cwd)
 	return pane
 }
 

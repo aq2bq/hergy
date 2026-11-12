@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	domainplace "github.com/aq2bq/hergy/internal/domain/place"
+
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/launcher"
 	"github.com/aq2bq/hergy/internal/launchlog"
@@ -81,8 +83,8 @@ func hqFixture(t *testing.T) (*fixture, team.Env, string) {
 	} {
 		if err := log.Append(launchlog.Record{
 			Time: "2026-10-24T09:00:00+09:00", Command: launchlog.CommandUp,
-			Project: one.project, Layer: "local", Definition: one.teamName, Team: fixtureSeen(one.teamName),
-			TeamYAML:    filepath.Join(one.project, ".hergy", "teams", one.teamName, "team.yaml"),
+			Project: domainplace.Observe(one.project), Layer: "local", Definition: one.teamName, Team: fixtureSeen(one.teamName),
+			TeamYAML:    domainplace.Observe(filepath.Join(one.project, ".hergy", "teams", one.teamName, "team.yaml")),
 			Workspace:   map[string]string{f.proj: "proj-dev", other: "ledger-dev"}[one.project],
 			WorkspaceID: map[string]string{f.proj: "w1", other: "w2"}[one.project],
 		}); err != nil {
@@ -112,7 +114,7 @@ func TestProjectsReadsTheListedProjectsAndTheGlobalLayer(t *testing.T) {
 	if projects.Mode != "listed" || len(projects.Projects) != 2 {
 		t.Fatalf("Projects = %+v", projects)
 	}
-	if projects.Projects[0].Path != env.ProjectRoot || projects.Projects[1].Path != other {
+	if projects.Projects[0].Path != env.ProjectRoot || projects.Projects[1].Path.String() != other {
 		t.Errorf("the order is %q, %q", projects.Projects[0].Path, projects.Projects[1].Path)
 	}
 	if projects.Current.Listed != true || projects.Current.Defs != 1 {
@@ -144,7 +146,7 @@ func TestActivityAndRunningAgreeAboutTheListedProjects(t *testing.T) {
 	for _, item := range list.Items {
 		states[item.Name] = item.Summary.State
 		places[item.Name] = item.Place
-		if item.Project == "" || item.ProjectName == "" || item.Workspace.Label == "" {
+		if item.Project.String() == "" || item.ProjectName == "" || item.Workspace.Label == "" {
 			t.Errorf("a row does not say its project and workspace: %+v", item)
 		}
 	}
@@ -155,7 +157,7 @@ func TestActivityAndRunningAgreeAboutTheListedProjects(t *testing.T) {
 		if !stateMatches(states[one.Team.String()], one.Members) {
 			t.Errorf("%s: running members %+v do not agree with the activity state %q", one.Team, one.Members, states[one.Team.String()])
 		}
-		if one.Team.String() == "ledger" && one.Project != other {
+		if one.Team.String() == "ledger" && one.Project.String() != other {
 			t.Errorf("ledger belongs to %q, want %q", one.Project, other)
 		}
 	}
@@ -186,10 +188,10 @@ func stateMatches(state string, members []web.HQMember) bool {
 func TestProjectCatalogRefusesAProjectNobodyListed(t *testing.T) {
 	f, env, other := hqFixture(t)
 	read := newActivityRead(env)
-	if _, err := read.ProjectCatalog(other); err != nil {
+	if _, err := read.ProjectCatalog(projectPath(other)); err != nil {
 		t.Fatalf("a listed project was refused: %v", err)
 	}
-	if _, err := read.ProjectCatalog(filepath.Join(f.proj, "..", "stranger")); err == nil {
+	if _, err := read.ProjectCatalog(projectPath(filepath.Join(f.proj, "..", "stranger"))); err == nil {
 		t.Error("a project nobody listed was accepted")
 	}
 }
@@ -202,7 +204,7 @@ func TestLaunchOptionsOffersTheLastWorkspaceThenTheFreeOnes(t *testing.T) {
 	read := newActivityRead(env)
 	read.now = func() time.Time { return activityNow }
 
-	options, err := read.LaunchOptions(env.ProjectRoot, "core", "project")
+	options, err := read.LaunchOptions(domainplace.Input(env.ProjectRoot.String()), "core", "project")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -219,7 +221,7 @@ func TestLaunchOptionsOffersTheLastWorkspaceThenTheFreeOnes(t *testing.T) {
 	if busy.Selectable || busy.Team == "" {
 		t.Errorf("the busy workspace = %+v, want it last and not selectable", busy)
 	}
-	if options.SuggestedName != "core-"+filepath.Base(env.ProjectRoot) {
+	if options.SuggestedName != "core-"+filepath.Base(env.ProjectRoot.String()) {
 		t.Errorf("suggested name = %q", options.SuggestedName)
 	}
 	if len(options.Clash) != 1 || options.Clash[0].Team != "core" {
@@ -237,7 +239,7 @@ func TestLaunchOptionsCarriesTheDescription(t *testing.T) {
 
 	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "core", "team.yaml"),
 		"version: 1\ndescription: 注文の流れを作り直す\nmembers:\n  - name: lead\n    role: lead\n    profile: coder\nturns:\n  - human -> lead\n  - lead -> human\n")
-	options, err := read.LaunchOptions(env.ProjectRoot, "core", "project")
+	options, err := read.LaunchOptions(domainplace.Input(env.ProjectRoot.String()), "core", "project")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -304,7 +306,7 @@ func TestStartLaunchRefusesANameThatIsRunning(t *testing.T) {
 	read.now = func() time.Time { return activityNow }
 
 	_, err := read.StartLaunch(web.HQLaunchIn{
-		Project: env.ProjectRoot, Definition: "core", Place: "project",
+		Project: domainplace.Input(env.ProjectRoot.String()), Definition: "core", Place: "project",
 		Workspace: web.HQWorkspaceIn{ID: "w1"},
 	})
 	if err == nil {
@@ -354,7 +356,7 @@ func TestStartLaunchRefusesABusyWorkspace(t *testing.T) {
 	read.now = func() time.Time { return activityNow }
 
 	_, err := read.StartLaunch(web.HQLaunchIn{
-		Project: env.ProjectRoot, Definition: "core", Place: "project", Name: "core-second",
+		Project: domainplace.Input(env.ProjectRoot.String()), Definition: "core", Place: "project", Name: "core-second",
 		Workspace: web.HQWorkspaceIn{ID: "w3"},
 	})
 	if err == nil {
@@ -380,7 +382,7 @@ func TestGlobalOptionsSaysWhichProjectsCanTakeTheDefinition(t *testing.T) {
 		t.Fatalf("projects = %+v", options.Projects)
 	}
 	for _, one := range options.Projects {
-		want := one.Path == other
+		want := one.Path.String() == other
 		if one.Available != want {
 			t.Errorf("%s available = %v, want %v", one.Path, one.Available, want)
 		}
@@ -396,7 +398,7 @@ func TestStartLaunchRefusesAGlobalDefinitionInAShadowingProject(t *testing.T) {
 	read.now = func() time.Time { return activityNow }
 
 	_, err := read.StartLaunch(web.HQLaunchIn{
-		Project: env.ProjectRoot, Definition: "core", Place: "global",
+		Project: domainplace.Input(env.ProjectRoot.String()), Definition: "core", Place: "global",
 		Workspace: web.HQWorkspaceIn{ID: "w1"},
 	})
 	if err == nil {
@@ -413,7 +415,7 @@ func TestStartLaunchRefusesAGlobalDefinitionInAShadowingProject(t *testing.T) {
 func TestALaunchSaysWhereAStartupQuestionWaits(t *testing.T) {
 	h := &hqRead{act: &activityRead{}}
 	op := &launchOp{launch: web.HQLaunch{
-		ID: "l-1", Team: "core", Definition: "core", Project: "/p", ProjectName: "p",
+		ID: "l-1", Team: "core", Definition: "core", Project: projectPath("/p"), ProjectName: "p",
 		Phase: "starting", Steps: []web.HQLaunchStep{},
 	}}
 	h.observe(op, launcher.Event{Stage: "起動しています"})
@@ -564,7 +566,7 @@ func TestAStartDecisionReadsCurrentHerdrState(t *testing.T) {
 	if name, err := read.hq.startName(web.HQLaunchIn{Definition: "wave"}, env); err != nil || name != "wave" {
 		t.Errorf("startName after another serve stopped the team = %q, %v", name, err)
 	}
-	options, err := read.LaunchOptions(env.ProjectRoot, "wave", "project")
+	options, err := read.LaunchOptions(domainplace.Input(env.ProjectRoot.String()), "wave", "project")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -703,10 +705,10 @@ func TestAProjectListedByASubdirectoryIsTheRepository(t *testing.T) {
 			listed = one
 		}
 	}
-	if listed.Path == "" {
+	if listed.Path.String() == "" {
 		t.Fatalf("no project is listed: %+v", projects.Projects)
 	}
-	if !samePath(listed.Path, f.proj) {
+	if listed.Path.Compare(projectPath(f.proj)) != domainplace.Same {
 		t.Fatalf("the listed project = %q, want the repository root %q", listed.Path, f.proj)
 	}
 	if _, err := read.ProjectCatalog(listed.Path); err != nil {
@@ -730,8 +732,8 @@ func TestActivityKeepsTheLaunchDefinitionPlace(t *testing.T) {
 			log := launchlog.At(filepath.Join(f.state, "hergy", "launches"))
 			if err := log.Append(launchlog.Record{
 				Time: "2026-11-05T09:00:00+09:00", Command: launchlog.CommandUp,
-				Project: f.proj, Layer: "global", Definition: "blueprint", Team: fixtureSeen("core"),
-				TeamYAML: filepath.Join(global, "team.yaml"),
+				Project: domainplace.Observe(f.proj), Layer: "global", Definition: "blueprint", Team: fixtureSeen("core"),
+				TeamYAML: domainplace.Observe(filepath.Join(global, "team.yaml")),
 			}); err != nil {
 				t.Fatal(err)
 			}
@@ -757,7 +759,7 @@ func TestActivityKeepsTheLaunchDefinitionPlace(t *testing.T) {
 					continue
 				}
 				found = true
-				if item.Place != "global" || item.Summary.Definition != "blueprint" || item.Project != f.proj {
+				if item.Place != "global" || item.Summary.Definition != "blueprint" || item.Project.String() != f.proj {
 					t.Errorf("launch definition and project were not kept: %+v", item)
 				}
 				if (item.Error != "") != (state == "missing") {

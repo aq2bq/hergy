@@ -4,13 +4,15 @@ import (
 	"path/filepath"
 	"time"
 
+	domainplace "github.com/aq2bq/hergy/internal/domain/place"
+
 	domainname "github.com/aq2bq/hergy/internal/domain/name"
 
 	"github.com/aq2bq/hergy/internal/activity"
 	"github.com/aq2bq/hergy/internal/herdr"
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/launchlog"
-	"github.com/aq2bq/hergy/internal/source"
+
 	"github.com/aq2bq/hergy/internal/team"
 	"github.com/aq2bq/hergy/internal/web"
 )
@@ -42,7 +44,7 @@ func (h *hqRead) runningOf(one runningTeam, read herdrNow, now time.Time) web.HQ
 	out := web.HQRunningTeam{
 		Team:        domainname.TeamFromObservation(teamName),
 		Definition:  one.Definition,
-		Place:       apiPlaceOf(one.Place),
+		Place:       one.Place.API(),
 		Project:     one.Project,
 		ProjectName: one.ProjectName,
 		Workspace:   web.HQWorkspace{ID: one.WorkspaceID, Label: one.WorkspaceLabel},
@@ -79,14 +81,6 @@ func (h *hqRead) runningOf(one runningTeam, read herdrNow, now time.Time) web.HQ
 		})
 	}
 	return out
-}
-
-// apiPlaceOf is the layer the model reads as the place a screen names.
-func apiPlaceOf(layer string) string {
-	if layer == source.LayerGlobal {
-		return "global"
-	}
-	return "project"
 }
 
 // protocolWorkerTab is the label hergy gives one worker's tab.
@@ -141,7 +135,7 @@ func (h *hqRead) lastTeamsByWorkspace() map[string]string {
 // free: the start sheet offers it first (spec 5 章). A definition is told by the
 // team.yaml its launch read, so two projects' same-named definitions do not take
 // each other's launch (M1).
-func (h *hqRead) lastWorkspaceOf(read herdrNow, teamYAML string) *web.HQWorkspace {
+func (h *hqRead) lastWorkspaceOf(read herdrNow, teamYAML domainplace.Project) *web.HQWorkspace {
 	log, err := launchlog.Open()
 	if err != nil {
 		return nil
@@ -164,11 +158,11 @@ func (h *hqRead) lastWorkspaceOf(read herdrNow, teamYAML string) *web.HQWorkspac
 }
 
 // projectNameIn is one project's name among the projects this serve shows.
-func (h *hqRead) projectNameIn(path string) string {
+func (h *hqRead) projectNameIn(path domainplace.Project) string {
 	for _, view := range nameProjects(h.act.projectViews()) {
-		if samePath(view.Path, path) {
+		if view.Path.Compare(path) == domainplace.Same {
 			return view.Name
 		}
 	}
-	return filepath.Base(path)
+	return filepath.Base(path.String())
 }

@@ -300,7 +300,7 @@ func downLauncherFor(t *testing.T, port *fakePort, team string, members ...strin
 		list[i] = definition.Start{Name: fixtureHerdrName(name), Short: fixtureShortName(name), Role: "role", Kind: "claude"}
 	}
 	out := &bytes.Buffer{}
-	return New(list, fixtureSeen(team), t.TempDir(), herdr.New(port), 30000, out), out
+	return New(list, fixtureSeen(team), projectPath(t.TempDir()), herdr.New(port), 30000, out), out
 }
 
 func TestDownClosesItsOwnPaneLast(t *testing.T) {

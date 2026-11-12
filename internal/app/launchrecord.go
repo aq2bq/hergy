@@ -6,6 +6,7 @@ import (
 	"time"
 
 	domainname "github.com/aq2bq/hergy/internal/domain/name"
+	domainplace "github.com/aq2bq/hergy/internal/domain/place"
 
 	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/i18n"
@@ -72,8 +73,8 @@ func recordHire(stderr io.Writer, env team.Env, r *resolved, worker definition.S
 			Time:       time.Now().Format(time.RFC3339),
 			Command:    launchlog.CommandHire,
 			Hergy:      version.Line(),
-			Project:    env.ProjectRoot,
-			Layer:      r.team.Definition.Layer,
+			Project:    env.ProjectRoot.Seen(),
+			Layer:      domainplace.Selection(r.team.Definition.Layer),
 			Definition: r.team.Definition.Name.String(),
 			Team:       r.team.Name.Observation(),
 			Hire: &launchlog.Hire{
@@ -100,11 +101,11 @@ func writeLaunch(log launchlog.Log, env team.Env, r *resolved, command string, m
 		Time:        time.Now().Format(time.RFC3339),
 		Command:     command,
 		Hergy:       version.Line(),
-		Project:     env.ProjectRoot,
-		Layer:       r.team.Definition.Layer,
+		Project:     env.ProjectRoot.Seen(),
+		Layer:       domainplace.Selection(r.team.Definition.Layer),
 		Definition:  r.team.Definition.Name.String(),
 		Team:        r.team.Name.Observation(),
-		TeamYAML:    r.team.Definition.TeamYAML,
+		TeamYAML:    r.team.Definition.TeamYAML.Project().Seen(),
 		Workspace:   workspace.Label,
 		WorkspaceID: workspace.ID,
 		Hash:        launchlog.Hash(material),
@@ -169,7 +170,7 @@ func writeLaunch(log launchlog.Log, env team.Env, r *resolved, command string, m
 // profile no member reads does not change it.
 func teamMaterial(r *resolved) (launchlog.Material, error) {
 	def := r.team.Definition
-	teamYAML, err := source.Disk{}.Read(source.Doc{Layer: def.Layer, Path: def.TeamYAML})
+	teamYAML, err := source.Disk{}.Read(source.Doc{Layer: def.Layer, Path: def.TeamYAML.String()})
 	if err != nil {
 		return launchlog.Material{}, err
 	}

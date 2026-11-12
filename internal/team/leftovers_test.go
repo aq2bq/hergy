@@ -60,12 +60,12 @@ func TestGitLeftoversReadsThePanesWorktrees(t *testing.T) {
 	gitRun(t, other, "add", "other.txt")
 	gitRun(t, other, "commit", "-q", "-m", "other")
 
-	left := GitLeftovers(root, time.Time{}, []string{root, worktree, other, filepath.Join(worktree, "..")})
+	left := GitLeftovers(projectPath(root), time.Time{}, seenPaths([]string{root, worktree, other, filepath.Join(worktree, "..")}))
 	if len(left.Worktrees) != 1 {
 		t.Fatalf("leftovers = %+v, want the one worktree", left)
 	}
 	one := left.Worktrees[0]
-	if resolvePath(one.Path) != resolvePath(worktree) {
+	if projectPath(one.Path.String()) != projectPath(worktree) {
 		t.Errorf("worktree path = %q, want %q", one.Path, worktree)
 	}
 	if one.Branch != "lane-1" || !one.Dirty || one.Ahead != 1 || one.Base != "main" {
@@ -87,7 +87,7 @@ func TestGitLeftoversIsEmptyForTheProjectRoot(t *testing.T) {
 	gitRun(t, root, "add", "only.txt")
 	gitRun(t, root, "commit", "-q", "-m", "only")
 
-	if left := GitLeftovers(root, time.Time{}, []string{root, filepath.Join(root, "sub")}); !left.Empty() {
+	if left := GitLeftovers(projectPath(root), time.Time{}, seenPaths([]string{root, filepath.Join(root, "sub")})); !left.Empty() {
 		t.Errorf("leftovers = %+v, want none", left)
 	}
 }
@@ -119,12 +119,12 @@ func TestGitLeftoversReadsTheWorktreesThatCameWhileTheTeamRan(t *testing.T) {
 	after := filepath.Join(t.TempDir(), "after")
 	gitRun(t, root, "worktree", "add", "-q", "-b", "after", after, "main")
 
-	left := GitLeftovers(root, time.Now().Add(-time.Hour), []string{before, after})
+	left := GitLeftovers(projectPath(root), time.Now().Add(-time.Hour), seenPaths([]string{before, after}))
 	if len(left.Worktrees) != 1 {
 		t.Fatalf("leftovers = %+v, want only the worktree that came after the start", left)
 	}
 	one := left.Worktrees[0]
-	if resolvePath(one.Path) != resolvePath(after) {
+	if projectPath(one.Path.String()) != projectPath(after) {
 		t.Fatalf("worktree path = %q, want %q", one.Path, after)
 	}
 	if !one.PaneCwd {
@@ -147,7 +147,7 @@ func TestGitLeftoversMarksAWorktreeAPaneStoodIn(t *testing.T) {
 	lane := filepath.Join(t.TempDir(), "lane")
 	gitRun(t, root, "worktree", "add", "-q", "-b", "lane", lane, "main")
 
-	left := GitLeftovers(root, time.Now().Add(-time.Hour), []string{root})
+	left := GitLeftovers(projectPath(root), time.Now().Add(-time.Hour), seenPaths([]string{root}))
 	if len(left.Worktrees) != 1 {
 		t.Fatalf("leftovers = %+v, want the worktree no pane stood in", left)
 	}
