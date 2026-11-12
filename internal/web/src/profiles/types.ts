@@ -76,7 +76,7 @@ export type Draft = { name: string; kind: string; args: string[]; env: EnvPair[]
 
 // Editing values are read-through projections, never state owned by a row.
 export type Panel = {
-  editing: ProfileEditing;
+  readonly editing: ProfileEditing;
   key: string; rowKey: string; file: Place; group: string; path: string;
   label: string; otherLabel: string; mark: string; users: number;
   rename_targets: number; problem: string; layerSwitch: boolean;
@@ -122,8 +122,8 @@ export type AssignRow = {
   kind: string;
   name: string;
   role: string;
-  profile: string;
-  saved: string;
+  readonly profile: string;
+  readonly saved: string;
   options: OptionGroup[];
   missing: boolean;
   error: string;
@@ -133,13 +133,13 @@ export type AssignRow = {
 export type Team = {
   name: string;
   place: Place;
-  hash: string;
+  readonly hash: string;
   path: string;
   members: number;
   workers: number;
   err: number;
-  saved: boolean;
-  refusal: string;
+  readonly saved: boolean;
+  readonly refusal: string;
   rows: AssignRow[];
 };
 
@@ -159,10 +159,6 @@ export type YamlFile = {
   // save over it (r-ea17, d-0bf1).
   problem?: string;
 };
-
-// A file's text as this screen keeps it: what the file was read with (base),
-// what a person typed (text), and a carried draft's text (carried).
-export type YamlOne = { base?: string; text?: string; carried?: string | null };
 
 // ---- what one screen hands the next through the band -------------------
 // take's answer and restore's argument (lib/nav holds it between the screens).

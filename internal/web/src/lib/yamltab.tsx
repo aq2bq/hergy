@@ -83,12 +83,9 @@ const marksOf = (problems: readonly Problem[] | null | undefined): Record<number
   return marks;
 };
 
-// YamlTab is one file's section contents. text is the text the page came with
-// and does not change under the part: it is the textarea's first content, not a
-// value the part keeps putting back — the person's typing lives in the field
-// itself, so no render moves the caret or undoes a change. laid is the text the
-// gutter was last drawn from: the same moment the old part laid it out, when the
-// server's problems came back.
+// YamlTab renders one editor. Input updates editing synchronously; a render
+// never writes the textarea again when its value already matches the draft.
+// laid is only the last text used to draw the gutter.
 //
 // What the part reads and who it tells (依頼書 4):
 //   file, label, path, badge, text, hash, kind, place, name, extra, carried
@@ -103,9 +100,8 @@ export function YamlTab(props: YamlTabProps) {
   const gutter = useRef<HTMLPreElement | null>(null);
   const timer = useRef<number>(0);
   const alive = useRef(true);
-  const owned = useRef(props.editing || editYaml(kind, { place, name, text, hash, problems, problem, part: extra?.part,
+  const [editing] = useState(() => props.editing || editYaml(kind, { place, name, text, hash, problems, problem, part: extra?.part,
     project: new URLSearchParams(location.search).get('project') || undefined }));
-  const editing = owned.current;
   const state = editing.read.value;
   const initial = useRef(text);
   const [laid, setLaid] = useState(text);

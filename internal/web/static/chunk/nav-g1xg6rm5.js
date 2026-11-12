@@ -237,7 +237,7 @@ function request(kind, name, body) {
   return { kind, name, body };
 }
 function checkedProblems(answer) {
-  return answer?.problems || [];
+  return answer && "problems" in answer ? answer.problems || [] : undefined;
 }
 function savedHash(answer) {
   return answer?.hash || "";
@@ -276,6 +276,8 @@ function editing(definition, initial) {
     if (!alive || current !== revision || !answer?.json)
       return;
     const problems = checkedProblems(answer.json);
+    if (problems === undefined)
+      return;
     patch({ problems: snapshot(problems), ...dirty(definition.shape, original(), written()) ? {} : { baseProblems: snapshot(problems) } });
   }
   async function save(over) {
@@ -295,6 +297,7 @@ function editing(definition, initial) {
         saved: snapshot(saved),
         draft: current === revision ? snapshot(saved) : state.value.draft,
         hash: savedHash(answer.json) || sent.hash,
+        baseProblems: snapshot(sent.problems),
         conflict: null,
         savedLine: current === revision
       });
@@ -330,10 +333,13 @@ function editing(definition, initial) {
       if (!definition.remove)
         return;
       patch({ refusal: "" });
+      const mine = ++saving;
       try {
-        return await definition.remove(snapshot(state.value));
+        const answer = await definition.remove(snapshot(state.value));
+        return alive && mine === saving ? answer : undefined;
       } catch (e) {
-        patch({ refusal: problemText2(e, "削除できませんでした") });
+        if (alive && mine === saving)
+          patch({ refusal: problemText2(e, "削除できませんでした") });
         return;
       }
     },
@@ -362,7 +368,6 @@ function editing(definition, initial) {
       return true;
     },
     rebase: (hash) => patch({ hash }),
-    rememberBorn: () => patch({ born: snapshot(state.value.draft) }),
     dispose: () => {
       alive = false;
       saving++;
@@ -376,10 +381,10 @@ function editProfile(identity, initial) {
     identity,
     shape: PROFILE,
     written: profileDoc,
-    name: (s) => identity.name || s.draft.name || "_",
-    check: (s) => ({ place: identity.place, project: identity.project, original: identity.name || "", doc: profileDoc(s.draft) }),
-    save: (s) => ({ place: identity.place, project: identity.project, original: identity.name || "", doc: profileDoc(s.draft), hash: s.hash, rename_users: s.rename }),
-    remove: (s) => del2("profile", identity.name || s.draft.name, identity.place, s.hash, undefined, identity.project),
+    name: (s) => s.saved?.name || s.draft.name || "_",
+    check: (s) => ({ place: identity.place, project: identity.project, original: s.saved?.name || "", doc: profileDoc(s.draft) }),
+    save: (s) => ({ place: identity.place, project: identity.project, original: s.saved?.name || "", doc: profileDoc(s.draft), hash: s.hash, rename_users: s.rename }),
+    remove: (s) => del2("profile", s.saved?.name || s.draft.name, identity.place, s.hash, undefined, identity.project),
     recovered: (c) => c.file.doc ? profileDoc(c.file.doc) : null,
     saved: (_a, sent) => sent
   };
@@ -468,7 +473,7 @@ function YamlTab2(props) {
   const gutter = A(null);
   const timer = A(0);
   const alive = A(true);
-  const owned = A(props.editing || editYaml(kind, {
+  const [editing] = d(() => props.editing || editYaml(kind, {
     place,
     name,
     text,
@@ -478,7 +483,6 @@ function YamlTab2(props) {
     part: extra?.part,
     project: new URLSearchParams(location.search).get("project") || undefined
   }));
-  const editing = owned.current;
   const state = editing.read.value;
   const initial = A(text);
   const [laid, setLaid] = d(text);

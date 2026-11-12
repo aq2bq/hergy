@@ -182,7 +182,7 @@ const newKey = (): string => 'new-' + nextId++;
 function panelOf(p: ProfilePanel, group: string | undefined, rowKey: string): Panel {
   const identity = identityOf(p.file, group, p.saved ? p.savedName : undefined);
   const editing = editProfile(identity, {
-    saved: p.saved ? { name: p.savedName, kind: p.savedKind, args: stringList(p.savedArgs), env: envList(p.savedEnv) } : null,
+    saved: p.saved && identity.name ? { name: identity.name, kind: p.savedKind, args: stringList(p.savedArgs), env: envList(p.savedEnv) } : null,
     draft: { name: p.name || '', kind: p.kind || 'claude', args: (p.args || []).slice(), env: (p.env || []).map((pair) => ({ ...pair })) },
     hash: p.hash || fileBases.hash(identity), readable: !p.problem, savedLine: p.savedLine,
   });
@@ -353,7 +353,6 @@ export function addRow(file: Place, group: string | undefined): Row {
     savedName: '', savedKind: '', savedArgs: '[]', savedEnv: '[]', hash: '', users: 0, rename_targets: 0, err: 0, warn: 0,
     other: otherOf(file), savedLine: false, problem: '',
   }, g, key);
-  panel.editing.rememberBorn();
   const row: Row = {
     key, name: '', group: g, kind: 'claude', kindClass: classOf('claude'), args: '', env: [], more: 0,
     mark: '',
@@ -398,7 +397,6 @@ export function duplicateRow(panel: Panel): Row | null {
   };
   row.panels[0].key = row.key + ':' + panel.file;
   row.panels[0].rowKey = row.key;
-  row.panels[0].editing.rememberBorn();
   const next = new Set(openKeys.value);
   next.add(row.key);
   openKeys.value = next;
@@ -430,7 +428,6 @@ export function copyPanel(panel: Panel): Panel | null {
   };
   fresh.rowKey = row.key;
   fresh.key = row.key + ':' + file;
-  fresh.editing.rememberBorn();
   const next = new Set(openKeys.value);
   next.add(row.key);
   openKeys.value = next;
@@ -501,6 +498,8 @@ type SavedAnswer = Answer<'profile', 'save'> | Answer<'profile', 'del'>;
 // rows, keeping open the rows a person had open and opening the one just
 // written by its new name.
 function applySaved(panel: Panel, answer: SavedAnswer | null): void {
+  const carry = panel.editing.dirty.value ? panel.editing.take() : null;
+  const previous = allPanels().map(({ panel }) => panel);
   const list: ProfileList = {
     items: (answer && answer.items) || null,
     hashes: (answer && answer.hashes) || {},
@@ -533,9 +532,13 @@ function applySaved(panel: Panel, answer: SavedAnswer | null): void {
   if (!own.has(group)) byGroup.set(group, []);
   const next = order.flatMap((key) => byGroup.get(key) || []);
   const open = new Set(openKeys.value);
-  const written = panel.saved ? panel.draft.name : panel.draft.name;
+  const written = panel.saved?.name || panel.draft.name;
   const found = next.find((row) => row.name === written && (row.group || '') === group);
-  if (found) open.add(found.key);
+  if (found) {
+    open.add(found.key);
+    const target = found.panels.find((p) => p.file === panel.file);
+    if (carry && target) target.editing.restore(carry);
+  }
   else if (panel.saved) open.add((panel.draft.name || '') + '|' + group);
   openKeys.value = open;
   // The answer read every file again, and a save gives the rules their ids
@@ -544,6 +547,8 @@ function applySaved(panel: Panel, answer: SavedAnswer | null): void {
   // another place made (r-b41c). The answer names one project's files, so only
   // that group's panels take them (r-57d8).
   rows.value = next.map((row) => ({ ...row, open: open.has(row.key) }));
+  const retained = new Set(allPanels().map(({ panel }) => panel.editing));
+  previous.forEach((p) => { if (!retained.has(p.editing)) p.editing.dispose(); });
   // A rename can split one row into two; the counts and the address follow.
   if (TAB === 'profiles') syncURL();
   tellDirty();

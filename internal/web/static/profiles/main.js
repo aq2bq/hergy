@@ -34,7 +34,7 @@ import {
   editYaml,
   profileFiles,
   YamlTab2
-} from "../chunk/nav-sms8zms6.js";
+} from "../chunk/nav-g1xg6rm5.js";
 import {
   copyGroupOf,
   ProjectView
@@ -187,7 +187,7 @@ var newKey = () => "new-" + nextId++;
 function panelOf(p, group, rowKey) {
   const identity = identityOf(p.file, group, p.saved ? p.savedName : undefined);
   const editing = editProfile(identity, {
-    saved: p.saved ? { name: p.savedName, kind: p.savedKind, args: stringList(p.savedArgs), env: envList(p.savedEnv) } : null,
+    saved: p.saved && identity.name ? { name: identity.name, kind: p.savedKind, args: stringList(p.savedArgs), env: envList(p.savedEnv) } : null,
     draft: { name: p.name || "", kind: p.kind || "claude", args: (p.args || []).slice(), env: (p.env || []).map((pair) => ({ ...pair })) },
     hash: p.hash || fileBases.hash(identity),
     readable: !p.problem,
@@ -365,7 +365,6 @@ function addRow(file, group) {
     savedLine: false,
     problem: ""
   }, g, key);
-  panel.editing.rememberBorn();
   const row = {
     key,
     name: "",
@@ -455,7 +454,6 @@ function duplicateRow(panel) {
   };
   row.panels[0].key = row.key + ":" + panel.file;
   row.panels[0].rowKey = row.key;
-  row.panels[0].editing.rememberBorn();
   const next = new Set(openKeys.value);
   next.add(row.key);
   openKeys.value = next;
@@ -516,7 +514,6 @@ function copyPanel(panel) {
   };
   fresh.rowKey = row.key;
   fresh.key = row.key + ":" + file;
-  fresh.editing.rememberBorn();
   const next = new Set(openKeys.value);
   next.add(row.key);
   openKeys.value = next;
@@ -585,6 +582,8 @@ async function deletePanel(key) {
     applySaved(panel, answer.json);
 }
 function applySaved(panel, answer) {
+  const carry = panel.editing.dirty.value ? panel.editing.take() : null;
+  const previous = allPanels().map(({ panel }) => panel);
   const list = {
     items: answer && answer.items || null,
     hashes: answer && answer.hashes || {},
@@ -616,14 +615,22 @@ function applySaved(panel, answer) {
     byGroup.set(group, []);
   const next = order.flatMap((key) => byGroup.get(key) || []);
   const open = new Set(openKeys.value);
-  const written = panel.saved ? panel.draft.name : panel.draft.name;
+  const written = panel.saved?.name || panel.draft.name;
   const found = next.find((row) => row.name === written && (row.group || "") === group);
-  if (found)
+  if (found) {
     open.add(found.key);
-  else if (panel.saved)
+    const target = found.panels.find((p) => p.file === panel.file);
+    if (carry && target)
+      target.editing.restore(carry);
+  } else if (panel.saved)
     open.add((panel.draft.name || "") + "|" + group);
   openKeys.value = open;
   rows.value = next.map((row) => ({ ...row, open: open.has(row.key) }));
+  const retained = new Set(allPanels().map(({ panel }) => panel.editing));
+  previous.forEach((p) => {
+    if (!retained.has(p.editing))
+      p.editing.dispose();
+  });
   if (TAB === "profiles")
     syncURL();
   tellDirty();

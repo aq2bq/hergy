@@ -62,7 +62,7 @@ import {
   conflictOf,
   ConflictNotice,
   YamlTab2
-} from "../chunk/nav-sms8zms6.js";
+} from "../chunk/nav-g1xg6rm5.js";
 import {
   st,
   projectName2

@@ -6,7 +6,7 @@ import { resource } from './resource.js';
 import { check as apiCheck, save as apiSave, del as apiDel, problemText, type Kind, type Request, type Answer, type RawAnswer, type Schemas } from './api.js';
 import { conflictOf, type Conflict } from './conflict.js';
 import { PROFILE, PROFILE_ASSIGN, YAML_TEXT, dirty, diff, lost, snapshot, profileFlags, assignDirty, type Shape, type ProfileWritten } from './changed.js';
-import { resourceIdentity, type ResourceIdentity, type ResourceKind } from './resource-identity.js';
+import { resourceIdentity, type ResourceIdentity, type ResourceKind, type ResourceName } from './resource-identity.js';
 
 declare const requestBrand: unique symbol;
 export type EditedRequest<K extends Kind, A extends 'check' | 'save'> = Readonly<{
@@ -55,14 +55,15 @@ export type Editing<K extends ResourceKind, D, W> = {
   take: () => Carry<D>;
   restore: (carry: Carry<D>) => boolean;
   rebase: (hash: string) => void;
-  rememberBorn: () => void;
   dispose: () => void;
 };
 type Initial<D> = { saved: D | null; draft: D; hash: string; problems?: Problem[]; readable?: boolean; savedLine?: boolean };
 
 // Read the common fields of the concrete operation answers; keeping these
 // outside the generic editor lets the generated operation types stay intact.
-function checkedProblems(answer: { problems: Problem[] | null } | null): Problem[] { return answer?.problems || []; }
+function checkedProblems(answer: { problems: Problem[] | null } | null): Problem[] | undefined {
+  return answer && 'problems' in answer ? answer.problems || [] : undefined;
+}
 function savedHash(answer: { hash?: string } | null): string { return answer?.hash || ''; }
 
 function editing<K extends ResourceKind, D, W>(definition: Definition<K, D, W>, initial: Initial<D>): Editing<K, D, W> {
@@ -88,6 +89,7 @@ function editing<K extends ResourceKind, D, W>(definition: Definition<K, D, W>, 
     const answer = await reading.run(input);
     if (!alive || current !== revision || !answer?.json) return;
     const problems = checkedProblems(answer.json);
+    if (problems === undefined) return;
     patch({ problems: snapshot(problems), ...(dirty(definition.shape, original(), written()) ? {} : { baseProblems: snapshot(problems) }) });
   }
   async function save(over?: string): Promise<RawAnswer<Answer<K, 'save'>> | undefined> {
@@ -102,7 +104,7 @@ function editing<K extends ResourceKind, D, W>(definition: Definition<K, D, W>, 
       const saved = definition.saved(answer.json, sent.draft);
       reading.abort();
       patch({ saved: snapshot(saved), draft: current === revision ? snapshot(saved) : state.value.draft,
-        hash: savedHash(answer.json) || sent.hash, conflict: null, savedLine: current === revision });
+        hash: savedHash(answer.json) || sent.hash, baseProblems: snapshot(sent.problems), conflict: null, savedLine: current === revision });
       return answer;
     } catch (error) {
       if (!alive || mine !== saving) return undefined;
@@ -130,8 +132,14 @@ function editing<K extends ResourceKind, D, W>(definition: Definition<K, D, W>, 
     remove: async () => {
       if (!definition.remove) return undefined;
       patch({ refusal: '' });
-      try { return await definition.remove(snapshot(state.value)); }
-      catch (e) { patch({ refusal: problemText(e, '削除できませんでした') }); return undefined; }
+      const mine = ++saving;
+      try {
+        const answer = await definition.remove(snapshot(state.value));
+        return alive && mine === saving ? answer : undefined;
+      } catch (e) {
+        if (alive && mine === saving) patch({ refusal: problemText(e, '削除できませんでした') });
+        return undefined;
+      }
     },
     change, check, save: () => save(), overwrite: () => state.value.conflict ? save(state.value.conflict.c.file.hash || '') : Promise.resolve(undefined),
     renameUsers: (rename) => patch({ rename }),
@@ -141,20 +149,21 @@ function editing<K extends ResourceKind, D, W>(definition: Definition<K, D, W>, 
     take: () => snapshot({ hash: state.value.hash, draft: state.value.draft }),
     restore: (carry) => { if (carry.hash && carry.hash !== state.value.hash) return false; change(carry.draft); return true; },
     rebase: (hash) => patch({ hash }),
-    rememberBorn: () => patch({ born: snapshot(state.value.draft) }),
     dispose: () => { alive = false; saving++; reading.abort(); },
   };
 }
 
 const profileDoc = (d: ReadonlyDeep<ProfileDraft>): ProfileDraft => ({ name: d.name || '', kind: d.kind || '', args: [...(d.args || [])], env: (d.env || []).map((p) => ({ ...p })) });
 export type ProfileEditing = Editing<'profile', ProfileDraft, ProfileDraft> & { readonly flags: { readonly value: ReturnType<typeof profileFlags> } };
-export function editProfile(identity: ResourceIdentity<'profile'>, initial: Initial<ProfileDraft>): ProfileEditing {
+export type SavedProfile = Omit<ProfileDraft, 'name'> & { name: ResourceName<'profile'> };
+type ProfileInitial = Omit<Initial<ProfileDraft>, 'saved'> & { saved: SavedProfile | null };
+export function editProfile(identity: ResourceIdentity<'profile'>, initial: ProfileInitial): ProfileEditing {
   const definition: Definition<'profile', ProfileDraft, ProfileDraft> = {
     identity, shape: PROFILE, written: profileDoc,
-    name: (s) => identity.name || s.draft.name || '_',
-    check: (s) => ({ place: identity.place, project: identity.project, original: identity.name || '', doc: profileDoc(s.draft) }),
-    save: (s) => ({ place: identity.place, project: identity.project, original: identity.name || '', doc: profileDoc(s.draft), hash: s.hash, rename_users: s.rename }),
-    remove: (s) => apiDel('profile', identity.name || s.draft.name, identity.place, s.hash, undefined, identity.project),
+    name: (s) => s.saved?.name || s.draft.name || '_',
+    check: (s) => ({ place: identity.place, project: identity.project, original: s.saved?.name || '', doc: profileDoc(s.draft) }),
+    save: (s) => ({ place: identity.place, project: identity.project, original: s.saved?.name || '', doc: profileDoc(s.draft), hash: s.hash, rename_users: s.rename }),
+    remove: (s) => apiDel('profile', s.saved?.name || s.draft.name, identity.place, s.hash, undefined, identity.project),
     recovered: (c) => c.file.doc ? profileDoc(c.file.doc as ProfileDraft) : null,
     saved: (_a, sent) => sent,
   };

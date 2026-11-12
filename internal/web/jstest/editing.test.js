@@ -126,3 +126,84 @@ test('YAML checks preserve the last accepted problems and restore only the match
   expect(editing.restore(carry)).toBe(false);
   editing.dispose();
 });
+
+test('save without intervening input makes the sent value the baseline and clears dirty', async () => {
+  const pending = later();
+  serve(() => pending.promise);
+  const editing = open();
+  editing.change(draft('sent'));
+  const saving = editing.save();
+  pending.resolve({ hash: 'h2' });
+  await saving;
+  expect(editing.read.value.saved).toEqual(draft('sent'));
+  expect(editing.read.value.draft).toEqual(draft('sent'));
+  expect(editing.read.value.savedLine).toBe(true);
+  expect(editing.dirty.value).toBe(false);
+  editing.dispose();
+});
+
+test('conflict recovery keeps the draft for undo and overwrite uses the observed hash', async () => {
+  const asked = [];
+  let conflict = true;
+  serve((method, url, body) => {
+    asked.push({ method, url, body });
+    if (conflict) return Promise.reject({ json: { text: 'changed', file: { path: 'profiles.yaml', exists: true, hash: 'h2', doc: draft('remote') } } });
+    return { hash: 'h3' };
+  });
+  const editing = open();
+  editing.change(draft('mine'));
+  expect(await editing.save()).toBeUndefined();
+  expect(editing.read.value.draft).toEqual(draft('mine'));
+  editing.readConflict();
+  expect(editing.read.value.draft).toEqual(draft('remote'));
+  expect(editing.read.value.hash).toBe('h2');
+  editing.undoConflict();
+  expect(editing.read.value.draft).toEqual(draft('mine'));
+  expect(editing.read.value.hash).toBe('h1');
+  await editing.save();
+  conflict = false;
+  await editing.overwrite();
+  expect(asked.at(-1).body.hash).toBe('h2');
+  expect(editing.read.value.hash).toBe('h3');
+  expect(editing.read.value.conflict).toBeNull();
+  editing.dispose();
+});
+
+test('an older save response cannot replace the newest save baseline', async () => {
+  const pending = [];
+  serve(() => { const one = later(); pending.push(one); return one.promise; });
+  const editing = open();
+  editing.change(draft('first'));
+  const first = editing.save();
+  editing.change(draft('second'));
+  const second = editing.save();
+  pending[1].resolve({ hash: 'h3' });
+  await second;
+  pending[0].resolve({ hash: 'h2' });
+  expect(await first).toBeUndefined();
+  expect(editing.read.value.saved).toEqual(draft('second'));
+  expect(editing.read.value.hash).toBe('h3');
+  editing.dispose();
+});
+
+test('a renamed profile uses its accepted name for the next check and save', async () => {
+  const asked = serve(() => ({ hash: 'h2', problems: [] }));
+  const editing = open();
+  editing.change(draft('renamed'));
+  await editing.save();
+  await editing.check();
+  editing.change(draft('again'));
+  await editing.save();
+  expect(asked[1].body.original).toBe('renamed');
+  expect(asked[2].url).toBe('/api/profile/renamed');
+  expect(asked[2].body.original).toBe('renamed');
+  editing.dispose();
+});
+
+test('a check with no result cannot erase the last accepted problems', async () => {
+  serve(() => ({}));
+  const editing = editProfile(id(), { saved: draft(), draft: draft(), hash: 'h1', problems: [problem] });
+  await editing.check();
+  expect(editing.read.value.problems).toEqual([problem]);
+  editing.dispose();
+});
