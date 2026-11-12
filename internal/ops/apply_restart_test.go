@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/aq2bq/hergy/internal/i18n"
-	"github.com/aq2bq/hergy/internal/launchlog"
+	"github.com/aq2bq/hergy/internal/ops/internal/launchlog"
 	"github.com/aq2bq/hergy/internal/source" // applyDemo is a demo team launched once, with its launch record written: the
 	// starting point of the tests that change the definition after the launch.
 	// TestApplyRestartsAMemberWhoseProfileChanged: a changed profile is not a
@@ -29,7 +29,7 @@ func applyDemo(t *testing.T) *fixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := WriteLaunch(log, env, r, launchlog.CommandUp, r.Starts, launchlog.Workspace{}); err != nil {
+	if err := writeLaunch(log, env, r, launchlog.CommandUp, r.Starts, launchlog.Workspace{}); err != nil {
 		t.Fatalf("record demo: %v", err)
 	}
 	return f
@@ -40,7 +40,7 @@ func TestApplyRestartsAMemberWhoseProfileChanged(t *testing.T) {
 	f := applyDemo(t)
 	writeFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml"), "version: 1\nprofiles:\n  claude-default:\n    kind: claude\n    args: [--model, opus]\n")
 	env := serveEnv(t)
-	f.runningHerdr(t,
+	f.runningHerdr(t, `{"tab_id":"t1","label":"demo"}`,
 		`{"name":"demo-lead","agent":"claude","agent_status":"idle","pane_id":"p1","tab_id":"t1","state_change_seq":1}`)
 
 	got := newActivityRead(env).Apply()
@@ -75,7 +75,7 @@ func TestApplyRefusesAChangedEnvAndNamesDownUp(t *testing.T) {
 	writeFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml"),
 		"version: 1\nprofiles:\n  claude-default:\n    kind: claude\n    env:\n      DEMO_MODE: on\n")
 	env := serveEnv(t)
-	f.runningHerdr(t,
+	f.runningHerdr(t, `{"tab_id":"t1","label":"demo"}`,
 		`{"name":"demo-lead","agent":"claude","agent_status":"idle","pane_id":"p1","tab_id":"t1","state_change_seq":1}`)
 
 	got := newActivityRead(env).Apply()
@@ -162,12 +162,12 @@ func TestApplyNotesAChangedWorkerProfile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := WriteLaunch(log, env, r, launchlog.CommandUp, r.Starts, launchlog.Workspace{}); err != nil {
+	if err := writeLaunch(log, env, r, launchlog.CommandUp, r.Starts, launchlog.Workspace{}); err != nil {
 		t.Fatal(err)
 	}
 	writeFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml"),
 		"version: 1\nprofiles:\n  claude-default:\n    kind: claude\n    args: [--model, opus]\n")
-	f.runningHerdr(t,
+	f.runningHerdr(t, `{"tab_id":"t1","label":"demo"}`,
 		`{"name":"demo-lead","agent":"claude","agent_status":"idle","pane_id":"p1","tab_id":"t1","state_change_seq":1}`)
 
 	got := newActivityRead(serveEnv(t)).Apply()
@@ -200,12 +200,12 @@ func TestApplyTellsAChangedWorkerProfileFromAnAddedWorker(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := WriteLaunch(log, env, r, launchlog.CommandUp, r.Starts, launchlog.Workspace{}); err != nil {
+	if err := writeLaunch(log, env, r, launchlog.CommandUp, r.Starts, launchlog.Workspace{}); err != nil {
 		t.Fatal(err)
 	}
 
 	writeFile(t, teamPath, strings.Replace(readFile(t, teamPath), "purpose: 調査\n    profile: claude-default", "purpose: 調査\n    profile: scout", 1))
-	f.runningHerdr(t,
+	f.runningHerdr(t, `{"tab_id":"t1","label":"demo"}`,
 		`{"name":"demo-lead","agent":"claude","agent_status":"idle","pane_id":"p1","tab_id":"t1","state_change_seq":1}`)
 
 	got := newActivityRead(serveEnv(t)).Apply()

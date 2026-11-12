@@ -52,7 +52,7 @@ func (h *hqRead) ApplyMembers(names []string) (HQLaunch, error) {
 }
 
 func (h *hqRead) applyInput(names []string, observe func(Event)) ApplyInput {
-	return ApplyInput{Now: h.act.clock, Env: h.act.env, Views: h.act.projectViews(), Read: func() Session { return sessionOf(h.act.readHerdr(h.act.clock())) },
+	return ApplyInput{Now: h.act.clock, Env: h.act.env, Views: h.act.projectViews(), read: func() session { return sessionOf(h.act.readHerdr(h.act.clock())) },
 		Selection: ApplySelectionInput{Names: names, Policy: RequireWholeSelection}, Timeout: 30000, Port: h.act.herdrPort(), Observe: observe, Locks: h.locks}
 }
 func (h *hqRead) observeApply(op *launchOp, event Event) {
@@ -64,7 +64,7 @@ func (h *hqRead) observeApply(op *launchOp, event Event) {
 	}
 }
 func applySelection(plan deliveryPlan, names []string) ([]plannedMember, []string) {
-	selection, err := SelectApply(plan, ApplySelectionInput{Names: names, Policy: RequireWholeSelection})
+	selection, err := selectApply(plan, ApplySelectionInput{Names: names, Policy: RequireWholeSelection})
 	if err != nil {
 		return nil, []string{err.Error()}
 	}

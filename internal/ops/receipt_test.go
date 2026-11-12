@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aq2bq/hergy/internal/launchlog"
+	"github.com/aq2bq/hergy/internal/ops/internal/launchlog"
 	"github.com/aq2bq/hergy/internal/source" // receiptHerdr augments the existing fake binary with ordered prompt answers.
 	// Only the middle recipient fails; later recipients must still be contacted.
 )

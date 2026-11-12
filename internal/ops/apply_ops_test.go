@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aq2bq/hergy/internal/herdr"
-	"github.com/aq2bq/hergy/internal/herdrcli"
+	"github.com/aq2bq/hergy/internal/ops/internal/herdr"
+	"github.com/aq2bq/hergy/internal/ops/internal/herdrcli"
 )
 
 func TestScreenApplyDeduplicatesRecipientsBeforeSending(t *testing.T) {

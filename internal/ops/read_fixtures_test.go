@@ -6,16 +6,18 @@ import (
 	"path/filepath"
 	"testing"
 
+	observedplace "github.com/aq2bq/hergy/internal/ops/internal/place"
+
 	domainplace "github.com/aq2bq/hergy/internal/domain/place"
 	"github.com/aq2bq/hergy/internal/i18n"
-	"github.com/aq2bq/hergy/internal/launchlog"
-	"github.com/aq2bq/hergy/internal/team" // serveEnv is the environment the screens read, built the way Run builds it.
+	"github.com/aq2bq/hergy/internal/ops/internal/launchlog"
+	"github.com/aq2bq/hergy/internal/ops/internal/team" // serveEnv is the environment the screens read, built the way Run builds it.
 	// fixture is one temporary project with a global config directory outside the
 	// home directory, so paths inside the project go relative and paths under the
 	// config directory stay absolute.
 )
 
-func serveEnv(t *testing.T) team.Env {
+func serveEnv(t *testing.T) Environment {
 	t.Helper()
 	env, err := team.NewEnv()
 	if err != nil {
@@ -173,8 +175,7 @@ esac
 // agents, so a team command can find the team definition behind a team name.
 // tabs and agents are JSON object fragments (no brackets). It also answers the
 // calls a status or a down needs.
-func (f *fixture) runningHerdr(t *testing.T, agents string) {
-	tabs := `{"tab_id":"t1","label":"demo"}`
+func (f *fixture) runningHerdr(t *testing.T, tabs, agents string) {
 	t.Helper()
 	script := `#!/bin/sh
 g="$1"; s="$2"
@@ -255,7 +256,7 @@ func projectPath(raw string) domainplace.Project {
 func seenPaths(raw []string) []domainplace.Seen {
 	out := make([]domainplace.Seen, len(raw))
 	for i, path := range raw {
-		out[i] = domainplace.Observe(path)
+		out[i] = observedplace.Observe(path)
 	}
 	return out
 }

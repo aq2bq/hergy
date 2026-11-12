@@ -9,7 +9,7 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/aq2bq/hergy/internal/turns"
+	"github.com/aq2bq/hergy/internal/ops/internal/turns"
 )
 
 // The band is what the watcher shows in its own pane (r-4e04, d-1a54ca): three

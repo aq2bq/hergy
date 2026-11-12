@@ -6,12 +6,12 @@ import (
 	"time"
 
 	domainname "github.com/aq2bq/hergy/internal/domain/name"
-	"github.com/aq2bq/hergy/internal/herdr"
 	"github.com/aq2bq/hergy/internal/i18n"
-	"github.com/aq2bq/hergy/internal/launchlog"
-	"github.com/aq2bq/hergy/internal/protocol"
-	"github.com/aq2bq/hergy/internal/screenlog"
-	"github.com/aq2bq/hergy/internal/turns"
+	"github.com/aq2bq/hergy/internal/ops/internal/herdr"
+	"github.com/aq2bq/hergy/internal/ops/internal/launchlog"
+	"github.com/aq2bq/hergy/internal/ops/internal/protocol"
+	"github.com/aq2bq/hergy/internal/ops/internal/screenlog"
+	"github.com/aq2bq/hergy/internal/ops/internal/turns"
 )
 
 // TellInput names an unresolved recipient and optional sender. Dry mode keeps
@@ -74,12 +74,12 @@ func Tell(ctx context.Context, in TellInput) (TellResult, error) {
 	if err != nil {
 		return out, err
 	}
-	text := SendText(out.From.String(), in.Body)
+	text := sendText(out.From.String(), in.Body)
 	if in.Dry {
 		emit(in.Observe, Event{Text: fmt.Sprintf(i18n.T("send.dry"), out.To.String(), text)})
 		return out, nil
 	}
-	emit(in.Observe, Event{Text: PluginNote()})
+	emit(in.Observe, Event{Text: pluginNote()})
 	h := herdr.New(stopPort{Port: portOrDefault(in.Port), ctx: ctx})
 	if err := h.Verify(protocol.ModePrompt); err != nil {
 		return out, err
@@ -103,7 +103,7 @@ func findTellParty(team domainname.Seen, parties []domainname.Seen, raw string) 
 			return p, nil
 		}
 	}
-	return domainname.Seen{}, i18n.Errorf("error.no_member", raw)
+	return domainname.Seen{}, i18n.Errorf("error.tell_target_unknown", raw)
 }
 
 // tellParties includes a worker only when a hire record, worker tab and live
@@ -116,7 +116,7 @@ func tellParties(r *Resolved, in TellInput) []domainname.Seen {
 	if in.Dry {
 		return parties
 	}
-	read := ReadSession(in.Port)
+	read := readSession(in.Port)
 	if read.Err != nil {
 		return parties
 	}

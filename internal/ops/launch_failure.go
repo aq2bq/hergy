@@ -4,15 +4,15 @@ import (
 	"strings"
 
 	"github.com/aq2bq/hergy/internal/i18n"
-	"github.com/aq2bq/hergy/internal/launcher"
+	"github.com/aq2bq/hergy/internal/ops/internal/launcher"
 )
 
-// StartFailureText is what a start that stopped partway says, the same on the
+// startFailureText is what a start that stopped partway says, the same on the
 // command line and on a screen (d-5f02): the member herdr refused, herdr's own
 // reason in words, who started and what remains, and the command that goes on,
 // with the project it is typed in. project is the project's name, and command the
 // way on, as the command line writes it.
-func StartFailureText(f launcher.StartFailure, project, command string) string {
+func startFailureText(f StartFailure, project, command string) string {
 	reason := strings.TrimRight(f.Reason, "。. ")
 	lines := make([]string, 0, 5)
 	if f.Member != "" {
@@ -36,10 +36,10 @@ func StartFailureText(f launcher.StartFailure, project, command string) string {
 	return strings.Join(lines, i18n.T("launch.failed_gap"))
 }
 
-// FailedStartCommand is the command that goes on after a start stopped partway:
+// failedStartCommand is the command that goes on after a start stopped partway:
 // a start that left panes behind is put away first, and one that left nothing is
 // started again.
-func FailedStartCommand(f launcher.StartFailure, team, up string) string {
+func failedStartCommand(f StartFailure, team, up string) string {
 	if f.Panes == 0 {
 		return up
 	}
@@ -48,8 +48,11 @@ func FailedStartCommand(f launcher.StartFailure, team, up string) string {
 
 // LaunchFailure retains typed recovery facts for both CLI and screen adapters.
 type LaunchFailure struct {
-	Failed           launcher.StartFailure
+	Failed           StartFailure
 	Project, Command string
 }
 
-func (e *LaunchFailure) Error() string { return StartFailureText(e.Failed, e.Project, e.Command) }
+func (e *LaunchFailure) Error() string { return startFailureText(e.Failed, e.Project, e.Command) }
+
+// StartFailure records the facts retained after a partial start.
+type StartFailure launcher.StartFailure

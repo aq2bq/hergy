@@ -111,11 +111,11 @@ func (a *Reader) PromptHistory(_ domainplace.Project, definition, place, member,
 		return out, err
 	}
 	path := cat.TeamPath(definition, domainplace.Selection(place).Layer())
-	records, err := ReadLaunchRecords()
+	records, err := readLaunchRecords()
 	if err != nil {
 		return out, err
 	}
-	record, entry, ok := LastPromptRecord(records, team.Project, path, definition, team.Team.String(), member)
+	record, entry, ok := lastPromptRecord(records, team.Project, path, definition, team.Team.String(), member)
 	if !ok {
 		out.Status = "missing"
 		out.Reason = "このメンバーへ渡した本文を一意に特定できる記録がありません"
@@ -125,7 +125,7 @@ func (a *Reader) PromptHistory(_ domainplace.Project, definition, place, member,
 	if err != nil || len(hash) != 32 {
 		return out, fmt.Errorf("記録の本文ハッシュが壊れています")
 	}
-	text, err := RecordedPromptText(entry.Prompt)
+	text, err := recordedPromptText(entry.Prompt)
 	if err != nil {
 		return out, fmt.Errorf("記録の本文を読めません: %w", err)
 	}

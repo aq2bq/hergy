@@ -1,6 +1,9 @@
 package ops
 
-import domainname "github.com/aq2bq/hergy/internal/domain/name"
+import (
+	domainname "github.com/aq2bq/hergy/internal/domain/name"
+	observedname "github.com/aq2bq/hergy/internal/ops/internal/name"
+)
 
 func fixtureMemberName(s string) domainname.MemberName {
 	n, e := domainname.ParseMemberName(s)
@@ -14,11 +17,7 @@ func fixtureRunningTeam(s string) domainname.TeamRef {
 	return domainname.TeamFromObservation(fixtureSeen(s))
 }
 
-func fixtureSeen(s string) domainname.Seen {
-	var n domainname.Seen
-	_ = n.UnmarshalText([]byte(s))
-	return n
-}
+func fixtureSeen(s string) domainname.Seen { return observedname.Observe(s) }
 
 func fixtureDemoTeam() domainname.TeamName {
 	n, e := domainname.ParseTeamName("demo")

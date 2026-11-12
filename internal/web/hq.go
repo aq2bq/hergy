@@ -19,7 +19,7 @@ import (
 // the global layer, the workspaces of herdr, and starting and stopping a team
 // from the screens.
 //
-// The reading is internal/app's: it reads the config, herdr and the launch record,
+// The reading is internal/ops's: it reads the config, herdr and the launch record,
 // because only that layer starts herdr (6 A1). The server only puts the answer in
 // the boundary's shape. A server built without one answers 503: the screens that
 // ask for it are the headquarters, and a hergy without a headquarters reading is
@@ -344,7 +344,7 @@ type CatalogProvider interface {
 }
 
 // SetCatalogProvider tells the server how to read a listed project's layer. It
-// is set by internal/app, which is the only layer that knows where the projects
+// is set by internal/ops, which is the only layer that knows where the projects
 // are; a server without one scopes nothing by project.
 func (s *Server) SetCatalogProvider(p CatalogProvider) { s.projects = p }
 

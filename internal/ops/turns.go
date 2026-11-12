@@ -15,16 +15,16 @@ import (
 	domainname "github.com/aq2bq/hergy/internal/domain/name"
 
 	"github.com/aq2bq/hergy/internal/definition"
-	"github.com/aq2bq/hergy/internal/herdr"
-	"github.com/aq2bq/hergy/internal/herdrcli"
 	"github.com/aq2bq/hergy/internal/i18n"
-	"github.com/aq2bq/hergy/internal/launchlog"
+	"github.com/aq2bq/hergy/internal/ops/internal/herdr"
+	"github.com/aq2bq/hergy/internal/ops/internal/herdrcli"
+	"github.com/aq2bq/hergy/internal/ops/internal/launchlog"
+	"github.com/aq2bq/hergy/internal/ops/internal/protocol"
+	"github.com/aq2bq/hergy/internal/ops/internal/screenlog"
+	"github.com/aq2bq/hergy/internal/ops/internal/team"
+	"github.com/aq2bq/hergy/internal/ops/internal/turns"
 	"github.com/aq2bq/hergy/internal/options"
-	"github.com/aq2bq/hergy/internal/protocol"
-	"github.com/aq2bq/hergy/internal/screenlog"
 	"github.com/aq2bq/hergy/internal/source"
-	"github.com/aq2bq/hergy/internal/team"
-	"github.com/aq2bq/hergy/internal/turns"
 )
 
 // hergy turns <team>: the watcher that keeps the team's turn and acts when a
@@ -54,7 +54,7 @@ const (
 
 // WatchInput selects the team and presentation sink for its watcher.
 type WatchInput struct {
-	Env     team.Env
+	Env     Environment
 	Team    options.Input
 	Log     bool
 	Width   func() int
@@ -66,7 +66,7 @@ func WatchTurns(ctx context.Context, in WatchInput) error {
 	env := in.Env
 	opts := &options.Options{Team: in.Team, Log: in.Log}
 	stdout := eventWriter{in.Observe}
-	r, err := ResolveTeam(env.Catalog(source.Disk{}), env.ProjectRoot, opts)
+	r, err := resolveTeam(env.Catalog(source.Disk{}), env.ProjectRoot, opts)
 	if err != nil {
 		return err
 	}
@@ -92,7 +92,7 @@ func WatchTurns(ctx context.Context, in WatchInput) error {
 		w.band.width = in.Width
 	}
 	defer w.screen.end()
-	w.read = HerdrRead
+	w.read = herdrRead
 	w.hirers, w.names = hirersOf(r.Team.Name.Observation())
 	w.signals = turns.SignalDir(dir, r.Team.Name.String())
 	w.tells = turns.TellDir(dir, r.Team.Name.String())
@@ -281,7 +281,7 @@ func (w *turnWatcher) tick() {
 			}
 		}
 	}
-	now := w.observe(TeamAgents(tabs, agents, w.team.Observation()))
+	now := w.observe(teamAgents(tabs, agents, w.team.Observation()))
 	w.band.seen(now)
 	actions := turns.Step(w.state, turns.Input{
 		Team: domainname.RunningNames(w.team.Ref()), Graph: w.graph, Before: w.prev, Now: now, Wrote: w.wrote, At: w.clock(),

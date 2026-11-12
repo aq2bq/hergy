@@ -6,38 +6,39 @@ import (
 	"testing"
 	"time"
 
-	domainplace "github.com/aq2bq/hergy/internal/domain/place"
-	"github.com/aq2bq/hergy/internal/launchlog"
+	observedplace "github.com/aq2bq/hergy/internal/ops/internal/place"
+
+	"github.com/aq2bq/hergy/internal/ops/internal/launchlog"
 )
 
 func TestLastPromptRecordIsPerMemberAndExactTarget(t *testing.T) {
 	project := t.TempDir()
 	path := filepath.Join(project, "team.yaml")
-	base := launchlog.Record{Team: fixtureSeen("demo"), Definition: "core", Project: domainplace.Observe(project), TeamYAML: domainplace.Observe(path), Command: "up", Members: []launchlog.Member{{Name: fixtureSeen("demo-lead"), Prompt: "old-lead"}, {Name: fixtureSeen("demo-builder"), Prompt: "old-builder"}}}
+	base := launchlog.Record{Team: fixtureSeen("demo"), Definition: "core", Project: observedplace.Observe(project), TeamYAML: observedplace.Observe(path), Command: "up", Members: []launchlog.Member{{Name: fixtureSeen("demo-lead"), Prompt: "old-lead"}, {Name: fixtureSeen("demo-builder"), Prompt: "old-builder"}}}
 	latest := base
 	latest.Command = "reprompt"
 	latest.Members = []launchlog.Member{{Name: fixtureSeen("demo-lead"), Prompt: "new-lead"}}
 	foreign := latest
-	foreign.Project = domainplace.Observe(t.TempDir())
+	foreign.Project = observedplace.Observe(t.TempDir())
 	foreign.Members = []launchlog.Member{{Name: fixtureSeen("demo-lead"), Prompt: "foreign"}}
 	wrongPath := latest
-	wrongPath.TeamYAML = domainplace.Observe(filepath.Join(project, "other.yaml"))
+	wrongPath.TeamYAML = observedplace.Observe(filepath.Join(project, "other.yaml"))
 	hire := latest
 	hire.Command = "hire"
 	records := []launchlog.Record{base, latest, foreign, wrongPath, hire}
 	for member, want := range map[string]string{"lead": "new-lead", "builder": "old-builder"} {
-		_, got, ok := LastPromptRecord(records, projectPath(project), projectPath(path), "core", "demo", member)
+		_, got, ok := lastPromptRecord(records, projectPath(project), projectPath(path), "core", "demo", member)
 		if !ok || got.Prompt != want {
 			t.Fatalf("%s: %+v %t", member, got, ok)
 		}
 	}
 	legacy := base
-	legacy.Project = domainplace.Observe("")
-	if _, _, ok := LastPromptRecord([]launchlog.Record{legacy}, projectPath(project), projectPath(path), "core", "demo", "lead"); !ok {
+	legacy.Project = observedplace.Observe("")
+	if _, _, ok := lastPromptRecord([]launchlog.Record{legacy}, projectPath(project), projectPath(path), "core", "demo", "lead"); !ok {
 		t.Fatal("exact legacy path lost")
 	}
-	legacy.TeamYAML = domainplace.Observe("")
-	if _, _, ok := LastPromptRecord([]launchlog.Record{legacy}, projectPath(project), projectPath(path), "core", "demo", "lead"); ok {
+	legacy.TeamYAML = observedplace.Observe("")
+	if _, _, ok := lastPromptRecord([]launchlog.Record{legacy}, projectPath(project), projectPath(path), "core", "demo", "lead"); ok {
 		t.Fatal("ambiguous legacy record adopted")
 	}
 }
@@ -68,7 +69,7 @@ func TestPromptHistoryExactBodyAndReadFailures(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	record := launchlog.Record{Team: fixtureSeen("core"), Definition: "core", Project: env.ProjectRoot.Seen(), TeamYAML: domainplace.Observe(filepath.Join(env.ProjectRoot.String(), ".hergy", "teams", "core", "team.yaml")), Command: launchlog.CommandRefresh, Members: []launchlog.Member{{Name: fixtureSeen("core-lead"), Prompt: hash}}}
+	record := launchlog.Record{Team: fixtureSeen("core"), Definition: "core", Project: env.ProjectRoot.Seen(), TeamYAML: observedplace.Observe(filepath.Join(env.ProjectRoot.String(), ".hergy", "teams", "core", "team.yaml")), Command: launchlog.CommandRefresh, Members: []launchlog.Member{{Name: fixtureSeen("core-lead"), Prompt: hash}}}
 	if err := log.Append(record); err != nil {
 		t.Fatal(err)
 	}

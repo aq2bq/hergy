@@ -11,18 +11,18 @@ import (
 	domainname "github.com/aq2bq/hergy/internal/domain/name"
 	domainplace "github.com/aq2bq/hergy/internal/domain/place"
 	"github.com/aq2bq/hergy/internal/i18n"
-	"github.com/aq2bq/hergy/internal/launcher"
-	"github.com/aq2bq/hergy/internal/launchlog"
+	"github.com/aq2bq/hergy/internal/ops/internal/launcher"
+	"github.com/aq2bq/hergy/internal/ops/internal/launchlog"
+	"github.com/aq2bq/hergy/internal/ops/internal/team"
 	"github.com/aq2bq/hergy/internal/source"
-	"github.com/aq2bq/hergy/internal/team"
 )
 
 // ApplyInput requests one complete apply under a named selection policy.
 type ApplyInput struct {
 	Now                           func() time.Time
-	Env                           team.Env
+	Env                           Environment
 	Views                         []ProjectView
-	Read                          func() Session
+	read                          func() session
 	Selection                     ApplySelectionInput
 	Timeout                       int
 	Dry, RequirePane, ManagedPane bool
@@ -48,25 +48,25 @@ func Apply(ctx context.Context, in ApplyInput) (ApplyResult, error) {
 	if err := sharedAgreementStops(in.Env.Catalog(source.Disk{})); err != nil {
 		return out, err
 	}
-	var read Session
-	if in.Read != nil {
-		read = in.Read()
+	var read session
+	if in.read != nil {
+		read = in.read()
 	} else {
-		read = ReadSession(in.Port)
+		read = readSession(in.Port)
 	}
 	views := in.Views
 	if views == nil {
-		views = ProjectViews(in.Env, source.Disk{}, nil)
+		views = projectViews(in.Env, source.Disk{}, nil)
 	}
 	now := time.Now
 	if in.Now != nil {
 		now = in.Now
 	}
-	out.Plan = ComputeDelivery(DeliveryInput{Views: views, Session: read, Now: now()})
+	out.Plan = computeDelivery(deliveryInput{Views: views, Session: read, Now: now()})
 	if !out.Plan.Apply.Herdr.OK {
 		return out, refuse("unavailable", errors.New(out.Plan.Apply.Herdr.Text))
 	}
-	selection, err := SelectApply(out.Plan, in.Selection)
+	selection, err := selectApply(out.Plan, in.Selection)
 	out.Selection = selection
 	if err != nil {
 		return out, err
@@ -91,7 +91,7 @@ func Apply(ctx context.Context, in ApplyInput) (ApplyResult, error) {
 		in.Accepted(selection)
 	}
 	var missing []error
-	for _, group := range GroupByTeam(selection.Selected) {
+	for _, group := range groupByTeam(selection.Selected) {
 		err := applyGroup(ctx, in, group)
 		if err == nil {
 			continue
@@ -114,7 +114,7 @@ func applyGroup(ctx context.Context, in ApplyInput, group []PlannedMember) error
 		return err
 	}
 	cat := env.Catalog(source.Disk{})
-	r, err := BuildRunningIn(cat, env.ProjectRoot, team.Running{Team: domainname.TeamFromObservation(group[0].Team.Name), Definition: group[0].Team.Definition}, group[0].Team.Place.Layer())
+	r, err := buildRunningIn(cat, env.ProjectRoot, team.Running{Team: domainname.TeamFromObservation(group[0].Team.Name), Definition: group[0].Team.Definition}, group[0].Team.Place.Layer())
 	if err != nil {
 		return err
 	}
@@ -139,7 +139,7 @@ func applyGroup(ctx context.Context, in ApplyInput, group []PlannedMember) error
 			emit(in.Observe, Event{Applied: &Applied{Member: member}})
 		}
 	}
-	warning(in.Observe, RecordReceivedLaunch(env, r, launchlog.CommandApply, all, l, launchlog.Workspace{}))
+	warning(in.Observe, recordReceivedLaunch(env, r, launchlog.CommandApply, all, l, launchlog.Workspace{}))
 	return err
 }
 func applyFix(group []PlannedMember) string {
@@ -163,9 +163,9 @@ func applyRemainingError(selection ApplySelection, dry bool) error {
 	return nil
 }
 
-// ProjectViews reads the projects exposed by this environment.
-func ProjectViews(env team.Env, reader source.Reader, resolve func(domainplace.Project) (team.Env, error)) []ProjectView {
-	makeView := func(env team.Env) ProjectView {
+// projectViews reads the projects exposed by this environment.
+func projectViews(env Environment, reader source.Reader, resolve func(domainplace.Project) (Environment, error)) []ProjectView {
+	makeView := func(env Environment) ProjectView {
 		return ProjectView{Path: env.ProjectRoot, Name: filepath.Base(env.ProjectRoot.String()), Env: env, Cat: env.Catalog(reader)}
 	}
 	cfg, err := env.ReadConfigFile()
@@ -178,7 +178,7 @@ func ProjectViews(env team.Env, reader source.Reader, resolve func(domainplace.P
 	}
 	var views []ProjectView
 	for _, path := range paths {
-		var one team.Env
+		var one Environment
 		var err error
 		if resolve != nil {
 			one, err = resolve(path)
@@ -189,11 +189,11 @@ func ProjectViews(env team.Env, reader source.Reader, resolve func(domainplace.P
 			views = append(views, makeView(one))
 		}
 	}
-	return NameProjects(views)
+	return nameProjects(views)
 }
 
-// NameProjects disambiguates equal project labels in one reading.
-func NameProjects(views []ProjectView) []ProjectView {
+// nameProjects disambiguates equal project labels in one reading.
+func nameProjects(views []ProjectView) []ProjectView {
 	count := map[string]int{}
 	for _, view := range views {
 		count[view.Name]++
@@ -206,7 +206,7 @@ func NameProjects(views []ProjectView) []ProjectView {
 	return views
 }
 
-func applyChanges(l *launcher.Launcher, r *Resolved, env team.Env, group []PlannedMember, starts, resends []definition.Start) error {
+func applyChanges(l *launcher.Launcher, r *Resolved, env Environment, group []PlannedMember, starts, resends []definition.Start) error {
 	var missing []error
 	cat := env.Catalog(source.Disk{})
 
@@ -217,7 +217,7 @@ func applyChanges(l *launcher.Launcher, r *Resolved, env team.Env, group []Plann
 				if errors.Is(err, launcher.ErrCancelled) {
 					return err
 				}
-				f := l.Failure(err)
+				f := StartFailure(l.Failure(err))
 				if f.Member == "" && f.Panes == 0 {
 					return err
 				}
@@ -227,7 +227,7 @@ func applyChanges(l *launcher.Launcher, r *Resolved, env team.Env, group []Plann
 		}
 	}
 	if len(resends) > 0 {
-		if err := l.Reprompt(PromptsToResend(cat, env.ProjectRoot, r, resends)); err != nil {
+		if err := l.Reprompt(promptsToResend(cat, env.ProjectRoot, r, resends)); err != nil {
 			if !launcher.IsUndelivered(err) {
 				return err
 			}

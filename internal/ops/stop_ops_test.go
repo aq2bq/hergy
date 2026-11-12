@@ -12,12 +12,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aq2bq/hergy/internal/herdr"
-	"github.com/aq2bq/hergy/internal/launchlog"
-	"github.com/aq2bq/hergy/internal/protocol"
+	"github.com/aq2bq/hergy/internal/ops/internal/herdr"
+	"github.com/aq2bq/hergy/internal/ops/internal/launchlog"
+	"github.com/aq2bq/hergy/internal/ops/internal/protocol"
+	"github.com/aq2bq/hergy/internal/ops/internal/team"
+	"github.com/aq2bq/hergy/internal/ops/internal/turns" // stopBoundaryPort controls execution failures independently of the initial
 	"github.com/aq2bq/hergy/internal/source"
-	"github.com/aq2bq/hergy/internal/team"
-	"github.com/aq2bq/hergy/internal/turns" // stopBoundaryPort controls execution failures independently of the initial
 	// snapshot, so cleanup is measured after exactly the failing operation.
 )
 
@@ -40,7 +40,7 @@ func (p *stopBoundaryPort) JSON(args ...string) (map[string]any, error) {
 	}
 	return p.stopReleasePort.JSON(args...)
 }
-func stopFixture(t *testing.T) (*fixture, team.Env, *Resolved, *stopBoundaryPort, *hqRead) {
+func stopFixture(t *testing.T) (*fixture, Environment, *Resolved, *stopBoundaryPort, *hqRead) {
 	t.Helper()
 	f := newFixture(t)
 	receiptTeam(t, f)
@@ -181,7 +181,7 @@ func TestScreenStopAcceptsEmptyTeamTab(t *testing.T) {
 			f, env, r, port, h := stopFixture(t)
 			log := launchlog.At(filepath.Join(f.state, "hergy", "launches"))
 			if recorded {
-				if err := WriteLaunch(log, env, r, launchlog.CommandUp, r.Starts, launchlog.Workspace{}); err != nil {
+				if err := writeLaunch(log, env, r, launchlog.CommandUp, r.Starts, launchlog.Workspace{}); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -208,8 +208,8 @@ func TestScreenStopAcceptsEmptyTeamTab(t *testing.T) {
 func TestStopOperationKeepsWatcherCountSeparate(t *testing.T) {
 	_, env, _, port, _ := stopFixture(t)
 	port.snapshot.Panes = append(port.snapshot.Panes, protocol.Pane{ID: "watch", Label: fixtureSeen("demo-turns"), TabID: "t1"})
-	tabs := TeamTabs(port.snapshot.Tabs, port.snapshot.Agents, port.snapshot.Panes)
-	target := TeamStopTarget(team.Running{Team: fixtureRunningTeam("demo"), Definition: "demo", Project: env.ProjectRoot}, tabs)
+	tabs := teamTabs(port.snapshot.Tabs, port.snapshot.Agents, port.snapshot.Panes)
+	target := teamStopTarget(team.Running{Team: fixtureRunningTeam("demo"), Definition: "demo", Project: env.ProjectRoot}, tabs)
 	result, err := StopTeam(context.Background(), StopInput{Env: env, Target: target, Port: port, Timeout: 0})
 	if err != nil {
 		t.Fatal(err)
@@ -275,8 +275,8 @@ func TestCLIAndScreenUseSameStopOperation(t *testing.T) {
 func TestStopCancellationKeepsTurnAndEmitsBeforeClosing(t *testing.T) {
 	f, env, _, port, _ := stopFixture(t)
 	paths := seedRunTurn(t, f)
-	tabs := TeamTabs(port.snapshot.Tabs, port.snapshot.Agents, port.snapshot.Panes)
-	target := TeamStopTarget(team.Running{Team: fixtureRunningTeam("demo"), Definition: "demo", Project: env.ProjectRoot}, tabs)
+	tabs := teamTabs(port.snapshot.Tabs, port.snapshot.Agents, port.snapshot.Panes)
+	target := teamStopTarget(team.Running{Team: fixtureRunningTeam("demo"), Definition: "demo", Project: env.ProjectRoot}, tabs)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	described, text := false, ""

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aq2bq/hergy/internal/launchlog"
+	"github.com/aq2bq/hergy/internal/ops/internal/launchlog"
 	"github.com/aq2bq/hergy/internal/source" // TestApplySaysHowEachMemberIsPutRight: a running member whose prompt moved is
 	// sent its prompt again, a member the definition has and no agent is live for is
 	// started, and the current answer counts both for the band and the apply sheet.
@@ -25,13 +25,14 @@ func TestApplySaysHowEachMemberIsPutRight(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := WriteLaunch(log, env, r, launchlog.CommandUp, r.Starts, launchlog.Workspace{}); err != nil {
+	if err := writeLaunch(log, env, r, launchlog.CommandUp, r.Starts, launchlog.Workspace{}); err != nil {
 		t.Fatalf("record demo: %v", err)
 	}
 	rolePath := filepath.Join(f.proj, ".hergy", "roles", "lead.md")
 	role := readFile(t, rolePath)
 	writeFile(t, rolePath, strings.Replace(role, "Hand over a task the receiver can start without reading your conversation.", "Hand over a task the receiver can start without reading your conversation, and name the files to read.", 1))
-	f.runningHerdr(t, `{"name":"demo-lead","agent":"claude","agent_status":"idle","pane_id":"p1","tab_id":"t1","state_change_seq":1}`)
+	f.runningHerdr(t, `{"tab_id":"t1","label":"demo"}`,
+		`{"name":"demo-lead","agent":"claude","agent_status":"idle","pane_id":"p1","tab_id":"t1","state_change_seq":1}`)
 	a := newActivityRead(env)
 	got := a.Apply()
 	if got.Count != 2 || len(got.Teams) != 1 {
@@ -83,14 +84,14 @@ func TestApplyLeavesAWorkingMemberAndSaysWhy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := WriteLaunch(log, env, r, launchlog.CommandUp, r.Starts, launchlog.Workspace{}); err != nil {
+	if err := writeLaunch(log, env, r, launchlog.CommandUp, r.Starts, launchlog.Workspace{}); err != nil {
 		t.Fatalf("record demo: %v", err)
 	}
 	rolePath := filepath.Join(f.proj, ".hergy", "roles", "lead.md")
 	role := readFile(t, rolePath)
 	writeFile(t, rolePath, strings.Replace(role, "Hand over a task the receiver can start without reading your conversation.", "Hand over a task the receiver can start without reading your conversation, and name the files to read.", 1))
 
-	f.runningHerdr(t,
+	f.runningHerdr(t, `{"tab_id":"t1","label":"demo"}`,
 		`{"name":"demo-lead","agent":"claude","agent_status":"working","pane_id":"p1","tab_id":"t1","state_change_seq":1}`)
 
 	a := newActivityRead(env)

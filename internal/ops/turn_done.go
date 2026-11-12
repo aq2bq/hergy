@@ -5,10 +5,10 @@ import (
 	"os"
 	"time"
 
-	"github.com/aq2bq/hergy/internal/harness"
 	"github.com/aq2bq/hergy/internal/i18n"
-	"github.com/aq2bq/hergy/internal/screenlog"
-	"github.com/aq2bq/hergy/internal/turns"
+	"github.com/aq2bq/hergy/internal/ops/internal/harness"
+	"github.com/aq2bq/hergy/internal/ops/internal/screenlog"
+	"github.com/aq2bq/hergy/internal/ops/internal/turns"
 )
 
 // TurnDoneInput carries hergy turn-done <team> <member> [payload]: the harness says a turn ended

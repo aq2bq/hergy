@@ -8,7 +8,7 @@ import (
 	domainname "github.com/aq2bq/hergy/internal/domain/name"
 
 	"github.com/aq2bq/hergy/internal/i18n"
-	"github.com/aq2bq/hergy/internal/team"
+	"github.com/aq2bq/hergy/internal/ops/internal/team"
 )
 
 // This file stops a team from the screens: the same result as hergy down, in the
@@ -39,9 +39,9 @@ func (h *hqRead) Stop(teamName string) (HQStopped, error) {
 		StoppedAt: clockText(time.Now()), Leftovers: hqLeftoversOf(result.Leftovers)}, nil
 }
 
-func (h *hqRead) stopInput(env team.Env, one runningTeam, read herdrNow) StopInput {
+func (h *hqRead) stopInput(env Environment, one runningTeam, read herdrNow) StopInput {
 	running := team.Running{Team: domainname.TeamFromObservation(one.Name), Definition: one.Definition, Project: one.Project}
-	target := TeamStopTarget(running, read.tabs)
+	target := teamStopTarget(running, read.tabs)
 	return StopInput{Env: env, Target: target, Layer: one.Place.Layer(), Timeout: 30000,
 		SelfPane: CurrentPane(), Port: h.act.herdrPort(), Now: h.stopNow, Pause: h.stopPause,
 		PendingLaunches: h.visitPendingLaunches, Locks: h.locks}
@@ -54,7 +54,7 @@ func (h *hqRead) findRunning(read herdrNow, name string) (runningTeam, bool) {
 			return one, true
 		}
 	}
-	if one, ok := StoppedTeam(read.tabs, name); ok {
+	if one, ok := stoppedTeam(read.tabs, name); ok {
 		view, record, found := projectOf(one, latestLaunches(), h.act.projectViews(), read.tabs, false)
 		if found {
 			tab, _ := teamTab(read.tabs, one.Team.Observation())
@@ -69,7 +69,7 @@ func (h *hqRead) findRunning(read herdrNow, name string) (runningTeam, bool) {
 // stopTarget is presentation of the operation's plan, without its execution.
 type stopTarget struct{ members, workers []string }
 
-func (h *hqRead) stopTargets(env team.Env, one runningTeam, read herdrNow) stopTarget {
+func (h *hqRead) stopTargets(env Environment, one runningTeam, read herdrNow) stopTarget {
 	in := h.stopInput(env, one, read)
 	in.PlanOnly = true
 	result, _ := StopTeam(context.Background(), in)
@@ -96,13 +96,10 @@ func (h *hqRead) visitPendingLaunches(visit func(PendingLaunch)) {
 }
 
 // hqLeftoversOf is what a stopped team left in git, as the stop sheet reads it.
-func hqLeftoversOf(left team.Leftovers) HQLeftovers {
+func hqLeftoversOf(left Leftovers) HQLeftovers {
 	out := HQLeftovers{Worktrees: []HQWorktree{}, Stashes: left.Stashes}
 	for _, one := range left.Worktrees {
-		out.Worktrees = append(out.Worktrees, HQWorktree{
-			Path: one.Path, Branch: one.Branch, Dirty: one.Dirty, Ahead: one.Ahead, Base: one.Base,
-			PaneCwd: one.PaneCwd,
-		})
+		out.Worktrees = append(out.Worktrees, HQWorktree(one))
 	}
 	return out
 }

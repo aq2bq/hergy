@@ -7,12 +7,12 @@ import (
 
 // The activity screen's answer (spec-activity 3). The screen draws every row,
 // every sentence in it and every count from these shapes, and it writes no time
-// and no length of its own: the reading behind them is internal/app's, which is
+// and no length of its own: the reading behind them is internal/ops's, which is
 // the only layer that touches herdr and gy (6 A1, V1).
 
 // Activity is how the screen reads the teams running in this project. The
 // reading is handed in, so the screen and its tests do not start herdr: hergy
-// serve builds one in internal/app and hands it to New.
+// serve builds one in internal/ops and hands it to New.
 type Activity interface {
 	// List is GET /api/activity: the running teams, in the order of
 	// activity.Sort, and the band's two numbers.

@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aq2bq/hergy/internal/turns"
+	"github.com/aq2bq/hergy/internal/ops/internal/turns"
 )
 
 // TestBandRendersStateHandoffsAndWhatIsAsked: the three lines, whose labels

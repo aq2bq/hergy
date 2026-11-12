@@ -1,6 +1,6 @@
 // The work fixture the browser walks stand on, laid out once per test.
 //
-// internal/app's e2e harness laid a project out with newFixture and the screen's
+// internal/cli's e2e harness laid a project out with newFixture and the screen's
 // own copy*Fixture (a project with the screen's testdata over it, a config
 // directory outside the home directory, its own state directory, a made-up
 // herdr, and no hergy config anywhere else). Each test now lays its own out, so
@@ -8,7 +8,7 @@
 // written — not the person's ~/.config/hergy, not ~/.local/state/hergy.
 //
 // The activity screen's fixture keeps places in its files (@T-<分>@ and
-// @PROJECT@), which are filled in the way internal/app/activity_scale_test.go
+// @PROJECT@), which are filled in the way internal/cli/activity_scale_test.go
 // fills them: a moment that many minutes before the run's own clock, and the
 // project the teams were launched from.
 import {
@@ -66,7 +66,7 @@ const screens = {
 const hqProjects = ['alpha', 'beta', 'gamma'];
 
 // The fake herdr a screen with no team running answers with: the calls a status
-// or a down needs, no tabs and no agents (internal/app/app_test.go runningHerdr
+// or a down needs, no tabs and no agents (internal/cli/app_test.go runningHerdr
 // with nothing, twice).
 const fakeHerdr = `#!/bin/sh
 g="$1"; s="$2"

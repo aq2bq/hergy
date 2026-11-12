@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/aq2bq/hergy/internal/i18n"
-	"github.com/aq2bq/hergy/internal/launchlog" // waitLaunch waits for one launch to end, as the screens' polling does, and
+	"github.com/aq2bq/hergy/internal/ops/internal/launchlog" // waitLaunch waits for one launch to end, as the screens' polling does, and
 	// answers its last state.
 	// TestApplyMembersSendsAndStartsInOneOperation: a request names a member whose
 	// prompt moved and a member no agent is live for; hergy sends the first its
@@ -102,7 +102,7 @@ esac
 func TestApplyMembersRefusesAWorkingMember(t *testing.T) {
 	useJapanese(t)
 	f := applyDemo(t)
-	f.runningHerdr(t,
+	f.runningHerdr(t, `{"tab_id":"t1","label":"demo"}`,
 		`{"name":"demo-lead","agent":"claude","agent_status":"working","pane_id":"p1","tab_id":"t1","state_change_seq":1}`)
 	rolePath := filepath.Join(f.proj, ".hergy", "roles", "lead.md")
 	role := readFile(t, rolePath)

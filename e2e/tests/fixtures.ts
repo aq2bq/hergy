@@ -1,6 +1,6 @@
 // One project, one serve, one page per test.
 //
-// The Go walks started a serve for each test (internal/app startServe: `hergy
+// The Go walks started a serve for each test (internal/cli startServe: `hergy
 // serve --no-open` over the test's own project, the URL read from what the
 // command prints) and drove it in a tab of the run's one browser. Here each test
 // does the same thing itself: it lays its project out, starts its own serve on a
@@ -32,7 +32,7 @@ export type App = {
 };
 
 // startServe starts `hergy serve --no-open --port 0` over one fixture, and
-// returns the URL it printed, the way internal/app's startServe reads it.
+// returns the URL it printed, the way internal/cli's startServe reads it.
 async function startServe(fixture: {
   proj: string;
   env: Record<string, string>;
@@ -137,7 +137,7 @@ export const test = base.extend<{ reads: Screen; app: App }>({
 // hergyNew is `hergy new <name> --lang ja` run in a project of its own, and the
 // files it wrote, read back: the definition's two files, the role documents it
 // writes beside them, and its profiles.yaml. A walk holds a save of the team
-// screen to these byte for byte (internal/app/e2e_teams_test.go read
+// screen to these byte for byte (internal/cli/e2e_teams_test.go read
 // scaffold.Team's own files; this is the command a person runs instead).
 export function hergyNew(name: string): {
   teams: Map<string, string>;

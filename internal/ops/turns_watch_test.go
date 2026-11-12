@@ -8,10 +8,10 @@ import (
 	"time"
 
 	"github.com/aq2bq/hergy/internal/definition"
-	"github.com/aq2bq/hergy/internal/herdr"
-	"github.com/aq2bq/hergy/internal/protocol"
-	"github.com/aq2bq/hergy/internal/team"
-	"github.com/aq2bq/hergy/internal/turns"
+	"github.com/aq2bq/hergy/internal/ops/internal/herdr"
+	"github.com/aq2bq/hergy/internal/ops/internal/protocol"
+	"github.com/aq2bq/hergy/internal/ops/internal/team"
+	"github.com/aq2bq/hergy/internal/ops/internal/turns"
 )
 
 // turnsPort is a fake herdr for the watcher: the panes' text by herdr name,

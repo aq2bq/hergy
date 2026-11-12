@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aq2bq/hergy/internal/team" // stopHerdr is stateHerdr with the call log: a stop's panes are the
+	"github.com/aq2bq/hergy/internal/ops/internal/team" // stopHerdr is stateHerdr with the call log: a stop's panes are the
 	// "pane close <id>" lines, and members/workers are the ones stopTargets names.
 )
 

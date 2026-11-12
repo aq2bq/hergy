@@ -9,8 +9,8 @@ import (
 	domainplace "github.com/aq2bq/hergy/internal/domain/place"
 
 	"github.com/aq2bq/hergy/internal/i18n"
-	"github.com/aq2bq/hergy/internal/launchlog"
-	"github.com/aq2bq/hergy/internal/team"
+	"github.com/aq2bq/hergy/internal/ops/internal/launchlog"
+	"github.com/aq2bq/hergy/internal/ops/internal/team"
 )
 
 // CheckDefinitionRename reads the entire connected session, before the screen's
@@ -21,11 +21,11 @@ func (a *Reader) CheckDefinitionRename(target domainplace.Project) error {
 	if read.err != nil {
 		return hqRefuse(http.StatusServiceUnavailable, i18n.T("web.rename.unavailable"))
 	}
-	records, err := ReadLaunchRecords()
+	records, err := readLaunchRecords()
 	if err != nil {
 		return hqRefuse(http.StatusServiceUnavailable, i18n.T("web.rename.unavailable"))
 	}
-	for _, running := range team.RunningTeams(read.tabs, LaunchTeams(), read.agentsRead) {
+	for _, running := range team.RunningTeams(read.tabs, launchTeams(), read.agentsRead) {
 		record, known := renameLaunch(records, running)
 		if !known || record.TeamYAML.String() == "" {
 			if running.Definition == filepath.Base(filepath.Dir(target.String())) {

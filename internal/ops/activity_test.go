@@ -14,12 +14,14 @@ import (
 	"testing"
 	"time"
 
+	observedplace "github.com/aq2bq/hergy/internal/ops/internal/place"
+
 	"github.com/aq2bq/hergy/internal/activity"
 	domainplace "github.com/aq2bq/hergy/internal/domain/place"
 	"github.com/aq2bq/hergy/internal/i18n"
-	"github.com/aq2bq/hergy/internal/launchlog"
+	"github.com/aq2bq/hergy/internal/ops/internal/launchlog"
+	"github.com/aq2bq/hergy/internal/ops/internal/team" // activityNow is the clock the tests read the screen at: a fixed moment, so
 	"github.com/aq2bq/hergy/internal/source"
-	"github.com/aq2bq/hergy/internal/team" // activityNow is the clock the tests read the screen at: a fixed moment, so
 	// every length and every time is one a test can write down.
 	// inJapanese reads the screen in Japanese: the words this screen writes are the
 	// ones the fixture and the spec spell out (3 V1). The language is put back, so a
@@ -109,9 +111,9 @@ func newActivityFixture(t *testing.T) *activityFixture {
 	} {
 		record := launchlog.Record{
 			Time: activityNow.Format(time.RFC3339), Command: launchlog.CommandUp,
-			Hergy: "hergy (test)", Project: domainplace.Observe(f.proj), Layer: "local",
+			Hergy: "hergy (test)", Project: observedplace.Observe(f.proj), Layer: "local",
 			Definition: one.definition, Team: fixtureSeen(one.team),
-			TeamYAML: domainplace.Observe(filepath.Join(f.proj, ".hergy", "teams", one.definition, "team.yaml")),
+			TeamYAML: observedplace.Observe(filepath.Join(f.proj, ".hergy", "teams", one.definition, "team.yaml")),
 			Hash:     "test",
 		}
 		if err := log.Append(record); err != nil {
@@ -320,9 +322,9 @@ func TestActivityListKeepsOnlyThisProject(t *testing.T) {
 	for _, one := range []struct{ team, definition string }{{"core", "core"}, {"core-hotfix", "core"}} {
 		if err := log.Append(launchlog.Record{
 			Time: activityNow.Format(time.RFC3339), Command: launchlog.CommandUp,
-			Hergy: "hergy (test)", Project: domainplace.Observe(filepath.Join(f.cfg, "another")), Layer: "local",
+			Hergy: "hergy (test)", Project: observedplace.Observe(filepath.Join(f.cfg, "another")), Layer: "local",
 			Definition: one.definition, Team: fixtureSeen(one.team),
-			TeamYAML: domainplace.Observe(filepath.Join(f.cfg, "another", one.definition, "team.yaml")), Hash: "test",
+			TeamYAML: observedplace.Observe(filepath.Join(f.cfg, "another", one.definition, "team.yaml")), Hash: "test",
 		}); err != nil {
 			t.Fatal(err)
 		}
@@ -473,8 +475,8 @@ func TestActivityOneSaysWhenTheDefinitionDoesNotRead(t *testing.T) {
 	log := launchlog.At(filepath.Join(f.state, "hergy", "launches"))
 	if err := log.Append(launchlog.Record{
 		Time: activityNow.Format(time.RFC3339), Command: launchlog.CommandUp,
-		Hergy: "hergy (test)", Project: domainplace.Observe(f.proj), Layer: "local",
-		Definition: "broken", Team: fixtureSeen("broken"), TeamYAML: domainplace.Observe(filepath.Join(f.proj, ".hergy", "teams", "broken", "team.yaml")),
+		Hergy: "hergy (test)", Project: observedplace.Observe(f.proj), Layer: "local",
+		Definition: "broken", Team: fixtureSeen("broken"), TeamYAML: observedplace.Observe(filepath.Join(f.proj, ".hergy", "teams", "broken", "team.yaml")),
 		Hash: "test",
 	}); err != nil {
 		t.Fatal(err)
@@ -643,7 +645,7 @@ func TestActivityNodesCarryTheTerminalTitleAndTheHirer(t *testing.T) {
 	log := launchlog.At(filepath.Join(f.state, "hergy", "launches"))
 	if err := log.Append(launchlog.Record{
 		Time: activityNow.Format(time.RFC3339), Command: launchlog.CommandHire,
-		Hergy: "hergy (test)", Project: domainplace.Observe(f.proj), Team: fixtureSeen("core"),
+		Hergy: "hergy (test)", Project: observedplace.Observe(f.proj), Team: fixtureSeen("core"),
 		Hire: &launchlog.Hire{Worker: fixtureSeen("core-deps"), From: "lead", Purpose: "依存の更新", Tab: fixtureSeen("worker:core/deps")},
 	}); err != nil {
 		t.Fatal(err)
@@ -725,15 +727,15 @@ func TestATeamOfTheSameNameInTwoProjectsKeepsItsOwnDefinition(t *testing.T) {
 	} {
 		if err := log.Append(launchlog.Record{
 			Time: one.when.Format(time.RFC3339), Command: launchlog.CommandUp,
-			Project: domainplace.Observe(one.proj), Layer: "local", Definition: "core", Team: fixtureSeen("core"),
-			TeamYAML: domainplace.Observe(filepath.Join(one.proj, ".hergy", "teams", "core", "team.yaml")), Hash: "test",
+			Project: observedplace.Observe(one.proj), Layer: "local", Definition: "core", Team: fixtureSeen("core"),
+			TeamYAML: observedplace.Observe(filepath.Join(one.proj, ".hergy", "teams", "core", "team.yaml")), Hash: "test",
 		}); err != nil {
 			t.Fatal(err)
 		}
 	}
 
-	env := func(root string) team.Env {
-		return team.Env{ProjectRoot: projectPath(root), GlobalDir: filepath.Join(f.cfg, "hergy"), LocalDir: filepath.Join(root, ".hergy")}
+	env := func(root string) Environment {
+		return Environment{ProjectRoot: projectPath(root), GlobalDir: filepath.Join(f.cfg, "hergy"), LocalDir: filepath.Join(root, ".hergy")}
 	}
 	views := []projectView{
 		{Path: projectPath(alpha), Name: "alpha", Env: env(alpha), Cat: env(alpha).Catalog(source.Disk{})},
@@ -747,7 +749,7 @@ func TestATeamOfTheSameNameInTwoProjectsKeepsItsOwnDefinition(t *testing.T) {
 		agentsRead: true,
 		seen:       map[string]activity.Watch{},
 	}
-	out := readRunningTeamsIn(views, read, false)
+	out := readVisibleTeams(views, read, false)
 	if len(out) != 1 {
 		t.Fatalf("the reading has %d teams, want the one running", len(out))
 	}

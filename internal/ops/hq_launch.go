@@ -17,7 +17,6 @@ import (
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/projectinput"
 	"github.com/aq2bq/hergy/internal/source"
-	"github.com/aq2bq/hergy/internal/team"
 )
 
 // This file starts a team from the screens: the options the start sheet draws,
@@ -210,13 +209,13 @@ func (h *hqRead) workspaceChoices(read herdrNow, teamYAML domainplace.Project, p
 }
 
 // projectEnv is one project the headquarters may act on.
-func (h *hqRead) projectEnv(want domainplace.Project) (team.Env, error) {
+func (h *hqRead) projectEnv(want domainplace.Project) (Environment, error) {
 	allowed, err := h.allowedProjects()
 	if err != nil {
-		return team.Env{}, hqError(err)
+		return Environment{}, hqError(err)
 	}
 	if !h.isListedProject(allowed, want) {
-		return team.Env{}, hqRefuse(http.StatusUnprocessableEntity, i18n.T("web.error.project_unknown"))
+		return Environment{}, hqRefuse(http.StatusUnprocessableEntity, i18n.T("web.error.project_unknown"))
 	}
 	return h.act.envAt(want)
 }
@@ -269,7 +268,7 @@ func (h *hqRead) StartLaunch(in HQLaunchIn) (HQLaunch, error) {
 	return result.launch, result.err
 }
 
-func (h *hqRead) startInput(env team.Env, in HQLaunchIn) StartInput {
+func (h *hqRead) startInput(env Environment, in HQLaunchIn) StartInput {
 	definition, _ := domainname.ParseDefinitionName(in.Definition)
 	return StartInput{Env: env, Definition: definition, Name: in.Name, Place: in.Place,
 		Workspace: WorkspaceInput{ID: in.Workspace.ID, New: in.Workspace.New}, ProjectName: h.projectNameIn(env.ProjectRoot), Timeout: 30000, Port: h.act.herdrPort(), Locks: h.locks}
@@ -290,32 +289,32 @@ func (h *hqRead) finishOperation(ctx context.Context, op *launchOp, err error) {
 // startProjectEnv is a project a start may run in: one config.yaml lists, or the
 // project serve started in when the config lists none. A start is the
 // headquarters acting on a listed project, not a way to reach any directory.
-func (h *hqRead) startProjectEnv(input domainplace.Input) (team.Env, error) {
+func (h *hqRead) startProjectEnv(input domainplace.Input) (Environment, error) {
 	paths, present, err := h.listedProjects()
 	if err != nil {
-		return team.Env{}, hqError(err)
+		return Environment{}, hqError(err)
 	}
 	if !present {
 		return h.projectEnv(h.act.env.ProjectRoot)
 	}
 	want, err := projectinput.Read(input)
 	if err != nil {
-		return team.Env{}, hqRefuse(http.StatusUnprocessableEntity, err.Error())
+		return Environment{}, hqRefuse(http.StatusUnprocessableEntity, err.Error())
 	}
 	if !h.isListedProject(paths, want) {
-		return team.Env{}, hqRefuse(http.StatusUnprocessableEntity, i18n.T("web.error.project_unknown"))
+		return Environment{}, hqRefuse(http.StatusUnprocessableEntity, i18n.T("web.error.project_unknown"))
 	}
 	return h.act.envAt(want)
 }
 
 // startName and startWorkspace are read-only operation adapters used by the
 // start sheet. StartTeam repeats their preconditions under its start lock.
-func (h *hqRead) startName(in HQLaunchIn, env team.Env) (string, error) {
-	name, err := CheckStartName(h.startInput(env, in))
+func (h *hqRead) startName(in HQLaunchIn, env Environment) (string, error) {
+	name, err := checkStartName(h.startInput(env, in))
 	return name, hqOperationError(err)
 }
-func (h *hqRead) startWorkspace(in HQWorkspaceIn, env team.Env) (HQWorkspace, error) {
-	workspace, err := ChooseWorkspace(env, WorkspaceInput{ID: in.ID, New: in.New}, h.act.herdrPort())
+func (h *hqRead) startWorkspace(in HQWorkspaceIn, env Environment) (HQWorkspace, error) {
+	workspace, err := chooseWorkspace(env, WorkspaceInput{ID: in.ID, New: in.New}, h.act.herdrPort())
 	return HQWorkspace{ID: workspace.ID, Label: workspace.Label}, hqOperationError(err)
 }
 
@@ -421,7 +420,7 @@ func (h *hqRead) activeLaunch(teamName string) (string, bool) {
 }
 
 // runStart runs one start in the background and keeps its progress.
-func (h *hqRead) runStart(ctx context.Context, op *launchOp, env team.Env, _ *Resolved, in HQLaunchIn, workspace HQWorkspace) {
+func (h *hqRead) runStart(ctx context.Context, op *launchOp, env Environment, _ *Resolved, in HQLaunchIn, workspace HQWorkspace) {
 	input := h.startInput(env, in)
 	input.Workspace = WorkspaceInput{ID: workspace.ID}
 	input.Observe = func(event Event) {
@@ -436,7 +435,6 @@ func (h *hqRead) runStart(ctx context.Context, op *launchOp, env team.Env, _ *Re
 // startCommand is the hergy up the start is the same as, made from the
 // definition and the name it runs under. A startup question and its progress use
 // the one function, so the two never name a different command (r-b7e1).
-func startCommand(definition, name string) string { return StartCommand(definition, name) }
 
 // subject is what a launch's last line is about: the team a start booted, or the
 // members a refresh started (r-5d1a). Both read 起動しました, as hergy calls it.

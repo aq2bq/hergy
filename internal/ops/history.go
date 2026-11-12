@@ -2,11 +2,11 @@ package ops
 
 import (
 	domainplace "github.com/aq2bq/hergy/internal/domain/place"
-	"github.com/aq2bq/hergy/internal/launchlog"
+	"github.com/aq2bq/hergy/internal/ops/internal/launchlog"
 )
 
-// ReadLaunchRecords reads the machine's history, oldest first.
-func ReadLaunchRecords() ([]launchlog.Record, error) {
+// readLaunchRecords reads the machine's history, oldest first.
+func readLaunchRecords() ([]launchlog.Record, error) {
 	log, err := launchlog.Open()
 	if err != nil {
 		return nil, err
@@ -14,8 +14,8 @@ func ReadLaunchRecords() ([]launchlog.Record, error) {
 	return log.Read()
 }
 
-// LatestLaunch reads the newest launch of an exact team.yaml path.
-func LatestLaunch(path domainplace.Project) (launchlog.Record, bool, error) {
+// latestLaunch reads the newest launch of an exact team.yaml path.
+func latestLaunch(path domainplace.Project) (launchlog.Record, bool, error) {
 	log, err := launchlog.Open()
 	if err != nil {
 		return launchlog.Record{}, false, err
@@ -23,8 +23,8 @@ func LatestLaunch(path domainplace.Project) (launchlog.Record, bool, error) {
 	return log.Latest(path)
 }
 
-// RecordedPromptText reads a previously recorded prompt body.
-func RecordedPromptText(hash string) ([]byte, error) {
+// recordedPromptText reads a previously recorded prompt body.
+func recordedPromptText(hash string) ([]byte, error) {
 	log, err := launchlog.Open()
 	if err != nil {
 		return nil, err

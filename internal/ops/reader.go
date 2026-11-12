@@ -5,13 +5,12 @@ import (
 	"time"
 
 	"github.com/aq2bq/hergy/internal/source"
-	"github.com/aq2bq/hergy/internal/team"
 )
 
 // ReaderInput supplies one serve lifetime, its sources and clock.
 type ReaderInput struct {
 	UseSocket bool
-	Env       team.Env
+	Env       Environment
 	Source    source.Reader
 	Now       func() time.Time
 	Context   context.Context

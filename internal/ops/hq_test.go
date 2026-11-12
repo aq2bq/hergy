@@ -11,10 +11,12 @@ import (
 	"testing"
 	"time"
 
+	observedplace "github.com/aq2bq/hergy/internal/ops/internal/place"
+
 	domainplace "github.com/aq2bq/hergy/internal/domain/place"
 	"github.com/aq2bq/hergy/internal/i18n"
-	"github.com/aq2bq/hergy/internal/launchlog"
-	"github.com/aq2bq/hergy/internal/team" // hqHerdr is a fake herdr with two workspaces and two teams, one in each. It
+	"github.com/aq2bq/hergy/internal/ops/internal/launchlog"
+	"github.com/aq2bq/hergy/internal/ops/internal/team" // hqHerdr is a fake herdr with two workspaces and two teams, one in each. It
 	// answers the calls the headquarters makes: the tabs with their workspace, the
 	// panes hergy named, the agents, the workspaces, and the calls a raise makes (a
 	// member with no pane is given one in the team's tab). Every call is written to
@@ -58,7 +60,7 @@ esac
 
 // hqFixture is the fixture with another project listed beside the current one,
 // and a launch record of the team in each.
-func hqFixture(t *testing.T) (*fixture, team.Env, string) {
+func hqFixture(t *testing.T) (*fixture, Environment, string) {
 	t.Helper()
 	f := newFixture(t)
 	mustRun(t, "new", "core")
@@ -79,8 +81,8 @@ func hqFixture(t *testing.T) (*fixture, team.Env, string) {
 	} {
 		if err := log.Append(launchlog.Record{
 			Time: "2026-10-24T09:00:00+09:00", Command: launchlog.CommandUp,
-			Project: domainplace.Observe(one.project), Layer: "local", Definition: one.teamName, Team: fixtureSeen(one.teamName),
-			TeamYAML:    domainplace.Observe(filepath.Join(one.project, ".hergy", "teams", one.teamName, "team.yaml")),
+			Project: observedplace.Observe(one.project), Layer: "local", Definition: one.teamName, Team: fixtureSeen(one.teamName),
+			TeamYAML:    observedplace.Observe(filepath.Join(one.project, ".hergy", "teams", one.teamName, "team.yaml")),
 			Workspace:   map[string]string{f.proj: "proj-dev", other: "ledger-dev"}[one.project],
 			WorkspaceID: map[string]string{f.proj: "w1", other: "w2"}[one.project],
 		}); err != nil {
@@ -256,7 +258,7 @@ func TestLaunchOptionsCarriesTheDescription(t *testing.T) {
 
 // catGlobalDefs is how many team definitions the global layer holds, for a test
 // that does not want to write the number down.
-func catGlobalDefs(t *testing.T, env team.Env) []string {
+func catGlobalDefs(t *testing.T, env Environment) []string {
 	t.Helper()
 	dir := filepath.Join(env.GlobalDir, "teams")
 	entries, err := os.ReadDir(dir)
@@ -727,8 +729,8 @@ func TestActivityKeepsTheLaunchDefinitionPlace(t *testing.T) {
 			log := launchlog.At(filepath.Join(f.state, "hergy", "launches"))
 			if err := log.Append(launchlog.Record{
 				Time: "2026-11-05T09:00:00+09:00", Command: launchlog.CommandUp,
-				Project: domainplace.Observe(f.proj), Layer: "global", Definition: "blueprint", Team: fixtureSeen("core"),
-				TeamYAML: domainplace.Observe(filepath.Join(global, "team.yaml")),
+				Project: observedplace.Observe(f.proj), Layer: "global", Definition: "blueprint", Team: fixtureSeen("core"),
+				TeamYAML: observedplace.Observe(filepath.Join(global, "team.yaml")),
 			}); err != nil {
 				t.Fatal(err)
 			}

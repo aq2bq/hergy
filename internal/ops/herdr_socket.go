@@ -5,8 +5,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/aq2bq/hergy/internal/herdr"
-	"github.com/aq2bq/hergy/internal/herdrcli"
+	"github.com/aq2bq/hergy/internal/ops/internal/herdr"
+	"github.com/aq2bq/hergy/internal/ops/internal/herdrcli"
 )
 
 // serveHerdrPort resolves the socket on the first read. A failed lookup is

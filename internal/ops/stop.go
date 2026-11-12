@@ -11,14 +11,13 @@ import (
 
 	domainname "github.com/aq2bq/hergy/internal/domain/name"
 	domainplace "github.com/aq2bq/hergy/internal/domain/place"
-	"github.com/aq2bq/hergy/internal/herdr"
-	"github.com/aq2bq/hergy/internal/herdrcli"
 	"github.com/aq2bq/hergy/internal/i18n"
-	"github.com/aq2bq/hergy/internal/launcher"
-	"github.com/aq2bq/hergy/internal/screenlog"
+	"github.com/aq2bq/hergy/internal/ops/internal/herdrcli"
+	"github.com/aq2bq/hergy/internal/ops/internal/launcher"
+	"github.com/aq2bq/hergy/internal/ops/internal/screenlog"
+	"github.com/aq2bq/hergy/internal/ops/internal/team"
+	"github.com/aq2bq/hergy/internal/ops/internal/turns"
 	"github.com/aq2bq/hergy/internal/source"
-	"github.com/aq2bq/hergy/internal/team"
-	"github.com/aq2bq/hergy/internal/turns"
 )
 
 // StopInput describes execution, not presentation. A screen supplies its port
@@ -26,7 +25,7 @@ import (
 // pass through the same resolution and leftover reading as execution.
 type StopInput struct {
 	Locks           *OperationLocks
-	Env             team.Env
+	Env             Environment
 	Target          StopTarget
 	Layer           string
 	Timeout         int
@@ -35,7 +34,7 @@ type StopInput struct {
 	ManagedPane     bool
 	Dry             bool
 	PlanOnly        bool
-	Port            herdr.Port
+	Port            Port
 	Now             func() time.Time
 	Pause           func(time.Duration)
 	PendingLaunches func(func(PendingLaunch))
@@ -53,7 +52,7 @@ type StopEvent struct {
 // StopPlan is the input's resolved provenance and names, shared by text, JSON
 // and the screen's confirmation. Built is absent when closing needs no definition.
 type StopPlan struct {
-	Team         team.Running
+	Team         TeamIdentity
 	Built        *Resolved
 	Reason       error
 	Stopped      bool
@@ -83,7 +82,7 @@ type StopResult struct {
 	ShowHeader   bool
 	OperationErr error
 	Started      bool
-	Leftovers    team.Leftovers
+	Leftovers    Leftovers
 	HasLeftovers bool
 }
 
@@ -101,7 +100,7 @@ func StopTeam(ctx context.Context, in StopInput) (out StopResult, err error) {
 	plan := &out.Plan
 	dirs := teamPaneDirs(in.Target.tabs, plan.Team.Team.Observation())
 	if in.PlanOnly {
-		out.Leftovers = team.GitLeftovers(plan.Project, plan.Owner.Since, dirs)
+		out.Leftovers = readLeftovers(plan.Project, plan.Owner.Since, dirs)
 		out.HasLeftovers = true
 		out.ShowHeader = plan.Reason != nil
 		if out.ShowHeader {
@@ -116,7 +115,7 @@ func StopTeam(ctx context.Context, in StopInput) (out StopResult, err error) {
 		stopEvent(in, StopEvent{Plan: plan})
 	}
 	if plan.Stopped || plan.Reason != nil {
-		out.PluginNote = PluginNote()
+		out.PluginNote = pluginNote()
 		stopEvent(in, StopEvent{Text: out.PluginNote})
 	}
 	if !in.Dry && in.RequirePane && (!in.ManagedPane || in.SelfPane == "") {
@@ -127,7 +126,7 @@ func StopTeam(ctx context.Context, in StopInput) (out StopResult, err error) {
 		stopEvent(in, StopEvent{Plan: plan})
 	}
 	if !plan.Stopped && plan.Reason == nil {
-		out.PluginNote = PluginNote()
+		out.PluginNote = pluginNote()
 		stopEvent(in, StopEvent{Text: out.PluginNote})
 	}
 	text := &stopText{observe: in.Observe}
@@ -144,11 +143,12 @@ func StopTeam(ctx context.Context, in StopInput) (out StopResult, err error) {
 	out.Output, out.Closed = text.String(), closedOf(l.ClosedPanes())
 	if in.Dry {
 		if closeErr == nil {
-			out.Leftovers = team.GitLeftovers(plan.Project, plan.Owner.Since, dirs)
+			out.Leftovers = readLeftovers(plan.Project, plan.Owner.Since, dirs)
 			out.HasLeftovers = true
 		}
 		return out, closeErr
 	}
+	closeErr = stopFailure(closeErr)
 	out.Started, out.OperationErr = true, closeErr
 	if ctx.Err() != nil {
 		return out, context.Canceled
@@ -161,7 +161,7 @@ func StopTeam(ctx context.Context, in StopInput) (out StopResult, err error) {
 			return out, closeErr
 		}
 	}
-	out.Leftovers = team.GitLeftovers(plan.Project, plan.Owner.Since, dirs)
+	out.Leftovers = readLeftovers(plan.Project, plan.Owner.Since, dirs)
 	out.HasLeftovers = true
 	cleanupErr := clearTurn(plan.Team.Team.String())
 	in.Locks.CancelTeam(plan.Team.Team.String())
@@ -175,9 +175,9 @@ func StopTeam(ctx context.Context, in StopInput) (out StopResult, err error) {
 func teamStopPlan(in StopInput) StopPlan {
 	chosen := in.Target.team
 	project := stopProject(chosen.Project, in.Env.ProjectRoot)
-	plan := StopPlan{Team: chosen, Project: project, Stopped: in.Target.stopped,
+	plan := StopPlan{Team: TeamIdentity(chosen), Project: project, Stopped: in.Target.stopped,
 		Workers: workerNamesOf(in.Target.tabs, chosen.Team.Observation()), Owner: teamLeftovers(project, chosen.Team.String())}
-	plan.Built, plan.Reason = BuildRunningIn(in.Env.Catalog(source.Disk{}), in.Env.ProjectRoot, chosen, in.Layer)
+	plan.Built, plan.Reason = buildRunningIn(in.Env.Catalog(source.Disk{}), in.Env.ProjectRoot, chosen, in.Layer)
 	if plan.Built != nil {
 		for _, start := range plan.Built.Starts {
 			plan.MemberLabels = append(plan.MemberLabels, start.Short.String())
@@ -206,13 +206,13 @@ func teamStopPlan(in StopInput) StopPlan {
 func stopLauncher(ctx context.Context, in StopInput, plan *StopPlan, text io.Writer) *launcher.Launcher {
 	r := plan.Built
 	if r == nil {
-		r = &Resolved{Team: team.Team{Name: plan.Team.Team}}
+		r = &Resolved{Team: ResolvedTeam{Name: plan.Team.Team}}
 	}
 	port := in.Port
 	if port == nil {
 		port = herdrcli.New(os.Getenv("HERGY_HERDR"))
 	}
-	return NewLauncherWithPort(r, in.Timeout, text, stopPort{Port: port, ctx: ctx}).WithWaitClock(in.Now, stopPause(ctx, in.Pause))
+	return newLauncherWithPort(r, in.Timeout, text, stopPort{Port: port, ctx: ctx}).WithWaitClock(in.Now, stopPause(ctx, in.Pause))
 }
 
 // StopWorker closes one worker and lists its leftovers; it never clears the
@@ -223,18 +223,18 @@ func StopWorker(ctx context.Context, in StopInput) (out StopResult, err error) {
 		return out, i18n.Errorf("error.unhandled_command")
 	}
 	project := stopProject(in.Target.team.Project, in.Env.ProjectRoot)
-	out.Plan = StopPlan{Team: team.Running{Team: domainname.TeamFromObservation(worker.Team)},
+	out.Plan = StopPlan{Team: TeamIdentity{Team: domainname.TeamFromObservation(worker.Team)},
 		Project: project, Worker: &StoppedWorker{Team: worker.Team, Herdr: worker.Herdr},
 		Workers: []domainname.Seen{worker.Herdr}, Owner: workerLeftovers(project, worker.Team.String(), worker.Herdr.String())}
 	dirs := workerPaneDirs(in.Target.tabs, worker.Label)
 	if in.PlanOnly {
-		out.Leftovers = team.GitLeftovers(project, out.Plan.Owner.Since, dirs)
+		out.Leftovers = readLeftovers(project, out.Plan.Owner.Since, dirs)
 		out.HasLeftovers = true
 		return out, nil
 	}
 	out.ShowHeader = true
 	stopEvent(in, StopEvent{Plan: &out.Plan})
-	out.PluginNote = PluginNote()
+	out.PluginNote = pluginNote()
 	stopEvent(in, StopEvent{Text: out.PluginNote})
 	if !in.Dry && in.RequirePane && (!in.ManagedPane || in.SelfPane == "") {
 		return out, i18n.Errorf("error.not_under_herdr")
@@ -254,7 +254,7 @@ func StopWorker(ctx context.Context, in StopInput) (out StopResult, err error) {
 		stopEvent(in, StopEvent{Failure: err})
 	}
 	if err == nil {
-		out.Leftovers = team.GitLeftovers(project, out.Plan.Owner.Since, dirs)
+		out.Leftovers = readLeftovers(project, out.Plan.Owner.Since, dirs)
 		out.HasLeftovers = true
 	}
 	return out, err

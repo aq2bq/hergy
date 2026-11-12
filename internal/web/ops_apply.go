@@ -1,7 +1,6 @@
 package web
 
 import (
-	"github.com/aq2bq/hergy/internal/deliver"
 	"github.com/aq2bq/hergy/internal/ops"
 )
 
@@ -13,7 +12,7 @@ func ApplyDTO(in ops.ApplyList) ApplyList {
 		for _, member := range team.Members {
 			changes := member.Changes
 			if changes == nil {
-				changes = []deliver.Change{}
+				changes = []ops.Change{}
 			}
 			row.Members = append(row.Members, ApplyMember{Name: member.Name, Short: member.Short, Role: member.Role, State: member.State, How: string(member.How), Changes: changes, CanApply: member.CanApply, WhyNot: member.WhyNot, ConversationLost: member.ConversationLost})
 		}

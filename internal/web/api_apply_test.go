@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aq2bq/hergy/internal/deliver"
+	"github.com/aq2bq/hergy/internal/ops"
 )
 
 // fakeApply is an activity reading that also knows the drift answer, so the
@@ -36,11 +36,11 @@ func TestApplyAPIAnswersTheCountAndTheDrift(t *testing.T) {
 				{
 					Name: "demo-lead", Short: "lead", Role: "lead", State: "idle",
 					How: ApplyResend, CanApply: true,
-					Changes: []deliver.Change{{Kind: "rule", Document: "demo/agreement.md", Text: "TEAM-1 を直した"}},
+					Changes: []ops.Change{{Kind: "rule", Document: "demo/agreement.md", Text: "TEAM-1 を直した"}},
 				},
 				{
 					Name: "demo-builder", Short: "builder", Role: "builder", State: "absent",
-					How: ApplyStart, CanApply: true, Changes: []deliver.Change{},
+					How: ApplyStart, CanApply: true, Changes: []ops.Change{},
 				},
 			},
 		}},

@@ -10,8 +10,8 @@ import (
 	"testing"
 
 	"github.com/aq2bq/hergy/internal/i18n"
+	"github.com/aq2bq/hergy/internal/ops/internal/team"
 	"github.com/aq2bq/hergy/internal/options"
-	"github.com/aq2bq/hergy/internal/team"
 	"go.uber.org/goleak"
 )
 
@@ -37,6 +37,7 @@ func Run(args []string, stdout, stderr io.Writer) int {
 	lang, _ := i18n.Resolve(options.ScanLang(args), configured)
 	_ = i18n.Use(lang)
 	cmd := exec.Command(fixtureCLI, args...)
+	cmd.Stdin = os.Stdin
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr
 	if err := cmd.Run(); err != nil {

@@ -14,7 +14,7 @@ import (
 
 	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/i18n"
-	"github.com/aq2bq/hergy/internal/launchlog"
+	"github.com/aq2bq/hergy/internal/ops/internal/launchlog"
 	"github.com/aq2bq/hergy/internal/source"
 )
 
@@ -386,7 +386,7 @@ func (h *hqRead) runningIn(path domainplace.Project) int {
 
 // launchRecords is this machine's launch record, oldest first.
 func (h *hqRead) launchRecords() []launchlog.Record {
-	records, err := ReadLaunchRecords()
+	records, err := readLaunchRecords()
 	if err != nil {
 		return nil
 	}

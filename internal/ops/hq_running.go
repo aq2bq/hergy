@@ -9,10 +9,10 @@ import (
 	domainname "github.com/aq2bq/hergy/internal/domain/name"
 
 	"github.com/aq2bq/hergy/internal/activity"
-	"github.com/aq2bq/hergy/internal/herdr"
 	"github.com/aq2bq/hergy/internal/i18n"
+	"github.com/aq2bq/hergy/internal/ops/internal/herdr"
 
-	"github.com/aq2bq/hergy/internal/team"
+	"github.com/aq2bq/hergy/internal/ops/internal/team"
 )
 
 // This file is the running teams and the workspaces as the headquarters reads
@@ -37,7 +37,7 @@ func (h *hqRead) Running() HQRunning {
 
 // runningOf is one running team as the headquarters names it.
 func (h *hqRead) runningOf(one runningTeam, read herdrNow, now time.Time) HQRunningTeam {
-	judged := judgeOf(one, read, now)
+	judged := judgeRead(one, read, now)
 	teamName := one.Name
 	out := HQRunningTeam{
 		Team:        domainname.TeamFromObservation(teamName),
@@ -134,7 +134,7 @@ func (h *hqRead) lastTeamsByWorkspace() map[string]string {
 // team.yaml its launch read, so two projects' same-named definitions do not take
 // each other's launch (M1).
 func (h *hqRead) lastWorkspaceOf(read herdrNow, teamYAML domainplace.Project) *HQWorkspace {
-	record, ok, err := LatestLaunch(teamYAML)
+	record, ok, err := latestLaunch(teamYAML)
 	if err != nil || !ok || record.WorkspaceID == "" {
 		return nil
 	}

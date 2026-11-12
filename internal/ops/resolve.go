@@ -13,24 +13,28 @@ import (
 	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/definition"
 	domainname "github.com/aq2bq/hergy/internal/domain/name"
-	"github.com/aq2bq/hergy/internal/herdr"
-	"github.com/aq2bq/hergy/internal/herdrcli"
 	"github.com/aq2bq/hergy/internal/i18n"
-	"github.com/aq2bq/hergy/internal/launchlog"
+	"github.com/aq2bq/hergy/internal/ops/internal/herdr"
+	"github.com/aq2bq/hergy/internal/ops/internal/herdrcli"
+	"github.com/aq2bq/hergy/internal/ops/internal/launchlog"
+	"github.com/aq2bq/hergy/internal/ops/internal/protocol"
+	"github.com/aq2bq/hergy/internal/ops/internal/team"
 	"github.com/aq2bq/hergy/internal/options"
 	"github.com/aq2bq/hergy/internal/profile"
 	"github.com/aq2bq/hergy/internal/prompt"
-	"github.com/aq2bq/hergy/internal/protocol"
 	"github.com/aq2bq/hergy/internal/source"
-	"github.com/aq2bq/hergy/internal/team"
 )
+
+// ResolvedTeam is the selected identity and its definition.
+type ResolvedTeam team.Team
 
 // Resolved is one team definition read for a command: the team (the definition
 // and the name it runs under), the members as starts, and where the values came
 // from.
+// ResolvedTeam is a definition and the identity under which it runs.
 type Resolved struct {
 	Project      domainplace.Project
-	Team         team.Team
+	Team         ResolvedTeam
 	Starts       []definition.Start
 	Profiles     map[string]profile.Profile
 	ProfilesYAML string
@@ -58,24 +62,24 @@ func BuildResolved(cat *catalog.Catalog, base domainplace.Project, def *definiti
 	if err != nil {
 		return nil, err
 	}
-	starts, err := StartsOf(cat, def, runName, base, profiles, cat.Reader())
+	starts, err := startsOf(cat, def, runName, base, profiles, cat.Reader())
 	if err != nil {
 		return nil, err
 	}
 	model, _ := domainname.ParseTeamName(runName)
 	return &Resolved{
 		Project:      base,
-		Team:         team.Team{Name: model.Ref(), Definition: def},
+		Team:         ResolvedTeam{Name: model.Ref(), Definition: def},
 		Starts:       starts,
 		Profiles:     profiles,
 		ProfilesYAML: profilesYAML,
 	}, nil
 }
 
-// Executable is the hergy binary a member's prompt names in its hire command:
+// executable is the hergy binary a member's prompt names in its hire command:
 // this process's own path, or "hergy" when it cannot be read. The launch record
 // keeps it, so a prompt rebuilt later names the same binary (C9).
-func Executable() string {
+func executable() string {
 	path, err := os.Executable()
 	if err != nil || path == "" {
 		return "hergy"
@@ -83,16 +87,16 @@ func Executable() string {
 	return path
 }
 
-// StartsOf builds the running members: the frame of each member, the engine its
+// startsOf builds the running members: the frame of each member, the engine its
 // profile names, and the prompt hergy hands it (a projection of the definition
 // and the catalog).
-func StartsOf(cat *catalog.Catalog, def *definition.Definition, runName string, base domainplace.Project, profiles map[string]profile.Profile, reader source.Reader) ([]definition.Start, error) {
+func startsOf(cat *catalog.Catalog, def *definition.Definition, runName string, base domainplace.Project, profiles map[string]profile.Profile, reader source.Reader) ([]definition.Start, error) {
 	d, _ := domainname.ParseDefinitionName(runName)
 	names := domainname.DefinitionNames(d)
 	if model, err := d.Team(); err == nil {
 		names = domainname.RunningNames(model.Ref())
 	}
-	run := prompt.Run{Team: names, Executable: Executable(), Base: base, Reader: reader, Sources: cat, Display: cat.Display}
+	run := prompt.Run{Team: names, Executable: executable(), Base: base, Reader: reader, Sources: cat, Display: cat.Display}
 	starts := make([]definition.Start, 0, len(def.Graph.Members))
 	for i := range def.Graph.Members {
 		node := &def.Graph.Members[i]
@@ -138,7 +142,7 @@ func StartsOf(cat *catalog.Catalog, def *definition.Definition, runName string, 
 			Workers:  workersOf(def, node.Name.String()),
 			Turns:    turnsOf(def, node.Name.String()),
 		})
-		WireStart(&starts[len(starts)-1], runName)
+		wireStart(&starts[len(starts)-1], runName)
 	}
 	return starts, nil
 }
@@ -213,11 +217,11 @@ func (r *Resolved) ModelTeamName() domainname.TeamName {
 	return model
 }
 
-// ResolveTeam finds a running team by its team name (down, status, refresh,
+// resolveTeam finds a running team by its team name (down, status, refresh,
 // reprompt, hire) and builds the team definition it was booted from. An empty
 // name picks the one running team, or stops and names the candidates.
-func ResolveTeam(cat *catalog.Catalog, base domainplace.Project, opts *options.Options) (*Resolved, error) {
-	running, err := RunningTeams()
+func resolveTeam(cat *catalog.Catalog, base domainplace.Project, opts *options.Options) (*Resolved, error) {
+	running, err := runningTeams()
 	if err != nil {
 		return nil, err
 	}
@@ -234,7 +238,7 @@ func ResolveTeam(cat *catalog.Catalog, base domainplace.Project, opts *options.O
 		return nil, err
 	}
 	chosen, _ := team.FindRunning(running, selected.String())
-	return BuildRunning(cat, base, chosen)
+	return buildRunning(cat, base, chosen)
 }
 
 // teamOfPane is the running team whose member or worker runs in the pane hergy
@@ -248,11 +252,11 @@ func teamOfPane(running []team.Running, selfPane domainname.PaneID) domainname.S
 	if err != nil {
 		return domainname.Seen{}
 	}
-	return TeamOfAgent(running, agent.Name)
+	return teamOfAgent(running, agent.Name)
 }
 
-// TeamOfAgent is the running team an agent's herdr name belongs to, or "".
-func TeamOfAgent(running []team.Running, agentName domainname.Seen) domainname.Seen {
+// teamOfAgent is the running team an agent's herdr name belongs to, or "".
+func teamOfAgent(running []team.Running, agentName domainname.Seen) domainname.Seen {
 	known := make([]domainname.Seen, len(running))
 	for i, one := range running {
 		known[i] = one.Team.Observation()
@@ -264,13 +268,13 @@ func TeamOfAgent(running []team.Running, agentName domainname.Seen) domainname.S
 	return teamName
 }
 
-// ResolveTeamDry finds the team a hire --dry plans for without reading herdr, so
+// resolveTeamDry finds the team a hire --dry plans for without reading herdr, so
 // a plan can be made for a team that is not running (r-fe31). --team names a
 // team; when this project's launch record knows that name, the record says which
 // definition it stood on, and a name the record does not know is taken as a team
 // definition name. With no name, the one team the record holds is taken, and
 // nothing else is: herdr is not read to choose.
-func ResolveTeamDry(cat *catalog.Catalog, base domainplace.Project, opts *options.Options) (*Resolved, error) {
+func resolveTeamDry(cat *catalog.Catalog, base domainplace.Project, opts *options.Options) (*Resolved, error) {
 	recorded := recordedDefinitions(base)
 	name := opts.Team.String()
 	if name == "" {
@@ -327,16 +331,16 @@ func dryTeamError(recorded map[string]string) error {
 	return i18n.Errorf("error.dry_team_candidates", strings.Join(names, i18n.T("list.separator")))
 }
 
-// BuildRunning resolves one running team's definition and builds the members
+// buildRunning resolves one running team's definition and builds the members
 // under the team's run name.
-func BuildRunning(cat *catalog.Catalog, base domainplace.Project, running team.Running) (*Resolved, error) {
-	return BuildRunningIn(cat, base, running, "")
+func buildRunning(cat *catalog.Catalog, base domainplace.Project, running team.Running) (*Resolved, error) {
+	return buildRunningIn(cat, base, running, "")
 }
 
-// BuildRunningIn builds a running team from the layer its launch record names: a
+// buildRunningIn builds a running team from the layer its launch record names: a
 // global definition started in a project whose layer holds a same-named one is
 // still the global definition (d-73fc, M1).
-func BuildRunningIn(cat *catalog.Catalog, base domainplace.Project, running team.Running, layer string) (*Resolved, error) {
+func buildRunningIn(cat *catalog.Catalog, base domainplace.Project, running team.Running, layer string) (*Resolved, error) {
 	def, err := cat.Definition(running.Definition, layer)
 	if err != nil {
 		return nil, err
@@ -344,22 +348,22 @@ func BuildRunningIn(cat *catalog.Catalog, base domainplace.Project, running team
 	return BuildResolved(cat, base, def, running.Team.String())
 }
 
-// RunningTeams reads herdr's tabs and this machine's launch record, and returns
+// runningTeams reads herdr's tabs and this machine's launch record, and returns
 // the running teams.
-func RunningTeams() ([]team.Running, error) {
-	tabs, agentsRead, err := HerdrTabs()
+func runningTeams() ([]team.Running, error) {
+	tabs, agentsRead, err := herdrTabs()
 	if err != nil {
 		return nil, err
 	}
-	return team.RunningTeams(tabs, LaunchTeams(), agentsRead), nil
+	return team.RunningTeams(tabs, launchTeams(), agentsRead), nil
 }
 
-// LaunchTeams is this machine's launch record as the team name and the team
+// launchTeams is this machine's launch record as the team name and the team
 // definition of each launch, oldest first. It is how a running team is
 // recognized (a tab is labelled with the team's name alone) and how the
 // definition behind it is found (d-a72d). A record that cannot be read leaves
 // the older "team:<team>@<definition>" labels as the only way a team is found.
-func LaunchTeams() []team.Launch {
+func launchTeams() []team.Launch {
 	log, err := launchlog.Open()
 	if err != nil {
 		return nil
@@ -378,16 +382,16 @@ func LaunchTeams() []team.Launch {
 	return out
 }
 
-// HerdrTabs reads the tabs herdr reports, each with the live agents in it. It is
+// herdrTabs reads the tabs herdr reports, each with the live agents in it. It is
 // how a team command tells hergy's own tabs apart and finds the team definition
-// behind a running team name; HerdrRead is the one read behind it and behind the
+// behind a running team name; herdrRead is the one read behind it and behind the
 // activity screen.
-func HerdrTabs() (tabs []team.Tab, agentsRead bool, err error) {
-	tabs, _, agentsRead, err = HerdrRead()
+func herdrTabs() (tabs []team.Tab, agentsRead bool, err error) {
+	tabs, _, agentsRead, err = herdrRead()
 	return tabs, agentsRead, err
 }
 
-// HerdrRead is one read of herdr: the tabs, each with the live agents in it, and
+// herdrRead is one read of herdr: the tabs, each with the live agents in it, and
 // the live agents themselves, with the state they are in. It is what hergy status
 // reads a running team from and what the activity screen reads, so both see the
 // same herdr (6 A1).
@@ -397,44 +401,44 @@ func HerdrTabs() (tabs []team.Tab, agentsRead bool, err error) {
 // are guessed at from the record, rather than lost. agentsRead says whether the
 // agent list could be read at all — with no agent names, the launch record is the
 // best guess left at which tab is a team's.
-func HerdrRead() (tabs []team.Tab, agents []protocol.Agent, agentsRead bool, err error) {
-	list, err := HerdrTabList()
+func herdrRead() (tabs []team.Tab, agents []protocol.Agent, agentsRead bool, err error) {
+	list, err := herdrTabList()
 	if err != nil {
 		return nil, nil, false, err
 	}
-	panes, _ := HerdrPanes()
-	agents, err = HerdrAgents()
+	panes, _ := herdrPanes()
+	agents, err = herdrAgents()
 	if err != nil {
-		return TeamTabs(list, nil, panes), nil, false, nil
+		return teamTabs(list, nil, panes), nil, false, nil
 	}
-	return TeamTabs(list, agents, panes), agents, true, nil
+	return teamTabs(list, agents, panes), agents, true, nil
 }
 
-// HerdrPanes reads the labels hergy gave the panes, the way down finds a team
+// herdrPanes reads the labels hergy gave the panes, the way down finds a team
 // whose members are not running (d-da92). A read that fails leaves the panes
 // unknown: the live agents still say whose a tab is.
-func HerdrPanes() ([]protocol.Pane, error) {
+func herdrPanes() ([]protocol.Pane, error) {
 	port := herdrcli.New(os.Getenv("HERGY_HERDR"))
 	return herdr.New(port).Panes()
 }
 
-// HerdrSpaceList reads herdr's workspaces, with their labels and ids.
-func HerdrSpaceList() ([]herdr.Workspace, error) {
+// herdrSpaceList reads herdr's workspaces, with their labels and ids.
+func herdrSpaceList() ([]herdr.Workspace, error) {
 	port := herdrcli.New(os.Getenv("HERGY_HERDR"))
 	return herdr.New(port).Workspaces()
 }
 
-// HerdrAgents reads the live agents herdr reports.
-func HerdrAgents() ([]protocol.Agent, error) {
+// herdrAgents reads the live agents herdr reports.
+func herdrAgents() ([]protocol.Agent, error) {
 	port := herdrcli.New(os.Getenv("HERGY_HERDR"))
 	return herdr.New(port).LiveAgents()
 }
 
-// TeamTabs pairs herdr's tabs with the names of the live agents and of the named
+// teamTabs pairs herdr's tabs with the names of the live agents and of the named
 // panes in each, which is what tells hergy's own tabs apart: hergy names a
 // member's agent and pane "<team>-<member>". A pane that is there without its
 // agent still says the tab is the team's (d-da92).
-func TeamTabs(tabs []protocol.Tab, agents []protocol.Agent, panes []protocol.Pane) []team.Tab {
+func teamTabs(tabs []protocol.Tab, agents []protocol.Agent, panes []protocol.Pane) []team.Tab {
 	inTab := map[string][]domainname.Seen{}
 	for _, agent := range agents {
 		if agent.Name.String() != "" && agent.TabID != "" {
@@ -459,8 +463,8 @@ func TeamTabs(tabs []protocol.Tab, agents []protocol.Agent, panes []protocol.Pan
 	return out
 }
 
-// HerdrTabList lists the tabs herdr reports, with the labels a team is found by.
-func HerdrTabList() ([]protocol.Tab, error) {
+// herdrTabList lists the tabs herdr reports, with the labels a team is found by.
+func herdrTabList() ([]protocol.Tab, error) {
 	port := herdrcli.New(os.Getenv("HERGY_HERDR"))
 	return herdr.New(port).Tabs()
 }

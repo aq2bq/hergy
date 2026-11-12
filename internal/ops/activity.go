@@ -15,13 +15,13 @@ import (
 
 	"github.com/aq2bq/hergy/internal/activity"
 	"github.com/aq2bq/hergy/internal/definition"
-	"github.com/aq2bq/hergy/internal/herdr"
-	"github.com/aq2bq/hergy/internal/herdrcli"
 	"github.com/aq2bq/hergy/internal/i18n"
-	"github.com/aq2bq/hergy/internal/protocol"
+	"github.com/aq2bq/hergy/internal/ops/internal/herdr"
+	"github.com/aq2bq/hergy/internal/ops/internal/herdrcli"
+	"github.com/aq2bq/hergy/internal/ops/internal/protocol"
+	"github.com/aq2bq/hergy/internal/ops/internal/team"
+	"github.com/aq2bq/hergy/internal/ops/internal/turns"
 	"github.com/aq2bq/hergy/internal/source"
-	"github.com/aq2bq/hergy/internal/team"
-	"github.com/aq2bq/hergy/internal/turns"
 )
 
 // This file is the reading behind the activity screen (spec-activity, r-8a67):
@@ -47,7 +47,7 @@ type herdrNow struct {
 // Reader is the shared reading behind a headquarters and activity screen. Herdr is read for each
 // request; the watcher remembers when each agent's state was first seen (6 A2).
 type Reader struct {
-	env team.Env
+	env Environment
 	// port is the serve's socket-backed Herdr port. Tests and CLI readers without
 	// one keep the command port.
 	port herdr.Port
@@ -67,7 +67,7 @@ type Reader struct {
 	// finds a project's root runs once per project and not once per request
 	// (d-e00b).
 	envMu sync.Mutex
-	envs  map[domainplace.Project]team.Env
+	envs  map[domainplace.Project]Environment
 
 	watcherMu sync.Mutex
 	watcher   *activity.Watcher
@@ -81,15 +81,15 @@ type Reader struct {
 // newActivityRead is the reading behind one hergy serve. The watcher's memory is
 // kept in this machine's state directory, so a serve that is started again reads
 // a stop from when it was first seen rather than from its own start (6 A2).
-func newActivityRead(env team.Env) *Reader {
+func newActivityRead(env Environment) *Reader {
 	return newActivityReadWith(env, source.Disk{})
 }
 
 // newActivityReadWith is this reading over one reader: a serve hands every
 // project the same version-keyed reader, so a file is opened once and read
 // again only when it changed (d-e00b).
-func newActivityReadWith(env team.Env, reader source.Reader) *Reader {
-	read := &Reader{env: env, reader: reader, watcher: activity.NewWatcherAt(activityStatePath()), envs: map[domainplace.Project]team.Env{}}
+func newActivityReadWith(env Environment, reader source.Reader) *Reader {
+	read := &Reader{env: env, reader: reader, watcher: activity.NewWatcherAt(activityStatePath()), envs: map[domainplace.Project]Environment{}}
 	read.hq = newHQRead(read)
 	return read
 }
@@ -97,7 +97,7 @@ func newActivityReadWith(env team.Env, reader source.Reader) *Reader {
 // envAt is one project's environment, placed once: the git command that finds
 // the root is not run again for every answer (d-e00b). A project whose path is
 // new is placed on its first use.
-func (a *Reader) envAt(want domainplace.Project) (team.Env, error) {
+func (a *Reader) envAt(want domainplace.Project) (Environment, error) {
 	a.envMu.Lock()
 	if env, ok := a.envs[want]; ok {
 		a.envMu.Unlock()
@@ -106,11 +106,11 @@ func (a *Reader) envAt(want domainplace.Project) (team.Env, error) {
 	a.envMu.Unlock()
 	env, err := a.env.AtProject(want)
 	if err != nil {
-		return team.Env{}, err
+		return Environment{}, err
 	}
 	a.envMu.Lock()
 	if a.envs == nil {
-		a.envs = map[domainplace.Project]team.Env{}
+		a.envs = map[domainplace.Project]Environment{}
 	}
 	a.envs[want] = env
 	a.envMu.Unlock()
@@ -165,17 +165,17 @@ func (a *Reader) readHerdr(now time.Time) herdrNow {
 			read.err = err
 			return read
 		}
-		read.tabs = TeamTabs(snapshot.Tabs, snapshot.Agents, snapshot.Panes)
+		read.tabs = teamTabs(snapshot.Tabs, snapshot.Agents, snapshot.Panes)
 		read.agents = snapshot.Agents
 		read.agentsRead = true
 		read.spaces = snapshot.Workspaces
 	} else {
-		tabs, agents, agentsRead, err := HerdrRead()
+		tabs, agents, agentsRead, err := herdrRead()
 		read = herdrNow{tabs: tabs, agents: agents, agentsRead: agentsRead, err: err}
 		if err != nil {
 			return read
 		}
-		read.spaces, _ = HerdrSpaceList()
+		read.spaces, _ = herdrSpaceList()
 	}
 	a.watcherMu.Lock()
 	read.seen = a.watcher.Observe(watchedAgents(read.agents), now)
@@ -203,14 +203,14 @@ func watchedAgents(agents []protocol.Agent) []activity.Agent {
 // the ones config.yaml lists; a serve whose config names none shows the project
 // it was started in, as it always has (d-73fc).
 func (a *Reader) teamsOf(read herdrNow) []runningTeam {
-	return readRunningTeamsIn(a.projectViews(), read, false)
+	return readVisibleTeams(a.projectViews(), read, false)
 }
 
 // projectViews is the projects this serve reads, with their names, layers and
 // catalogs: the listed ones in the config's order, or the project serve was
 // started in when the config names none.
 func (a *Reader) projectViews() []projectView {
-	return ProjectViews(a.env, a.fileReader(), a.envAt)
+	return projectViews(a.env, a.fileReader(), a.envAt)
 }
 
 // List is GET /api/activity: the running teams of this project, in the order of
@@ -230,7 +230,7 @@ func (a *Reader) List() ActivityList {
 	rows := make([]activityRow, 0, len(teams))
 	for _, one := range teams {
 		rows = append(rows, activityRow{
-			team:        judgeOf(one, read, now),
+			team:        judgeRead(one, read, now),
 			definition:  one.Definition,
 			broken:      one.Broken,
 			project:     one.Project,
@@ -419,7 +419,7 @@ func (a *Reader) One(name string) (ActivityDoc, bool) {
 	}
 
 	var graph *definition.Graph
-	agents := agentsOf(read, one.Name)
+	agents := agentsRead(read, one.Name)
 	if one.Built != nil {
 		graph = one.Built.Team.Definition.Graph
 	} else {
@@ -618,7 +618,7 @@ func docHired(t activity.Team, teamName domainname.Seen, now time.Time, titles, 
 // says no "が追加" for it.
 func hireSources(project domainplace.Project, teamName string) map[string]string {
 	out := map[string]string{}
-	records, err := ReadLaunchRecords()
+	records, err := readLaunchRecords()
 	if err != nil {
 		return out
 	}
