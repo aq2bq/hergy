@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	domainname "github.com/aq2bq/hergy/internal/domain/name"
+
 	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/herdr"
 	"github.com/aq2bq/hergy/internal/i18n"
@@ -94,7 +96,7 @@ type splitCall struct {
 // the fake was given.
 func (p *fakePort) tabOf(pane string) string {
 	for _, known := range p.panes {
-		if known.ID == pane {
+		if known.ID.String() == pane {
 			return known.TabID
 		}
 	}
@@ -117,7 +119,7 @@ func (p *fakePort) findAgent(target string) (protocol.Agent, bool) {
 		return agent, true
 	}
 	for _, agent := range p.agents {
-		if agent.PaneID == target {
+		if agent.PaneID.String() == target {
 			return agent, true
 		}
 	}
@@ -133,7 +135,7 @@ func notFound(args []string) error {
 func agentObject(agent protocol.Agent) map[string]any {
 	return map[string]any{
 		"name": agent.Name.String(), "agent": agent.Kind,
-		"agent_status": agent.Status, "pane_id": agent.PaneID,
+		"agent_status": agent.Status, "pane_id": agent.PaneID.String(),
 		"tab_id": agent.TabID, "terminal_title_stripped": agent.Title,
 	}
 }
@@ -165,7 +167,7 @@ func (p *fakePort) JSON(args ...string) (map[string]any, error) {
 	case slices.Equal(args, []string{"pane", "list"}):
 		panes := make([]any, 0, len(p.panes))
 		for _, pane := range p.panes {
-			panes = append(panes, map[string]any{"pane_id": pane.ID, "label": pane.Label.String(), "tab_id": pane.TabID})
+			panes = append(panes, map[string]any{"pane_id": pane.ID.String(), "label": pane.Label.String(), "tab_id": pane.TabID})
 		}
 		return map[string]any{"panes": panes}, nil
 	case len(args) == 3 && args[0] == "pane" && args[1] == "close":
@@ -182,7 +184,7 @@ func (p *fakePort) JSON(args ...string) (map[string]any, error) {
 		// a test can read where a refresh put a member it added.
 		pane := fmt.Sprintf("n%d", len(p.splits)+1)
 		p.splits = append(p.splits, splitCall{from: args[2], direction: argValue(args, "--direction"), pane: pane})
-		p.panes = append(p.panes, protocol.Pane{ID: pane, TabID: p.tabOf(args[2])})
+		p.panes = append(p.panes, protocol.Pane{ID: fixturePane(pane), TabID: p.tabOf(args[2])})
 		return map[string]any{"pane": map[string]any{"pane_id": pane}}, nil
 	case len(args) == 3 && args[0] == "agent" && args[1] == "get":
 		target := args[2]
@@ -212,7 +214,7 @@ func (p *fakePort) JSON(args ...string) (map[string]any, error) {
 			// Only the shell is in the pane, so there is no agent for herdr to
 			// know: it drops the name, as the real herdr would.
 			for name, agent := range p.agents {
-				if agent.PaneID == pane {
+				if agent.PaneID.String() == pane {
 					p.gone[name] = true
 				}
 			}
@@ -233,7 +235,7 @@ func (p *fakePort) JSON(args ...string) (map[string]any, error) {
 			// herdr refuses the start as not ready, and keeps the agent.
 			p.agents[name] = protocol.Agent{
 				Name: fixtureSeen(name), Kind: argValue(args, "--kind"), Status: "blocked",
-				PaneID: argValue(args, "--pane"), TabID: p.startupTab,
+				PaneID: fixturePane(argValue(args, "--pane")), TabID: p.startupTab,
 			}
 			if p.startedBlocked == nil {
 				p.startedBlocked = map[string]bool{}
@@ -246,7 +248,7 @@ func (p *fakePort) JSON(args ...string) (map[string]any, error) {
 		}
 		p.agents[name] = protocol.Agent{
 			Name: fixtureSeen(name), Kind: argValue(args, "--kind"),
-			Status: "idle", PaneID: argValue(args, "--pane"),
+			Status: "idle", PaneID: fixturePane(argValue(args, "--pane")),
 		}
 		delete(p.gone, name)
 		return map[string]any{}, nil
@@ -298,7 +300,7 @@ func downLauncherFor(t *testing.T, port *fakePort, team string, members ...strin
 		list[i] = definition.Start{Name: fixtureHerdrName(name), Short: fixtureShortName(name), Role: "role", Kind: "claude"}
 	}
 	out := &bytes.Buffer{}
-	return New(list, team, t.TempDir(), herdr.New(port), 30000, out), out
+	return New(list, fixtureSeen(team), t.TempDir(), herdr.New(port), 30000, out), out
 }
 
 func TestDownClosesItsOwnPaneLast(t *testing.T) {
@@ -737,7 +739,7 @@ func TestRefreshDryNamesMembersWithoutPanes(t *testing.T) {
 		t.Fatalf("RefreshDry: %v", err)
 	}
 	want := []string{"demo-spec2"}
-	if !slices.Equal(plan.Members, want) {
+	if !slices.Equal(fixtureHerdrSpellings(plan.Members), want) {
 		t.Fatalf("RefreshDry members = %v, want %v", plan.Members, want)
 	}
 	if len(port.splits) != 0 || len(port.renamed) != 0 {
@@ -1180,7 +1182,7 @@ func TestDownByNameClosesWhatTheTeamStarted(t *testing.T) {
 	}
 	l, out := downLauncherFor(t, port, "qw2")
 
-	if _, err := l.DownByName([]string{"qw2-m"}, "", false); err != nil {
+	if _, err := l.DownByName(fixtureSeenList([]string{"qw2-m"}), "", false); err != nil {
 		t.Fatalf("DownByName: %v", err)
 	}
 	want := []string{"p-m", "p-w1"}
@@ -1208,7 +1210,7 @@ func TestDownByNameHoldsTheOwnPaneBack(t *testing.T) {
 		{Name: fixtureSeen("qw2-b"), Kind: "codex", Status: "idle", PaneID: "own"},
 	}}
 	l, out := downLauncherFor(t, port, "qw2")
-	if _, err := l.DownByName([]string{"qw2-a", "qw2-b"}, "own", false); err != nil {
+	if _, err := l.DownByName(fixtureSeenList([]string{"qw2-a", "qw2-b"}), "own", false); err != nil {
 		t.Fatalf("DownByName: %v", err)
 	}
 	if want := []string{"p1", "own"}; !slices.Equal(port.closed, want) {
@@ -1233,7 +1235,9 @@ func TestWaitGoneSaysWhichMemberToRefresh(t *testing.T) {
 	now := time.Unix(0, 0)
 	l.WithWaitClock(func() time.Time { return now }, func(d time.Duration) { now = now.Add(d) })
 
-	err := l.waitGone([]string{"core-lead"}, func([]string) error { return i18n.Errorf("error.agent_not_gone", "core-lead", l.timeout, "core-lead") })
+	err := l.waitGone(fixtureSeenList([]string{"core-lead"}), func([]domainname.Seen) error {
+		return i18n.Errorf("error.agent_not_gone", "core-lead", l.timeout, "core-lead")
+	})
 	if err == nil {
 		t.Fatal("waitGone answered no error while herdr still knew the agent")
 	}

@@ -74,7 +74,7 @@ func TestStatusSaysWhoHoldsTheTurn(t *testing.T) {
 	mustRun(t, "new", "demo")
 	f.herdr(t, liveHerdr)
 	path := turns.Path(filepath.Join(f.state, "hergy"), "demo")
-	if err := turns.Save(path, &turns.State{Team: "demo", Holder: "lead", From: "builder", Since: time.Now()}); err != nil {
+	if err := turns.Save(path, &turns.State{Team: fixtureSeen("demo"), Holder: "lead", From: "builder", Since: time.Now()}); err != nil {
 		t.Fatal(err)
 	}
 	got := mustRun(t, "status", "demo")
@@ -84,7 +84,7 @@ func TestStatusSaysWhoHoldsTheTurn(t *testing.T) {
 		}
 	}
 	// The holder is being asked who its result is for, and lead waits (r-103d).
-	if err := turns.Save(path, &turns.State{Team: "demo", Holder: "builder", From: "lead", Since: time.Now(),
+	if err := turns.Save(path, &turns.State{Team: fixtureSeen("demo"), Holder: "builder", From: "lead", Since: time.Now(),
 		Asked:  map[string]turns.Question{"builder": {Seq: 3, Text: "x", Candidates: []string{"lead"}}},
 		Opened: map[string][]turns.Opening{"builder": {{By: "lead"}}}}); err != nil {
 		t.Fatal(err)
@@ -95,7 +95,7 @@ func TestStatusSaysWhoHoldsTheTurn(t *testing.T) {
 			t.Fatalf("status is missing %q:\n%s", line, got)
 		}
 	}
-	if err := turns.Save(path, &turns.State{Team: "demo", Holder: turns.Human, From: "builder", Why: turns.WhySilent, Since: time.Now()}); err != nil {
+	if err := turns.Save(path, &turns.State{Team: fixtureSeen("demo"), Holder: turns.Human, From: "builder", Why: turns.WhySilent, Since: time.Now()}); err != nil {
 		t.Fatal(err)
 	}
 	got = mustRun(t, "status", "demo")

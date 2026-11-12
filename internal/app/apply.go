@@ -24,7 +24,7 @@ func promptsToResend(cat *catalog.Catalog, project string, r *resolved, members 
 	if err != nil {
 		return out
 	}
-	recorded := teamsRecorded(latestMemberRecords(), project)[r.team.Name]
+	recorded := teamsRecorded(latestMemberRecords(), project)[r.team.Name.String()]
 	for i := range out {
 		record, ok := recorded[out[i].Name.String()]
 		if !ok {

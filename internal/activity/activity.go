@@ -56,10 +56,10 @@ const (
 // Agent is one live agent of the team, as the caller read it from herdr.
 type Agent struct {
 	// Herdr is the name herdr knows the agent by: "<team>-<member>".
-	Herdr string
+	Herdr domainname.Seen
 	// Node is the graph node the agent is, by its name: a member's short name.
 	// Empty means the agent is no node of this graph (a hired worker).
-	Node string
+	Node domainname.Seen
 	// Status is herdr's agent_status: working, idle, blocked, done, or unknown.
 	Status string
 	// Seq is herdr's state_change_seq: the greater it is, the more recently the
@@ -89,7 +89,7 @@ type Question struct {
 // Input is everything the judgement reads (設計 5.2).
 type Input struct {
 	// Team is the team's name.
-	Team string
+	Team domainname.Seen
 	// Graph is the definition's graph: which nodes hand the turn to the human.
 	Graph *definition.Graph
 	// Agents are the live agents of the team. An agent whose Node is empty (a
@@ -109,7 +109,7 @@ type Node struct {
 	Human bool
 	State NodeState
 	// Herdr is the live agent's name, empty when none.
-	Herdr string
+	Herdr domainname.Seen
 	Seq   int
 	// At is when this state began, as the caller first saw it (6 A2), for the
 	// states the screen shows a moment for: a node that is stopped or waiting
@@ -122,7 +122,7 @@ type Node struct {
 
 // Team is one team's activity (設計 5.2).
 type Team struct {
-	Name  string
+	Name  domainname.Seen
 	State State
 	// Line is the one line the section shows.
 	Line string
@@ -313,15 +313,15 @@ func (w *Watcher) Observe(agents []Agent, now time.Time) map[string]Watch {
 	out := make(map[string]Watch, len(agents))
 	changed := len(agents) != len(w.seen)
 	for _, agent := range agents {
-		seen, ok := w.seen[agent.Herdr]
+		seen, ok := w.seen[agent.Herdr.String()]
 		switch {
 		case ok && seen.seq == agent.Seq:
-			next[agent.Herdr] = seen
-			out[agent.Herdr] = seen.watch
+			next[agent.Herdr.String()] = seen
+			out[agent.Herdr.String()] = seen.watch
 		default:
 			watch := Watch{At: now, Lower: !w.began}
-			next[agent.Herdr] = watcherEntry{seq: agent.Seq, watch: watch}
-			out[agent.Herdr] = watch
+			next[agent.Herdr.String()] = watcherEntry{seq: agent.Seq, watch: watch}
+			out[agent.Herdr.String()] = watch
 			changed = true
 		}
 	}
@@ -347,7 +347,7 @@ func Sort(teams []Team) {
 		if d := cmp.Compare(a.State, b.State); d != 0 {
 			return d
 		}
-		return cmp.Compare(a.Name, b.Name)
+		return cmp.Compare(a.Name.String(), b.Name.String())
 	})
 }
 
@@ -367,7 +367,7 @@ func group(state State) int {
 // live is one agent of the team, with the node it is and its state.
 type live struct {
 	name  string // the node's name, or the herdr name when it is no node
-	herdr string
+	herdr domainname.Seen
 	seq   int
 	state NodeState
 	human bool      // the node hands the turn to the human
@@ -383,8 +383,8 @@ func livesOf(in Input) []live {
 	byNode := map[string]Agent{}
 	var others []Agent
 	for _, agent := range in.Agents {
-		if slices.Contains(members, domainname.Observe(agent.Node)) {
-			byNode[agent.Node] = agent
+		if slices.Contains(members, agent.Node) {
+			byNode[agent.Node.String()] = agent
 			continue
 		}
 		others = append(others, agent)
@@ -406,7 +406,7 @@ func livesOf(in Input) []live {
 		state := stateOf(agent.Status)
 		at, lower := atOf(state, in.Seen, agent.Herdr)
 		lives = append(lives, live{
-			name: agent.Herdr, herdr: agent.Herdr, seq: agent.Seq, state: state,
+			name: agent.Herdr.String(), herdr: agent.Herdr, seq: agent.Seq, state: state,
 			hired: true, at: at, lower: lower,
 		})
 	}
@@ -417,11 +417,11 @@ func livesOf(in Input) []live {
 // for: a node that is stopped or waiting for the human. A working node and one
 // with no agent have no such moment (2.5), and a caller that handed no watch for
 // the agent knows none (6 A2).
-func atOf(state NodeState, seen map[string]Watch, herdr string) (time.Time, bool) {
+func atOf(state NodeState, seen map[string]Watch, herdr domainname.Seen) (time.Time, bool) {
 	if state != Idle && state != Blocked {
 		return time.Time{}, false
 	}
-	watch := seen[herdr]
+	watch := seen[herdr.String()]
 	return watch.At, watch.Lower
 }
 
@@ -583,7 +583,7 @@ func (l lasted) words() string {
 // (the agent was already there). A caller that handed no watch for the agent
 // knows nothing about the length, and says nothing.
 func since(in Input, l live) lasted {
-	watch, ok := in.Seen[l.herdr]
+	watch, ok := in.Seen[l.herdr.String()]
 	if !ok {
 		return lasted{}
 	}
@@ -639,14 +639,14 @@ func memberNames(in Input) []domainname.Seen {
 	var out []domainname.Seen
 	if in.Graph == nil {
 		for _, agent := range in.Agents {
-			if agent.Node != "" {
-				out = append(out, domainname.Observe(agent.Node))
+			if agent.Node.String() != "" {
+				out = append(out, agent.Node)
 			}
 		}
 		return out
 	}
 	for _, member := range in.Graph.Members {
-		out = append(out, domainname.Observe(member.Name.String()))
+		out = append(out, member.Name.Observation())
 	}
 	return out
 }

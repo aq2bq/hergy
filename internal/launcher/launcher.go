@@ -30,7 +30,7 @@ import (
 // interrupt may report while the operation is still running.
 type Launcher struct {
 	starts  []definition.Start
-	team    string
+	team    domainname.Seen
 	project string
 	timeout int
 	herdr   *herdr.Herdr
@@ -70,13 +70,13 @@ type Launcher struct {
 	started      []string
 	// strip is the watcher's pane and tabRows the tab's rows when the strip was
 	// cut, for trimStripAgain; empty when the rows could not be read.
-	strip   string
+	strip   domainname.PaneID
 	tabRows int
 }
 
 // New builds a launcher over the members of one team: the team name, and the
 // members as starts. project is the absolute project path used by recovery commands.
-func New(starts []definition.Start, team, project string, h *herdr.Herdr, timeoutMS int, out io.Writer) *Launcher {
+func New(starts []definition.Start, team domainname.Seen, project string, h *herdr.Herdr, timeoutMS int, out io.Writer) *Launcher {
 	return &Launcher{
 		starts:   starts,
 		team:     team,
@@ -102,7 +102,7 @@ type Event struct {
 	Stage     string
 	Member    string
 	State     string
-	Pane      string
+	Pane      domainname.PaneID
 	TabID     string
 	Workspace string
 	// Waiting is set while the launcher waits on a member's question, and nil
@@ -200,7 +200,7 @@ func (l *Launcher) BootIn(workspace, up string) error {
 	}
 	l.trimStripAgain()
 	l.notify(Event{CreatedPanes: len(members), Workspace: l.workspace})
-	next := NextUp(l.team, up)
+	next := NextUp(l.team.String(), up)
 	var undelivered []error
 	for i := range members {
 		if err := l.start(&members[i], next, l.teamTabLabel()); err != nil {
@@ -235,14 +235,14 @@ const (
 
 // WatcherPane is the name of the pane a team's watcher runs in: "<team>-turns",
 // named for the team like a member's pane, so down closes it with the rest.
-func WatcherPane(team string) domainname.PaneName { return domainname.Observe(team).Watcher() }
+func WatcherPane(team domainname.Seen) domainname.PaneName { return team.Watcher() }
 
 // startWatcher cuts the strip under the first member's pane, names it, and runs
 // the watcher there. The strip keeps the project's directory and the member's
 // environment (the same hergy, the same settings). The tab's rows are read
 // from the first pane before the cut; the strip is asked for at watcherRows,
 // and what the cut left over is moved back up to the members (stripMove).
-func (l *Launcher) startWatcher(root string, first *definition.Start) error {
+func (l *Launcher) startWatcher(root domainname.PaneID, first *definition.Start) error {
 	tabRows, rowsErr := l.herdr.PaneRows(root)
 	pane, err := l.herdr.SplitRatio(root, "down", membersShare(tabRows, rowsErr), first.Cwd, first.Env)
 	if err != nil {
@@ -280,7 +280,7 @@ func (l *Launcher) trimStripAgain() {
 // strip's rows once they settle. It answers the rows the strip keeps, or 0
 // when they could not be read; a herdr that cannot resize leaves the strip as
 // the cut made it, and the watcher runs the same.
-func (l *Launcher) trimStrip(pane string, tabRows int, rowsErr error) int {
+func (l *Launcher) trimStrip(pane domainname.PaneID, tabRows int, rowsErr error) int {
 	if rowsErr != nil || tabRows <= 0 {
 		return 0
 	}
@@ -301,7 +301,7 @@ func (l *Launcher) trimStrip(pane string, tabRows int, rowsErr error) int {
 
 // settledRows reads a pane's rows until two readings agree, or the tries run
 // out; 0 when herdr cannot say.
-func (l *Launcher) settledRows(pane string) int {
+func (l *Launcher) settledRows(pane domainname.PaneID) int {
 	last := -1
 	for range settleTries {
 		rows, err := l.herdr.PaneRows(pane)
@@ -344,7 +344,7 @@ func stripMove(rows, tabRows int) float64 {
 // definition it was booted from is not written into the label but read from this
 // machine's launch record when a command needs it (d-a72d): the tab is what a
 // person reads, and the definition is hergy's business.
-func (l *Launcher) teamTabLabel() string { return l.team }
+func (l *Launcher) teamTabLabel() string { return l.team.String() }
 
 // Reprompt re-submits the bootstrap prompt to idle agents, keeping each one's
 // conversation. It starts nothing.
@@ -373,7 +373,7 @@ func (l *Launcher) Reprompt(members []definition.Start) error {
 		member := &members[i]
 		pane := l.paneOf(member.Name.String())
 		l.stage(i18n.Tf("progress.stage.rechecking", member.Name.String()))
-		agent, err := l.herdr.Agent(domainname.Observe(pane))
+		agent, err := l.herdr.Agent(pane)
 		if err != nil {
 			return err
 		}
@@ -415,7 +415,7 @@ func (l *Launcher) Reprompt(members []definition.Start) error {
 // The standalone refresh command refuses members with no pane before calling
 // this launcher. A team that is not running has no tab to add a member to, and
 // this launcher starts no team: it refuses and names hergy up, as it always has.
-func (l *Launcher) Refresh(members []definition.Start, selfPane string) error {
+func (l *Launcher) Refresh(members []definition.Start, selfPane domainname.PaneID) error {
 	if err := l.herdr.Verify(protocol.ModeRefresh); err != nil {
 		return err
 	}
@@ -468,7 +468,7 @@ func (l *Launcher) Refresh(members []definition.Start, selfPane string) error {
 
 // NewPanes names the members the definition has and hergy has no pane for.
 type NewPanes struct {
-	Members []string
+	Members []domainname.HerdrName
 }
 
 // WithoutNextHint says the caller goes on with the members a refresh adds, so a
@@ -482,7 +482,7 @@ func (l *Launcher) WithoutNextHint() *Launcher {
 // RefreshDry checks the same targets a real refresh checks and changes nothing,
 // so --dry shows the same refusal, and says which members a refresh would give a
 // pane to. Like down --dry, it reads the live agents, tabs and panes.
-func (l *Launcher) RefreshDry(members []definition.Start, selfPane string) (NewPanes, error) {
+func (l *Launcher) RefreshDry(members []definition.Start, selfPane domainname.PaneID) (NewPanes, error) {
 	targets, _, err := l.checkTargets(members, selfPane)
 	if err != nil {
 		return NewPanes{}, err
@@ -490,7 +490,7 @@ func (l *Launcher) RefreshDry(members []definition.Start, selfPane string) (NewP
 	plan := NewPanes{}
 	for _, target := range targets {
 		if target.makesPane() {
-			plan.Members = append(plan.Members, target.member.Name.String())
+			plan.Members = append(plan.Members, target.member.Name)
 		}
 	}
 	return plan, nil
@@ -615,7 +615,7 @@ func (l *Launcher) Tell(member *definition.Start, text string) error {
 // stopped on the first esc is never sent a second, because on some harnesses the
 // second esc does something else. A member that is still working after two escs
 // is StopNotStopped: the turn did not end.
-func (l *Launcher) Stop(member *definition.Start, selfPane string) (stopped bool, err error) {
+func (l *Launcher) Stop(member *definition.Start, selfPane domainname.PaneID) (stopped bool, err error) {
 	if err := l.herdr.Verify(protocol.ModeStop); err != nil {
 		return false, err
 	}
@@ -634,7 +634,7 @@ func (l *Launcher) Stop(member *definition.Start, selfPane string) (stopped bool
 		if err := l.herdr.SendKeys(member.Name, "esc"); err != nil {
 			return false, err
 		}
-		stopped, err := l.stoppedByNow(member.Name.String())
+		stopped, err := l.stoppedByNow(member.Name)
 		if err != nil {
 			return false, err
 		}
@@ -672,10 +672,10 @@ func (e StopNotStopped) Error() string {
 // stoppedByNow watches the member's state after one esc, up to stopWatchFor, and
 // answers whether it is no longer working. An agent Herdr no longer knows is
 // stopped: its turn ended with the agent.
-func (l *Launcher) stoppedByNow(name string) (bool, error) {
+func (l *Launcher) stoppedByNow(name domainname.HerdrName) (bool, error) {
 	deadline := time.Now().Add(stopWatchFor)
 	for {
-		agent, err := l.herdr.Agent(domainname.Observe(name))
+		agent, err := l.herdr.Agent(name)
 		switch {
 		case err == nil && agent.Status != "working":
 			return true, nil
@@ -698,7 +698,7 @@ func (l *Launcher) stoppedByNow(name string) (bool, error) {
 // a pane in the team's tab (d-36ef), and pane is empty.
 type refreshTarget struct {
 	member *definition.Start
-	pane   string
+	pane   domainname.PaneID
 	live   bool
 }
 
@@ -711,7 +711,7 @@ func (t refreshTarget) makesPane() bool { return t.pane == "" }
 type teamTab struct {
 	id    string
 	label string
-	from  string
+	from  domainname.PaneID
 }
 
 // checkTargets reads every selected member and refuses the whole command unless
@@ -721,7 +721,7 @@ type teamTab struct {
 // team's tab is read here too, so a team that is not running refuses the command
 // before anything is stopped or made. Nothing is stopped, started or made until
 // every member passes.
-func (l *Launcher) checkTargets(members []definition.Start, selfPane string) ([]refreshTarget, teamTab, error) {
+func (l *Launcher) checkTargets(members []definition.Start, selfPane domainname.PaneID) ([]refreshTarget, teamTab, error) {
 	targets := make([]refreshTarget, 0, len(members))
 	for i := range members {
 		member := &members[i]
@@ -770,7 +770,7 @@ func (l *Launcher) checkTargets(members []definition.Start, selfPane string) ([]
 // foreground process is the shell; a pane that is gone is a member hergy has not
 // run, which refresh gives a pane to, and one that runs something hergy did not
 // start is refused, because refresh must not take it over.
-func (l *Launcher) deadTarget(member *definition.Start, selfPane string) (refreshTarget, error) {
+func (l *Launcher) deadTarget(member *definition.Start, selfPane domainname.PaneID) (refreshTarget, error) {
 	pane, err := l.herdr.FindPane(member.Name)
 	if err != nil {
 		return refreshTarget{}, err
@@ -802,7 +802,7 @@ func (l *Launcher) teamTab(member *definition.Start) (teamTab, error) {
 		return teamTab{}, err
 	}
 	for _, tab := range tabs {
-		if !protocol.NamesTeam(tab.Label.String(), l.team) {
+		if !protocol.NamesTeam(tab.Label.String(), l.team.String()) {
 			continue
 		}
 		panes, err := l.herdr.Panes()
@@ -822,7 +822,7 @@ func (l *Launcher) teamTab(member *definition.Start) (teamTab, error) {
 // the way a boot makes each member of its plan: the pane is split from another
 // pane in the tab and named after the member, then the agent is started and the
 // bootstrap prompt submitted. A startup question is waited on as a boot waits.
-func (l *Launcher) addMember(member *definition.Start, from, direction, tabLabel string) error {
+func (l *Launcher) addMember(member *definition.Start, from domainname.PaneID, direction, tabLabel string) error {
 	l.stage(i18n.T("progress.stage.creating_panes"))
 	if err := l.splitPane(from, member, direction); err != nil {
 		return err
@@ -843,7 +843,7 @@ func (l *Launcher) restart(target refreshTarget, next StartupNext) error {
 		// check (with --all, the earlier members' restarts), and the member may
 		// have started working again. This is the same second look reprompt takes.
 		l.stage(i18n.Tf("progress.stage.rechecking", member.Name.String()))
-		agent, err := l.herdr.Agent(domainname.Observe(pane))
+		agent, err := l.herdr.Agent(pane)
 		if err != nil {
 			return err
 		}
@@ -863,7 +863,7 @@ func (l *Launcher) restart(target refreshTarget, next StartupNext) error {
 			}
 		}
 		l.stage(i18n.Tf("progress.stage.waiting", member.Name.String()))
-		if err := l.waitGone([]string{member.Name.String()}, func([]string) error {
+		if err := l.waitGone([]domainname.Seen{member.Name.Observation()}, func([]domainname.Seen) error {
 			return i18n.Errorf("error.agent_not_gone", member.Name.String(), l.timeout, member.Name.String())
 		}); err != nil {
 			return err
@@ -876,13 +876,13 @@ func (l *Launcher) restart(target refreshTarget, next StartupNext) error {
 // waitGone waits until Herdr releases all names, with one deadline for the
 // group. A disappeared name is not read again; only agent_not_found proves it
 // gone. Refresh, worker down and team down share this rule.
-func (l *Launcher) waitGone(names []string, timeoutError func([]string) error) error {
+func (l *Launcher) waitGone(names []domainname.Seen, timeoutError func([]domainname.Seen) error) error {
 	deadline := l.now().Add(time.Duration(l.timeout) * time.Millisecond)
-	remaining := append([]string(nil), names...)
+	remaining := append([]domainname.Seen(nil), names...)
 	for len(remaining) > 0 {
 		next := remaining[:0]
 		for _, name := range remaining {
-			_, err := l.herdr.Agent(domainname.Observe(name))
+			_, err := l.herdr.Agent(name)
 			if err != nil {
 				if protocol.ErrorCode(err) == herdr.AgentNotFound {
 					continue
@@ -923,7 +923,7 @@ func (l *Launcher) Hire(worker *definition.Start, task string) error {
 	if err != nil {
 		return err
 	}
-	label := workerTabLabel(l.team, worker.Short.String())
+	label := domainname.RunningNames(domainname.TeamFromObservation(l.team)).WorkerTab(worker.Short.String())
 	pane, err := l.createTab(workspace, worker, label)
 	if err != nil {
 		return err
@@ -934,7 +934,7 @@ func (l *Launcher) Hire(worker *definition.Start, task string) error {
 	}
 	if err := l.start(worker, NextHire(), label); err != nil {
 		if missing, ok := errors.AsType[*Undelivered](err); ok {
-			missing.Recovery = hireRetry(l.project, l.team, worker, task)
+			missing.Recovery = hireRetry(l.project, l.team.String(), worker, task)
 		}
 		return err
 	}
@@ -946,8 +946,8 @@ func (l *Launcher) Hire(worker *definition.Start, task string) error {
 // whether the pane belongs to a hired worker, whether no agent runs in it, and
 // whether it is the pane hergy itself runs in.
 type downTarget struct {
-	name   string
-	pane   string
+	name   domainname.Seen
+	pane   domainname.PaneID
 	worker bool
 	// stopped is whether no agent runs in the pane: the pane hergy named after a
 	// member or a worker, whose agent never started or has ended. A pane that has
@@ -964,7 +964,7 @@ type downTarget struct {
 // The pane hergy itself runs in is closed last, so the rest still get closed. With
 // dry, it prints what would close and closes nothing. It returns how many panes it
 // closed (or would close), so a caller can tell a no-op from real work.
-func (l *Launcher) Down(members []definition.Start, selfPane string, dry bool) (int, error) {
+func (l *Launcher) Down(members []definition.Start, selfPane domainname.PaneID, dry bool) (int, error) {
 	if !dry {
 		if err := l.herdr.Verify(protocol.ModeDown); err != nil {
 			return 0, err
@@ -984,10 +984,10 @@ func (l *Launcher) Down(members []definition.Start, selfPane string, dry bool) (
 	}
 	// The panes hergy named after a member, by name, so a member that is not live
 	// is still closed.
-	byName := make(map[string]string, len(named))
+	byName := make(map[string]domainname.PaneID, len(named))
 	for _, target := range named {
-		if _, ok := byName[target.name]; !ok {
-			byName[target.name] = target.pane
+		if _, ok := byName[target.name.String()]; !ok {
+			byName[target.name.String()] = target.pane
 		}
 	}
 	panes := panesOf(agents)
@@ -1009,7 +1009,7 @@ func (l *Launcher) Down(members []definition.Start, selfPane string, dry bool) (
 			}
 			continue
 		}
-		targets = append(targets, downTarget{name: member.Name.String(), pane: pane, stopped: !live})
+		targets = append(targets, downTarget{name: member.Name.Observation(), pane: pane, stopped: !live})
 	}
 	targets = append(targets, workers...)
 	targets = append(targets, named...)
@@ -1020,18 +1020,17 @@ func (l *Launcher) Down(members []definition.Start, selfPane string, dry bool) (
 // worker stands in, and the worker's own tab when that pane was the last one in
 // it. The members and the other workers are left alone (d-fa05). label is the
 // worker tab's label, "worker:<team>/<worker>".
-func (l *Launcher) DownWorker(label, selfPane string, dry bool) (int, error) {
+func (l *Launcher) DownWorker(label domainname.Seen, selfPane domainname.PaneID, dry bool) (int, error) {
 	if !dry {
 		if err := l.herdr.Verify(protocol.ModeDownWorker); err != nil {
 			return 0, err
 		}
 	}
-	shortSeen, ok := domainname.WorkerShort(domainname.Observe(label), domainname.Observe(l.team))
-	short := shortSeen.String()
-	if !ok || short == "" {
+	observed, ok := label.WorkerIn(l.team)
+	if !ok {
 		return 0, i18n.Errorf("error.worker_not_running", label)
 	}
-	name := domainname.Observe(l.team).WithShort(shortSeen).String()
+	name := observed.Agent()
 	tabs, err := l.herdr.Tabs()
 	if err != nil {
 		return 0, err
@@ -1077,7 +1076,7 @@ func (l *Launcher) DownWorker(label, selfPane string, dry bool) (int, error) {
 	if dry {
 		fmt.Fprint(l.out, i18n.Tf("down.dry_done", closed, 0))
 	} else {
-		if err := l.waitGone([]string{name}, func([]string) error { return i18n.Errorf("error.worker_not_gone", name, l.timeout, name) }); err != nil {
+		if err := l.waitGone([]domainname.Seen{name}, func([]domainname.Seen) error { return i18n.Errorf("error.worker_not_gone", name, l.timeout, name) }); err != nil {
 			return closed, err
 		}
 		fmt.Fprint(l.out, i18n.Tf("down.done", closed, 0))
@@ -1088,7 +1087,7 @@ func (l *Launcher) DownWorker(label, selfPane string, dry bool) (int, error) {
 // workerPanesIn is the panes of one worker in its own tab: the pane whose label,
 // or whose live agent, is the worker's herdr name. others is how many panes in
 // the tab are not the worker's, which is what keeps the tab.
-func (l *Launcher) workerPanesIn(tabID, name string) (targets []downTarget, others int, err error) {
+func (l *Launcher) workerPanesIn(tabID string, name domainname.Seen) (targets []downTarget, others int, err error) {
 	agents, err := l.herdr.LiveAgents()
 	if err != nil {
 		return nil, 0, err
@@ -1097,11 +1096,11 @@ func (l *Launcher) workerPanesIn(tabID, name string) (targets []downTarget, othe
 	if err != nil {
 		return nil, 0, err
 	}
-	inPane := make(map[string]string, len(agents))
+	inPane := make(map[domainname.PaneID]domainname.Seen, len(agents))
 	for _, agent := range agents {
 		if agent.Name.String() != "" && agent.PaneID != "" {
 			if _, ok := inPane[agent.PaneID]; !ok {
-				inPane[agent.PaneID] = agent.Name.String()
+				inPane[agent.PaneID] = agent.Name
 			}
 		}
 	}
@@ -1109,15 +1108,15 @@ func (l *Launcher) workerPanesIn(tabID, name string) (targets []downTarget, othe
 		if pane.TabID != tabID {
 			continue
 		}
-		owner := pane.Label.String()
-		if owner == "" {
+		owner := pane.Label
+		if owner.String() == "" {
 			owner = inPane[pane.ID]
 		}
 		if owner != name {
 			others++
 			continue
 		}
-		targets = append(targets, downTarget{name: name, pane: pane.ID, worker: true, stopped: inPane[pane.ID] == ""})
+		targets = append(targets, downTarget{name: name, pane: pane.ID, worker: true, stopped: inPane[pane.ID].String() == ""})
 	}
 	return targets, others, nil
 }
@@ -1125,7 +1124,7 @@ func (l *Launcher) workerPanesIn(tabID, name string) (targets []downTarget, othe
 // closeWorkerTab closes the worker's tab when no other pane stands in it. Herdr
 // may close the tab with its last pane, so it is closed only when it is still
 // there.
-func (l *Launcher) closeWorkerTab(tab protocol.Tab, name string, others int, dry bool) (bool, error) {
+func (l *Launcher) closeWorkerTab(tab protocol.Tab, name domainname.Seen, others int, dry bool) (bool, error) {
 	if others > 0 {
 		return false, nil
 	}
@@ -1148,9 +1147,9 @@ func (l *Launcher) closeWorkerTab(tab protocol.Tab, name string, others int, dry
 }
 
 // tabOf finds one tab by the label it carries.
-func tabOf(tabs []protocol.Tab, label string) (protocol.Tab, bool) {
+func tabOf(tabs []protocol.Tab, label domainname.Seen) (protocol.Tab, bool) {
 	for _, tab := range tabs {
-		if tab.Label.String() == label {
+		if tab.Label == label {
 			return tab, true
 		}
 	}
@@ -1176,7 +1175,7 @@ func hasTabID(tabs []protocol.Tab, id string) bool {
 // putting a team away needs no prompt, so a team whose boot failed once its tab
 // was made (and left no launch record to read the definition from) can still be
 // closed.
-func (l *Launcher) DownByName(names []string, selfPane string, dry bool) (int, error) {
+func (l *Launcher) DownByName(names []domainname.Seen, selfPane domainname.PaneID, dry bool) (int, error) {
 	if !dry {
 		if err := l.herdr.Verify(protocol.ModeDown); err != nil {
 			return 0, err
@@ -1194,19 +1193,19 @@ func (l *Launcher) DownByName(names []string, selfPane string, dry bool) (int, e
 	if err != nil {
 		return 0, err
 	}
-	byName := make(map[string]string, len(named))
+	byName := make(map[string]domainname.PaneID, len(named))
 	for _, target := range named {
-		if _, ok := byName[target.name]; !ok {
-			byName[target.name] = target.pane
+		if _, ok := byName[target.name.String()]; !ok {
+			byName[target.name.String()] = target.pane
 		}
 	}
 	panes := panesOf(agents)
 	targets := make([]downTarget, 0, len(names)+len(workers)+len(named))
 	absent := 0
 	for _, name := range names {
-		pane, live := panes[name]
+		pane, live := panes[name.String()]
 		if pane == "" {
-			pane = byName[name]
+			pane = byName[name.String()]
 		}
 		if pane == "" {
 			absent++
@@ -1230,7 +1229,7 @@ func (l *Launcher) DownByName(names []string, selfPane string, dry bool) (int, e
 // question answered with an end, leaves exactly that, and no running team is left
 // either: down puts it away by the names hergy gave, reading no definition
 // (d-da92).
-func (l *Launcher) DownStopped(teamName, selfPane string, dry bool) (int, error) {
+func (l *Launcher) DownStopped(teamName domainname.Seen, selfPane domainname.PaneID, dry bool) (int, error) {
 	if !dry {
 		if err := l.herdr.Verify(protocol.ModeDown); err != nil {
 			return 0, err
@@ -1255,12 +1254,12 @@ func (e *TeamDownTimeout) Error() string { return e.message }
 // hergy's own pane last. On failure that pane stays open to show the error.
 // Its own name cannot be awaited because closing that pane ends hergy too.
 // absent is how many members were not there.
-func (l *Launcher) closeTargets(targets []downTarget, selfPane string, absent int, dry bool) (int, error) {
+func (l *Launcher) closeTargets(targets []downTarget, selfPane domainname.PaneID, absent int, dry bool) (int, error) {
 	l.stage(i18n.T("progress.stage.closing"))
 	closed := 0
-	seen := make(map[string]bool)
+	seen := make(map[domainname.PaneID]bool)
 	var self *downTarget
-	var names []string
+	var names []domainname.Seen
 	nameSeen := map[string]bool{}
 	for _, target := range targets {
 		if seen[target.pane] {
@@ -1277,18 +1276,18 @@ func (l *Launcher) closeTargets(targets []downTarget, selfPane string, absent in
 			return 0, err
 		}
 		closed++
-		if target.name != "" && !nameSeen[target.name] {
+		if target.name.String() != "" && !nameSeen[target.name.String()] {
 			names = append(names, target.name)
-			nameSeen[target.name] = true
+			nameSeen[target.name.String()] = true
 		}
 	}
 	if !dry {
-		err := l.waitGone(names, func(remaining []string) error {
+		err := l.waitGone(names, func(remaining []domainname.Seen) error {
 			key := "error.team_not_gone"
 			if self != nil {
 				key = "error.team_not_gone_self"
 			}
-			return &TeamDownTimeout{message: i18n.Tf(key, strings.Join(remaining, ", "), l.timeout, l.team)}
+			return &TeamDownTimeout{message: i18n.Tf(key, strings.Join(seenStrings(remaining), ", "), l.timeout, l.team)}
 		})
 		if err != nil {
 			return closed, err
@@ -1312,11 +1311,6 @@ func (l *Launcher) closeTargets(targets []downTarget, selfPane string, absent in
 	return closed, nil
 }
 
-// workerTabLabel is the label of one worker's tab: "worker:<team>/<worker>".
-func workerTabLabel(name, short string) string {
-	return domainname.Observe(name).WorkerLabel(domainname.Observe(short)).String()
-}
-
 // workerAgents lists the live agents in this team's own worker tabs: a tab whose
 // label starts with "worker:<team>/". It leaves another team's workers alone.
 func (l *Launcher) workerAgents(agents []protocol.Agent) ([]protocol.Agent, error) {
@@ -1324,17 +1318,17 @@ func (l *Launcher) workerAgents(agents []protocol.Agent) ([]protocol.Agent, erro
 	if err != nil {
 		return nil, err
 	}
-	labels := make(map[string]string, len(tabs))
+	labels := make(map[string]domainname.Seen, len(tabs))
 	for _, tab := range tabs {
-		labels[tab.ID] = tab.Label.String()
+		labels[tab.ID] = tab.Label
 	}
-	workerTeam := domainname.Observe(l.team)
+	workerTeam := l.team
 	var out []protocol.Agent
 	for _, agent := range agents {
 		if agent.Name.String() == "" || agent.PaneID == "" || agent.TabID == "" {
 			continue
 		}
-		if !domainname.IsWorkerTab(domainname.Observe(labels[agent.TabID]), workerTeam) {
+		if !domainname.IsWorkerTab(labels[agent.TabID], workerTeam) {
 			continue
 		}
 		out = append(out, agent)
@@ -1353,7 +1347,7 @@ func (l *Launcher) workerTargets(agents []protocol.Agent) ([]downTarget, error) 
 	}
 	targets := make([]downTarget, 0, len(workers))
 	for _, agent := range workers {
-		targets = append(targets, downTarget{name: agent.Name.String(), pane: agent.PaneID, worker: true})
+		targets = append(targets, downTarget{name: agent.Name, pane: agent.PaneID, worker: true})
 	}
 	return targets, nil
 }
@@ -1364,16 +1358,16 @@ func (l *Launcher) workerTargets(agents []protocol.Agent) ([]downTarget, error) 
 // need not be running: a member that never started, and one whose agent ended, are
 // still hergy's panes to close. A pane with no such name is a person's own and is
 // not here (d-da92). agents is what the caller already read; nil reads them.
-func (l *Launcher) namedTargets(teamName string, agents []protocol.Agent) ([]downTarget, error) {
+func (l *Launcher) namedTargets(teamName domainname.Seen, agents []protocol.Agent) ([]downTarget, error) {
 	tabs, err := l.herdr.Tabs()
 	if err != nil {
 		return nil, err
 	}
-	own := make(map[string]string, len(tabs))
-	workerTeam := domainname.Observe(teamName)
+	own := make(map[string]domainname.Seen, len(tabs))
+	workerTeam := teamName
 	for _, tab := range tabs {
-		if protocol.NamesTeam(tab.Label.String(), teamName) || domainname.IsWorkerTab(tab.Label, workerTeam) {
-			own[tab.ID] = tab.Label.String()
+		if protocol.NamesTeam(tab.Label.String(), teamName.String()) || domainname.IsWorkerTab(tab.Label, workerTeam) {
+			own[tab.ID] = tab.Label
 		}
 	}
 	if len(own) == 0 {
@@ -1388,13 +1382,13 @@ func (l *Launcher) namedTargets(teamName string, agents []protocol.Agent) ([]dow
 			return nil, err
 		}
 	}
-	inPane := make(map[string]string, len(agents))
+	inPane := make(map[domainname.PaneID]domainname.Seen, len(agents))
 	for _, agent := range agents {
 		if agent.Name.String() == "" || agent.PaneID == "" {
 			continue
 		}
 		if _, ok := inPane[agent.PaneID]; !ok {
-			inPane[agent.PaneID] = agent.Name.String()
+			inPane[agent.PaneID] = agent.Name
 		}
 	}
 	targets := make([]downTarget, 0, len(panes))
@@ -1403,16 +1397,16 @@ func (l *Launcher) namedTargets(teamName string, agents []protocol.Agent) ([]dow
 		if !mine {
 			continue
 		}
-		name := pane.Label.String()
-		if !domainname.BelongsTo(domainname.Observe(name), domainname.Observe(teamName)) {
-			if name = inPane[pane.ID]; !domainname.BelongsTo(domainname.Observe(name), domainname.Observe(teamName)) {
+		name := pane.Label
+		if !domainname.BelongsTo(name, teamName) {
+			if name = inPane[pane.ID]; !domainname.BelongsTo(name, teamName) {
 				continue
 			}
 		}
 		targets = append(targets, downTarget{
 			name: name, pane: pane.ID,
-			worker:  domainname.IsWorkerTab(domainname.Observe(label), workerTeam),
-			stopped: inPane[pane.ID] == "",
+			worker:  domainname.IsWorkerTab(label, workerTeam),
+			stopped: inPane[pane.ID].String() == "",
 		})
 	}
 	return targets, nil
@@ -1455,8 +1449,8 @@ func (l *Launcher) closePane(target downTarget, dry bool) error {
 
 // panesOf maps each live agent name to its pane. The first pane wins, so a
 // duplicate name never leads to the same pane being closed twice.
-func panesOf(agents []protocol.Agent) map[string]string {
-	panes := make(map[string]string, len(agents))
+func panesOf(agents []protocol.Agent) map[string]domainname.PaneID {
+	panes := make(map[string]domainname.PaneID, len(agents))
 	for _, agent := range agents {
 		if agent.Name.String() == "" || agent.PaneID == "" {
 			continue
@@ -1497,7 +1491,7 @@ func (l *Launcher) Failure(err error) StartFailure {
 	failure := StartFailure{
 		Member:  l.failedMember,
 		Started: append([]string(nil), l.started...),
-		Tab:     l.team,
+		Tab:     l.team.String(),
 		Panes:   len(l.progress.Panes),
 		Reason:  protocol.Message(err),
 	}
@@ -1566,7 +1560,7 @@ func (l *Launcher) preflightIn(workspace string, members []definition.Start) err
 }
 
 // createTab makes the new tab whose root pane the first member holds.
-func (l *Launcher) createTab(workspace string, first *definition.Start, label string) (string, error) {
+func (l *Launcher) createTab(workspace string, first *definition.Start, label string) (domainname.PaneID, error) {
 	l.stage(i18n.T("progress.stage.creating_tab"))
 	root, err := l.herdr.CreateTab(workspace, label, first.Cwd, first.PaneEnv(), func(id string) {
 		l.mu.Lock()
@@ -1596,7 +1590,7 @@ func (l *Launcher) layOut(step layout.Step) error {
 }
 
 // splitPane splits one pane and gives the new pane to one member.
-func (l *Launcher) splitPane(source string, member *definition.Start, direction string) error {
+func (l *Launcher) splitPane(source domainname.PaneID, member *definition.Start, direction string) error {
 	pane, err := l.herdr.Split(source, direction, member.Cwd, member.PaneEnv())
 	if err != nil {
 		return err
@@ -1609,7 +1603,11 @@ func (l *Launcher) splitPane(source string, member *definition.Start, direction 
 // on its pane when its agent is not live.
 func (l *Launcher) namePane(member string) error {
 	l.mark(member, i18n.T("progress.mark.pane_created"))
-	return l.herdr.Rename(l.paneOf(member), domainname.Observe(member))
+	target, err := l.lookup(member)
+	if err != nil {
+		return err
+	}
+	return l.herdr.Rename(l.paneOf(member), target.Name)
 }
 
 func (l *Launcher) start(member *definition.Start, next StartupNext, tabLabel string) error {
@@ -1630,7 +1628,7 @@ func (l *Launcher) start(member *definition.Start, next StartupNext, tabLabel st
 		}
 	}
 	l.mark(member.Name.String(), i18n.T("progress.mark.ready"))
-	if err := l.submit(member, member.Name.String()); err != nil {
+	if err := l.submit(member, member.Name); err != nil {
 		return err
 	}
 	l.mu.Lock()
@@ -1639,14 +1637,14 @@ func (l *Launcher) start(member *definition.Start, next StartupNext, tabLabel st
 	return nil
 }
 
-func (l *Launcher) submit(member *definition.Start, target string) error {
+func (l *Launcher) submit(member *definition.Start, target domainname.Target) error {
 	l.stage(i18n.Tf("progress.stage.submitting", member.Name.String()))
 	l.mark(member.Name.String(), i18n.T("progress.mark.prompt_requested"))
-	if err := l.herdr.ConfirmPrompt(domainname.Observe(target), member.Prompt); err != nil {
+	if err := l.herdr.ConfirmPrompt(target, member.Prompt); err != nil {
 		switch protocol.ErrorCode(err) {
 		case "agent_prompt_stalled", "timeout", "agent_blocked":
 			l.mark(member.Name.String(), i18n.T("progress.mark.bootstrap_undelivered"))
-			return &Undelivered{Name: member.Name.String(), Pane: l.paneOf(member.Name.String()), Recovery: repromptRetry(l.project, l.team, member.Name.String()), Cause: err}
+			return &Undelivered{Name: member.Name.String(), Pane: l.paneOf(member.Name.String()), Recovery: repromptRetry(l.project, l.team.String(), member.Name.String()), Cause: err}
 		default:
 			return err
 		}
@@ -1670,7 +1668,7 @@ func (l *Launcher) mark(name, state string) {
 	l.notify(Event{Member: name, State: state, Workspace: l.workspace})
 }
 
-func (l *Launcher) place(name, pane string) {
+func (l *Launcher) place(name string, pane domainname.PaneID) {
 	l.mu.Lock()
 	l.progress.Place(name, pane)
 	l.mu.Unlock()
@@ -1727,7 +1725,7 @@ func (l *Launcher) sleeping(step time.Duration) error {
 	}
 }
 
-func (l *Launcher) paneOf(name string) string {
+func (l *Launcher) paneOf(name string) domainname.PaneID {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	return l.progress.Panes[name]
@@ -1776,4 +1774,12 @@ func intersect(a, b []string) []string {
 func isDir(path string) bool {
 	info, err := os.Stat(path)
 	return err == nil && info.IsDir()
+}
+
+func seenStrings(names []domainname.Seen) []string {
+	out := make([]string, len(names))
+	for i, n := range names {
+		out[i] = n.String()
+	}
+	return out
 }

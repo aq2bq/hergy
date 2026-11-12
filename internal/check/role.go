@@ -159,7 +159,7 @@ func roleReaders(def *definition.Definition, role string) []RoleReader {
 		if member.Role != role {
 			continue
 		}
-		out = append(out, RoleReader{Definition: def.Name.String(), Member: domainname.PreviewName(def.Name.String(), member.Name.String())})
+		out = append(out, RoleReader{Definition: def.Name.String(), Member: domainname.DefinitionNames(def.Name).Member(member.Name)})
 	}
 	return out
 }

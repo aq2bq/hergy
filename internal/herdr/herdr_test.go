@@ -6,8 +6,6 @@ import (
 	"testing"
 	"time"
 
-	domainname "github.com/aq2bq/hergy/internal/domain/name"
-
 	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/protocol"
 )
@@ -125,7 +123,7 @@ func TestFindPaneReadsTheLabel(t *testing.T) {
 		}}, nil
 	}}
 
-	got, err := New(port).FindPane(domainname.Observe("team-lead"))
+	got, err := New(port).FindPane(fixtureSeen("team-lead"))
 	if err != nil {
 		t.Fatalf("FindPane: %v", err)
 	}
@@ -133,7 +131,7 @@ func TestFindPaneReadsTheLabel(t *testing.T) {
 		t.Fatalf("FindPane = %q, want p1", got)
 	}
 
-	got, err = New(port).FindPane(domainname.Observe("nobody"))
+	got, err = New(port).FindPane(fixtureSeen("nobody"))
 	if err != nil {
 		t.Fatalf("FindPane(nobody): %v", err)
 	}
@@ -174,7 +172,7 @@ func TestPaneProcessInfoReadsTheGroupAndShell(t *testing.T) {
 func TestFocusSendsTheTarget(t *testing.T) {
 	port := &fakePort{}
 	port.reply = alwaysReply(nil)
-	if err := New(port).Focus(domainname.Observe("p-lead")); err != nil {
+	if err := New(port).Focus(fixtureSeen("p-lead")); err != nil {
 		t.Fatalf("Focus: %v", err)
 	}
 	if want := []string{"agent", "focus", "p-lead"}; !slices.Equal(port.calls[0], want) {
@@ -184,7 +182,7 @@ func TestFocusSendsTheTarget(t *testing.T) {
 	port.reply = func(int, []string) (map[string]any, error) {
 		return nil, herdrFailure("agent_not_found")
 	}
-	err := New(port).Focus(domainname.Observe("gone"))
+	err := New(port).Focus(fixtureSeen("gone"))
 	if protocol.ErrorCode(err) != "agent_not_found" {
 		t.Fatalf("Focus error = %v, want agent_not_found", err)
 	}

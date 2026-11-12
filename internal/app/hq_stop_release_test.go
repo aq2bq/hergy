@@ -45,7 +45,7 @@ func (p *stopReleasePort) JSON(args ...string) (map[string]any, error) {
 	case "pane list":
 		panes := []any{}
 		for _, pane := range p.snapshot.Panes {
-			panes = append(panes, map[string]any{"pane_id": pane.ID, "label": pane.Label.String(), "tab_id": pane.TabID})
+			panes = append(panes, map[string]any{"pane_id": pane.ID.String(), "label": pane.Label.String(), "tab_id": pane.TabID})
 		}
 		return map[string]any{"panes": panes}, nil
 	case "pane close":
@@ -56,7 +56,7 @@ func (p *stopReleasePort) JSON(args ...string) (map[string]any, error) {
 			if a.Name.String() != args[2] {
 				continue
 			}
-			if slices.Contains(p.closed, a.PaneID) {
+			if slices.Contains(p.closed, a.PaneID.String()) {
 				p.reads[a.Name.String()]++
 				if p.reads[a.Name.String()] > p.survive {
 					p.snapshot.Agents = slices.DeleteFunc(p.snapshot.Agents, func(b protocol.Agent) bool { return b.Name.String() == a.Name.String() })
@@ -86,7 +86,7 @@ func (p *stopReleasePort) JSON(args ...string) (map[string]any, error) {
 	return map[string]any{}, nil
 }
 func stopAgent(a protocol.Agent) map[string]any {
-	return map[string]any{"name": a.Name.String(), "agent": a.Kind, "agent_status": a.Status, "pane_id": a.PaneID, "tab_id": a.TabID}
+	return map[string]any{"name": a.Name.String(), "agent": a.Kind, "agent_status": a.Status, "pane_id": a.PaneID.String(), "tab_id": a.TabID}
 }
 
 func TestScreenStopWaitsForNameRelease(t *testing.T) {
@@ -106,8 +106,8 @@ func TestScreenStopWaitsForNameRelease(t *testing.T) {
 				p.snapshot.Tabs = []protocol.Tab{{ID: "t1", Label: fixtureSeen("demo"), WorkspaceID: "w1"}}
 				for i, start := range r.starts {
 					pane := fmt.Sprintf("old-%d", i)
-					p.snapshot.Panes = append(p.snapshot.Panes, protocol.Pane{ID: pane, Label: fixtureSeen(start.Name.String()), TabID: "t1"})
-					p.snapshot.Agents = append(p.snapshot.Agents, protocol.Agent{Name: fixtureSeen(start.Name.String()), Kind: "claude", Status: "idle", PaneID: pane, TabID: "t1"})
+					p.snapshot.Panes = append(p.snapshot.Panes, protocol.Pane{ID: fixturePane(pane), Label: fixtureSeen(start.Name.String()), TabID: "t1"})
+					p.snapshot.Agents = append(p.snapshot.Agents, protocol.Agent{Name: fixtureSeen(start.Name.String()), Kind: "claude", Status: "idle", PaneID: fixturePane(pane), TabID: "t1"})
 				}
 				if outcome != "released" {
 					p.survive = 1000

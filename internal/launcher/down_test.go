@@ -65,7 +65,7 @@ func TestDownStoppedClosesWhatHergyMadeForAStoppedTeam(t *testing.T) {
 	}
 	l, out := downLauncher(t, port, "team-lead")
 
-	closed, err := l.DownStopped("team", "", false)
+	closed, err := l.DownStopped(fixtureSeen("team"), "", false)
 	if err != nil {
 		t.Fatalf("DownStopped: %v", err)
 	}
@@ -94,7 +94,7 @@ func TestDownStoppedWithNoTabOfThatTeamClosesNothing(t *testing.T) {
 	}
 	l, out := downLauncher(t, port, "team-lead")
 
-	if _, err := l.DownStopped("team", "", false); err != nil {
+	if _, err := l.DownStopped(fixtureSeen("team"), "", false); err != nil {
 		t.Fatalf("DownStopped: %v", err)
 	}
 	if len(port.closed) != 0 {
@@ -131,7 +131,7 @@ func TestDownWorkerClosesOnlyThatWorkerAndItsTab(t *testing.T) {
 	}
 	l, out := downLauncher(t, port, "team-lead")
 
-	closed, err := l.DownWorker("worker:team/w1", "", false)
+	closed, err := l.DownWorker(fixtureSeen("worker:team/w1"), "", false)
 	if err != nil {
 		t.Fatalf("DownWorker: %v", err)
 	}
@@ -170,7 +170,7 @@ func TestDownWorkerDryPlansThePaneAndItsTab(t *testing.T) {
 	}
 	l, out := downLauncher(t, port, "team-lead")
 
-	closed, err := l.DownWorker("worker:team/w1", "", true)
+	closed, err := l.DownWorker(fixtureSeen("worker:team/w1"), "", true)
 	if err != nil {
 		t.Fatalf("DownWorker --dry: %v", err)
 	}
@@ -204,7 +204,7 @@ func TestDownWorkerKeepsATabThatStillHoldsAPane(t *testing.T) {
 	}
 	l, _ := downLauncher(t, port, "team-lead")
 
-	if _, err := l.DownWorker("worker:team/w1", "", false); err != nil {
+	if _, err := l.DownWorker(fixtureSeen("worker:team/w1"), "", false); err != nil {
 		t.Fatalf("DownWorker: %v", err)
 	}
 	if want := []string{"p2"}; !slices.Equal(port.closed, want) {

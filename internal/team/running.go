@@ -27,12 +27,12 @@ type Running struct {
 // is running there yet (d-da92).
 type Tab struct {
 	ID          string
-	Label       string
+	Label       domainname.Seen
 	WorkspaceID string
-	Agents      []string
+	Agents      []domainname.Seen
 	// Panes are the labels of the panes hergy named in this tab. A pane a person
 	// opened has no label.
-	Panes []string
+	Panes []domainname.Seen
 	// PaneDirs is where those panes stand, one per Pane. A team this machine has
 	// no launch record of is read as the project its panes stand in (d-73fc).
 	PaneDirs []string
@@ -43,7 +43,7 @@ type Tab struct {
 // what tells two projects' teams of one name apart, so a team is read from the
 // record of its own project rather than the newest of its name (r-87c8).
 type Launch struct {
-	Team       string
+	Team       domainname.Seen
 	Definition string
 	Project    string
 }
@@ -77,11 +77,11 @@ func RunningTeams(tabs []Tab, launches []Launch, agentsRead bool) []Running {
 	var out []Running
 	for _, tab := range tabs {
 		name, definition, project, ok := runningOf(tab, known, agentsRead)
-		if !ok || seen[name] {
+		if !ok || seen[name.String()] {
 			continue
 		}
-		seen[name] = true
-		out = append(out, Running{Team: domainname.TeamFromObservation(domainname.Observe(name)), Definition: definition, Project: project})
+		seen[name.String()] = true
+		out = append(out, Running{Team: domainname.TeamFromObservation(name), Definition: definition, Project: project})
 	}
 	return out
 }
@@ -98,8 +98,8 @@ type launches struct {
 func newLaunches(all []Launch) *launches {
 	out := &launches{byTeam: make(map[string][]Launch, len(all))}
 	for _, launch := range all {
-		if launch.Team != "" && launch.Definition != "" {
-			out.byTeam[launch.Team] = append(out.byTeam[launch.Team], launch)
+		if launch.Team.String() != "" && launch.Definition != "" {
+			out.byTeam[launch.Team.String()] = append(out.byTeam[launch.Team.String()], launch)
 		}
 	}
 	return out
@@ -111,8 +111,8 @@ func newLaunches(all []Launch) *launches {
 // tab whose named panes stand in no recorded project has no record — a boot that
 // failed once the tab was made leaves the panes and no record — and a tab with no
 // named pane to read stands on the newest record of its name, as it always has.
-func (l *launches) forTab(name string, tab Tab) (Launch, bool) {
-	records := l.byTeam[name]
+func (l *launches) forTab(name domainname.Seen, tab Tab) (Launch, bool) {
+	records := l.byTeam[name.String()]
 	if len(records) == 0 {
 		return Launch{}, false
 	}
@@ -131,10 +131,10 @@ func (l *launches) forTab(name string, tab Tab) (Launch, bool) {
 // namedPaneDirs is where the panes hergy named for one team in this tab stand, in
 // the order of the panes. A pane a person opened has no name of the team's, and
 // the tab's PaneDirs pair with its Panes by position.
-func namedPaneDirs(name string, tab Tab) []string {
+func namedPaneDirs(name domainname.Seen, tab Tab) []string {
 	var out []string
 	for i, pane := range tab.Panes {
-		if !domainname.BelongsTo(domainname.Observe(pane), domainname.Observe(name)) || i >= len(tab.PaneDirs) {
+		if !domainname.BelongsTo(pane, name) || i >= len(tab.PaneDirs) {
 			continue
 		}
 		out = append(out, tab.PaneDirs[i])
@@ -156,35 +156,28 @@ func underAny(project string, dirs []string) bool {
 // runningOf reads one tab: the team it stands for, the definition behind it, and
 // the project the record it was read from names. known is the launch record and
 // agentsRead says whether the live agents could be read.
-func runningOf(tab Tab, known *launches, agentsRead bool) (name, definition, project string, ok bool) {
-	if rest, older := strings.CutPrefix(tab.Label, "team:"); older {
-		name, definition, ok = splitTeamLabel(rest)
-		if !ok {
-			return "", "", "", false
-		}
-		if recorded, found := known.forTab(name, tab); found {
+func runningOf(tab Tab, known *launches, agentsRead bool) (name domainname.Seen, definition, project string, ok bool) {
+	name, definition, ok = tab.Label.TeamLabel()
+	if !ok {
+		return domainname.Seen{}, "", "", false
+	}
+	recorded, found := known.forTab(name, tab)
+	if strings.HasPrefix(tab.Label.String(), "team:") {
+		if found {
 			definition, project = recorded.Definition, recorded.Project
 		}
 		return name, definition, project, true
 	}
-	if tab.Label == "" {
-		return "", "", "", false
-	}
-	recorded, found := known.forTab(tab.Label, tab)
-	if !HoldsMember(tab, tab.Label) {
-		// The record alone does not make a tab a team's: it is the history of
-		// what this machine started, and a person's tab can carry the name of a
-		// team that has stopped. Only when the agents could not be read at all
-		// is the record the best guess left.
+	if !HoldsMember(tab, name) {
 		if !agentsRead && found {
-			return tab.Label, recorded.Definition, recorded.Project, true
+			return name, recorded.Definition, recorded.Project, true
 		}
-		return "", "", "", false
+		return domainname.Seen{}, "", "", false
 	}
 	if !found {
-		return tab.Label, tab.Label, "", true
+		return name, definition, "", true
 	}
-	return tab.Label, recorded.Definition, recorded.Project, true
+	return name, recorded.Definition, recorded.Project, true
 }
 
 // HoldsMember reports whether a tab holds a member of the team of this name: an
@@ -192,14 +185,14 @@ func runningOf(tab Tab, known *launches, agentsRead bool) (name, definition, pro
 // leaves its named pane behind, and that pane is what still says the tab is the
 // team's (d-da92). It is what tells a team's tab from another tab that carries
 // the same label.
-func HoldsMember(tab Tab, name string) bool {
+func HoldsMember(tab Tab, name domainname.Seen) bool {
 	for _, agent := range tab.Agents {
-		if domainname.BelongsTo(domainname.Observe(agent), domainname.Observe(name)) {
+		if domainname.BelongsTo(agent, name) {
 			return true
 		}
 	}
 	for _, pane := range tab.Panes {
-		if domainname.BelongsTo(domainname.Observe(pane), domainname.Observe(name)) {
+		if domainname.BelongsTo(pane, name) {
 			return true
 		}
 	}
@@ -212,14 +205,14 @@ func HoldsMember(tab Tab, name string) bool {
 // team whose name merely starts the same way ("qw2-x" beside "qw2") keeps its own
 // tab, so its agents are not here, and neither are the agents of a person's tab
 // that happens to carry the name.
-func MemberAgents(tabs []Tab, name string) []string {
-	var out []string
+func MemberAgents(tabs []Tab, name domainname.Seen) []domainname.Seen {
+	var out []domainname.Seen
 	for _, tab := range tabs {
-		if !protocol.NamesTeam(tab.Label, name) {
+		if !protocol.NamesTeam(tab.Label.String(), name.String()) {
 			continue
 		}
 		for _, agent := range tab.Agents {
-			if domainname.BelongsTo(domainname.Observe(agent), domainname.Observe(name)) {
+			if domainname.BelongsTo(agent, name) {
 				out = append(out, agent)
 			}
 		}
@@ -229,35 +222,19 @@ func MemberAgents(tabs []Tab, name string) []string {
 
 // MemberPanes is the panes hergy named for one team in the tab labelled for it:
 // the panes that are still there after their agent ended (d-da92).
-func MemberPanes(tabs []Tab, name string) []string {
-	var out []string
+func MemberPanes(tabs []Tab, name domainname.Seen) []domainname.Seen {
+	var out []domainname.Seen
 	for _, tab := range tabs {
-		if !protocol.NamesTeam(tab.Label, name) {
+		if !protocol.NamesTeam(tab.Label.String(), name.String()) {
 			continue
 		}
 		for _, pane := range tab.Panes {
-			if domainname.BelongsTo(domainname.Observe(pane), domainname.Observe(name)) {
+			if domainname.BelongsTo(pane, name) {
 				out = append(out, pane)
 			}
 		}
 	}
 	return out
-}
-
-// splitTeamLabel reads the older "<team>@<definition>" or "<team>". The older
-// form names the team definition after the team.
-func splitTeamLabel(rest string) (teamName, definition string, ok bool) {
-	if before, after, ok0 := strings.Cut(rest, "@"); ok0 {
-		teamName, definition = before, after
-		if teamName == "" || definition == "" {
-			return "", "", false
-		}
-		return teamName, definition, true
-	}
-	if rest == "" {
-		return "", "", false
-	}
-	return rest, rest, true
 }
 
 // FindRunning returns the running team with this name.

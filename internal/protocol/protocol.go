@@ -18,7 +18,7 @@ type Agent struct {
 	Name   domainname.Seen
 	Kind   string
 	Status string
-	PaneID string
+	PaneID domainname.PaneID
 	TabID  string
 	// Seq is Herdr's state_change_seq: the greater it is, the more recently the
 	// agent changed state. The activity screen reads it to tell the last turn
@@ -59,7 +59,8 @@ func AgentFrom(object map[string]any) Agent {
 	agent.Name = domainname.Observe(rawName)
 	agent.Kind, _ = object["agent"].(string)
 	agent.Status, _ = object["agent_status"].(string)
-	agent.PaneID, _ = object["pane_id"].(string)
+	paneID, _ := object["pane_id"].(string)
+	agent.PaneID = domainname.PaneID(paneID)
 	agent.TabID, _ = object["tab_id"].(string)
 	agent.Seq = seqOf(object["state_change_seq"])
 	// Herdr reports the terminal's title twice: as it stands, and with its own
@@ -114,7 +115,7 @@ func TabFrom(object map[string]any) Tab {
 // Pane is one live pane as Herdr reports it. Label is the name pane rename set,
 // and TabID is the tab the pane is in.
 type Pane struct {
-	ID    string
+	ID    domainname.PaneID
 	Label domainname.Seen
 	TabID string
 	// Cwd is the directory the pane stands in. The headquarters reads it to tell
@@ -128,7 +129,8 @@ type Pane struct {
 // name.
 func PaneFrom(object map[string]any) Pane {
 	pane := Pane{}
-	pane.ID, _ = object["pane_id"].(string)
+	paneID, _ := object["pane_id"].(string)
+	pane.ID = domainname.PaneID(paneID)
 	rawLabel, _ := object["label"].(string)
 	pane.Label = domainname.Observe(rawLabel)
 	pane.TabID, _ = object["tab_id"].(string)

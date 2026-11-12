@@ -103,7 +103,7 @@ func TestTEAMS_M2_TheEffectIsThePromptsOwnLine(t *testing.T) {
 	if err != nil {
 		t.Fatalf("core does not read: %v", err)
 	}
-	note := prompt.TurnsNote(i18n.Language(), prompt.TurnsOf(def, "impl-b", "core"))
+	note := prompt.TurnsNote(i18n.Language(), prompt.TurnsOf(def, "impl-b", fixtureNaming("core")))
 	if !strings.Contains(note, wantRemoved[0]) {
 		t.Errorf("impl-b's turn note does not hold %q:\n%s", wantRemoved[0], note)
 	}
@@ -184,7 +184,7 @@ func TestTEAMS_M4_ThePreviewIsThePromptsAgreementPart(t *testing.T) {
 		t.Fatal("core has no lead to build a prompt for")
 	}
 	built, err := prompt.Member(def, lead, prompt.Run{
-		Team: "core", Base: cat.Base(), Reader: cat.Reader(), Sources: cat, Display: cat.Display,
+		Team: fixtureNaming("core"), Base: cat.Base(), Reader: cat.Reader(), Sources: cat, Display: cat.Display,
 	})
 	if err != nil {
 		t.Fatalf("lead's prompt did not build: %v", err)

@@ -20,16 +20,16 @@ func releaseLauncher(t *testing.T, survive int) (*Launcher, *fakePort, *time.Dur
 	starts := []definition.Start{}
 	for i, name := range []string{"demo-a", "demo-b"} {
 		pane := []string{"p1", "p2"}[i]
-		a := protocol.Agent{Name: fixtureSeen(name), PaneID: pane, TabID: "t1", Status: "idle", Kind: "claude"}
+		a := protocol.Agent{Name: fixtureSeen(name), PaneID: fixturePane(pane), TabID: "t1", Status: "idle", Kind: "claude"}
 		base.agents[name] = a
 		base.live = append(base.live, a)
-		base.panes = append(base.panes, protocol.Pane{ID: pane, TabID: "t1", Label: fixtureSeen(name)})
+		base.panes = append(base.panes, protocol.Pane{ID: fixturePane(pane), TabID: "t1", Label: fixtureSeen(name)})
 		starts = append(starts, definition.Start{Name: fixtureHerdrName(name), Short: fixtureShortName(strings.TrimPrefix(name, "demo-")), Kind: "claude", Cwd: t.TempDir(), Prompt: "hello"})
 	}
 	reads := map[string]int{}
 	base.onAgentGet = func(name string) {
 		agent, ok := base.agents[name]
-		if !ok || !slices.Contains(base.closed, agent.PaneID) {
+		if !ok || !slices.Contains(base.closed, agent.PaneID.String()) {
 			return
 		}
 		reads[name]++
@@ -39,7 +39,7 @@ func releaseLauncher(t *testing.T, survive int) (*Launcher, *fakePort, *time.Dur
 		delete(base.agents, name)
 		base.live = slices.DeleteFunc(base.live, func(a protocol.Agent) bool { return a.Name.String() == name })
 	}
-	l := New(starts, "demo", t.TempDir(), herdr.New(&receiptPort{fakePort: base}), 400, io.Discard)
+	l := New(starts, fixtureSeen("demo"), t.TempDir(), herdr.New(&receiptPort{fakePort: base}), 400, io.Discard)
 	elapsed := new(time.Duration)
 	l.now = func() time.Time { return time.Unix(0, 0).Add(*elapsed) }
 	l.pause = func(d time.Duration) { *elapsed += d }
@@ -49,11 +49,11 @@ func releaseLauncher(t *testing.T, survive int) (*Launcher, *fakePort, *time.Dur
 func downPath(l *Launcher, path, self string, dry bool) (int, error) {
 	switch path {
 	case "Down":
-		return l.Down(l.starts, self, dry)
+		return l.Down(l.starts, fixturePane(self), dry)
 	case "DownByName":
-		return l.DownByName([]string{"demo-a", "demo-b"}, self, dry)
+		return l.DownByName(fixtureSeenList([]string{"demo-a", "demo-b"}), fixturePane(self), dry)
 	default:
-		return l.DownStopped("demo", self, dry)
+		return l.DownStopped(fixtureSeen("demo"), fixturePane(self), dry)
 	}
 }
 

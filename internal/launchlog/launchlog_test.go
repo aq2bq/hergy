@@ -68,9 +68,9 @@ func TestAppendAndRead(t *testing.T) {
 
 	first := Record{
 		Time: "2026-10-15T22:10:03+09:00", Command: CommandUp, Hergy: "hergy abc1234",
-		Project: "/tmp/project", Layer: "local", Definition: "agile-dev", Team: "agile-dev",
+		Project: "/tmp/project", Layer: "local", Definition: "agile-dev", Team: fixtureSeen("agile-dev"),
 		TeamYAML: "/tmp/project/.hergy/teams/agile-dev/team.yaml", Hash: "0123456789abcdef",
-		Members: []Member{{Name: "agile-dev-lead", Short: "lead", Prompt: prompt}},
+		Members: []Member{{Name: fixtureSeen("agile-dev-lead"), Short: "lead", Prompt: prompt}},
 		Docs:    []Doc{{Path: "/tmp/project/.hergy/common/00_TEAM_PROTOCOL.yaml", Layer: "local", Revision: 3, SHA256: doc}},
 	}
 	if err := log.Append(first); err != nil {
@@ -78,8 +78,8 @@ func TestAppendAndRead(t *testing.T) {
 	}
 	second := Record{
 		Time: "2026-10-15T22:20:00+09:00", Command: CommandReprompt, Layer: "local",
-		Definition: "agile-dev", Team: "agile-dev", Hash: "0123456789abcdef",
-		Members: []Member{{Name: "agile-dev-worker", Short: "worker", Prompt: doc}},
+		Definition: "agile-dev", Team: fixtureSeen("agile-dev"), Hash: "0123456789abcdef",
+		Members: []Member{{Name: fixtureSeen("agile-dev-worker"), Short: "worker", Prompt: doc}},
 	}
 	if err := log.Append(second); err != nil {
 		t.Fatal(err)
@@ -95,7 +95,7 @@ func TestAppendAndRead(t *testing.T) {
 	if records[0].Command != CommandUp || records[1].Command != CommandReprompt {
 		t.Errorf("Read() returned %q then %q, want them oldest first", records[0].Command, records[1].Command)
 	}
-	if got := records[0]; got.Members[0].Prompt != prompt || got.Docs[0].Revision != 3 || got.Team != "agile-dev" {
+	if got := records[0]; got.Members[0].Prompt != prompt || got.Docs[0].Revision != 3 || got.Team.String() != "agile-dev" {
 		t.Errorf("the first record came back as %+v", got)
 	}
 	text, err := log.Text(prompt)

@@ -43,7 +43,7 @@ func (a *activityRead) CheckDefinitionRename(path string) error {
 
 func renameLaunch(records []launchlog.Record, running team.Running) (launchlog.Record, bool) {
 	for _, one := range slices.Backward(records) {
-		if !one.IsHire() && one.Team == running.Team.String() && (running.Project == "" || samePath(one.Project, running.Project)) {
+		if !one.IsHire() && one.Team.String() == running.Team.String() && (running.Project == "" || samePath(one.Project, running.Project)) {
 			return one, true
 		}
 	}

@@ -96,8 +96,8 @@ type View struct {
 // sides has no Change.
 func Of(before, after View) []Change {
 	team := before.Run.Team
-	if team == "" {
-		team = before.Def.Name.String()
+	if team.String() == "" {
+		team = domainname.DefinitionNames(before.Def.Name)
 	}
 	before.Run.Team = team
 	after.Run.Team = team
@@ -242,7 +242,7 @@ func profileParts(before, after View, bm, am definition.MemberNode) []PartChange
 // named as a member reads them (the short member name, not the herdr name). A
 // turn is its party: a role that moved under the same party is not a turn change
 // (the roster part carries that), so the party's role is only read for the line.
-func diffTurns(before, after []prompt.TurnPart, team string) *PartChange {
+func diffTurns(before, after []prompt.TurnPart, team domainname.Naming) *PartChange {
 	removed := turnsOnly(before, after, team)
 	added := turnsOnly(after, before, team)
 	if len(removed) == 0 && len(added) == 0 {
@@ -251,13 +251,13 @@ func diffTurns(before, after []prompt.TurnPart, team string) *PartChange {
 	return &PartChange{Part: Turns, Removed: removed, Added: added}
 }
 
-func turnsOnly(from, other []prompt.TurnPart, team string) []Named {
+func turnsOnly(from, other []prompt.TurnPart, team domainname.Naming) []Named {
 	var out []Named
 	for _, turn := range from {
 		if hasTurnParty(other, turn.Name) {
 			continue
 		}
-		out = append(out, Named{Name: domainname.ShortIn(domainname.Observe(turn.Name), domainname.Observe(team)).String(), Role: turn.Role})
+		out = append(out, Named{Name: team.Short(turn.Name), Role: turn.Role})
 	}
 	return out
 }

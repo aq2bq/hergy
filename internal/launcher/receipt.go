@@ -4,6 +4,8 @@ import (
 	"errors"
 	"strings"
 
+	domainname "github.com/aq2bq/hergy/internal/domain/name"
+
 	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/protocol"
@@ -14,7 +16,7 @@ import (
 // startup and other sending failures keep their existing stop behavior.
 type Undelivered struct {
 	Name     string
-	Pane     string
+	Pane     domainname.PaneID
 	Recovery string
 	Cause    error
 }

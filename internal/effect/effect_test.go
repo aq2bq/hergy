@@ -105,7 +105,7 @@ func (l layer) view(t *testing.T, def *definition.Definition) effect.View {
 		Def:      def,
 		Profiles: l.profiles(),
 		Run: prompt.Run{
-			Team:       "demo",
+			Team:       fixtureDemoNaming(),
 			Executable: "hergy",
 			Base:       l.team,
 			Reader:     source.Disk{},
@@ -188,7 +188,7 @@ func TestOfTurnRemovalMovesOnlyTheMemberThatHandsIt(t *testing.T) {
 			t.Errorf("%s's prompt moved, but no Change says so", bm.Name.String())
 		}
 	}
-	leadTurns := prompt.TurnsNote("", prompt.TurnsOf(after, "lead", "demo"))
+	leadTurns := prompt.TurnsNote("", prompt.TurnsOf(after, "lead", fixtureDemoNaming()))
 	if strings.Contains(leadTurns, "spec") {
 		t.Errorf("lead's turns still name spec: %q", leadTurns)
 	}
@@ -264,8 +264,8 @@ func TestOfARuleDocumentChangeMovesTheAgreements(t *testing.T) {
 	}
 
 	changes := effect.Of(
-		effect.View{Def: before, Profiles: l.profiles(), Run: prompt.Run{Team: "demo", Base: l.team, Reader: cat.Reader(), Sources: cat}},
-		effect.View{Def: after, Profiles: l.profiles(), Run: prompt.Run{Team: "demo", Base: l.team, Reader: with.Reader(), Sources: with}},
+		effect.View{Def: before, Profiles: l.profiles(), Run: prompt.Run{Team: fixtureDemoNaming(), Base: l.team, Reader: cat.Reader(), Sources: cat}},
+		effect.View{Def: after, Profiles: l.profiles(), Run: prompt.Run{Team: fixtureDemoNaming(), Base: l.team, Reader: with.Reader(), Sources: with}},
 	)
 	if len(changes) != 2 {
 		t.Fatalf("Of = %+v, want both members", changes)
@@ -301,8 +301,8 @@ func TestProseWhitespaceChangesBothReaders(t *testing.T) {
 	}
 
 	changes := effect.Of(
-		effect.View{Def: before, Profiles: l.profiles(), Run: prompt.Run{Team: "demo", Base: l.team, Reader: cat.Reader(), Sources: cat}},
-		effect.View{Def: after, Profiles: l.profiles(), Run: prompt.Run{Team: "demo", Base: l.team, Reader: with.Reader(), Sources: with}},
+		effect.View{Def: before, Profiles: l.profiles(), Run: prompt.Run{Team: fixtureDemoNaming(), Base: l.team, Reader: cat.Reader(), Sources: cat}},
+		effect.View{Def: after, Profiles: l.profiles(), Run: prompt.Run{Team: fixtureDemoNaming(), Base: l.team, Reader: with.Reader(), Sources: with}},
 	)
 	if len(changes) != 2 {
 		t.Fatalf("Of = %+v, want both readers to receive the changed prose", changes)
@@ -774,8 +774,8 @@ func TestFirstLineTitleChangeUpdatesEveryRoster(t *testing.T) {
 		t.Fatal(err)
 	}
 	changes := effect.Of(
-		effect.View{Def: before, Profiles: l.profiles(), Run: prompt.Run{Team: "demo", Base: l.team, Reader: cat.Reader(), Sources: cat}},
-		effect.View{Def: after, Profiles: l.profiles(), Run: prompt.Run{Team: "demo", Base: l.team, Reader: with.Reader(), Sources: with}},
+		effect.View{Def: before, Profiles: l.profiles(), Run: prompt.Run{Team: fixtureDemoNaming(), Base: l.team, Reader: cat.Reader(), Sources: cat}},
+		effect.View{Def: after, Profiles: l.profiles(), Run: prompt.Run{Team: fixtureDemoNaming(), Base: l.team, Reader: with.Reader(), Sources: with}},
 	)
 	if len(changes) != 2 {
 		t.Fatalf("changes=%+v", changes)

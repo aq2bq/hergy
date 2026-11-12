@@ -24,7 +24,7 @@ func (n Seen) String() string { return n.s }
 func (n Seen) MarshalText() ([]byte, error) { return []byte(n.s), nil }
 
 // UnmarshalText restores an observation without validating its shape.
-func (n *Seen) UnmarshalText(text []byte) error { n.s = string(text); return nil }
+func (n *Seen) UnmarshalText(text []byte) error { *n = Observe(string(text)); return nil }
 
 // PaneName is a constructed pane label, which has no agent-name length limit.
 type PaneName struct{ s string }
@@ -42,52 +42,40 @@ func Resolve(raw Seen, teams []Seen) (team, short Seen, ok bool) {
 	if team.s == "" {
 		return Seen{}, raw, false
 	}
-	return team, Observe(raw.s[len(team.s)+1:]), true
+	return team, Seen{s: raw.s[len(team.s)+1:]}, true
 }
 
-// WithShort reconstructs an observed name from an observed team and short name.
-// It is used for legacy worker tab labels, which are not model names.
-func (n Seen) WithShort(short Seen) Seen { return Observe(targetSpelling(n.s, short.s)) }
+// ObservedWorker is read from a single worker tab label. Its parts cannot be
+// supplied independently, so deriving its agent cannot concatenate arbitrary observations.
+type ObservedWorker struct{ label, team, short Seen }
+
+// Team is the team part read from the tab.
+func (n ObservedWorker) Team() Seen { return n.team }
+
+// Short is the worker part read from the tab.
+func (n ObservedWorker) Short() Seen { return n.short }
+
+// Label retains the complete observed tab label.
+func (n ObservedWorker) Label() Seen { return n.label }
+
+// Agent derives the recipient witnessed by this one worker tab.
+func (n ObservedWorker) Agent() Seen { return Seen{s: targetSpelling(n.team.s, n.short.s)} }
 
 // WorkerTab reads a worker tab without discarding legacy names or slash suffixes.
-func (n Seen) WorkerTab() (team, short Seen, ok bool) {
+func (n Seen) WorkerTab() (ObservedWorker, bool) {
 	rest, ok := strings.CutPrefix(n.s, "worker:")
 	if !ok {
-		return Seen{}, Seen{}, false
+		return ObservedWorker{}, false
 	}
 	a, b, ok := strings.Cut(rest, "/")
 	if !ok || a == "" || b == "" {
-		return Seen{}, Seen{}, false
+		return ObservedWorker{}, false
 	}
-	return Observe(a), Observe(b), true
+	return ObservedWorker{label: n, team: Seen{s: a}, short: Seen{s: b}}, true
 }
-
-// PreviewName is a display value, never an agent target. Preview placeholders
-// and existing definition directory names need not satisfy model naming rules.
-func PreviewName(team, short string) string { return targetSpelling(team, short) }
 
 // Team is the fallible conversion from an existing definition to a run name.
 func (n DefinitionName) Team() (TeamName, error) { return ParseTeamName(n.s) }
-
-// MemberForInput resolves a run spelling at the legacy input boundary. Failures
-// carry the composed spelling so callers preserve the existing diagnostic.
-func MemberForInput(team string, member MemberName) (HerdrName, error) {
-	definition, _ := ParseDefinitionName(team)
-	t, err := definition.Team()
-	if err != nil {
-		return HerdrName{}, &Problem{Kind: Herdr, Value: PreviewName(team, member.String()), Max: 32}
-	}
-	return t.Member(member)
-}
-
-// WorkerForInput resolves a run spelling at the legacy hire boundary.
-func WorkerForInput(team string, worker WorkerName) (HerdrName, error) {
-	t, err := ParseTeamName(team)
-	if err != nil {
-		return HerdrName{}, &Problem{Kind: Herdr, Value: PreviewName(team, worker.String()), Max: 32}
-	}
-	return t.Worker(worker)
-}
 
 // PaneLabel is either a model agent label, a watcher label, or a label read from
 // herdr. It cannot be implemented outside this package.
@@ -110,14 +98,11 @@ func ShortIn(raw, team Seen) Seen { _, short, _ := Resolve(raw, []Seen{team}); r
 // BelongsTo tests membership in an already scoped team using Resolve's rule.
 func BelongsTo(raw, team Seen) bool { _, _, ok := Resolve(raw, []Seen{team}); return ok }
 
-// WorkerLabel reconstructs an observed worker's tab label without validating it.
-func (n Seen) WorkerLabel(short Seen) Seen { return Observe(workerLabel(n.s, short.s)) }
-
 // WorkerShort reads the suffix of one known team's worker label. Empty suffixes
 // remain distinguishable from a label of a different team.
 func WorkerShort(label, team Seen) (Seen, bool) {
 	s, ok := strings.CutPrefix(label.s, workerLabel(team.s, ""))
-	return Observe(s), ok
+	return Seen{s: s}, ok
 }
 
 // IsWorkerTab reports whether a tab is in an already scoped team's worker tabs.
@@ -148,7 +133,12 @@ func (n TeamRef) String() string {
 func (n TeamRef) Model() (TeamName, bool) { return n.model, n.model.s != "" }
 
 // Observation returns the original spelling for read-only and close operations.
-func (n TeamRef) Observation() Seen { return Observe(n.String()) }
+func (n TeamRef) Observation() Seen {
+	if n.model.s != "" {
+		return n.model.Observation()
+	}
+	return n.legacy
+}
 
 // ShortName is the short part of a constructed member or worker target.
 type ShortName struct{ s string }
@@ -192,4 +182,39 @@ func (n TeamRef) MarshalText() ([]byte, error) { return []byte(n.String()), nil 
 func (n *TeamRef) UnmarshalText(text []byte) error {
 	*n = TeamFromObservation(Observe(string(text)))
 	return nil
+}
+
+// TeamLabel reads the legacy team label, keeping its spelling as an observation.
+func (n Seen) TeamLabel() (team Seen, definition string, ok bool) {
+	rest, older := strings.CutPrefix(n.s, "team:")
+	if !older {
+		return n, n.s, n.s != ""
+	}
+	before, after, split := strings.Cut(rest, "@")
+	if split {
+		if before == "" || after == "" {
+			return Seen{}, "", false
+		}
+		return Seen{s: before}, after, true
+	}
+	return Seen{s: rest}, rest, rest != ""
+}
+
+// Observation retains an already observed spelling.
+func (n Seen) Observation() Seen { return n }
+
+// PaneID identifies a pane, independently of the spelling of any agent name.
+type PaneID string
+
+func (id PaneID) String() string { return string(id) }
+func (PaneID) herdrTarget()      {}
+
+// WorkerIn reads a worker label already scoped to a known team. Unlike the
+// unscoped tab reader it retains legacy team names containing a slash.
+func (n Seen) WorkerIn(team Seen) (ObservedWorker, bool) {
+	short, ok := WorkerShort(n, team)
+	if !ok || short.s == "" {
+		return ObservedWorker{}, false
+	}
+	return ObservedWorker{label: n, team: team, short: short}, true
 }

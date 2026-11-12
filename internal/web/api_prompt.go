@@ -27,8 +27,8 @@ type PromptReader interface {
 
 // PromptRun identifies a live instance and its execution project.
 type PromptRun struct {
-	Team    string `json:"team"`
-	Project string `json:"project"`
+	Team    domainname.TeamRef `json:"team"`
+	Project string             `json:"project"`
 }
 
 // RecordedPrompt is the exact blob body, without a sending preamble.
@@ -110,6 +110,7 @@ type promptAsk struct {
 // none runs, when more than one runs un-picked, or when the live reading fails.
 type promptNames struct {
 	Team     string
+	Naming   domainname.Naming
 	Kind     string // "run" | "definition"
 	Status   string // "picked" | "single" | "none" | "choose" | "error"
 	Runs     []PromptRun
@@ -165,6 +166,13 @@ func (s *Server) promptsFor(ask promptAsk) (*promptBuilt, *apiErr) {
 			out.Names = selectPromptName(in.Name, runs, in.RunningTeam)
 		}
 	}
+	// Select the naming branch once, before checks or text construction.
+	if out.Names.Kind == "run" {
+		out.Names.Naming = domainname.RunningNames(out.Names.Selected.Team)
+	} else {
+		d, _ := domainname.ParseDefinitionName(out.Names.Team)
+		out.Names.Naming = domainname.DefinitionNames(d)
+	}
 	basis, refusal := s.promptBasisFor(ask, project, out.Names)
 	if refusal != nil {
 		return nil, refusal
@@ -174,10 +182,10 @@ func (s *Server) promptsFor(ask promptAsk) (*promptBuilt, *apiErr) {
 		return out, nil
 	}
 	if ask.Worker != nil {
-		out.Worker, out.WorkerErr = promptWorkerText(out.Names.Team, basis.def, ask.Worker)
+		out.Worker, out.WorkerErr = promptWorkerText(out.Names.Naming, basis.def, ask.Worker)
 		return out, nil
 	}
-	out.Built = promptMemberTexts(out.Names.Team, out.Project, basis.overlay, basis.def, in.Member, out.Errors)
+	out.Built = promptMemberTexts(out.Names.Naming, out.Project, basis.overlay, basis.def, in.Member, out.Errors)
 	return out, nil
 }
 
@@ -235,24 +243,24 @@ func (b *promptBasis) readDefinition(name, place string) {
 
 // promptWorkerText builds the one worker's preview with the team name the
 // prompt is named by.
-func promptWorkerText(team string, def *definition.Definition, worker *apiWorkerIn) (*promptText, error) {
+func promptWorkerText(team domainname.Naming, def *definition.Definition, worker *apiWorkerIn) (*promptText, error) {
 	lead, err := t2HiringMember(def, worker.Purpose, worker.From)
 	if err != nil {
 		return nil, err
 	}
 	built, err := prompt.Worker(prompt.WorkerInput{
-		Team: team, Lead: domainname.PreviewName(team, lead.Name.String()), LeadRole: lead.Role,
-		Purpose: worker.Purpose, Name: domainname.PreviewName(team, worker.Name), Task: worker.Task,
+		Team: team.String(), Lead: team.Member(lead.Name), LeadRole: lead.Role,
+		Purpose: worker.Purpose, Name: team.Worker(worker.Name), Task: worker.Task,
 	})
 	if err != nil {
 		return nil, err
 	}
-	return &promptText{Name: domainname.PreviewName(team, worker.Name), Text: built.Text, Segments: built.Segments}, nil
+	return &promptText{Name: team.Worker(worker.Name), Text: built.Text, Segments: built.Segments}, nil
 }
 
 // promptMemberTexts builds every member's text, or the one the caller named. A
 // member whose text cannot be built is left out; the caller's problems say why.
-func promptMemberTexts(team, project string, overlay *catalog.Catalog, def *definition.Definition, member string, failures map[string]error) []promptText {
+func promptMemberTexts(team domainname.Naming, project string, overlay *catalog.Catalog, def *definition.Definition, member string, failures map[string]error) []promptText {
 	run := prompt.Run{
 		Team: team, Base: project, Executable: promptExecutable(),
 		Lang: i18n.Language(), Reader: overlay.Reader(), Sources: overlay, Display: overlay.Display,
@@ -302,7 +310,7 @@ func selectPromptName(definition string, runs []PromptRun, picked string) prompt
 	out := promptNames{Runs: runs, Team: definition, Kind: "definition", Status: "none"}
 	if picked != "" {
 		for i := range runs {
-			if runs[i].Team == picked {
+			if runs[i].Team.String() == picked {
 				selected := runs[i]
 				out.Team, out.Kind, out.Status, out.Selected = picked, "run", "picked", &selected
 				return out
@@ -317,7 +325,7 @@ func selectPromptName(definition string, runs []PromptRun, picked string) prompt
 	}
 	if len(runs) == 1 {
 		selected := runs[0]
-		out.Team, out.Kind, out.Status, out.Selected = runs[0].Team, "run", "single", &selected
+		out.Team, out.Kind, out.Status, out.Selected = runs[0].Team.String(), "run", "single", &selected
 		return out
 	}
 	if len(runs) > 1 {
@@ -381,7 +389,7 @@ func (s *Server) comparePrompt(in promptComparisonIn) (*promptComparison, *apiEr
 			readerOK = true
 			if built.Names.Selected != nil {
 				asked = true
-				history, readErr = reader.PromptHistory(built.Project, in.Name, in.Place, in.Member, built.Names.Selected.Team)
+				history, readErr = reader.PromptHistory(built.Project, in.Name, in.Place, in.Member, built.Names.Selected.Team.String())
 			}
 		}
 	}

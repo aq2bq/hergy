@@ -15,12 +15,12 @@ import (
 // example's order is what a person reads in core's member list.
 func TestOfNodesStopLastFirst(t *testing.T) {
 	got := Of(Input{
-		Team:  "core",
+		Team:  fixtureSeen("core"),
 		Graph: graphOf([]string{"lead", "impl-a", "impl-b"}, [2]string{"lead", "human"}),
 		Agents: []Agent{
-			{Herdr: "core-lead", Node: "lead", Status: "idle", Seq: 40},
-			{Herdr: "core-impl-a", Node: "impl-a", Status: "idle", Seq: 30},
-			{Herdr: "core-impl-b", Node: "impl-b", Status: "idle", Seq: 20},
+			{Herdr: fixtureSeen("core-lead"), Node: fixtureSeen("lead"), Status: "idle", Seq: 40},
+			{Herdr: fixtureSeen("core-impl-a"), Node: fixtureSeen("impl-a"), Status: "idle", Seq: 30},
+			{Herdr: fixtureSeen("core-impl-b"), Node: fixtureSeen("impl-b"), Status: "idle", Seq: 20},
 		},
 		Now: now,
 	})
@@ -38,13 +38,13 @@ func TestOfNodesStopLastFirst(t *testing.T) {
 // first — not by name.
 func TestHiredStopLastFirst(t *testing.T) {
 	got := Of(Input{
-		Team:  "demo",
+		Team:  fixtureSeen("demo"),
 		Graph: graphOf([]string{"lead"}, [2]string{"human", "lead"}),
 		Agents: []Agent{
-			{Herdr: "demo-lead", Node: "lead", Status: "idle", Seq: 1},
-			{Herdr: "demo-zoe", Status: "idle", Seq: 2},
-			{Herdr: "demo-coder", Status: "working", Seq: 3},
-			{Herdr: "demo-anna", Status: "idle", Seq: 9},
+			{Herdr: fixtureSeen("demo-lead"), Node: fixtureSeen("lead"), Status: "idle", Seq: 1},
+			{Herdr: fixtureSeen("demo-zoe"), Status: "idle", Seq: 2},
+			{Herdr: fixtureSeen("demo-coder"), Status: "working", Seq: 3},
+			{Herdr: fixtureSeen("demo-anna"), Status: "idle", Seq: 9},
 		},
 		Now: now,
 	})
@@ -63,12 +63,12 @@ func TestHiredStopLastFirst(t *testing.T) {
 func TestNodeAt(t *testing.T) {
 	at := now.Add(-90 * time.Minute)
 	got := Of(Input{
-		Team:  "demo",
+		Team:  fixtureSeen("demo"),
 		Graph: graphOf([]string{"lead", "spec", "other"}, [2]string{"human", "lead"}),
 		Agents: []Agent{
-			{Herdr: "demo-lead", Node: "lead", Status: "idle", Seq: 3},
-			{Herdr: "demo-spec", Node: "spec", Status: "working", Seq: 2},
-			{Herdr: "demo-coder", Status: "idle", Seq: 1},
+			{Herdr: fixtureSeen("demo-lead"), Node: fixtureSeen("lead"), Status: "idle", Seq: 3},
+			{Herdr: fixtureSeen("demo-spec"), Node: fixtureSeen("spec"), Status: "working", Seq: 2},
+			{Herdr: fixtureSeen("demo-coder"), Status: "idle", Seq: 1},
 		},
 		Seen: map[string]Watch{
 			"demo-lead":  ago(90 * time.Minute),
@@ -102,7 +102,7 @@ func TestNodeAt(t *testing.T) {
 func TestWatcherKeepsItsFile(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "state", "activity.json")
 	first := NewWatcherAt(path)
-	lead := Agent{Herdr: "demo-lead", Node: "lead", Status: "idle", Seq: 4}
+	lead := Agent{Herdr: fixtureSeen("demo-lead"), Node: fixtureSeen("lead"), Status: "idle", Seq: 4}
 	stopped := now.Add(-95 * time.Minute)
 	if _, err := os.Stat(path); err == nil {
 		t.Error("the file is written before anything was seen")
@@ -130,7 +130,7 @@ func TestWatcherKeepsItsFile(t *testing.T) {
 
 	// An agent that appeared while nobody watched is taken from this read on,
 	// not called a lower bound: the earlier serve says which state began when.
-	fresh := Agent{Herdr: "demo-new", Status: "idle", Seq: 1}
+	fresh := Agent{Herdr: fixtureSeen("demo-new"), Status: "idle", Seq: 1}
 	seen = again.Observe([]Agent{moved, fresh}, later)
 	if got, want := seen["demo-new"], (Watch{At: later}); got != want {
 		t.Errorf("an agent that appeared = %+v, want %+v", got, want)
@@ -141,7 +141,7 @@ func TestWatcherKeepsItsFile(t *testing.T) {
 // across a serve, so the agents of its first read were already in their states
 // when the watching began (6 A2).
 func TestWatcherWithoutAFileBeginsLower(t *testing.T) {
-	seen := NewWatcher().Observe([]Agent{{Herdr: "demo-lead", Node: "lead", Status: "idle", Seq: 1}}, now)
+	seen := NewWatcher().Observe([]Agent{{Herdr: fixtureSeen("demo-lead"), Node: fixtureSeen("lead"), Status: "idle", Seq: 1}}, now)
 	if got, want := seen["demo-lead"], (Watch{At: now, Lower: true}); got != want {
 		t.Errorf("the first read = %+v, want %+v", got, want)
 	}

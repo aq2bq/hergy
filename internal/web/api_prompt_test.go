@@ -26,7 +26,7 @@ func TestPromptComparisonCurrentMatchesMemberAndNeverWrites(t *testing.T) {
 		t.Fatal(err)
 	}
 	node, _ := def.Graph.Member("lead")
-	built, err := prompt.Member(def, &node, prompt.Run{Team: "demo", Base: s.cat.Base(), Executable: promptExecutable(), Reader: s.cat.Reader(), Sources: s.cat, Display: s.cat.Display})
+	built, err := prompt.Member(def, &node, prompt.Run{Team: fixtureNaming("demo"), Base: s.cat.Base(), Executable: promptExecutable(), Reader: s.cat.Reader(), Sources: s.cat, Display: s.cat.Display})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -91,7 +91,7 @@ func TestPromptComparisonPreservesHistoryForInvalidDraft(t *testing.T) {
 	f := newFixture(t)
 	s := f.server(t)
 	s.act = promptReaderFixture{
-		runs:    []PromptRun{{Team: "demo", Project: ""}},
+		runs:    []PromptRun{{Team: fixtureTeam("demo"), Project: ""}},
 		history: PromptHistory{Status: "recorded", Recorded: &RecordedPrompt{Text: "old\r\n \t", Command: "up", Time: "2026-11-04T00:00:00Z"}},
 	}
 	text := readFile(t, f.teamYAML())
@@ -117,7 +117,7 @@ func TestPromptComparisonSegmentsUseRunningAlias(t *testing.T) {
 	f := newFixture(t)
 	s := f.server(t)
 	s.act = promptReaderFixture{
-		runs:    []PromptRun{{Team: "sample-run", Project: ""}},
+		runs:    []PromptRun{{Team: fixtureTeam("sample-run"), Project: ""}},
 		history: PromptHistory{Status: "missing"},
 	}
 	out, failure := s.comparePrompt(promptComparisonIn{apiIn: apiIn{Name: "demo", Place: "project", Hash: source.Hash(readFile(t, f.teamYAML())), Doc: json.RawMessage(`{"ops":[]}`)}, Member: "lead"})
@@ -149,11 +149,11 @@ func TestPromptsForChoosesTheName(t *testing.T) {
 		status  string
 	}{
 		{"none running", nil, nil, "", "demo", "definition", "none"},
-		{"one running", []PromptRun{{Team: "demo", Project: f.proj}}, nil, "", "demo", "run", "single"},
-		{"one alias", []PromptRun{{Team: "demo-hotfix", Project: f.proj}}, nil, "", "demo-hotfix", "run", "single"},
-		{"two unchosen", []PromptRun{{Team: "demo", Project: f.proj}, {Team: "demo-hotfix", Project: f.proj}}, nil, "", "demo", "definition", "choose"},
-		{"two chosen", []PromptRun{{Team: "demo", Project: f.proj}, {Team: "demo-hotfix", Project: f.proj}}, nil, "demo-hotfix", "demo-hotfix", "run", "picked"},
-		{"pick stopped", []PromptRun{{Team: "demo", Project: f.proj}}, nil, "demo-old", "demo", "definition", "choose"},
+		{"one running", []PromptRun{{Team: fixtureTeam("demo"), Project: f.proj}}, nil, "", "demo", "run", "single"},
+		{"one alias", []PromptRun{{Team: fixtureTeam("demo-hotfix"), Project: f.proj}}, nil, "", "demo-hotfix", "run", "single"},
+		{"two unchosen", []PromptRun{{Team: fixtureTeam("demo"), Project: f.proj}, {Team: fixtureTeam("demo-hotfix"), Project: f.proj}}, nil, "", "demo", "definition", "choose"},
+		{"two chosen", []PromptRun{{Team: fixtureTeam("demo"), Project: f.proj}, {Team: fixtureTeam("demo-hotfix"), Project: f.proj}}, nil, "demo-hotfix", "demo-hotfix", "run", "picked"},
+		{"pick stopped", []PromptRun{{Team: fixtureTeam("demo"), Project: f.proj}}, nil, "demo-old", "demo", "definition", "choose"},
 		{"unreadable", nil, errors.New("herdr is not there"), "", "demo", "definition", "error"},
 	}
 	for _, tc := range cases {
@@ -225,8 +225,8 @@ func TestWorkerPreviewUsesTheRunningNameAndTheDraft(t *testing.T) {
 		team string
 	}{
 		{"no running team", nil, "demo"},
-		{"one running team", []PromptRun{{Team: "demo", Project: ""}}, "demo"},
-		{"an alias", []PromptRun{{Team: "demo-hotfix", Project: ""}}, "demo-hotfix"},
+		{"one running team", []PromptRun{{Team: fixtureTeam("demo"), Project: ""}}, "demo"},
+		{"an alias", []PromptRun{{Team: fixtureTeam("demo-hotfix"), Project: ""}}, "demo-hotfix"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

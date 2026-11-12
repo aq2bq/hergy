@@ -5,6 +5,8 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+
+	domainname "github.com/aq2bq/hergy/internal/domain/name"
 )
 
 // Path is where one team's turn stands: <stateDir>/turns/<team>.json, beside
@@ -23,7 +25,7 @@ func LogPath(stateDir, team string) string {
 
 // Load reads one team's turn. A file that is not there is a team whose turn
 // hergy has not seen yet: the human holds it, and nothing waits.
-func Load(path, team string) (*State, error) {
+func Load(path string, team domainname.Seen) (*State, error) {
 	raw, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
 		return &State{Team: team, Holder: Human}, nil

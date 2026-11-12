@@ -20,7 +20,7 @@ func TestRawProseReachesPromptAndRosterUsesTitle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	run := prompt.Run{Team: "demo", Reader: f.cat.Reader(), Sources: f.cat, Lang: "ja"}
+	run := prompt.Run{Team: fixtureNaming("demo"), Reader: f.cat.Reader(), Sources: f.cat, Lang: "ja"}
 	built, err := prompt.Member(def, &def.Graph.Members[0], run)
 	if err != nil {
 		t.Fatal(err)

@@ -20,19 +20,19 @@ import (
 // downPlan is hergy down --dry --json's answer: the names it would close, and
 // what the panes would leave in git (r-b65e).
 type downPlan struct {
-	Team      string          `json:"team"`
-	Members   []string        `json:"members"`
-	Workers   []string        `json:"workers"`
-	Leftovers web.HQLeftovers `json:"leftovers"`
+	Team      string            `json:"team"`
+	Members   []domainname.Seen `json:"members"`
+	Workers   []domainname.Seen `json:"workers"`
+	Leftovers web.HQLeftovers   `json:"leftovers"`
 }
 
 // writeDownPlan writes the plan as JSON, with empty lists rather than null.
 func writeDownPlan(w io.Writer, plan downPlan) error {
 	if plan.Members == nil {
-		plan.Members = []string{}
+		plan.Members = []domainname.Seen{}
 	}
 	if plan.Workers == nil {
-		plan.Workers = []string{}
+		plan.Workers = []domainname.Seen{}
 	}
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
@@ -40,14 +40,14 @@ func writeDownPlan(w io.Writer, plan downPlan) error {
 }
 
 // workerNamesOf is the herdr names of one team's workers, by their tabs.
-func workerNamesOf(tabs []team.Tab, teamName string) []string {
-	var out []string
+func workerNamesOf(tabs []team.Tab, teamName domainname.Seen) []domainname.Seen {
+	var out []domainname.Seen
 	for _, tab := range tabs {
-		if short, ok := workerOf(tab.Label, teamName); ok {
-			out = append(out, domainname.Observe(teamName).WithShort(domainname.Observe(short)).String())
+		if worker, ok := tab.Label.WorkerIn(teamName); ok {
+			out = append(out, worker.Agent())
 		}
 	}
-	sort.Strings(out)
+	sort.Slice(out, func(i, j int) bool { return out[i].String() < out[j].String() })
 	return out
 }
 
@@ -55,11 +55,11 @@ func workerNamesOf(tabs []team.Tab, teamName string) []string {
 // tab labelled with the team's name and in the worker tabs hergy made for it.
 // It is read before the panes close, so the worktrees are known afterwards
 // (r-b65e).
-func teamPaneDirs(tabs []team.Tab, name string) []string {
-	workerTeam := domainname.Observe(name)
+func teamPaneDirs(tabs []team.Tab, name domainname.Seen) []string {
+	workerTeam := name
 	var dirs []string
 	for _, tab := range tabs {
-		if !protocol.NamesTeam(tab.Label, name) && !domainname.IsWorkerTab(domainname.Observe(tab.Label), workerTeam) {
+		if !protocol.NamesTeam(tab.Label.String(), name.String()) && !domainname.IsWorkerTab(tab.Label.Observation(), workerTeam) {
 			continue
 		}
 		dirs = append(dirs, tab.PaneDirs...)
@@ -68,7 +68,7 @@ func teamPaneDirs(tabs []team.Tab, name string) []string {
 }
 
 // workerPaneDirs is where one worker's pane stood, read before it closes.
-func workerPaneDirs(tabs []team.Tab, label string) []string {
+func workerPaneDirs(tabs []team.Tab, label domainname.Seen) []string {
 	for _, tab := range tabs {
 		if tab.Label == label {
 			return append([]string(nil), tab.PaneDirs...)
@@ -113,7 +113,7 @@ func teamStartedAt(projectRoot, teamName string) (time.Time, bool) {
 	}
 	var best time.Time
 	for _, record := range records {
-		if record.Command != launchlog.CommandUp || record.Team != teamName || !sameProject(record.Project, projectRoot) {
+		if record.Command != launchlog.CommandUp || record.Team.String() != teamName || !sameProject(record.Project, projectRoot) {
 			continue
 		}
 		if at, ok := recordTime(record); ok && at.After(best) {
@@ -133,7 +133,7 @@ func workerHiredAt(projectRoot, teamName, herdrName string) (time.Time, bool) {
 	}
 	var best time.Time
 	for _, record := range records {
-		if !record.IsHire() || record.Hire == nil || record.Hire.Worker != herdrName {
+		if !record.IsHire() || record.Hire == nil || record.Hire.Worker.String() != herdrName {
 			continue
 		}
 		if !sameProject(record.Project, projectRoot) {

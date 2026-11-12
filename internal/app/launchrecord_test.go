@@ -71,7 +71,7 @@ func TestUpRecordsTheLaunch(t *testing.T) {
 	if rec.Project != f.proj {
 		t.Errorf("project = %q, want %q", rec.Project, f.proj)
 	}
-	if rec.Layer != source.LayerLocal || rec.Definition != "demo" || rec.Team != "demo" {
+	if rec.Layer != source.LayerLocal || rec.Definition != "demo" || rec.Team.String() != "demo" {
 		t.Errorf("layer/definition/team = %q/%q/%q, want local/demo/demo", rec.Layer, rec.Definition, rec.Team)
 	}
 	if want := filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml"); rec.TeamYAML != want {
@@ -92,7 +92,7 @@ func TestUpRecordsTheLaunch(t *testing.T) {
 	}
 	prompts := map[string]string{}
 	for _, member := range rec.Members {
-		short, ok := wantMembers[member.Name]
+		short, ok := wantMembers[member.Name.String()]
 		if !ok || member.Short != short {
 			t.Errorf("member %q with short name %q, want one of %v", member.Name, member.Short, wantMembers)
 		}
@@ -100,7 +100,7 @@ func TestUpRecordsTheLaunch(t *testing.T) {
 		if err != nil {
 			t.Fatalf("the prompt of %s is not in blobs/: %v", member.Name, err)
 		}
-		prompts[member.Name] = string(text)
+		prompts[member.Name.String()] = string(text)
 	}
 	if prompts["demo-lead"] == "" || prompts["demo-lead"] == prompts["demo-builder"] {
 		t.Errorf("the members' prompts are %q and %q, want two texts",
@@ -155,7 +155,7 @@ func TestTheRecordFollowsWhatTheCommandHandedOut(t *testing.T) {
 		t.Errorf("up recorded %d members, want both", got)
 	}
 	last := records[1]
-	if last.Command != launchlog.CommandReprompt || len(last.Members) != 1 || last.Members[0].Name != "demo-lead" {
+	if last.Command != launchlog.CommandReprompt || len(last.Members) != 1 || last.Members[0].Name.String() != "demo-lead" {
 		t.Errorf("reprompt recorded %q with %v, want one prompt to demo-lead", last.Command, last.Members)
 	}
 	if records[0].Hash != last.Hash {
@@ -365,11 +365,11 @@ func TestHireRecordsWhoAddedTheWorker(t *testing.T) {
 	if !last.IsHire() || last.Hire == nil {
 		t.Fatalf("the last record is not a hire line: %+v", last)
 	}
-	want := launchlog.Hire{Worker: "dev-researcher", From: "lead", Purpose: "research", Tab: "worker:dev/researcher"}
+	want := launchlog.Hire{Worker: fixtureSeen("dev-researcher"), From: "lead", Purpose: "research", Tab: fixtureSeen("worker:dev/researcher")}
 	if *last.Hire != want {
 		t.Errorf("hire = %+v, want %+v", *last.Hire, want)
 	}
-	if last.Project != f.proj || last.Team != "dev" || last.Definition != "dev" {
+	if last.Project != f.proj || last.Team.String() != "dev" || last.Definition != "dev" {
 		t.Errorf("project/team/definition = %q/%q/%q", last.Project, last.Team, last.Definition)
 	}
 	if len(last.Members) != 0 || len(last.Docs) != 0 || last.TeamYAML != "" {
@@ -379,7 +379,7 @@ func TestHireRecordsWhoAddedTheWorker(t *testing.T) {
 	// a replacement for the launch.
 	found := false
 	for _, record := range records {
-		if record.Command == launchlog.CommandUp && record.Team == "dev" {
+		if record.Command == launchlog.CommandUp && record.Team.String() == "dev" {
 			found = true
 		}
 	}

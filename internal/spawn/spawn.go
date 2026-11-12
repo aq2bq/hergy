@@ -19,14 +19,14 @@ import (
 // name; the herdr name is "<team>-<name>", like the team's own members. from
 // names the hiring member; empty means the one member whose workers: name this
 // purpose (d-6f03).
-func Plan(team string, starts []definition.Start, profiles map[string]profile.Profile, name, purpose, task, from string) (*definition.Start, error) {
+func Plan(team domainname.TeamName, starts []definition.Start, profiles map[string]profile.Profile, name, purpose, task, from string) (*definition.Start, error) {
 	workerName, err := domainname.ParseWorkerName(name)
 	if err != nil {
 		return nil, i18n.Errorf("error.worker_name_pattern")
 	}
-	herdrName, err := domainname.WorkerForInput(team, workerName)
+	herdrName, err := team.Worker(workerName)
 	if err != nil {
-		return nil, i18n.Errorf("error.herdr_name_pattern", domainname.PreviewName(team, name))
+		return nil, i18n.Errorf("error.herdr_name_pattern", domainname.RunningNames(team.Ref()).Worker(name))
 	}
 	for i := range starts {
 		if starts[i].Short.String() == name || starts[i].Name.String() == name {
@@ -50,7 +50,7 @@ func Plan(team string, starts []definition.Start, profiles map[string]profile.Pr
 	}
 
 	built, err := prompt.Worker(prompt.WorkerInput{
-		Team: team, Lead: lead.Name.String(), LeadRole: lead.Role,
+		Team: team.String(), Lead: lead.Name.String(), LeadRole: lead.Role,
 		Purpose: purpose, Name: herdrName.String(), Task: task,
 	})
 	if err != nil {

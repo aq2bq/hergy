@@ -134,7 +134,7 @@ func TestAgentFromTitle(t *testing.T) {
 			if agent.Title != tt.want {
 				t.Fatalf("AgentFrom title = %q, want %q", agent.Title, tt.want)
 			}
-			if agent.PaneID != tt.object["pane_id"] && tt.object["pane_id"] != nil {
+			if agent.PaneID.String() != tt.object["pane_id"] && tt.object["pane_id"] != nil {
 				t.Fatalf("AgentFrom pane = %q, want %v", agent.PaneID, tt.object["pane_id"])
 			}
 		})

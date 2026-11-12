@@ -3,7 +3,6 @@ package app
 import (
 	"fmt"
 	"io"
-	"os"
 	"time"
 
 	domainname "github.com/aq2bq/hergy/internal/domain/name"
@@ -41,17 +40,17 @@ func runTell(env team.Env, opts *options.Options, stdout io.Writer) error {
 	if err != nil {
 		return err
 	}
-	from := ""
+	from := domainname.Seen{}
 	if opts.From != "" {
 		found, err := r.member(opts.From)
 		if err != nil {
 			return i18n.Errorf("error.tell_from_unknown", opts.From)
 		}
-		from = found.Name.String()
+		from = found.Name.Observation()
 	} else if !opts.Dry {
-		from = senderName(r, os.Getenv("HERDR_PANE_ID"))
+		from = senderName(r, currentPane())
 	}
-	text := sendText(from, opts.Body)
+	text := sendText(from.String(), opts.Body)
 	if opts.Dry {
 		fmt.Fprintf(stdout, i18n.T("send.dry"), member.Name.String(), text)
 		return nil
@@ -59,31 +58,31 @@ func runTell(env team.Env, opts *options.Options, stdout io.Writer) error {
 	if err := newLauncher(r, opts.Timeout, stdout).Tell(member, text); err != nil {
 		return err
 	}
-	return recordTell(r.team.Name, from, domainname.ShortIn(domainname.Observe(member.Name.String()), domainname.Observe(r.team.Name)).String())
+	return recordTell(r.team.Name.Observation(), from, domainname.ShortIn(member.Name.Observation(), r.team.Name.Observation()).String())
 }
 
 // tellHuman records that the member whose pane hergy runs in (or --from) marked
 // its text as the person's. Nothing is sent: the person reads the pane. From
 // a pane that is no member's there is nothing to mark, and it is refused.
 func tellHuman(r *resolved, opts *options.Options, stdout io.Writer) error {
-	from := ""
+	from := domainname.Seen{}
 	if opts.From != "" {
 		found, err := r.member(opts.From)
 		if err != nil {
 			return i18n.Errorf("error.tell_from_unknown", opts.From)
 		}
-		from = found.Name.String()
+		from = found.Name.Observation()
 	} else if !opts.Dry {
-		from = senderName(r, os.Getenv("HERDR_PANE_ID"))
+		from = senderName(r, currentPane())
 	}
 	if opts.Dry {
 		fmt.Fprint(stdout, i18n.T("send.dry_human"))
 		return nil
 	}
-	if from == "" {
+	if from.String() == "" {
 		return i18n.Errorf("error.tell_human_from_person")
 	}
-	if err := recordTell(r.team.Name, from, turns.Human); err != nil {
+	if err := recordTell(r.team.Name.Observation(), from, turns.Human); err != nil {
 		return err
 	}
 	fmt.Fprint(stdout, i18n.T("send.told_human"))
@@ -94,14 +93,14 @@ func tellHuman(r *resolved, opts *options.Options, stdout io.Writer) error {
 // turn to whom, the sender by herdr name (the person as ""), the recipient by
 // short name or turns.Human. A tell nobody watches for is still recorded; the
 // watcher drops what waited before it started.
-func recordTell(teamName, fromHerdr, to string) error {
+func recordTell(teamName, fromHerdr domainname.Seen, to string) error {
 	dir, err := screenlog.DefaultDir()
 	if err != nil {
 		return err
 	}
 	from := ""
-	if fromHerdr != "" {
-		from = domainname.ShortIn(domainname.Observe(fromHerdr), domainname.Observe(teamName)).String()
+	if fromHerdr.String() != "" {
+		from = domainname.ShortIn(fromHerdr, teamName).String()
 	}
-	return turns.WriteTell(turns.TellDir(dir, teamName), turns.Tell{From: from, To: to, At: time.Now()})
+	return turns.WriteTell(turns.TellDir(dir, teamName.String()), turns.Tell{From: from, To: to, At: time.Now()})
 }

@@ -84,7 +84,7 @@ func (a *activityRead) PromptHistory(_, definition, place, member, running strin
 	}
 	var team *web.HQRunningTeam
 	for i := range live.Teams {
-		if live.Teams[i].Team != running {
+		if live.Teams[i].Team.String() != running {
 			continue
 		}
 		team = &live.Teams[i]
@@ -119,7 +119,7 @@ func (a *activityRead) PromptHistory(_, definition, place, member, running strin
 	if err != nil {
 		return out, err
 	}
-	record, entry, ok := lastPromptRecord(records, team.Project, path, definition, team.Team, member)
+	record, entry, ok := lastPromptRecord(records, team.Project, path, definition, team.Team.String(), member)
 	if !ok {
 		out.Status = "missing"
 		out.Reason = "このメンバーへ渡した本文を一意に特定できる記録がありません"

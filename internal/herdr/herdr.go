@@ -200,7 +200,7 @@ func (h *Herdr) Tabs() ([]protocol.Tab, error) {
 
 // FindPane returns the id of the pane hergy named with this label, or "" when no
 // pane carries it. hergy names a pane after its member with pane rename.
-func (h *Herdr) FindPane(label domainname.Target) (string, error) {
+func (h *Herdr) FindPane(label domainname.Target) (domainname.PaneID, error) {
 	panes, err := h.Panes()
 	if err != nil {
 		return "", err
@@ -248,14 +248,14 @@ func (h *Herdr) CloseTab(tab string) error {
 
 // ClosePane closes one pane and nothing else. A tab is never closed as a unit:
 // the human may have added their own shell to the team's tab.
-func (h *Herdr) ClosePane(pane string) error {
-	_, err := h.port.JSON("pane", "close", pane)
+func (h *Herdr) ClosePane(pane domainname.PaneID) error {
+	_, err := h.port.JSON("pane", "close", pane.String())
 	return err
 }
 
 // CreateTab makes the team's tab. onTab runs as soon as the tab id is read, so a
 // malformed reply still reports a tab that now exists. It returns the root pane.
-func (h *Herdr) CreateTab(workspace, label, cwd string, env map[string]string, onTab func(string)) (string, error) {
+func (h *Herdr) CreateTab(workspace, label, cwd string, env map[string]string, onTab func(string)) (domainname.PaneID, error) {
 	args := []string{"tab", "create", "--workspace", workspace, "--label", label, "--cwd", cwd}
 	args = append(args, envArgs(env)...)
 	args = append(args, "--no-focus")
@@ -270,41 +270,44 @@ func (h *Herdr) CreateTab(workspace, label, cwd string, env map[string]string, o
 	if onTab != nil {
 		onTab(tabID)
 	}
-	return protocol.DigString(result, "root_pane", "pane_id")
+	id, err := protocol.DigString(result, "root_pane", "pane_id")
+	return domainname.PaneID(id), err
 }
 
 // Split splits a pane and returns the new pane.
-func (h *Herdr) Split(pane, direction, cwd string, env map[string]string) (string, error) {
-	args := []string{"pane", "split", pane, "--direction", direction, "--ratio", "0.5", "--cwd", cwd}
+func (h *Herdr) Split(pane domainname.PaneID, direction, cwd string, env map[string]string) (domainname.PaneID, error) {
+	args := []string{"pane", "split", pane.String(), "--direction", direction, "--ratio", "0.5", "--cwd", cwd}
 	args = append(args, envArgs(env)...)
 	args = append(args, "--no-focus")
 	result, err := h.port.JSON(args...)
 	if err != nil {
 		return "", err
 	}
-	return protocol.DigString(result, "pane", "pane_id")
+	id, err := protocol.DigString(result, "pane", "pane_id")
+	return domainname.PaneID(id), err
 }
 
 // SplitRatio splits a pane, the pane it splits keeping ratio of the room, and
 // returns the new pane: the strip under the members a team's watcher runs in
 // (d-5b60).
-func (h *Herdr) SplitRatio(pane, direction string, ratio float64, cwd string, env map[string]string) (string, error) {
-	args := []string{"pane", "split", pane, "--direction", direction, "--ratio", strconv.FormatFloat(ratio, 'f', 2, 64), "--cwd", cwd}
+func (h *Herdr) SplitRatio(pane domainname.PaneID, direction string, ratio float64, cwd string, env map[string]string) (domainname.PaneID, error) {
+	args := []string{"pane", "split", pane.String(), "--direction", direction, "--ratio", strconv.FormatFloat(ratio, 'f', 2, 64), "--cwd", cwd}
 	args = append(args, envArgs(env)...)
 	args = append(args, "--no-focus")
 	result, err := h.port.JSON(args...)
 	if err != nil {
 		return "", err
 	}
-	return protocol.DigString(result, "pane", "pane_id")
+	id, err := protocol.DigString(result, "pane", "pane_id")
+	return domainname.PaneID(id), err
 }
 
 // Resize moves the split a pane stands in by amount of the tab's room, in a
 // direction (up, down, left, right), and says whether anything moved: herdr
 // answers changed=false at a pane's smallest height (measured 2026-11-09: a
 // strip keeps 6 rows). An answer without the flag counts as not moved.
-func (h *Herdr) Resize(pane, direction string, amount float64) (bool, error) {
-	result, err := h.port.JSON("pane", "resize", "--pane", pane, "--direction", direction, "--amount", strconv.FormatFloat(amount, 'f', 2, 64))
+func (h *Herdr) Resize(pane domainname.PaneID, direction string, amount float64) (bool, error) {
+	result, err := h.port.JSON("pane", "resize", "--pane", pane.String(), "--direction", direction, "--amount", strconv.FormatFloat(amount, 'f', 2, 64))
 	if err != nil {
 		return false, err
 	}
@@ -317,8 +320,8 @@ func (h *Herdr) Resize(pane, direction string, amount float64) (bool, error) {
 }
 
 // PaneRows is how many rows a pane shows (herdr pane get's viewport_rows).
-func (h *Herdr) PaneRows(pane string) (int, error) {
-	result, err := h.port.JSON("pane", "get", pane)
+func (h *Herdr) PaneRows(pane domainname.PaneID) (int, error) {
+	result, err := h.port.JSON("pane", "get", pane.String())
 	if err != nil {
 		return 0, err
 	}
@@ -327,14 +330,14 @@ func (h *Herdr) PaneRows(pane string) (int, error) {
 
 // Run runs one command in a pane's shell. herdr prints nothing on success, so
 // the answer is read as text, not JSON.
-func (h *Herdr) Run(pane string, command []string) error {
-	_, err := h.port.Text(append([]string{"pane", "run", pane}, command...)...)
+func (h *Herdr) Run(pane domainname.PaneID, command []string) error {
+	_, err := h.port.Text(append([]string{"pane", "run", pane.String()}, command...)...)
 	return err
 }
 
 // Rename names a pane after its member.
-func (h *Herdr) Rename(pane string, name domainname.PaneLabel) error {
-	_, err := h.port.JSON("pane", "rename", pane, name.String())
+func (h *Herdr) Rename(pane domainname.PaneID, name domainname.PaneLabel) error {
+	_, err := h.port.JSON("pane", "rename", pane.String(), name.String())
 	return err
 }
 
@@ -344,8 +347,8 @@ const paneBusy = "agent_pane_busy"
 
 // Start starts the member's agent in its pane. Herdr has no command that waits
 // for a new pane's shell, so a busy pane is tried again until the timeout.
-func (h *Herdr) Start(member *definition.Start, pane string, timeoutMS int) error {
-	args := []string{"agent", "start", member.Name.String(), "--kind", member.Kind, "--pane", pane,
+func (h *Herdr) Start(member *definition.Start, pane domainname.PaneID, timeoutMS int) error {
+	args := []string{"agent", "start", member.Name.String(), "--kind", member.Kind, "--pane", pane.String(),
 		"--timeout", fmt.Sprintf("%d", timeoutMS), "--"}
 	args = append(args, member.StartArgs()...)
 	deadline := time.Now().Add(time.Duration(timeoutMS) * time.Millisecond)
@@ -439,8 +442,8 @@ type ProcessInfo struct {
 
 // PaneProcessInfo reads the pane's foreground process group and shell pid. When
 // no agent is running, the foreground group is the shell itself.
-func (h *Herdr) PaneProcessInfo(pane string) (ProcessInfo, error) {
-	result, err := h.port.JSON("pane", "process-info", "--pane", pane)
+func (h *Herdr) PaneProcessInfo(pane domainname.PaneID) (ProcessInfo, error) {
+	result, err := h.port.JSON("pane", "process-info", "--pane", pane.String())
 	if err != nil {
 		return ProcessInfo{}, err
 	}

@@ -88,7 +88,7 @@ func TestBootInterruptedWhileWaitingOnAQuestion(t *testing.T) {
 	}}
 	var out lockedBuffer
 	var errOut bytes.Buffer
-	l := launcher.New(starts, "demo", f.proj, herdr.New(herdrcli.New(os.Getenv("HERGY_HERDR"))), 30000, &out)
+	l := launcher.New(starts, fixtureSeen("demo"), f.proj, herdr.New(herdrcli.New(os.Getenv("HERGY_HERDR"))), 30000, &out)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	finished := make(chan struct{})

@@ -20,8 +20,6 @@ import (
 	"strings"
 	"testing"
 
-	domainname "github.com/aq2bq/hergy/internal/domain/name"
-
 	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/i18n"
@@ -183,13 +181,13 @@ func parse(text, name, runName string, l layer, profiles map[string]profile.Prof
 // startsOf is the member projection app builds: the herdr name, the profile's
 // engine, and prompt.Member's text.
 func startsOf(def *definition.Definition, runName string, l layer, profiles map[string]profile.Profile) ([]definition.Start, error) {
-	run := prompt.Run{Team: runName, Executable: "hergy", Base: l.team, Reader: source.Disk{}, Sources: l.sources()}
+	run := prompt.Run{Team: fixtureNaming(runName), Executable: "hergy", Base: l.team, Reader: source.Disk{}, Sources: l.sources()}
 	out := make([]definition.Start, 0, len(def.Graph.Members))
 	for i := range def.Graph.Members {
 		node := &def.Graph.Members[i]
-		herdr, nameErr := domainname.MemberForInput(runName, node.Name)
+		herdr, nameErr := run.Team.MemberTarget(node.Name)
 		if nameErr != nil {
-			return nil, i18n.Errorf("error.herdr_name_pattern", domainname.PreviewName(runName, node.Name.String()))
+			return nil, i18n.Errorf("error.herdr_name_pattern", run.Team.Member(node.Name))
 		}
 		text, err := prompt.Member(def, node, run)
 		if err != nil {

@@ -41,7 +41,7 @@ import (
 // is still listed then, so one such team does not hide the rest.
 type runningTeam struct {
 	// Name is the team's name: the label on its tab in herdr.
-	Name string
+	Name domainname.Seen
 	// Definition is the team definition the team was booted from, as the launch
 	// record names it. It differs from Name for a team booted with --as.
 	Definition string
@@ -109,11 +109,11 @@ func readRunningTeamsIn(views []projectView, read herdrNow, lenient bool) []runn
 			continue
 		}
 		one := runningTeam{
-			Name: entry.Team.String(), Definition: entry.Definition,
+			Name: entry.Team.Observation(), Definition: entry.Definition,
 			Project: view.Path, ProjectName: view.Name, Catalog: view.Cat,
 			Place: recorded.Layer,
 		}
-		if tab, found := teamTab(read.tabs, entry.Team.String()); found {
+		if tab, found := teamTab(read.tabs, entry.Team.Observation()); found {
 			one.TabID = tab.ID
 			one.WorkspaceID = tab.WorkspaceID
 			one.WorkspaceLabel = workspaceLabel(read.spaces, tab.WorkspaceID)
@@ -162,7 +162,7 @@ func projectOf(entry team.Running, records launchRecords, views []projectView, t
 	// work runs in, and another project's team is not taken for this one's
 	// (d-73fc).
 	for _, view := range views {
-		if panesIn(view.Path, tabs, entry.Team.String()) {
+		if panesIn(view.Path, tabs, entry.Team.Observation()) {
 			record, _ := records.at(view.Path, entry.Team.String())
 			return view, record, true
 		}
@@ -182,13 +182,13 @@ func projectOf(entry team.Running, records launchRecords, views []projectView, t
 
 // panesIn reports whether one team's named panes stand in a project. The panes
 // are paired with their tab's PaneDirs by position.
-func panesIn(project string, tabs []team.Tab, name string) bool {
+func panesIn(project string, tabs []team.Tab, name domainname.Seen) bool {
 	for _, tab := range tabs {
-		if !protocol.NamesTeam(tab.Label, name) {
+		if !protocol.NamesTeam(tab.Label.String(), name.String()) {
 			continue
 		}
 		for i, pane := range tab.Panes {
-			if !domainname.BelongsTo(domainname.Observe(pane), domainname.Observe(name)) || i >= len(tab.PaneDirs) {
+			if !domainname.BelongsTo(pane, name) || i >= len(tab.PaneDirs) {
 				continue
 			}
 			if rel, err := filepath.Rel(project, tab.PaneDirs[i]); err == nil &&
@@ -230,21 +230,21 @@ func latestLaunches() launchRecords {
 		byTeam:  make(map[string]launchlog.Record, len(records)),
 	}
 	for _, record := range records {
-		if record.Team == "" || record.IsHire() {
+		if record.Team.String() == "" || record.IsHire() {
 			continue
 		}
-		out.byTeam[record.Team] = record
+		out.byTeam[record.Team.String()] = record
 		if record.Project != "" {
-			out.byPlace[record.Project+"\x00"+record.Team] = record
+			out.byPlace[record.Project+"\x00"+record.Team.String()] = record
 		}
 	}
 	return out
 }
 
 // teamTab is the tab labelled for one team, with the workspace it stands in.
-func teamTab(tabs []team.Tab, name string) (team.Tab, bool) {
+func teamTab(tabs []team.Tab, name domainname.Seen) (team.Tab, bool) {
 	for _, tab := range tabs {
-		if protocol.NamesTeam(tab.Label, name) && team.HoldsMember(tab, name) {
+		if protocol.NamesTeam(tab.Label.String(), name.String()) && team.HoldsMember(tab, name) {
 			return tab, true
 		}
 	}
@@ -445,7 +445,7 @@ func watchedAgents(agents []protocol.Agent) []activity.Agent {
 		if agent.Name.String() == "" {
 			continue
 		}
-		out = append(out, activity.Agent{Herdr: agent.Name.String(), Status: agent.Status, Seq: agent.Seq})
+		out = append(out, activity.Agent{Herdr: agent.Name, Status: agent.Status, Seq: agent.Seq})
 	}
 	return out
 }
@@ -556,13 +556,13 @@ func orderedRows(rows []activityRow, now time.Time) ([]web.ActivityItem, int, in
 	byName := make(map[string]activityRow, len(rows))
 	for i, row := range rows {
 		judged[i] = row.team
-		byName[row.team.Name] = row
+		byName[row.team.Name.String()] = row
 	}
 	activity.Sort(judged)
 	items := make([]web.ActivityItem, 0, len(judged))
 	waiting := 0
 	for _, judged := range judged {
-		row := byName[judged.Name]
+		row := byName[judged.Name.String()]
 		items = append(items, itemOf(row, now))
 		waiting += waitingMembers(judged)
 	}
@@ -610,13 +610,13 @@ func judgeOf(one runningTeam, read herdrNow, now time.Time) activity.Team {
 // agentsOf is one team's live agents as the judgement reads them: the name herdr
 // knows each by, the node it stands for when the graph names it, its state and
 // its state_change_seq.
-func agentsOf(read herdrNow, name string) []activity.Agent {
+func agentsOf(read herdrNow, name domainname.Seen) []activity.Agent {
 	live := teamAgents(read.tabs, read.agents, name)
 	out := make([]activity.Agent, 0, len(live))
 	for _, agent := range live {
 		out = append(out, activity.Agent{
-			Herdr:  agent.Name.String(),
-			Node:   domainname.ShortIn(agent.Name, domainname.Observe(name)).String(),
+			Herdr:  agent.Name,
+			Node:   domainname.ShortIn(agent.Name, name),
 			Status: agent.Status,
 			Seq:    agent.Seq,
 		})
@@ -629,18 +629,18 @@ func agentsOf(read herdrNow, name string) []activity.Agent {
 // workers the team hired (labelled "worker:<team>/<name>", spec-activity 1). The
 // tab is what says whose agent it is: a team named "core" beside a team named
 // "core-hotfix" would otherwise take the other's members for its own.
-func teamAgents(tabs []team.Tab, agents []protocol.Agent, name string) []protocol.Agent {
+func teamAgents(tabs []team.Tab, agents []protocol.Agent, name domainname.Seen) []protocol.Agent {
 	wanted := map[string]bool{}
 	for _, agent := range team.MemberAgents(tabs, name) {
-		wanted[agent] = true
+		wanted[agent.String()] = true
 	}
-	workerTeam := domainname.Observe(name)
+	workerTeam := name
 	for _, tab := range tabs {
-		if !domainname.IsWorkerTab(domainname.Observe(tab.Label), workerTeam) {
+		if !domainname.IsWorkerTab(tab.Label, workerTeam) {
 			continue
 		}
 		for _, agent := range tab.Agents {
-			wanted[agent] = true
+			wanted[agent.String()] = true
 		}
 	}
 	out := make([]protocol.Agent, 0, len(wanted))
@@ -656,7 +656,7 @@ func teamAgents(tabs []team.Tab, agents []protocol.Agent, name string) []protoco
 func itemOf(row activityRow, now time.Time) web.ActivityItem {
 	t := row.team
 	item := web.ActivityItem{
-		Name: t.Name,
+		Name: t.Name.String(),
 		Summary: web.ActivitySummary{
 			Definition: row.definition,
 			State:      t.State.Slug(),
@@ -678,12 +678,12 @@ func itemOf(row activityRow, now time.Time) web.ActivityItem {
 
 // turnOf is the tile's turn: the holder hergy's watcher keeps for this team
 // (r-bc26), or nil for a team the watcher has not seen.
-func turnOf(teamName string) *web.ActivityTurn {
+func turnOf(teamName domainname.Seen) *web.ActivityTurn {
 	path := activityStatePath()
 	if path == "" {
 		return nil
 	}
-	st, err := turns.Load(turns.Path(filepath.Dir(path), teamName), teamName)
+	st, err := turns.Load(turns.Path(filepath.Dir(path), teamName.String()), teamName)
 	if err != nil || st.Since.IsZero() {
 		return nil
 	}
@@ -765,7 +765,7 @@ func (a *activityRead) One(name string) (web.ActivityDoc, bool) {
 	var one runningTeam
 	found := false
 	for _, cand := range teams {
-		if cand.Name == name {
+		if cand.Name.String() == name {
 			one, found = cand, true
 			break
 		}
@@ -789,7 +789,7 @@ func (a *activityRead) One(name string) (web.ActivityDoc, bool) {
 	// pane's tail to the screen. The opened tile itself needs no pane content.
 	main := mainAgent(t, in.Agents)
 	question := ""
-	if main != "" && (t.State == activity.WaitingAnswer || t.State == activity.WaitingTurn) {
+	if main.String() != "" && (t.State == activity.WaitingAnswer || t.State == activity.WaitingTurn) {
 		if text, err := a.herdrPane(main); err == nil {
 			question = askingLine(text)
 			if t.State == activity.WaitingAnswer {
@@ -816,7 +816,7 @@ func (a *activityRead) One(name string) (web.ActivityDoc, bool) {
 	}
 	doc := web.ActivityDoc{
 		Nodes:    docNodes(t, now, titles),
-		Hired:    docHired(t, one.Name, now, titles, hireSources(one.Project, one.Name)),
+		Hired:    docHired(t, one.Name, now, titles, hireSources(one.Project, one.Name.String())),
 		Question: question,
 	}
 	for i := range doc.Nodes {
@@ -924,16 +924,16 @@ func permissionQuestion(text string) string {
 // mainAgent is the herdr name of the member the line is about: the one the
 // judgement named last, as herdr knows it. Empty when the team has no such
 // member (a working team, or no live agent at all).
-func mainAgent(t activity.Team, agents []activity.Agent) string {
+func mainAgent(t activity.Team, agents []activity.Agent) domainname.Seen {
 	if t.Last == "" {
-		return ""
+		return domainname.Seen{}
 	}
 	for _, agent := range agents {
-		if agent.Node == t.Last && agent.Herdr != "" {
+		if agent.Node.String() == t.Last && agent.Herdr.String() != "" {
 			return agent.Herdr
 		}
 	}
-	return ""
+	return domainname.Seen{}
 }
 
 // docNodes is a team's members as the opened part shows them (2.5): the state,
@@ -945,7 +945,7 @@ func docNodes(t activity.Team, now time.Time, titles map[string]string) []web.Ac
 		out = append(out, web.ActivityNode{
 			Name: node.Name, Herdr: node.Herdr, State: node.State.Slug(), At: at,
 			SinceAt: activity.SinceAt(now, node.At, node.Lower),
-			Doing:   titles[node.Herdr],
+			Doing:   titles[node.Herdr.String()],
 		})
 	}
 	return out
@@ -953,16 +953,16 @@ func docNodes(t activity.Team, now time.Time, titles map[string]string) []web.Ac
 
 // docHired is a team's workers as the opened part shows them: the name without
 // the team's own prefix (X1, 2.5), the member that added it, and its title.
-func docHired(t activity.Team, teamName string, now time.Time, titles, from map[string]string) []web.ActivityNode {
+func docHired(t activity.Team, teamName domainname.Seen, now time.Time, titles, from map[string]string) []web.ActivityNode {
 	out := make([]web.ActivityNode, 0, len(t.Hired))
 	for _, hired := range t.Hired {
 		out = append(out, web.ActivityNode{
-			Name:  domainname.ShortIn(domainname.Observe(hired.Herdr), domainname.Observe(teamName)).String(),
+			Name:  domainname.ShortIn(hired.Herdr, teamName).String(),
 			Herdr: hired.Herdr,
 			State: hired.State.Slug(),
 			At:    activity.Clock(now, hired.At),
-			Doing: titles[hired.Herdr],
-			From:  from[hired.Herdr],
+			Doing: titles[hired.Herdr.String()],
+			From:  from[hired.Herdr.String()],
 		})
 	}
 	return out
@@ -983,14 +983,14 @@ func hireSources(project, teamName string) map[string]string {
 		return out
 	}
 	for _, record := range records {
-		if !record.IsHire() || record.Hire == nil || record.Team != teamName {
+		if !record.IsHire() || record.Hire == nil || record.Team.String() != teamName {
 			continue
 		}
 		if record.Project != "" && !samePath(record.Project, project) {
 			continue
 		}
-		if record.Hire.Worker != "" && record.Hire.From != "" {
-			out[record.Hire.Worker] = record.Hire.From
+		if record.Hire.Worker.String() != "" && record.Hire.From != "" {
+			out[record.Hire.Worker.String()] = record.Hire.From
 		}
 	}
 	return out
@@ -999,8 +999,8 @@ func hireSources(project, teamName string) map[string]string {
 // herdrPane reads what one member's terminal shows so the waiting row can keep
 // its one-line question (herdr agent read --source detection). An error leaves
 // that line empty.
-func (a *activityRead) herdrPane(name string) (string, error) {
-	return herdr.New(a.herdrPort()).Read(domainname.Observe(name))
+func (a *activityRead) herdrPane(name domainname.Seen) (string, error) {
+	return herdr.New(a.herdrPort()).Read(name)
 }
 
 // FocusMember rechecks membership before moving focus; it never answers a prompt.
@@ -1008,8 +1008,8 @@ func (a *activityRead) FocusMember(teamName, member string) error {
 	doc, ok := a.One(teamName)
 	if ok {
 		for _, node := range doc.Nodes {
-			if node.Herdr == member && node.State != "absent" {
-				if err := herdr.New(a.herdrPort()).Focus(domainname.Observe(member)); err != nil {
+			if node.Herdr.String() == member && node.State != "absent" {
+				if err := herdr.New(a.herdrPort()).Focus(node.Herdr); err != nil {
 					return &web.HQError{Status: 500, Text: i18n.T("web.activity.focus_failed")}
 				}
 				return nil

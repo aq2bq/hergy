@@ -4,6 +4,8 @@ import (
 	"io"
 	"strings"
 
+	domainname "github.com/aq2bq/hergy/internal/domain/name"
+
 	"github.com/aq2bq/hergy/internal/check"
 	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/gycli"
@@ -67,8 +69,8 @@ func (c *ledgerCheck) load() {
 // names the launch record shows teams were started as from this definition
 // (--as). A record belongs to the definition it read, so the team.yaml path is
 // what a record is matched by, the way launchlog.Latest matches one (M1).
-func teamNames(def *definition.Definition) []string {
-	names := []string{def.Name.String()}
+func teamNames(def *definition.Definition) []domainname.Naming {
+	names := []domainname.Naming{domainname.DefinitionNames(def.Name)}
 	seen := map[string]bool{def.Name.String(): true}
 	log, err := launchlog.Open()
 	if err != nil {
@@ -79,11 +81,11 @@ func teamNames(def *definition.Definition) []string {
 		return names
 	}
 	for _, record := range records {
-		if record.TeamYAML != def.TeamYAML || record.Team == "" || seen[record.Team] {
+		if record.TeamYAML != def.TeamYAML || record.Team.String() == "" || seen[record.Team.String()] {
 			continue
 		}
-		seen[record.Team] = true
-		names = append(names, record.Team)
+		seen[record.Team.String()] = true
+		names = append(names, domainname.RunningNames(domainname.TeamFromObservation(record.Team)))
 	}
 	return names
 }

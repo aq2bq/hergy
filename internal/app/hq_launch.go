@@ -142,7 +142,7 @@ func memberOptions(def *definition.Definition) []web.HQMember {
 	}
 	out := make([]web.HQMember, 0, len(def.Graph.Members))
 	for _, member := range def.Graph.Members {
-		out = append(out, web.HQMember{Name: member.Name.String(), Herdr: domainname.PreviewName(def.Name.String(), member.Name.String())})
+		out = append(out, web.HQMember{Name: member.Name.String(), Herdr: domainname.DefinitionNames(def.Name).Member(member.Name)})
 	}
 	return out
 }
@@ -156,8 +156,8 @@ func clashesIn(read herdrNow, act *activityRead, name, _ string) []web.HQClash {
 		return out
 	}
 	for _, one := range act.teamsOf(read) {
-		if one.Name == name {
-			out = append(out, web.HQClash{Team: one.Name, Project: one.Project})
+		if one.Name.String() == name {
+			out = append(out, web.HQClash{Team: one.Name.String(), Project: one.Project})
 		}
 	}
 	return out
@@ -181,7 +181,7 @@ func (h *hqRead) workspaceChoices(read herdrNow, teamYAML, project string) []web
 			HQWorkspace: web.HQWorkspace{ID: space.ID, Label: space.Label, Focused: space.Focused},
 		}
 		if one, taken := busy[space.ID]; taken {
-			choice.Team, choice.TeamProject = one.Name, one.Project
+			choice.Team, choice.TeamProject = one.Name.String(), one.Project
 			choice.Why = "busy"
 			choices = append(choices, choice)
 			continue
@@ -357,15 +357,21 @@ func (h *hqRead) nameRunning(name string) bool {
 	if read.err != nil {
 		return false
 	}
-	known := []domainname.Seen{domainname.Observe(name)}
+	prospective, _ := domainname.ParseDefinitionName(name)
+	candidate := domainname.DefinitionNames(prospective)
+	var known []domainname.Seen
 	for _, one := range h.act.teamsOf(read) {
-		known = append(known, domainname.Observe(one.Name))
-		if one.Name == name {
+		known = append(known, one.Name.Observation())
+		if one.Name.String() == name {
 			return true
 		}
 	}
 	for _, agent := range read.agents {
-		if owner, _, ok := domainname.Resolve(agent.Name, known); ok && owner.String() == name {
+		if !candidate.Contains(agent.Name.String()) {
+			continue
+		}
+		owner, _, ok := domainname.Resolve(agent.Name, known)
+		if !ok || len(owner.String()) <= len(name) {
 			return true
 		}
 	}
@@ -529,9 +535,9 @@ func (h *hqRead) activeLaunch(teamName string) (string, bool) {
 
 // runStart runs one start in the background and keeps its progress.
 func (h *hqRead) runStart(ctx context.Context, op *launchOp, env team.Env, r *resolved, in web.HQLaunchIn, workspace web.HQWorkspace) {
-	l := newLauncherWithPort(r, 30000, io.Discard, h.act.herdrPort()).WithContext(ctx).WithWatcher(watcherCommand(r.team.Name, env.ProjectRoot))
+	l := newLauncherWithPort(r, 30000, io.Discard, h.act.herdrPort()).WithContext(ctx).WithWatcher(watcherCommand(r.team.Name.String(), env.ProjectRoot))
 	l.Observe(func(event launcher.Event) { h.observe(op, event) })
-	command := startCommand(in.Definition, r.team.Name)
+	command := startCommand(in.Definition, r.team.Name.String())
 	err := l.BootIn(workspace.ID, command)
 	if errors.Is(err, launcher.ErrCancelled) || ctx.Err() != nil {
 		h.finish(op, "cancelled", "")
@@ -552,7 +558,7 @@ func (h *hqRead) runStart(ctx context.Context, op *launchOp, env team.Env, r *re
 		failure := l.Failure(err)
 		h.finish(op, "failed", startFailureText(failure,
 			h.projectNameIn(env.ProjectRoot),
-			failedStartCommand(failure, r.team.Name, command)))
+			failedStartCommand(failure, r.team.Name.String(), command)))
 		return
 	}
 	h.finish(op, "done", "")

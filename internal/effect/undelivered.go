@@ -2,6 +2,7 @@ package effect
 
 import (
 	"github.com/aq2bq/hergy/internal/definition"
+	domainname "github.com/aq2bq/hergy/internal/domain/name"
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/prompt"
 	"github.com/aq2bq/hergy/internal/source"
@@ -23,8 +24,8 @@ func Undelivered(launched map[string]string, now View) []Change {
 		return nil
 	}
 	team := now.Run.Team
-	if team == "" {
-		team = now.Def.Name.String()
+	if team.String() == "" {
+		team = domainname.DefinitionNames(now.Def.Name)
 	}
 	now.Run.Team = team
 	var out []Change

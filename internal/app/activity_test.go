@@ -120,7 +120,7 @@ func newActivityFixture(t *testing.T) *activityFixture {
 		record := launchlog.Record{
 			Time: activityNow.Format(time.RFC3339), Command: launchlog.CommandUp,
 			Hergy: "hergy (test)", Project: f.proj, Layer: "local",
-			Definition: one.definition, Team: one.team,
+			Definition: one.definition, Team: fixtureSeen(one.team),
 			TeamYAML: filepath.Join(f.proj, ".hergy", "teams", one.definition, "team.yaml"),
 			Hash:     "test",
 		}
@@ -343,7 +343,7 @@ func TestActivityListKeepsOnlyThisProject(t *testing.T) {
 		if err := log.Append(launchlog.Record{
 			Time: activityNow.Format(time.RFC3339), Command: launchlog.CommandUp,
 			Hergy: "hergy (test)", Project: filepath.Join(f.cfg, "another"), Layer: "local",
-			Definition: one.definition, Team: one.team,
+			Definition: one.definition, Team: fixtureSeen(one.team),
 			TeamYAML: filepath.Join(f.cfg, "another", one.definition, "team.yaml"), Hash: "test",
 		}); err != nil {
 			t.Fatal(err)
@@ -451,7 +451,7 @@ func TestActivityOneReadsTheTileMembersAndQuestion(t *testing.T) {
 	if states["lead"] != "handed" || states["impl-a"] != "idle" {
 		t.Errorf("the members are %v, want lead handed and impl-a idle", states)
 	}
-	if len(doc.Hired) != 1 || doc.Hired[0].Name != "deps" || doc.Hired[0].Herdr != "core-deps" {
+	if len(doc.Hired) != 1 || doc.Hired[0].Name != "deps" || doc.Hired[0].Herdr.String() != "core-deps" {
 		t.Errorf("the workers are %+v, want deps of core-deps", doc.Hired)
 	}
 }
@@ -501,7 +501,7 @@ func TestActivityOneSaysWhenTheDefinitionDoesNotRead(t *testing.T) {
 	if err := log.Append(launchlog.Record{
 		Time: activityNow.Format(time.RFC3339), Command: launchlog.CommandUp,
 		Hergy: "hergy (test)", Project: f.proj, Layer: "local",
-		Definition: "broken", Team: "broken", TeamYAML: filepath.Join(f.proj, ".hergy", "teams", "broken", "team.yaml"),
+		Definition: "broken", Team: fixtureSeen("broken"), TeamYAML: filepath.Join(f.proj, ".hergy", "teams", "broken", "team.yaml"),
 		Hash: "test",
 	}); err != nil {
 		t.Fatal(err)
@@ -529,7 +529,7 @@ func TestActivityOneSaysWhenTheDefinitionDoesNotRead(t *testing.T) {
 	if doc.Question != "" {
 		t.Errorf("a definition that does not read has question %q, want none", doc.Question)
 	}
-	if len(doc.Nodes) != 1 || doc.Nodes[0].Name != "lead" || doc.Nodes[0].Herdr != "broken-lead" {
+	if len(doc.Nodes) != 1 || doc.Nodes[0].Name != "lead" || doc.Nodes[0].Herdr.String() != "broken-lead" {
 		t.Errorf("the members are %+v, want the live agent broken-lead as lead", doc.Nodes)
 	}
 }
@@ -671,8 +671,8 @@ func TestActivityNodesCarryTheTerminalTitleAndTheHirer(t *testing.T) {
 	log := launchlog.At(filepath.Join(f.state, "hergy", "launches"))
 	if err := log.Append(launchlog.Record{
 		Time: activityNow.Format(time.RFC3339), Command: launchlog.CommandHire,
-		Hergy: "hergy (test)", Project: f.proj, Team: "core",
-		Hire: &launchlog.Hire{Worker: "core-deps", From: "lead", Purpose: "依存の更新", Tab: "worker:core/deps"},
+		Hergy: "hergy (test)", Project: f.proj, Team: fixtureSeen("core"),
+		Hire: &launchlog.Hire{Worker: fixtureSeen("core-deps"), From: "lead", Purpose: "依存の更新", Tab: fixtureSeen("worker:core/deps")},
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -753,7 +753,7 @@ func TestATeamOfTheSameNameInTwoProjectsKeepsItsOwnDefinition(t *testing.T) {
 	} {
 		if err := log.Append(launchlog.Record{
 			Time: one.when.Format(time.RFC3339), Command: launchlog.CommandUp,
-			Project: one.proj, Layer: "local", Definition: "core", Team: "core",
+			Project: one.proj, Layer: "local", Definition: "core", Team: fixtureSeen("core"),
 			TeamYAML: filepath.Join(one.proj, ".hergy", "teams", "core", "team.yaml"), Hash: "test",
 		}); err != nil {
 			t.Fatal(err)
@@ -769,8 +769,8 @@ func TestATeamOfTheSameNameInTwoProjectsKeepsItsOwnDefinition(t *testing.T) {
 	}
 	read := herdrNow{
 		tabs: []team.Tab{{
-			ID: "t1", Label: "core", WorkspaceID: "w1",
-			Agents: []string{"core-lead"}, Panes: []string{"core-lead"}, PaneDirs: []string{alpha},
+			ID: "t1", Label: fixtureSeen("core"), WorkspaceID: "w1",
+			Agents: fixtureSeenList([]string{"core-lead"}), Panes: fixtureSeenList([]string{"core-lead"}), PaneDirs: []string{alpha},
 		}},
 		agentsRead: true,
 		seen:       map[string]activity.Watch{},
@@ -831,7 +831,7 @@ func TestActivityPermissionCommandAndFocus(t *testing.T) {
 	}
 	found := false
 	for _, node := range doc.Nodes {
-		if node.Herdr == "core-lead" {
+		if node.Herdr.String() == "core-lead" {
 			found = node.Question == command
 		}
 	}

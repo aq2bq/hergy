@@ -574,8 +574,8 @@ func (k apiTeam) checkWorkerPrompt(in apiIn) (any, *apiErr) {
 		if err != nil {
 			return nil, refuse(http.StatusUnprocessableEntity, i18n.T("error.worker_name_pattern"))
 		}
-		if _, err := domainname.WorkerForInput(built.Names.Team, workerName); err != nil {
-			return nil, refuse(http.StatusUnprocessableEntity, i18n.Tf("error.herdr_name_pattern", domainname.PreviewName(built.Names.Team, body.Name)))
+		if _, err := built.Names.Naming.WorkerTarget(workerName); err != nil {
+			return nil, refuse(http.StatusUnprocessableEntity, i18n.Tf("error.herdr_name_pattern", built.Names.Naming.Worker(body.Name)))
 		}
 	}
 	if built.WorkerErr != nil {
@@ -597,7 +597,7 @@ func t2HiringMember(def *definition.Definition, purpose, from string) (*definiti
 	if from != "" {
 		for i := range def.Graph.Members {
 			member := &def.Graph.Members[i]
-			if member.Name.String() == from || domainname.PreviewName(def.Name.String(), member.Name.String()) == from {
+			if member.Name.String() == from || domainname.DefinitionNames(def.Name).Member(member.Name) == from {
 				return member, nil
 			}
 		}

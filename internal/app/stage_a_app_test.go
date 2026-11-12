@@ -21,7 +21,7 @@ func fixtureHerdrName(s string) domainname.HerdrName {
 	return n
 }
 func fixtureRunningTeam(s string) domainname.TeamRef {
-	return domainname.TeamFromObservation(domainname.Observe(s))
+	return domainname.TeamFromObservation(fixtureSeen(s))
 }
 func fixtureShortName(s string) domainname.ShortName {
 	if s == "" {
@@ -33,12 +33,34 @@ func fixtureShortName(s string) domainname.ShortName {
 	}
 	return n.Short()
 }
-func fixtureSeen(s string) domainname.Seen { return domainname.Observe(s) }
+func fixtureSeen(s string) domainname.Seen {
+	var n domainname.Seen
+	_ = n.UnmarshalText([]byte(s))
+	return n
+}
 
-func fixtureTeamName(s string) domainname.TeamName {
-	n, e := domainname.ParseTeamName(s)
+func fixtureDemoTeam() domainname.TeamName {
+	n, e := domainname.ParseTeamName("demo")
 	if e != nil {
 		panic(e)
 	}
 	return n
 }
+
+func fixtureSeenList(ss []string) []domainname.Seen {
+	out := make([]domainname.Seen, len(ss))
+	for i, s := range ss {
+		out[i] = fixtureSeen(s)
+	}
+	return out
+}
+
+func namingStrings(ns []domainname.Naming) []string {
+	out := make([]string, len(ns))
+	for i, n := range ns {
+		out[i] = n.String()
+	}
+	return out
+}
+
+func fixturePane(s string) domainname.PaneID { return domainname.PaneID(s) }

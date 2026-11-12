@@ -77,7 +77,7 @@ func TestDownClosesATeamThatStoppedBeforeAnyAgentRan(t *testing.T) {
 
 			// The team's turn, as the watcher left it, goes with the team (r-103d).
 			stateDir := filepath.Join(f.state, "hergy")
-			if err := turns.Save(turns.Path(stateDir, "turnwalk"), &turns.State{Team: "turnwalk", Holder: "lead"}); err != nil {
+			if err := turns.Save(turns.Path(stateDir, "turnwalk"), &turns.State{Team: fixtureSeen("turnwalk"), Holder: "lead"}); err != nil {
 				t.Fatal(err)
 			}
 			if err := turns.WriteTell(turns.TellDir(stateDir, "turnwalk"), turns.Tell{From: "lead", To: "builder", At: time.Now()}); err != nil {

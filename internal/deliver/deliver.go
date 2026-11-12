@@ -104,7 +104,7 @@ func Compare(team domainname.TeamName, lang, oldPrompt string, oldDocs map[strin
 		case "team_rules", "role_doc":
 			continue
 		case "turns":
-			out = append(out, turnChanges(team.String(), current, segment.Text, oldPrompt, lang)...)
+			out = append(out, turnChanges(domainname.RunningNames(team.Ref()), current, segment.Text, oldPrompt, lang)...)
 		case "workers":
 			out = append(out, workerChanges(current, segment.Text, oldPrompt)...)
 		case "roster":
@@ -132,7 +132,7 @@ func displayOf(doc Doc) string { return filepath.Base(doc.Path) }
 // current endpoints come from the definition (short member names and human);
 // the old endpoints are read from the old prompt's turns note. The summary is
 // the pair "lead → analyst", never a prompt line (r-a8fa audit 1 B).
-func turnChanges(team string, current definition.Start, segment, oldPrompt, lang string) []Change {
+func turnChanges(team domainname.Naming, current definition.Start, segment, oldPrompt, lang string) []Change {
 	now := turnNames(current.Turns, team)
 	old := oldTurnNames(bulletLines(section(oldPrompt, firstHeading(segment))), team, lang)
 	var out []Change
@@ -155,12 +155,12 @@ func turnChanges(team string, current definition.Start, segment, oldPrompt, lang
 
 // turnNames is the endpoints a definition's turns give, with the running team's
 // prefix taken off: a short member name, or human.
-func turnNames(turns []string, team string) []string {
+func turnNames(turns []string, team domainname.Naming) []string {
 	out := make([]string, 0, len(turns))
 	for _, turn := range turns {
 		name := turn
-		if team != "" {
-			name = domainname.ShortIn(domainname.Observe(name), domainname.Observe(team)).String()
+		if team.String() != "" {
+			name = team.Short(name)
 		}
 		if name == "human" || name == "人間" {
 			name = "human"
@@ -174,7 +174,7 @@ func turnNames(turns []string, team string) []string {
 // note writes each party as the item template does ("- <name>（ロール <role>）"
 // or the human's own line); a bullet of another list that follows the note is
 // not a turn, so it is left out (r-7aad).
-func oldTurnNames(lines []string, team, lang string) []string {
+func oldTurnNames(lines []string, team domainname.Naming, lang string) []string {
 	item := turnItemOf(lang)
 	out := make([]string, 0, len(lines))
 	for _, line := range lines {
@@ -186,8 +186,8 @@ func oldTurnNames(lines []string, team, lang string) []string {
 			out = append(out, "human")
 			continue
 		}
-		if team != "" {
-			name = domainname.ShortIn(domainname.Observe(name), domainname.Observe(team)).String()
+		if team.String() != "" {
+			name = team.Short(name)
 		}
 		out = append(out, name)
 	}

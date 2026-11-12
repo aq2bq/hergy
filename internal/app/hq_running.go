@@ -40,31 +40,31 @@ func (h *hqRead) runningOf(one runningTeam, read herdrNow, now time.Time) web.HQ
 	judged := judgeOf(one, read, now)
 	teamName := one.Name
 	out := web.HQRunningTeam{
-		Team:        teamName,
+		Team:        domainname.TeamFromObservation(teamName),
 		Definition:  one.Definition,
 		Place:       apiPlaceOf(one.Place),
 		Project:     one.Project,
 		ProjectName: one.ProjectName,
 		Workspace:   web.HQWorkspace{ID: one.WorkspaceID, Label: one.WorkspaceLabel},
-		Tab:         web.HQTab{ID: one.TabID, Label: teamName},
+		Tab:         web.HQTab{ID: one.TabID, Label: teamName.String()},
 		Error:       one.Broken,
 		Members:     []web.HQMember{},
 		Workers:     []web.HQWorker{},
 		Waiting:     []string{},
 		NotUp:       []string{},
 	}
-	if id, active := h.activeLaunch(teamName); active {
+	if id, active := h.activeLaunch(teamName.String()); active {
 		out.Starting = true
 		out.Launch = id
 	}
 	for _, node := range judged.Nodes {
 		out.Members = append(out.Members, web.HQMember{
-			Name: node.Name, Herdr: node.Herdr, Live: node.Herdr != "",
+			Name: node.Name, Herdr: node.Herdr.String(), Live: node.Herdr.String() != "",
 			State: node.State.Slug(),
 		})
 		// A member no agent is live for is one hergy has not started, or one whose
 		// agent ended: a screen offers to start it (r-5d1a).
-		if node.Herdr == "" {
+		if node.Herdr.String() == "" {
 			out.NotUp = append(out.NotUp, node.Name)
 		}
 		if node.State == activity.Blocked || node.State == activity.HandedOver {
@@ -73,9 +73,9 @@ func (h *hqRead) runningOf(one runningTeam, read herdrNow, now time.Time) web.HQ
 	}
 	for _, hired := range judged.Hired {
 		out.Workers = append(out.Workers, web.HQWorker{
-			Name: domainname.ShortIn(domainname.Observe(hired.Herdr), domainname.Observe(teamName)).String(),
-			Tab:  protocolWorkerTab(teamName, domainname.ShortIn(domainname.Observe(hired.Herdr), domainname.Observe(teamName)).String()),
-			Live: hired.Herdr != "",
+			Name: domainname.ShortIn(hired.Herdr, teamName).String(),
+			Tab:  protocolWorkerTab(teamName, domainname.ShortIn(hired.Herdr, teamName)),
+			Live: hired.Herdr.String() != "",
 		})
 	}
 	return out
@@ -90,8 +90,8 @@ func apiPlaceOf(layer string) string {
 }
 
 // protocolWorkerTab is the label hergy gives one worker's tab.
-func protocolWorkerTab(teamName, worker string) string {
-	return domainname.Observe(teamName).WorkerLabel(domainname.Observe(worker)).String()
+func protocolWorkerTab(teamName, worker domainname.Seen) string {
+	return domainname.RunningNames(domainname.TeamFromObservation(teamName)).WorkerTab(worker.String())
 }
 
 // Workspaces is GET /api/hq/workspaces: herdr's workspaces, the team in each, and
@@ -118,8 +118,8 @@ func (h *hqRead) Workspaces() web.HQWorkspaces {
 // there.
 func (h *hqRead) workspaceOf(space herdr.Workspace, running runningTeam, last string) web.HQWorkspace {
 	one := web.HQWorkspace{ID: space.ID, Label: space.Label, Focused: space.Focused, LastTeam: last}
-	if running.Name != "" {
-		one.Team = running.Name
+	if running.Name.String() != "" {
+		one.Team = running.Name.String()
 		one.TeamProject = running.Project
 	}
 	return one
@@ -130,8 +130,8 @@ func (h *hqRead) workspaceOf(space herdr.Workspace, running runningTeam, last st
 func (h *hqRead) lastTeamsByWorkspace() map[string]string {
 	out := map[string]string{}
 	for _, record := range h.launchRecords() {
-		if record.Workspace != "" && record.Team != "" {
-			out[record.Workspace] = record.Team
+		if record.Workspace != "" && record.Team.String() != "" {
+			out[record.Workspace] = record.Team.String()
 		}
 	}
 	return out
@@ -153,7 +153,7 @@ func (h *hqRead) lastWorkspaceOf(read herdrNow, teamYAML string) *web.HQWorkspac
 	squatter := ""
 	for _, tab := range read.tabs {
 		if tab.WorkspaceID == record.WorkspaceID && team.HoldsMember(tab, tab.Label) {
-			squatter = tab.Label
+			squatter = tab.Label.String()
 			break
 		}
 	}

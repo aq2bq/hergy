@@ -228,7 +228,7 @@ func BreakLine(display func(string) string, path string, err error) string {
 // than the file on disk.
 func promptFindings(in Input, def *definition.Definition) []Finding {
 	run := prompt.Run{
-		Team: def.Name.String(), Reader: in.Catalog.Reader(), Sources: in.Catalog,
+		Team: domainname.DefinitionNames(def.Name), Reader: in.Catalog.Reader(), Sources: in.Catalog,
 		Display: in.Catalog.Display, Base: in.Catalog.Base(),
 	}
 	var out []Finding
@@ -332,8 +332,8 @@ func profileFindings(in Input, def *definition.Definition) []Finding {
 // memberPromptError is what stops one member's prompt from being built, and the
 // field it is about.
 func memberPromptError(def *definition.Definition, node *definition.MemberNode, run prompt.Run, i int) (string, error) {
-	if _, err := domainname.MemberForInput(run.Team, node.Name); err != nil {
-		return fmt.Sprintf("members[%d].name", i), i18n.Errorf("error.herdr_name_pattern", domainname.PreviewName(run.Team, node.Name.String()))
+	if _, err := run.Team.MemberTarget(node.Name); err != nil {
+		return fmt.Sprintf("members[%d].name", i), i18n.Errorf("error.herdr_name_pattern", run.Team.Member(node.Name))
 	}
 	if _, err := prompt.Member(def, node, run); err != nil {
 		return promptField(err, node, i), err

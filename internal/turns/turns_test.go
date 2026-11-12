@@ -78,7 +78,7 @@ func TestAnswerNamesOneCandidateTheHumanOrNobody(t *testing.T) {
 		"hergy より: 次の 1 語だけで答えてください: lead／spec／人間／誰にも\n\nlead": "lead",
 	}
 	for text, want := range cases {
-		if got := Answer(text, "t", cands); got != want {
+		if got := Answer(text, fixtureNaming("t"), cands); got != want {
 			t.Errorf("Answer(%q) = %q, want %q", text, got, want)
 		}
 	}
@@ -89,7 +89,7 @@ func TestAnswerNamesOneCandidateTheHumanOrNobody(t *testing.T) {
 // turn, and the line says so (d-b024). The start prompt's reply and a reply to
 // the person's tell are this case (ac-6fe0).
 func TestATurnTheOutsideOpenedRests(t *testing.T) {
-	st := &State{Team: "t", Holder: Human}
+	st := &State{Team: fixtureSeen("t"), Holder: Human}
 	idle := agents(map[string]string{"lead": "idle", "spec": "idle", "dev": "idle"}, 1)
 	busy := agents(map[string]string{"lead": "working", "spec": "working", "dev": "working"}, 2)
 	if got := Step(st, Input{Graph: ring(), Before: idle, Now: busy, At: at}); len(got) != 3 || got[0].Kind != Started {
@@ -125,7 +125,7 @@ func TestATurnTheOutsideOpenedRests(t *testing.T) {
 // TestAMemberThatToldHandedItsTurnOnItself: lead tells dev; dev works, tells
 // spec, stops. hergy records both and does nothing else (d-8b4e).
 func TestAMemberThatToldHandedItsTurnOnItself(t *testing.T) {
-	st := &State{Team: "t", Holder: Human}
+	st := &State{Team: fixtureSeen("t"), Holder: Human}
 	idle := agents(map[string]string{"lead": "idle", "spec": "idle", "dev": "idle"}, 1)
 	got := Step(st, Input{Graph: ring(), Before: idle, Now: idle, Tells: []Tell{{From: "lead", To: "dev", At: at}}, At: at})
 	if len(got) != 1 || got[0].Kind != Told || got[0].From != "lead" || got[0].To != "dev" {
@@ -152,7 +152,7 @@ func TestAMemberThatToldHandedItsTurnOnItself(t *testing.T) {
 // hergy delivers what dev wrote to lead, and lead's reply without a tell is
 // asked about in turn (d-80a5, ac-c928).
 func TestAnUnhandedTurnIsAskedAboutAndHandedAsAnswered(t *testing.T) {
-	st := &State{Team: "t", Holder: Human}
+	st := &State{Team: fixtureSeen("t"), Holder: Human}
 	idle := agents(map[string]string{"lead": "idle", "spec": "idle", "dev": "idle"}, 1)
 	_ = Step(st, Input{Graph: ring(), Before: idle, Now: idle, Tells: []Tell{{From: "lead", To: "dev", At: at}}, At: at})
 	busy := agents(map[string]string{"lead": "idle", "spec": "idle", "dev": "working"}, 2)
@@ -196,7 +196,7 @@ func TestAnUnhandedTurnIsAskedAboutAndHandedAsAnswered(t *testing.T) {
 // "spec" while spec works; the text waits in spec's box and goes out when spec
 // stops, opening spec's turn by dev.
 func TestAnAnswerForAWorkingMemberIsBoxedAndOpensItsNextTurn(t *testing.T) {
-	st := &State{Team: "t", Holder: "dev", From: "lead",
+	st := &State{Team: fixtureSeen("t"), Holder: "dev", From: "lead",
 		Asked: map[string]Question{"dev": {Seq: 3, At: at, Text: "push した", Candidates: []string{"lead", "spec"}, Waiting: []string{"lead"}}}}
 	answering := agents(map[string]string{"spec": "working", "dev": "working"}, 4)
 	answered := agents(map[string]string{"spec": "working", "dev": "done"}, 5)
@@ -228,7 +228,7 @@ func TestAnswersThatNameTheHumanNobodyOrNoOneLeaveTheTurnWithTheHuman(t *testing
 		{"", WhyUnclear, true},
 	}
 	for _, c := range cases {
-		st := &State{Team: "t", Holder: "dev", From: "lead",
+		st := &State{Team: fixtureSeen("t"), Holder: "dev", From: "lead",
 			Asked: map[string]Question{"dev": {Seq: 3, At: at, Text: "結果", Candidates: []string{"lead", "spec"}}}}
 		before := agents(map[string]string{"dev": "working"}, 4)
 		now := agents(map[string]string{"dev": "done"}, 5)
@@ -250,7 +250,7 @@ func TestAnswersThatNameTheHumanNobodyOrNoOneLeaveTheTurnWithTheHuman(t *testing
 // line. Nothing to ask about: the human holds it, and the action names lead
 // as waiting.
 func TestASilentUnhandedStopGoesToTheHuman(t *testing.T) {
-	st := &State{Team: "t", Holder: "dev", From: "lead", Opened: map[string][]Opening{"dev": {{By: "lead", At: at}}}}
+	st := &State{Team: fixtureSeen("t"), Holder: "dev", From: "lead", Opened: map[string][]Opening{"dev": {{By: "lead", At: at}}}}
 	before := agents(map[string]string{"dev": "working"}, 1)
 	now := agents(map[string]string{"dev": "idle"}, 2)
 	got := Step(st, Input{Graph: ring(), Before: before, Now: now, Wrote: wrote(nil), At: at.Add(time.Minute)})
@@ -267,7 +267,7 @@ func TestASilentUnhandedStopGoesToTheHuman(t *testing.T) {
 // opens dev's next turn, which is asked about when it ends unhanded
 // (ac-e5d6, the other way round: the person's turn first).
 func TestATellDuringATurnOpensTheNextOne(t *testing.T) {
-	st := &State{Team: "t", Holder: Human}
+	st := &State{Team: fixtureSeen("t"), Holder: Human}
 	idle := agents(map[string]string{"lead": "idle", "dev": "idle"}, 1)
 	busy := agents(map[string]string{"lead": "idle", "dev": "working"}, 2)
 	_ = Step(st, Input{Graph: ring(), Before: idle, Now: busy, At: at}) // the person typed
@@ -294,7 +294,7 @@ func TestATellDuringATurnOpensTheNextOne(t *testing.T) {
 // turn without a tell: the person's part is theirs, and hergy asks dev about
 // lead, who still waits (ac-e5d6).
 func TestThePersonsInterruptionIsTheirsAndTheWaitingMemberIsStillWaiting(t *testing.T) {
-	st := &State{Team: "t", Holder: Human}
+	st := &State{Team: fixtureSeen("t"), Holder: Human}
 	idle := agents(map[string]string{"lead": "idle", "dev": "idle"}, 1)
 	_ = Step(st, Input{Graph: ring(), Before: idle, Now: idle, Tells: []Tell{{From: "lead", To: "dev", At: at}, {To: "dev", At: at.Add(time.Second)}}, At: at.Add(time.Second)})
 	busy := agents(map[string]string{"lead": "idle", "dev": "working"}, 2)
@@ -310,7 +310,7 @@ func TestThePersonsInterruptionIsTheirsAndTheWaitingMemberIsStillWaiting(t *test
 // told it anything hergy saw (the hire's prompt did): it is asked, naming its
 // hirer (d-3baa).
 func TestAWorkersUnopenedTurnIsItsHirers(t *testing.T) {
-	st := &State{Team: "t", Holder: Human}
+	st := &State{Team: fixtureSeen("t"), Holder: Human}
 	before := []Agent{{Name: "spec", Status: "idle", Seq: 1}, {Name: "scroll", Hirer: "spec", Status: "working", Seq: 2}}
 	now := []Agent{{Name: "spec", Status: "idle", Seq: 1}, {Name: "scroll", Hirer: "spec", Status: "done", Seq: 3}}
 	got := Step(st, Input{Graph: ring(), Before: before, Now: now, Wrote: wrote(map[string]string{"scroll": "⑦ を push した"}), At: at})
@@ -320,7 +320,7 @@ func TestAWorkersUnopenedTurnIsItsHirers(t *testing.T) {
 }
 
 func TestStepLeavesABlockedMemberAlone(t *testing.T) {
-	st := &State{Team: "t", Holder: "dev", From: "spec", Opened: map[string][]Opening{"dev": {{By: "spec", At: at}}}}
+	st := &State{Team: fixtureSeen("t"), Holder: "dev", From: "spec", Opened: map[string][]Opening{"dev": {{By: "spec", At: at}}}}
 	before := agents(map[string]string{"dev": "working"}, 1)
 	now := agents(map[string]string{"dev": "blocked"}, 2)
 	if got := Step(st, Input{Graph: ring(), Before: before, Now: now, Wrote: wrote(map[string]string{"dev": "許可を待つ"}), At: at}); len(got) != 0 {
@@ -332,7 +332,7 @@ func TestStepLeavesABlockedMemberAlone(t *testing.T) {
 }
 
 func TestStepSeesTheHumanStartATurn(t *testing.T) {
-	st := &State{Team: "t", Holder: Human, From: "lead"}
+	st := &State{Team: fixtureSeen("t"), Holder: Human, From: "lead"}
 	before := agents(map[string]string{"lead": "idle"}, 1)
 	now := agents(map[string]string{"lead": "working"}, 2)
 	got := Step(st, Input{Graph: ring(), Before: before, Now: now, At: at})
@@ -347,8 +347,8 @@ func TestStepSeesTheHumanStartATurn(t *testing.T) {
 func TestLoadSaveAndClearKeepAndForgetTheTurn(t *testing.T) {
 	dir := t.TempDir()
 	path := Path(dir, "demo")
-	st, err := Load(path, "demo")
-	if err != nil || st.Holder != Human || st.Team != "demo" {
+	st, err := Load(path, fixtureSeen("demo"))
+	if err != nil || st.Holder != Human || st.Team.String() != "demo" {
 		t.Fatalf("Load of nothing = %+v, %v, want the human holding demo's turn", st, err)
 	}
 	st.Holder, st.From, st.Since = "lead", Human, at
@@ -359,7 +359,7 @@ func TestLoadSaveAndClearKeepAndForgetTheTurn(t *testing.T) {
 	if err := Save(path, st); err != nil {
 		t.Fatal(err)
 	}
-	back, err := Load(path, "demo")
+	back, err := Load(path, fixtureSeen("demo"))
 	if err != nil || back.Holder != "lead" || back.Pending["spec"][0].Text != "x" || back.Opened["dev"][0].By != "lead" || back.Asked["spec"].Text != "y" || back.Handed["dev"] != 3 {
 		t.Errorf("Load after Save = %+v, %v", back, err)
 	}
@@ -374,7 +374,7 @@ func TestLoadSaveAndClearKeepAndForgetTheTurn(t *testing.T) {
 			t.Errorf("%s is still there after Clear", gone)
 		}
 	}
-	if _, err := Load(filepath.Join(dir, "turns", "other.json"), "other"); err != nil {
+	if _, err := Load(filepath.Join(dir, "turns", "other.json"), fixtureSeen("other")); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -404,7 +404,7 @@ func TestTellsAreTakenOldestFirstAndOnce(t *testing.T) {
 // rests at first, and when no next turn begins within OpenGrace, spec is
 // asked about lead's tell with that turn's text.
 func TestATellFoldedIntoTheRunningTurnIsAskedAboutAfterTheGrace(t *testing.T) {
-	st := &State{Team: "t", Holder: Human}
+	st := &State{Team: fixtureSeen("t"), Holder: Human}
 	idle := agents(map[string]string{"lead": "idle", "spec": "idle"}, 1)
 	busy := agents(map[string]string{"lead": "idle", "spec": "working"}, 2)
 	_ = Step(st, Input{Graph: ring(), Before: idle, Now: busy, At: at}) // the start prompt's turn
@@ -430,7 +430,7 @@ func TestATellFoldedIntoTheRunningTurnIsAskedAboutAfterTheGrace(t *testing.T) {
 	}
 
 	// A member that begins a new turn within the grace is left to it.
-	st = &State{Team: "t", Holder: Human}
+	st = &State{Team: fixtureSeen("t"), Holder: Human}
 	_ = Step(st, Input{Graph: ring(), Before: idle, Now: busy, At: at})
 	_ = Step(st, Input{Graph: ring(), Before: busy, Now: busy, Tells: []Tell{{From: "lead", To: "spec", At: at.Add(time.Minute)}}, At: at.Add(time.Minute)})
 	_ = Step(st, Input{Graph: ring(), Before: busy, Now: stopped, Wrote: wrote(map[string]string{"spec": "起動しました"}), At: at.Add(2 * time.Minute)})
@@ -444,7 +444,7 @@ func TestATellFoldedIntoTheRunningTurnIsAskedAboutAfterTheGrace(t *testing.T) {
 // for the person, marks it with hergy tell 人間 and stops. Nothing is asked:
 // the turn is the human's, and lead waits no more (d-e601, ac-bc44).
 func TestATellToTheHumanEndsTheTurnWithoutAQuestion(t *testing.T) {
-	st := &State{Team: "t", Holder: Human}
+	st := &State{Team: fixtureSeen("t"), Holder: Human}
 	idle := agents(map[string]string{"lead": "idle", "dev": "idle"}, 1)
 	_ = Step(st, Input{Graph: ring(), Before: idle, Now: idle, Tells: []Tell{{From: "lead", To: "dev", At: at}}, At: at})
 	busy := agents(map[string]string{"lead": "idle", "dev": "working"}, 2)
@@ -470,7 +470,7 @@ func TestATellToTheHumanEndsTheTurnWithoutAQuestion(t *testing.T) {
 // dev marks its reply with hergy tell 人間 anyway. The reply rests as before,
 // and nothing is remembered as an unanswered rest.
 func TestATellToTheHumanInThePersonsOwnTurnRests(t *testing.T) {
-	st := &State{Team: "t", Holder: Human}
+	st := &State{Team: fixtureSeen("t"), Holder: Human}
 	idle := agents(map[string]string{"dev": "idle"}, 1)
 	busy := agents(map[string]string{"dev": "working"}, 2)
 	_ = Step(st, Input{Graph: ring(), Before: idle, Now: busy, At: at}) // the person typed
@@ -489,7 +489,7 @@ func TestATellToTheHumanInThePersonsOwnTurnRests(t *testing.T) {
 // hergy tell 人間 instead of answering with a word. The turn is the human's,
 // as if it had answered "人間", and lead waits no more.
 func TestATellToTheHumanAnswersTheQuestion(t *testing.T) {
-	st := &State{Team: "t", Holder: Human}
+	st := &State{Team: fixtureSeen("t"), Holder: Human}
 	idle := agents(map[string]string{"lead": "idle", "dev": "idle"}, 1)
 	_ = Step(st, Input{Graph: ring(), Before: idle, Now: idle, Tells: []Tell{{From: "lead", To: "dev", At: at}}, At: at})
 	busy := agents(map[string]string{"lead": "idle", "dev": "working"}, 2)

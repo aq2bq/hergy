@@ -350,15 +350,15 @@ func (n TeamName) compose(short string) (HerdrName, error) {
 }
 
 // WorkerTab labels the separate tab of one hired worker.
-func (n TeamName) WorkerTab(worker WorkerName) string { return workerLabel(n.s, worker.s) }
+func (n TeamName) WorkerTab(worker WorkerName) Seen { return Seen{s: workerLabel(n.s, worker.s)} }
 
 // ParseWorkerTab reads a complete worker tab label, rather than a prefix.
 func ParseWorkerTab(label string) (TeamName, WorkerName, bool) {
-	teamSeen, workerSeen, ok := Observe(label).WorkerTab()
+	observed, ok := (Seen{s: label}).WorkerTab()
 	if !ok {
 		return TeamName{}, WorkerName{}, false
 	}
-	team, worker := teamSeen.String(), workerSeen.String()
+	team, worker := observed.Team().String(), observed.Short().String()
 	t, err := ParseTeamName(team)
 	if err != nil {
 		return TeamName{}, WorkerName{}, false

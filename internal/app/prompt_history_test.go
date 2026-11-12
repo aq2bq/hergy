@@ -12,13 +12,13 @@ import (
 func TestLastPromptRecordIsPerMemberAndExactTarget(t *testing.T) {
 	project := t.TempDir()
 	path := filepath.Join(project, "team.yaml")
-	base := launchlog.Record{Team: "demo", Definition: "core", Project: project, TeamYAML: path, Command: "up", Members: []launchlog.Member{{Name: "demo-lead", Prompt: "old-lead"}, {Name: "demo-builder", Prompt: "old-builder"}}}
+	base := launchlog.Record{Team: fixtureSeen("demo"), Definition: "core", Project: project, TeamYAML: path, Command: "up", Members: []launchlog.Member{{Name: fixtureSeen("demo-lead"), Prompt: "old-lead"}, {Name: fixtureSeen("demo-builder"), Prompt: "old-builder"}}}
 	latest := base
 	latest.Command = "reprompt"
-	latest.Members = []launchlog.Member{{Name: "demo-lead", Prompt: "new-lead"}}
+	latest.Members = []launchlog.Member{{Name: fixtureSeen("demo-lead"), Prompt: "new-lead"}}
 	foreign := latest
 	foreign.Project = t.TempDir()
-	foreign.Members = []launchlog.Member{{Name: "demo-lead", Prompt: "foreign"}}
+	foreign.Members = []launchlog.Member{{Name: fixtureSeen("demo-lead"), Prompt: "foreign"}}
 	wrongPath := latest
 	wrongPath.TeamYAML = filepath.Join(project, "other.yaml")
 	hire := latest
@@ -45,7 +45,7 @@ func TestPromptHistoryReadsLiveMembersOnly(t *testing.T) {
 	read := newActivityRead(env)
 	read.now = func() time.Time { return activityNow }
 	runs, err := read.PromptRuns(env.ProjectRoot, "core", "project")
-	if err != nil || len(runs) != 1 || runs[0].Team != "core" {
+	if err != nil || len(runs) != 1 || runs[0].Team.String() != "core" {
 		t.Fatalf("runs = %+v, %v", runs, err)
 	}
 	if _, err := read.PromptHistory(env.ProjectRoot, "core", "project", "lead", "core"); err != nil {
@@ -68,7 +68,7 @@ func TestPromptHistoryExactBodyAndReadFailures(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	record := launchlog.Record{Team: "core", Definition: "core", Project: env.ProjectRoot, TeamYAML: filepath.Join(env.ProjectRoot, ".hergy", "teams", "core", "team.yaml"), Command: launchlog.CommandRefresh, Members: []launchlog.Member{{Name: "core-lead", Prompt: hash}}}
+	record := launchlog.Record{Team: fixtureSeen("core"), Definition: "core", Project: env.ProjectRoot, TeamYAML: filepath.Join(env.ProjectRoot, ".hergy", "teams", "core", "team.yaml"), Command: launchlog.CommandRefresh, Members: []launchlog.Member{{Name: fixtureSeen("core-lead"), Prompt: hash}}}
 	if err := log.Append(record); err != nil {
 		t.Fatal(err)
 	}

@@ -72,14 +72,14 @@ func TestHerdrCompositionAndResolution(t *testing.T) {
 	if watcher.String() != "a-b-turns" {
 		t.Fatal(watcher)
 	}
-	for _, teams := range [][]name.Seen{{name.Observe(a.String()), name.Observe(ab.String())}, {name.Observe(ab.String()), name.Observe(a.String())}} {
-		team, short, ok := name.Resolve(name.Observe(h.String()), teams)
+	for _, teams := range [][]name.Seen{{fixtureObservation(a.String()), fixtureObservation(ab.String())}, {fixtureObservation(ab.String()), fixtureObservation(a.String())}} {
+		team, short, ok := name.Resolve(fixtureObservation(h.String()), teams)
 		if !ok || team.String() != ab.String() || short.String() != "c-d" {
 			t.Errorf("resolved: %v %q %v", team, short, ok)
 		}
 	}
 	for _, value := range []string{"a", "other-lead", "A-lead"} {
-		if _, _, ok := name.Resolve(name.Observe(value), []name.Seen{name.Observe(a.String()), name.Observe(ab.String())}); ok {
+		if _, _, ok := name.Resolve(fixtureObservation(value), []name.Seen{fixtureObservation(a.String()), fixtureObservation(ab.String())}); ok {
 			t.Errorf("resolved %q", value)
 		}
 	}
@@ -104,10 +104,10 @@ func TestWorkerTabs(t *testing.T) {
 	team, _ := name.ParseTeamName("a-b")
 	worker, _ := name.ParseWorkerName("c-d")
 	label := team.WorkerTab(worker)
-	if label != "worker:a-b/c-d" {
+	if label.String() != "worker:a-b/c-d" {
 		t.Fatal(label)
 	}
-	gotTeam, gotWorker, ok := name.ParseWorkerTab(label)
+	gotTeam, gotWorker, ok := name.ParseWorkerTab(label.String())
 	if !ok || gotTeam != team || gotWorker != worker {
 		t.Fatalf("%v %v %v", gotTeam, gotWorker, ok)
 	}
@@ -165,7 +165,7 @@ func TestSavedStrings(t *testing.T) {
 func TestResolveKeepsUnmatchedObservation(t *testing.T) {
 	team, _ := name.ParseTeamName("demo")
 	for _, raw := range []string{"other-lead", "human", "", "demo-"} {
-		owner, short, ok := name.Resolve(name.Observe(raw), []name.Seen{name.Observe(team.String())})
+		owner, short, ok := name.Resolve(fixtureObservation(raw), []name.Seen{fixtureObservation(team.String())})
 		if ok || owner.String() != "" || short.String() != raw {
 			t.Errorf("%q: %v %q %v", raw, owner, short, ok)
 		}
@@ -173,7 +173,7 @@ func TestResolveKeepsUnmatchedObservation(t *testing.T) {
 	// Observed labels retain the old permissive reading; validation happens when
 	// assigning names, not when deciding which team's existing pane to display.
 	for _, raw := range []string{"demo-1", "demo-" + strings.Repeat("a", 32)} {
-		owner, short, ok := name.Resolve(name.Observe(raw), []name.Seen{name.Observe(team.String())})
+		owner, short, ok := name.Resolve(fixtureObservation(raw), []name.Seen{fixtureObservation(team.String())})
 		if !ok || owner.String() != team.String() || short.String() != strings.TrimPrefix(raw, "demo-") {
 			t.Errorf("%q: %v %q %v", raw, owner, short, ok)
 		}
@@ -191,23 +191,23 @@ func TestExistingDefinitionNamesKeepDirectorySpelling(t *testing.T) {
 
 func TestObservedNamesKeepLegacyTargets(t *testing.T) {
 	for _, raw := range []string{"Upper-worker", "legacy-1", "a-" + strings.Repeat("b", 40)} {
-		var target name.Target = name.Observe(raw)
+		var target name.Target = fixtureObservation(raw)
 		if target.String() != raw {
 			t.Fatal(target)
 		}
 	}
 	for _, raw := range []string{"worker:Upper/1", "worker:team/a/b"} {
-		observed := name.Observe(raw)
-		team, short, ok := observed.WorkerTab()
-		if !ok || team.WorkerLabel(short) != observed {
+		observed := fixtureObservation(raw)
+		worker, ok := observed.WorkerTab()
+		if !ok || worker.Label() != observed {
 			t.Fatalf("lost legacy label %q", raw)
 		}
 	}
-	team := name.TeamFromObservation(name.Observe("Upper"))
+	team := name.TeamFromObservation(fixtureObservation("Upper"))
 	if _, ok := team.Model(); ok || team.Observation().String() != "Upper" {
 		t.Fatal(team)
 	}
-	checked := name.TeamFromObservation(name.Observe("demo"))
+	checked := name.TeamFromObservation(fixtureObservation("demo"))
 	if model, ok := checked.Model(); !ok || model.String() != "demo" {
 		t.Fatal(checked)
 	}

@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 
 	domainname "github.com/aq2bq/hergy/internal/domain/name"
 
@@ -194,7 +193,7 @@ func applyTeamNow(ctx context.Context, env team.Env, group []plannedMember, time
 	}
 	cat := projectEnv.Catalog(source.Disk{})
 	r, err := buildRunningIn(cat, projectEnv.ProjectRoot,
-		team.Running{Team: domainname.TeamFromObservation(domainname.Observe(group[0].team.Name)), Definition: group[0].team.Definition}, group[0].team.Place)
+		team.Running{Team: domainname.TeamFromObservation(group[0].team.Name.Observation()), Definition: group[0].team.Definition}, group[0].team.Place)
 	if err != nil {
 		return err
 	}
@@ -208,7 +207,7 @@ func applyTeamNow(ctx context.Context, env team.Env, group []plannedMember, time
 		starts = append(starts, member.start)
 	}
 	if len(starts) > 0 {
-		if err := l.Refresh(starts, os.Getenv("HERDR_PANE_ID")); err != nil {
+		if err := l.Refresh(starts, currentPane()); err != nil {
 			if !launcher.IsUndelivered(err) {
 				return err
 			}
@@ -287,19 +286,19 @@ func printApplyPlan(stdout io.Writer, plan deliveryPlan, selected []plannedMembe
 		list := web.ApplyList{Herdr: web.ActivityNote{OK: true}, Teams: []web.ApplyTeam{}}
 		byTeam := map[string]int{}
 		add := func(member plannedMember) {
-			index, ok := byTeam[member.team.Name]
+			index, ok := byTeam[member.team.Name.String()]
 			if !ok {
-				own := notes[member.team.Name]
+				own := notes[member.team.Name.String()]
 				if own == nil {
 					own = []string{}
 				}
 				list.Teams = append(list.Teams, web.ApplyTeam{
-					Team: member.team.Name, Definition: member.team.Definition,
+					Team: member.team.Name.String(), Definition: member.team.Definition,
 					Project: member.team.Project, ProjectName: member.team.ProjectName,
 					Notes: own, Members: []web.ApplyMember{},
 				})
 				index = len(list.Teams) - 1
-				byTeam[member.team.Name] = index
+				byTeam[member.team.Name.String()] = index
 			}
 			shown := web.ApplyMember{
 				Name: member.start.Name.String(), Short: member.start.Short.String(), Role: member.start.Role,
@@ -332,9 +331,9 @@ func printApplyPlan(stdout io.Writer, plan deliveryPlan, selected []plannedMembe
 	fmt.Fprintln(stdout, i18n.T("apply.plan"))
 	applied := map[string]bool{}
 	for _, group := range groupByTeam(selected) {
-		applied[group[0].team.Name] = true
+		applied[group[0].team.Name.String()] = true
 		fmt.Fprintf(stdout, "%s\n", group[0].team.Name)
-		for _, note := range notes[group[0].team.Name] {
+		for _, note := range notes[group[0].team.Name.String()] {
 			fmt.Fprintf(stdout, "  %s\n", note)
 		}
 		for _, member := range group {
@@ -348,7 +347,7 @@ func printApplyPlan(stdout io.Writer, plan deliveryPlan, selected []plannedMembe
 	// sheet shows them beside the members it cannot apply too.
 	left := map[string]bool{}
 	for _, one := range remaining {
-		left[one.member.team.Name] = true
+		left[one.member.team.Name.String()] = true
 	}
 	for _, team := range plan.apply.Teams {
 		if applied[team.Team] || !left[team.Team] {

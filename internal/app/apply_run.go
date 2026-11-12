@@ -5,7 +5,6 @@ import (
 	"errors"
 	"io"
 	"net/http"
-	"os"
 	"strings"
 
 	domainname "github.com/aq2bq/hergy/internal/domain/name"
@@ -44,7 +43,7 @@ func (h *hqRead) ApplyMembers(names []string) (web.HQLaunch, error) {
 		return web.HQLaunch{}, hqRefuse(http.StatusUnprocessableEntity, strings.Join(refusals, "\n"))
 	}
 	for _, group := range groupByTeam(selected) {
-		if _, busy := h.activeLaunch(group[0].team.Name); busy {
+		if _, busy := h.activeLaunch(group[0].team.Name.String()); busy {
 			return web.HQLaunch{}, hqRefuse(http.StatusConflict, i18n.Tf("apply.refused_busy", group[0].team.Name))
 		}
 	}
@@ -84,9 +83,9 @@ func groupByTeam(members []plannedMember) [][]plannedMember {
 	var out [][]plannedMember
 	at := map[string]int{}
 	for _, member := range members {
-		index, ok := at[member.team.Name]
+		index, ok := at[member.team.Name.String()]
 		if !ok {
-			at[member.team.Name] = len(out)
+			at[member.team.Name.String()] = len(out)
 			out = append(out, []plannedMember{member})
 			continue
 		}
@@ -113,13 +112,13 @@ func applyLaunch(selected []plannedMember) web.HQLaunch {
 		}
 	}
 	if same {
-		launch.Team = first.Name
+		launch.Team = first.Name.String()
 		launch.Definition = first.Definition
 		launch.Project = first.Project
 		launch.ProjectName = first.ProjectName
 		launch.Place = apiPlaceOf(first.Place)
 		launch.Workspace = web.HQWorkspace{ID: first.WorkspaceID, Label: first.WorkspaceLabel}
-		launch.Tab = web.HQTab{ID: first.TabID, Label: first.Name}
+		launch.Tab = web.HQTab{ID: first.TabID, Label: first.Name.String()}
 	}
 	return launch
 }
@@ -147,7 +146,7 @@ func (h *hqRead) runApply(ctx context.Context, op *launchOp, selected []plannedM
 		}
 		cat := env.Catalog(source.Disk{})
 		r, err := buildRunningIn(cat, env.ProjectRoot,
-			team.Running{Team: domainname.TeamFromObservation(domainname.Observe(group[0].team.Name)), Definition: group[0].team.Definition}, group[0].team.Place)
+			team.Running{Team: domainname.TeamFromObservation(group[0].team.Name.Observation()), Definition: group[0].team.Definition}, group[0].team.Place)
 		if err != nil {
 			h.finish(op, "failed", err.Error())
 			return
@@ -190,7 +189,7 @@ func (h *hqRead) applyGroup(ctx context.Context, op *launchOp, env team.Env, cat
 	}
 	var undelivered []error
 	if len(starts)+len(restarts) > 0 {
-		if err := l.Refresh(append(starts, restarts...), os.Getenv("HERDR_PANE_ID")); err != nil {
+		if err := l.Refresh(append(starts, restarts...), currentPane()); err != nil {
 			if launcher.IsUndelivered(err) {
 				undelivered = append(undelivered, err)
 			} else {

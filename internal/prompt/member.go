@@ -17,7 +17,7 @@ import (
 type Run struct {
 	// Team is the team name at run time: --as, else the definition name. It
 	// prefixes every member's herdr name.
-	Team string
+	Team domainname.Naming
 	// Executable is the hergy binary, embedded in the hire command a member
 	// reads; empty means "hergy".
 	Executable string
@@ -157,7 +157,7 @@ func Member(def *definition.Definition, node *definition.MemberNode, run Run) (*
 		templateOrigin = definition.PromptOrigin{Kind: "member", Name: node.Name.String(), Path: run.shown(def.TeamYAML), Place: promptPlace(def.Layer)}
 	case def.Prompt != "":
 		template = def.Prompt
-		templateOrigin = definition.PromptOrigin{Kind: "team", Name: run.Team, Path: run.shown(def.TeamYAML), Place: promptPlace(def.Layer)}
+		templateOrigin = definition.PromptOrigin{Kind: "team", Name: run.Team.String(), Path: run.shown(def.TeamYAML), Place: promptPlace(def.Layer)}
 	}
 	if err := checkTemplate(run, def, node, template); err != nil {
 		return nil, err
@@ -178,10 +178,10 @@ func Member(def *definition.Definition, node *definition.MemberNode, run Run) (*
 		return document, true
 	}
 
-	memberName := domainname.PreviewName(run.Team, node.Name.String())
-	teamOrigin := definition.PromptOrigin{Kind: "team", Name: run.Team, Path: run.shown(def.TeamYAML), Place: promptPlace(def.Layer)}
+	memberName := run.Team.Member(node.Name)
+	teamOrigin := definition.PromptOrigin{Kind: "team", Name: run.Team.String(), Path: run.shown(def.TeamYAML), Place: promptPlace(def.Layer)}
 	simple := map[string]func() string{
-		"team": func() string { return run.Team },
+		"team": func() string { return run.Team.String() },
 		"role": func() string { return node.Role },
 		"name": func() string { return memberName },
 	}
@@ -300,7 +300,7 @@ func promptPlace(layer string) string {
 // RosterOf is the team's members as the roster shows them: the herdr name each
 // one answers to, and the role it reads. It is the roster the prompt and the
 // figure are both made of.
-func RosterOf(def *definition.Definition, team string, runs ...Run) []RosterEntry {
+func RosterOf(def *definition.Definition, team domainname.Naming, runs ...Run) []RosterEntry {
 	out := make([]RosterEntry, len(def.Graph.Members))
 	for i, member := range def.Graph.Members {
 		title := member.Role
@@ -311,7 +311,7 @@ func RosterOf(def *definition.Definition, team string, runs ...Run) []RosterEntr
 				}
 			}
 		}
-		out[i] = RosterEntry{Name: domainname.PreviewName(team, member.Name.String()), Short: member.Name.String(), Title: title, Role: member.Role}
+		out[i] = RosterEntry{Name: team.Member(member.Name), Short: member.Name.String(), Title: title, Role: member.Role}
 	}
 	return out
 }
@@ -320,7 +320,7 @@ func RosterOf(def *definition.Definition, team string, runs ...Run) []RosterEntr
 // (I13): the human, or another member with the role it reads. The order is the
 // order turns: writes them. It is the projection a member's prompt and the
 // "保存すると" line are both made from.
-func TurnsOf(def *definition.Definition, member, team string) []TurnPart {
+func TurnsOf(def *definition.Definition, member string, team domainname.Naming) []TurnPart {
 	var out []TurnPart
 	for _, edge := range def.Graph.Out(definition.NodeID{Kind: definition.KindMember, Name: member}) {
 		// A worker's edge is made by workers: and is not a turn the member
@@ -340,7 +340,7 @@ func TurnsOf(def *definition.Definition, member, team string) []TurnPart {
 			if !ok {
 				continue
 			}
-			out = append(out, TurnPart{Name: domainname.PreviewName(team, peer.Name.String()), Role: peer.Role})
+			out = append(out, TurnPart{Name: team.Member(peer.Name), Role: peer.Role})
 		case definition.KindWorker:
 			// A worker's edge back is made by workers: (I12c); the worker note
 			// covers it, so it is not a turn the member is told about.

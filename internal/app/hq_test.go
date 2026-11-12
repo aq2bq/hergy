@@ -81,7 +81,7 @@ func hqFixture(t *testing.T) (*fixture, team.Env, string) {
 	} {
 		if err := log.Append(launchlog.Record{
 			Time: "2026-10-24T09:00:00+09:00", Command: launchlog.CommandUp,
-			Project: one.project, Layer: "local", Definition: one.teamName, Team: one.teamName,
+			Project: one.project, Layer: "local", Definition: one.teamName, Team: fixtureSeen(one.teamName),
 			TeamYAML:    filepath.Join(one.project, ".hergy", "teams", one.teamName, "team.yaml"),
 			Workspace:   map[string]string{f.proj: "proj-dev", other: "ledger-dev"}[one.project],
 			WorkspaceID: map[string]string{f.proj: "w1", other: "w2"}[one.project],
@@ -149,13 +149,13 @@ func TestActivityAndRunningAgreeAboutTheListedProjects(t *testing.T) {
 		}
 	}
 	for _, one := range running.Teams {
-		if places[one.Team] != one.Place || one.Place != "project" {
-			t.Errorf("%s: activity place %q and running place %q must both be project", one.Team, places[one.Team], one.Place)
+		if places[one.Team.String()] != one.Place || one.Place != "project" {
+			t.Errorf("%s: activity place %q and running place %q must both be project", one.Team, places[one.Team.String()], one.Place)
 		}
-		if !stateMatches(states[one.Team], one.Members) {
-			t.Errorf("%s: running members %+v do not agree with the activity state %q", one.Team, one.Members, states[one.Team])
+		if !stateMatches(states[one.Team.String()], one.Members) {
+			t.Errorf("%s: running members %+v do not agree with the activity state %q", one.Team, one.Members, states[one.Team.String()])
 		}
-		if one.Team == "ledger" && one.Project != other {
+		if one.Team.String() == "ledger" && one.Project != other {
 			t.Errorf("ledger belongs to %q, want %q", one.Project, other)
 		}
 	}
@@ -655,7 +655,7 @@ func TestServeNamesTheConfigFileOnABrokenProjectPath(t *testing.T) {
 // teamNamed is one team of a running reading, by name.
 func teamNamed(running web.HQRunning, name string) web.HQRunningTeam {
 	for _, one := range running.Teams {
-		if one.Team == name {
+		if one.Team.String() == name {
 			return one
 		}
 	}
@@ -730,7 +730,7 @@ func TestActivityKeepsTheLaunchDefinitionPlace(t *testing.T) {
 			log := launchlog.At(filepath.Join(f.state, "hergy", "launches"))
 			if err := log.Append(launchlog.Record{
 				Time: "2026-11-05T09:00:00+09:00", Command: launchlog.CommandUp,
-				Project: f.proj, Layer: "global", Definition: "blueprint", Team: "core",
+				Project: f.proj, Layer: "global", Definition: "blueprint", Team: fixtureSeen("core"),
 				TeamYAML: filepath.Join(global, "team.yaml"),
 			}); err != nil {
 				t.Fatal(err)

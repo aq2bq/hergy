@@ -5,6 +5,8 @@ import (
 	"errors"
 	"net/http"
 
+	domainname "github.com/aq2bq/hergy/internal/domain/name"
+
 	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/source"
 )
@@ -130,18 +132,18 @@ type HQRunning struct {
 
 // HQRunningTeam is one running team with the project and workspace it runs in.
 type HQRunningTeam struct {
-	Team        string      `json:"team"`
-	Definition  string      `json:"definition"`
-	Place       string      `json:"place"`
-	Project     string      `json:"project"`
-	ProjectName string      `json:"project_name"`
-	Workspace   HQWorkspace `json:"workspace"`
-	Tab         HQTab       `json:"tab"`
-	Starting    bool        `json:"starting"`
-	Launch      string      `json:"launch,omitempty"`
-	Members     []HQMember  `json:"members"`
-	Workers     []HQWorker  `json:"workers"`
-	Waiting     []string    `json:"waiting"`
+	Team        domainname.TeamRef `json:"team"`
+	Definition  string             `json:"definition"`
+	Place       string             `json:"place"`
+	Project     string             `json:"project"`
+	ProjectName string             `json:"project_name"`
+	Workspace   HQWorkspace        `json:"workspace"`
+	Tab         HQTab              `json:"tab"`
+	Starting    bool               `json:"starting"`
+	Launch      string             `json:"launch,omitempty"`
+	Members     []HQMember         `json:"members"`
+	Workers     []HQWorker         `json:"workers"`
+	Waiting     []string           `json:"waiting"`
 	// NotUp is the members the definition has that no agent of the team is live
 	// for, by short name: the ones a screen offers 起動 for (r-5d1a).
 	NotUp []string `json:"not_up"`

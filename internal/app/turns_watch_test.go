@@ -72,13 +72,13 @@ func newTurnsFixture(t *testing.T) *turnsFixture {
 	inJapanese(t)
 	f := &turnsFixture{port: &turnsPort{panes: map[string]string{}}, out: &bytes.Buffer{}, scr: &bytes.Buffer{}, now: time.Date(2026, 11, 6, 21, 20, 0, 0, time.UTC)}
 	dir := t.TempDir()
-	f.w = newTurnWatcher("demo", starterGraph(), herdr.New(f.port), filepath.Join(dir, "demo.json"), f.out)
+	f.w = newTurnWatcher(fixtureDemoTeam(), starterGraph(), herdr.New(f.port), filepath.Join(dir, "demo.json"), f.out)
 	f.w.screen = &screen{out: f.scr}
 	f.w.band.width = func() int { return 120 }
 	f.w.tells = turns.TellDir(dir, "demo")
 	f.w.signals = turns.SignalDir(dir, "demo")
 	f.w.read = func() ([]team.Tab, []protocol.Agent, bool, error) {
-		tabs := []team.Tab{{ID: "t1", Label: "demo", Agents: []string{"demo-lead", "demo-builder"}}}
+		tabs := []team.Tab{{ID: "t1", Label: fixtureSeen("demo"), Agents: fixtureSeenList([]string{"demo-lead", "demo-builder"})}}
 		return tabs, f.agents, true, nil
 	}
 	f.w.clock = func() time.Time { return f.now }
@@ -271,7 +271,7 @@ func TestTurnsAsksAnUnhandedTurnAndDeliversAsAnswered(t *testing.T) {
 	if f.w.state.Holder != "lead" || f.w.state.From != "builder" || len(f.w.state.Asked) != 0 {
 		t.Errorf("state = %+v, want lead holding it from builder", f.w.state)
 	}
-	saved, err := turns.Load(f.w.path, "demo")
+	saved, err := turns.Load(f.w.path, fixtureSeen("demo"))
 	if err != nil || saved.Holder != "lead" || len(saved.Opened["lead"]) != 1 {
 		t.Errorf("the saved state = %+v, %v; want lead holding it, opened by builder", saved, err)
 	}

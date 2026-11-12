@@ -101,8 +101,8 @@ func (a *activityRead) computeDelivery(now time.Time) deliveryPlan {
 func byHerdrOf(judged activity.Team) map[string]activity.Node {
 	out := map[string]activity.Node{}
 	for _, node := range judged.Nodes {
-		if node.Herdr != "" {
-			out[node.Herdr] = node
+		if node.Herdr.String() != "" {
+			out[node.Herdr.String()] = node
 		}
 	}
 	return out
@@ -113,7 +113,7 @@ func byHerdrOf(judged activity.Team) map[string]activity.Node {
 // and the members the definition no longer has.
 func (a *activityRead) planTeam(one *deliveryPlan, running runningTeam, judged activity.Team, byHerdr map[string]activity.Node, records map[string]map[string]map[string]launchlog.Record, log launchlog.Log, logErr error) {
 	row := web.ApplyTeam{
-		Team: running.Name, Definition: running.Definition,
+		Team: running.Name.String(), Definition: running.Definition,
 		Project: running.Project, ProjectName: running.ProjectName,
 		Notes: []string{}, Members: []web.ApplyMember{},
 	}
@@ -128,7 +128,7 @@ func (a *activityRead) planTeam(one *deliveryPlan, running runningTeam, judged a
 		}
 		return
 	}
-	recorded := teamsRecorded(records, running.Project)[running.Name]
+	recorded := teamsRecorded(records, running.Project)[running.Name.String()]
 	oldRecord := false
 	noted := map[string]bool{}
 	addNote := func(text string) {
@@ -201,17 +201,17 @@ func (a *activityRead) planTeam(one *deliveryPlan, running runningTeam, judged a
 	// launch record holds as this team's member is that; the others are hired
 	// workers, which a stop leaves alone too but which are outside the apply.
 	for _, hired := range judged.Hired {
-		if _, was := recorded[hired.Herdr]; !was {
+		if _, was := recorded[hired.Herdr.String()]; !was {
 			continue
 		}
-		short := domainname.ShortIn(domainname.Observe(hired.Herdr), domainname.Observe(running.Name)).String()
+		short := domainname.ShortIn(hired.Herdr, running.Name.Observation()).String()
 		why := i18n.Tf("apply.refused_removed", short)
-		one.members[hired.Herdr] = plannedMember{
+		one.members[hired.Herdr.String()] = plannedMember{
 			team: running, state: hired.State.Slug(), changed: true,
 			how: web.ApplyCannot, whyNot: why,
 		}
 		row.Members = append(row.Members, web.ApplyMember{
-			Name: hired.Herdr, Short: short, State: hired.State.Slug(),
+			Name: hired.Herdr.String(), Short: short, State: hired.State.Slug(),
 			How: web.ApplyCannot, Changes: []deliver.Change{}, CanApply: false,
 			WhyNot: why,
 		})
@@ -336,7 +336,7 @@ func (a *activityRead) memberDrift(cat *catalog.Catalog, log launchlog.Log, logE
 // then by short name.
 func recordedMemberOf(record launchlog.Record, start definition.Start) (launchlog.Member, bool) {
 	for i := range record.Members {
-		if record.Members[i].Name == start.Name.String() || record.Members[i].Short == start.Short.String() {
+		if record.Members[i].Name.String() == start.Name.String() || record.Members[i].Short == start.Short.String() {
 			return record.Members[i], true
 		}
 	}
@@ -371,7 +371,7 @@ func (a *activityRead) memberChanges(cat *catalog.Catalog, log launchlog.Log, lo
 		return false, nil
 	}
 	run := prompt.Run{
-		Team: running.Name, Executable: record.Executable, Base: record.Project, Lang: record.Lang,
+		Team: domainname.RunningNames(running.Built.team.Name), Executable: record.Executable, Base: record.Project, Lang: record.Lang,
 		Reader: cat.Reader(), Sources: cat, Display: cat.Display,
 	}
 	if run.Executable == "" {
@@ -419,7 +419,7 @@ func latestMemberRecords() map[string]map[string]map[string]launchlog.Record {
 		return out
 	}
 	for _, record := range records {
-		if record.Team == "" || record.Definition == "" || record.IsHire() {
+		if record.Team.String() == "" || record.Definition == "" || record.IsHire() {
 			continue
 		}
 		project := ""
@@ -429,14 +429,14 @@ func latestMemberRecords() map[string]map[string]map[string]launchlog.Record {
 		if out[project] == nil {
 			out[project] = map[string]map[string]launchlog.Record{}
 		}
-		if out[project][record.Team] == nil {
-			out[project][record.Team] = map[string]launchlog.Record{}
+		if out[project][record.Team.String()] == nil {
+			out[project][record.Team.String()] = map[string]launchlog.Record{}
 		}
 		// The record is history, oldest first: the last record that carries a
 		// member is that member's last prompt.
 		for _, member := range record.Members {
-			if member.Name != "" {
-				out[project][record.Team][member.Name] = record
+			if member.Name.String() != "" {
+				out[project][record.Team.String()][member.Name.String()] = record
 			}
 		}
 	}

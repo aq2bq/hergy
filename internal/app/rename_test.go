@@ -48,7 +48,7 @@ func TestRenameReadsUnlistedRunningProjects(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := log.Append(launchlog.Record{Team: "foreign", Definition: "demo", Project: filepath.Join(f.proj, "unlisted"), Layer: source.LayerGlobal, TeamYAML: path}); err != nil {
+	if err := log.Append(launchlog.Record{Team: fixtureSeen("foreign"), Definition: "demo", Project: filepath.Join(f.proj, "unlisted"), Layer: source.LayerGlobal, TeamYAML: path}); err != nil {
 		t.Fatal(err)
 	}
 	if err := reader.CheckDefinitionRename(path); err == nil {
@@ -76,7 +76,7 @@ func TestRenameIgnoresUnrelatedUnknownDefinitions(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					if err := log.Append(launchlog.Record{Team: "foreign", Definition: definition}); err != nil {
+					if err := log.Append(launchlog.Record{Team: fixtureSeen("foreign"), Definition: definition}); err != nil {
 						t.Fatal(err)
 					}
 				}

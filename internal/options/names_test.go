@@ -27,8 +27,8 @@ func TestCommandWordsKeepTheirUnresolvedMeaning(t *testing.T) {
 }
 
 func TestDownChoiceKeepsLegacyWorkersAndRefusesAmbiguity(t *testing.T) {
-	team := domainname.Observe("Upper")
-	worker := Worker{Team: team, Short: domainname.Observe("1"), Herdr: domainname.Observe("Upper-1"), Label: domainname.Observe("worker:Upper/1")}
+	team := fixtureSeen("Upper")
+	worker := Worker{Team: team, Short: fixtureSeen("1"), Herdr: fixtureSeen("Upper-1"), Label: fixtureSeen("worker:Upper/1")}
 	choice, err := (Input{raw: "Upper-1"}).ResolveDown([]domainname.Seen{team}, []Worker{worker})
 	if err != nil {
 		t.Fatal(err)

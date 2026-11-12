@@ -66,20 +66,20 @@ func runTurns(ctx context.Context, env team.Env, opts *options.Options, stdout i
 		return err
 	}
 	if opts.Log {
-		return printTurnsLog(r.team.Name, turns.LogPath(dir, r.team.Name), stdout)
+		return printTurnsLog(r.team.Name.String(), turns.LogPath(dir, r.team.Name.String()), stdout)
 	}
-	logFile, err := openTurnsLog(turns.LogPath(dir, r.team.Name))
+	logFile, err := openTurnsLog(turns.LogPath(dir, r.team.Name.String()))
 	if err != nil {
 		return err
 	}
 	defer func() { _ = logFile.Close() }()
-	w := newTurnWatcher(r.team.Name, r.team.Definition.Graph, h, turns.Path(dir, r.team.Name), &stampWriter{out: logFile, clock: time.Now})
+	w := newTurnWatcher(r.modelTeamName(), r.team.Definition.Graph, h, turns.Path(dir, r.team.Name.String()), &stampWriter{out: logFile, clock: time.Now})
 	w.screen = &screen{out: stdout}
 	defer w.screen.end()
 	w.read = herdrRead
-	w.hirers = hirersOf(r.team.Name)
-	w.signals = turns.SignalDir(dir, r.team.Name)
-	w.tells = turns.TellDir(dir, r.team.Name)
+	w.hirers, w.names = hirersOf(r.team.Name.Observation())
+	w.signals = turns.SignalDir(dir, r.team.Name.String())
+	w.tells = turns.TellDir(dir, r.team.Name.String())
 	// Tells that waited while no watcher ran are about turns this watcher did
 	// not see: they are dropped, so a member is not asked about a turn long gone.
 	if _, err := turns.TakeTells(w.tells); err != nil {
@@ -134,29 +134,38 @@ func printTurnsLog(teamName, path string, stdout io.Writer) error {
 
 // hirersOf is, by a worker's short name, the member that hired it, from this
 // machine's launch record (hergy hire writes one line per worker).
-func hirersOf(teamName string) map[string]string {
+func hirersOf(teamName domainname.Seen) (map[string]string, map[string]domainname.Seen) {
 	out := map[string]string{}
+	names := map[string]domainname.Seen{}
 	log, err := launchlog.Open()
 	if err != nil {
-		return out
+		return out, names
 	}
 	records, err := log.Read()
 	if err != nil {
-		return out
+		return out, names
 	}
 	for _, record := range records {
-		if record.Team != teamName || !record.IsHire() || record.Hire == nil {
+		if record.Team != teamName {
 			continue
 		}
-		out[domainname.ShortIn(domainname.Observe(record.Hire.Worker), domainname.Observe(teamName)).String()] = record.Hire.From
+		for _, member := range record.Members {
+			names[domainname.ShortIn(member.Name, teamName).String()] = member.Name
+		}
+		if !record.IsHire() || record.Hire == nil {
+			continue
+		}
+		short := domainname.ShortIn(record.Hire.Worker, teamName).String()
+		names[short] = record.Hire.Worker
+		out[short] = record.Hire.From
 	}
-	return out
+	return out, names
 }
 
 // turnWatcher is one team's watcher: what it reads herdr through, where the
 // turn's state is kept, and what it saw last time.
 type turnWatcher struct {
-	team   string
+	team   domainname.TeamName
 	graph  *definition.Graph
 	herdr  *herdr.Herdr
 	path   string
@@ -173,7 +182,7 @@ type turnWatcher struct {
 	// 2026-11-06), so the turn's start is too late to read it.
 	snaps map[string]snapshot
 	// names is each agent's herdr name by its short name, as of the last read.
-	names map[string]string
+	names map[string]domainname.Seen
 	// signals is the directory the harnesses' signals wait in, and tells the
 	// one hergy tell writes to; empty reads none. wired is who has a harness
 	// that signals: the members hergy wired, and anyone a signal has come from.
@@ -186,12 +195,12 @@ type turnWatcher struct {
 	screen *screen
 }
 
-func newTurnWatcher(teamName string, graph *definition.Graph, h *herdr.Herdr, path string, out io.Writer) *turnWatcher {
+func newTurnWatcher(teamName domainname.TeamName, graph *definition.Graph, h *herdr.Herdr, path string, out io.Writer) *turnWatcher {
 	return &turnWatcher{
 		team: teamName, graph: graph, herdr: h, path: path, out: out,
 		hirers: map[string]string{}, clock: time.Now,
-		snaps: map[string]snapshot{}, names: map[string]string{}, wired: map[string]bool{},
-		band: newBand(teamName),
+		snaps: map[string]snapshot{}, names: map[string]domainname.Seen{}, wired: map[string]bool{},
+		band: newBand(teamName.String()),
 	}
 }
 
@@ -204,7 +213,7 @@ func (w *turnWatcher) draw() {
 }
 
 func (w *turnWatcher) load() error {
-	st, err := turns.Load(w.path, w.team)
+	st, err := turns.Load(w.path, w.team.Observation())
 	if err != nil {
 		return err
 	}
@@ -242,10 +251,24 @@ func (w *turnWatcher) tick() {
 	if !agentsRead {
 		return
 	}
-	now := w.observe(teamAgents(tabs, agents, w.team))
+	// Retain recipients witnessed in worker tabs or named panes, even when
+	// their agents have ended. These are observations, not reconstructed inputs.
+	for _, tab := range tabs {
+		if worker, ok := tab.Label.WorkerIn(w.team.Observation()); ok {
+			w.names[worker.Short().String()] = worker.Agent()
+		}
+		if protocol.NamesTeam(tab.Label.String(), w.team.String()) {
+			for _, pane := range tab.Panes {
+				if domainname.BelongsTo(pane, w.team.Observation()) {
+					w.names[domainname.ShortIn(pane, w.team.Observation()).String()] = pane
+				}
+			}
+		}
+	}
+	now := w.observe(teamAgents(tabs, agents, w.team.Observation()))
 	w.band.seen(now)
 	actions := turns.Step(w.state, turns.Input{
-		Team: w.team, Graph: w.graph, Before: w.prev, Now: now, Wrote: w.wrote, At: w.clock(),
+		Team: domainname.RunningNames(w.team.Ref()), Graph: w.graph, Before: w.prev, Now: now, Wrote: w.wrote, At: w.clock(),
 		Tells: tells, Signals: signals, Wired: func(name string) bool { return w.wired[name] },
 	})
 	w.prev = now
@@ -274,8 +297,8 @@ type snapshot struct {
 func (w *turnWatcher) observe(live []protocol.Agent) []turns.Agent {
 	out := make([]turns.Agent, 0, len(live))
 	for _, agent := range live {
-		short := domainname.ShortIn(agent.Name, domainname.Observe(w.team)).String()
-		w.names[short] = agent.Name.String()
+		short := domainname.ShortIn(agent.Name, w.team.Observation()).String()
+		w.names[short] = agent.Name
 		out = append(out, turns.Agent{Name: short, Hirer: w.hirers[short], Status: agent.Status, Seq: agent.Seq})
 	}
 	return out
@@ -294,7 +317,7 @@ func (w *turnWatcher) remember(now []turns.Agent) {
 		if waiting, ok := w.state.Waiting[a.Name]; ok && waiting.Seq == a.Seq {
 			continue // this stop's text is still to be read, once its signal comes or not
 		}
-		if text, err := w.herdr.ReadRecent(domainname.Observe(w.names[a.Name]), paneLines); err == nil {
+		if text, err := w.herdr.ReadRecent(w.names[a.Name], paneLines); err == nil {
 			w.snaps[a.Name] = snapshot{seq: a.Seq, text: text}
 		}
 	}
@@ -303,7 +326,7 @@ func (w *turnWatcher) remember(now []turns.Agent) {
 // wrote is what one agent wrote in its pane during the turn that just ended:
 // the pane now, past where it stood at the agent's last stop.
 func (w *turnWatcher) wrote(short string) string {
-	text, err := w.herdr.ReadRecent(domainname.Observe(w.names[short]), paneLines)
+	text, err := w.herdr.ReadRecent(w.names[short], paneLines)
 	if err != nil {
 		return ""
 	}
@@ -369,14 +392,15 @@ func waitingText(waiting []string) string {
 // be put (the member is blocked, or never starts) leaves the turn with the
 // human, saying why.
 func (w *turnWatcher) ask(action turns.Action, route string) {
-	target := domainname.Observe(w.names[action.To])
-	if target.String() == "" {
-		target = domainname.Observe(w.team).WithShort(domainname.Observe(action.To))
-	}
+	target, targetErr := w.target(action.To)
 	cands := append(append([]string(nil), action.Candidates...), i18n.T("send.who_human"), i18n.T("turns.nobody"))
 	text := i18n.Tf("turns.question", waitingText(action.Waiting), strings.Join(cands, i18n.T("turns.or")))
 	fmt.Fprint(w.out, i18n.Tf("turns.asked", action.To, waitingText(action.Waiting), route))
-	if err := w.herdr.PromptWait(target, text, deliverWaitMS); err != nil {
+	err := targetErr
+	if err == nil {
+		err = w.herdr.PromptWait(target, text, deliverWaitMS)
+	}
+	if err != nil {
 		w.state.Unanswered(action.To, w.clock())
 		fmt.Fprint(w.out, i18n.Tf("turns.to_human_unanswered", action.To, err.Error()))
 	}
@@ -406,17 +430,37 @@ func (w *turnWatcher) deliver(action turns.Action, route string) {
 		route = i18n.Tf("turns.route_answer", route)
 	}
 	text := w.handoffText(action.Messages)
-	target := domainname.Observe(w.names[action.To])
-	if target.String() == "" {
-		target = domainname.Observe(w.team).WithShort(domainname.Observe(action.To))
+	target, targetErr := w.target(action.To)
+	err := targetErr
+	if err == nil {
+		err = w.herdr.ConfirmPrompt(target, text)
 	}
-	err := w.herdr.ConfirmPrompt(target, text)
 	if err == nil {
 		fmt.Fprint(w.out, i18n.Tf("turns.delivered", action.From, action.To, strings.Count(text, "\n")+1, route))
 		return
 	}
 	w.state.Undelivered(w.clock())
 	fmt.Fprint(w.out, i18n.Tf("turns.to_human_undelivered", action.From, action.To, err.Error()))
+}
+
+// target uses a witnessed recipient first. Only a model member or worker can
+// be constructed when no observation remains. An invalid orphan in an old turn
+// record follows the same absent-recipient path without asking herdr (decision 5).
+func (w *turnWatcher) target(short string) (domainname.Target, error) {
+	if seen := w.names[short]; seen.String() != "" {
+		return seen, nil
+	}
+	if member, ok := w.graph.Member(short); ok {
+		if target, err := w.team.Member(member.Name); err == nil {
+			return target, nil
+		}
+	}
+	if worker, err := domainname.ParseWorkerName(short); err == nil {
+		if target, err := w.team.Worker(worker); err == nil {
+			return target, nil
+		}
+	}
+	return nil, i18n.Errorf("error.no_member", short)
 }
 
 // handoffText is the message a recipient gets: one member's text, or everything

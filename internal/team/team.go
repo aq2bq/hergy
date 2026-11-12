@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	domainname "github.com/aq2bq/hergy/internal/domain/name"
+
 	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/i18n"
@@ -220,7 +222,7 @@ func (e Env) TeamDir(name, layer string) string {
 // (I1, I2). The definition is the type; a team is one run of it, and the name it
 // runs under is its own (--as, else the definition's).
 type Team struct {
-	Name       string
+	Name       domainname.TeamRef
 	Definition *definition.Definition
 }
 

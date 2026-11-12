@@ -36,12 +36,12 @@ func TestPreviousDocumentsBelongToTheirReader(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			record := launchlog.Record{Team: "demo", Lang: "en", Docs: []launchlog.Doc{
+			record := launchlog.Record{Team: fixtureSeen("demo"), Lang: "en", Docs: []launchlog.Doc{
 				{Path: "/roles/first" + ext, SHA256: hash}, {Path: "/roles/second" + ext, SHA256: hash},
 			}}
 			for _, role := range []string{"first", "second"} {
-				member := launchlog.Member{Name: "demo-" + role, Short: role}
-				prompt := "You are " + member.Name + " (" + role + ") on team demo.\n\n" + rendered
+				member := launchlog.Member{Name: fixtureSeen("demo-" + role), Short: role}
+				prompt := "You are " + member.Name.String() + " (" + role + ") on team demo.\n\n" + rendered
 				old := oldDocs(log, record, member, prompt)
 				if len(old) != 1 || old["/roles/"+role+ext] != text {
 					t.Fatalf("%s read %+v", role, old)
@@ -56,17 +56,17 @@ func TestPreviousDocumentsBelongToTheirReader(t *testing.T) {
 				}
 				current := definition.Start{Prompt: prompt + "new roster", Segments: []definition.PromptSegment{{Kind: "roster", Text: "new roster"}}}
 				docs := []deliver.Doc{{Path: "/roles/" + role + ".md", Display: role + ".md", Text: now}}
-				got := deliver.Compare(fixtureTeamName("demo"), "en", prompt, old, current, docs)
+				got := deliver.Compare(fixtureDemoTeam(), "en", prompt, old, current, docs)
 				if len(got) != 1 || got[0].Kind != "roster" {
 					t.Fatalf("unchanged documents: %+v", got)
 				}
 				docs[0].Text += "Changed.\n"
-				got = deliver.Compare(fixtureTeamName("demo"), "en", prompt, old, current, docs)
+				got = deliver.Compare(fixtureDemoTeam(), "en", prompt, old, current, docs)
 				if len(got) != 2 || got[0].Document != role+".md" || strings.Contains(got[0].Text, ".yaml") {
 					t.Fatalf("changed document: %+v", got)
 				}
 				// Switching roles must retain the old role as a removed reading.
-				got = deliver.Compare(fixtureTeamName("demo"), "en", prompt, old, current, []deliver.Doc{{Path: "/roles/third.md", Display: "third.md", Text: "New role.\n"}})
+				got = deliver.Compare(fixtureDemoTeam(), "en", prompt, old, current, []deliver.Doc{{Path: "/roles/third.md", Display: "third.md", Text: "New role.\n"}})
 				if len(got) != 3 || got[1].Document != "/roles/"+role+".md" {
 					t.Fatalf("role switch: %+v", got)
 				}

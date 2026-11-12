@@ -371,7 +371,7 @@ func TestTheBandSaysHowManyProjects(t *testing.T) {
 func TestHQRunningCarriesWhyADefinitionCannotBeBuilt(t *testing.T) {
 	f := newFixture(t)
 	hq := fakeHQ{running: HQRunning{Herdr: ActivityNote{OK: true}, Teams: []HQRunningTeam{{
-		Team: "core", Definition: "core", Place: "project", Project: f.proj, ProjectName: "proj",
+		Team: fixtureTeam("core"), Definition: "core", Place: "project", Project: f.proj, ProjectName: "proj",
 		Members: []HQMember{{Name: "lead", Herdr: "core-lead", Live: true, State: "idle"}},
 		Workers: []HQWorker{}, Waiting: []string{}, NotUp: []string{},
 		Error: "ロール名「進行管理」は使えません",

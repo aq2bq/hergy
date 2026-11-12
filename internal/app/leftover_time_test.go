@@ -17,7 +17,7 @@ func recordStart(t *testing.T, f *fixture, teamName string, at time.Time) {
 	log := launchlog.At(filepath.Join(f.state, "hergy", "launches"))
 	if err := log.Append(launchlog.Record{
 		Time: at.Format(time.RFC3339), Command: launchlog.CommandUp,
-		Project: f.proj, Team: teamName, Definition: teamName,
+		Project: f.proj, Team: fixtureSeen(teamName), Definition: teamName,
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -30,8 +30,8 @@ func recordHireLine(t *testing.T, f *fixture, teamName, worker string, at time.T
 	log := launchlog.At(filepath.Join(f.state, "hergy", "launches"))
 	if err := log.Append(launchlog.Record{
 		Time: at.Format(time.RFC3339), Command: launchlog.CommandHire,
-		Project: f.proj, Team: teamName, Definition: teamName,
-		Hire: &launchlog.Hire{Worker: worker},
+		Project: f.proj, Team: fixtureSeen(teamName), Definition: teamName,
+		Hire: &launchlog.Hire{Worker: fixtureSeen(worker)},
 	}); err != nil {
 		t.Fatal(err)
 	}

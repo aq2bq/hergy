@@ -7,6 +7,8 @@ package status
 import (
 	"strings"
 
+	domainname "github.com/aq2bq/hergy/internal/domain/name"
+
 	"github.com/aq2bq/hergy/internal/i18n"
 )
 
@@ -31,7 +33,7 @@ type Row struct {
 	Live             bool
 	Worker           bool
 	Title            string
-	PaneID           string
+	PaneID           domainname.PaneID
 	Role             string
 	Kind             string
 	Screen           string

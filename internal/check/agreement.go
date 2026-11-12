@@ -58,7 +58,7 @@ func agreementReaders(def *definition.Definition) []RoleReader {
 	out := make([]RoleReader, 0, len(def.Graph.Members))
 	for i := range def.Graph.Members {
 		member := &def.Graph.Members[i]
-		out = append(out, RoleReader{Definition: def.Name.String(), Member: domainname.PreviewName(def.Name.String(), member.Name.String())})
+		out = append(out, RoleReader{Definition: def.Name.String(), Member: domainname.DefinitionNames(def.Name).Member(member.Name)})
 	}
 	return out
 }

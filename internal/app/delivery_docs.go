@@ -39,7 +39,7 @@ func previousRole(record launchlog.Record, member launchlog.Member, oldPrompt st
 			continue
 		}
 		role := strings.TrimSuffix(filepath.Base(doc.Path), filepath.Ext(doc.Path))
-		line := strings.NewReplacer("%{team}", record.Team, "%{name}", member.Name, "%{role}", role).Replace(header)
+		line := strings.NewReplacer("%{team}", record.Team.String(), "%{name}", member.Name.String(), "%{role}", role).Replace(header)
 		if strings.HasPrefix(oldPrompt, line+"\n") || oldPrompt == line {
 			return role
 		}

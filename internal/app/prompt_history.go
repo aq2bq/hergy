@@ -19,8 +19,11 @@ import (
 // project-less old record is not borrowed for another project's or another
 // definition's same-named member.
 func lastPromptRecord(records []launchlog.Record, project, path, definition, team, member string) (launchlog.Record, launchlog.Member, bool) {
+	d, _ := domainname.ParseDefinitionName(team)
+	naming := domainname.DefinitionNames(d)
+	short, _ := domainname.ParseMemberName(member)
 	for _, r := range slices.Backward(records) {
-		if r.Team != team || r.Definition != definition || !promptCommand(r.Command) {
+		if r.Team.String() != team || r.Definition != definition || !promptCommand(r.Command) {
 			continue
 		}
 		if r.Project != "" && !samePath(r.Project, project) {
@@ -30,7 +33,7 @@ func lastPromptRecord(records []launchlog.Record, project, path, definition, tea
 			continue
 		}
 		for _, m := range r.Members {
-			if m.Name == domainname.PreviewName(team, member) {
+			if m.Name.String() == naming.Member(short) {
 				return r, m, true
 			}
 		}

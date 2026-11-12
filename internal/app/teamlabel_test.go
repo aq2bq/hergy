@@ -161,7 +161,7 @@ func writeLaunchRecord(t *testing.T, teamName, definition string) {
 	}
 	if err := log.Append(launchlog.Record{
 		Command:    launchlog.CommandUp,
-		Team:       teamName,
+		Team:       fixtureSeen(teamName),
 		Definition: definition,
 	}); err != nil {
 		t.Fatal(err)

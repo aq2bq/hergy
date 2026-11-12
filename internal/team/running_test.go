@@ -13,27 +13,27 @@ import (
 // from (r-e494, E1).
 func TestRunningTeamsReadsTheLabelTheMembersAndTheRecord(t *testing.T) {
 	launches := []Launch{
-		{Team: "dup", Definition: "first"},
-		{Team: "dup", Definition: "second"}, // the newest launch of dup wins
-		{Team: "new", Definition: "newdef"},
-		{Team: "stopped", Definition: "stopped-def"},
-		{Team: "", Definition: "ignored"},
-		{Team: "incomplete"},
+		{Team: fixtureSeen("dup"), Definition: "first"},
+		{Team: fixtureSeen("dup"), Definition: "second"}, // the newest launch of dup wins
+		{Team: fixtureSeen("new"), Definition: "newdef"},
+		{Team: fixtureSeen("stopped"), Definition: "stopped-def"},
+		{Team: fixtureSeen(""), Definition: "ignored"},
+		{Team: fixtureSeen("incomplete")},
 	}
 	tabs := []Tab{
-		{ID: "t1", Label: "new", Agents: []string{"new-lead"}},              // the record knows the definition
-		{ID: "t2", Label: "team:legacy@old"},                                // the older shape, with the definition
-		{ID: "t3", Label: "team:bare"},                                      // the older bare shape
-		{ID: "t4", Label: "notes"},                                          // a tab hergy never started
-		{ID: "t5", Label: "stopped", Agents: []string{"claude-1"}},          // a person's tab, named like a stopped team
-		{ID: "t6", Label: "stray", Agents: []string{"other-1"}},             // another tool's agent
-		{ID: "t7", Label: ""},                                               // an unlabelled tab
-		{ID: "t8", Label: "team:"},                                          // the older shape with nothing after it
-		{ID: "t9", Label: "team:@def"},                                      // the older shape with no team
-		{ID: "t10", Label: "dup", Agents: []string{"dup-m"}},                // two launches: the newest definition
-		{ID: "t11", Label: "byagent", Agents: []string{"x-1", "byagent-m"}}, // no record; the member names it
-		{ID: "t12", Label: "byagent", Agents: []string{"byagent-m"}},        // seen twice: kept once
-		{ID: "t13", Label: "new", Agents: []string{"new-lead"}},             // seen twice: kept once
+		{ID: "t1", Label: fixtureSeen("new"), Agents: fixtureSeenList([]string{"new-lead"})},              // the record knows the definition
+		{ID: "t2", Label: fixtureSeen("team:legacy@old")},                                                 // the older shape, with the definition
+		{ID: "t3", Label: fixtureSeen("team:bare")},                                                       // the older bare shape
+		{ID: "t4", Label: fixtureSeen("notes")},                                                           // a tab hergy never started
+		{ID: "t5", Label: fixtureSeen("stopped"), Agents: fixtureSeenList([]string{"claude-1"})},          // a person's tab, named like a stopped team
+		{ID: "t6", Label: fixtureSeen("stray"), Agents: fixtureSeenList([]string{"other-1"})},             // another tool's agent
+		{ID: "t7", Label: fixtureSeen("")},                                                                // an unlabelled tab
+		{ID: "t8", Label: fixtureSeen("team:")},                                                           // the older shape with nothing after it
+		{ID: "t9", Label: fixtureSeen("team:@def")},                                                       // the older shape with no team
+		{ID: "t10", Label: fixtureSeen("dup"), Agents: fixtureSeenList([]string{"dup-m"})},                // two launches: the newest definition
+		{ID: "t11", Label: fixtureSeen("byagent"), Agents: fixtureSeenList([]string{"x-1", "byagent-m"})}, // no record; the member names it
+		{ID: "t12", Label: fixtureSeen("byagent"), Agents: fixtureSeenList([]string{"byagent-m"})},        // seen twice: kept once
+		{ID: "t13", Label: fixtureSeen("new"), Agents: fixtureSeenList([]string{"new-lead"})},             // seen twice: kept once
 	}
 	want := []Running{
 		{Team: fixtureRunningTeam("new"), Definition: "newdef"},
@@ -53,8 +53,8 @@ func TestRunningTeamsReadsTheLabelTheMembersAndTheRecord(t *testing.T) {
 // the same name, so a label this machine recorded a launch of is taken as a
 // team's rather than losing the team (E1).
 func TestRunningTeamsFallsBackToTheRecordWithoutAgents(t *testing.T) {
-	launches := []Launch{{Team: "stopped", Definition: "stopped-def"}}
-	tabs := []Tab{{ID: "t1", Label: "stopped"}, {ID: "t2", Label: "notes"}}
+	launches := []Launch{{Team: fixtureSeen("stopped"), Definition: "stopped-def"}}
+	tabs := []Tab{{ID: "t1", Label: fixtureSeen("stopped")}, {ID: "t2", Label: fixtureSeen("notes")}}
 	want := []Running{{Team: fixtureRunningTeam("stopped"), Definition: "stopped-def"}}
 	if got := RunningTeams(tabs, launches, false); !reflect.DeepEqual(got, want) {
 		t.Errorf("RunningTeams without agents = %+v, want %+v", got, want)
@@ -69,7 +69,7 @@ func TestRunningTeamsFallsBackToTheRecordWithoutAgents(t *testing.T) {
 // labels; a label that is only a name cannot be told from any other tab, so it
 // is not found.
 func TestRunningTeamsWithoutARecordReadsTheOlderLabels(t *testing.T) {
-	got := RunningTeams([]Tab{{Label: "team:demo@demo"}, {Label: "team:bare"}, {Label: "demo"}, {Label: "notes"}}, nil, true)
+	got := RunningTeams([]Tab{{Label: fixtureSeen("team:demo@demo")}, {Label: fixtureSeen("team:bare")}, {Label: fixtureSeen("demo")}, {Label: fixtureSeen("notes")}}, nil, true)
 	want := []Running{
 		{Team: fixtureRunningTeam("demo"), Definition: "demo"},
 		{Team: fixtureRunningTeam("bare"), Definition: "bare"},
@@ -98,17 +98,17 @@ func TestFindRunningAndNames(t *testing.T) {
 // it (the audit's D1).
 func TestMemberAgentsKeepsAnotherTeamOut(t *testing.T) {
 	tabs := []Tab{
-		{ID: "t1", Label: "qw2", Agents: []string{"qw2-m"}},
-		{ID: "t2", Label: "qw2-x", Agents: []string{"qw2-x-lead"}},
-		{ID: "t3", Label: "team:qw2@qw", Agents: []string{"qw2-old"}},
-		{ID: "t4", Label: "notes", Agents: []string{"claude-1"}},
+		{ID: "t1", Label: fixtureSeen("qw2"), Agents: fixtureSeenList([]string{"qw2-m"})},
+		{ID: "t2", Label: fixtureSeen("qw2-x"), Agents: fixtureSeenList([]string{"qw2-x-lead"})},
+		{ID: "t3", Label: fixtureSeen("team:qw2@qw"), Agents: fixtureSeenList([]string{"qw2-old"})},
+		{ID: "t4", Label: fixtureSeen("notes"), Agents: fixtureSeenList([]string{"claude-1"})},
 	}
-	got := MemberAgents(tabs, "qw2")
+	got := MemberAgents(tabs, fixtureSeen("qw2"))
 	want := []string{"qw2-m", "qw2-old"}
-	if !reflect.DeepEqual(got, want) {
+	if !reflect.DeepEqual(fixtureSpellings(got), want) {
 		t.Errorf("MemberAgents = %v, want %v", got, want)
 	}
-	if got := MemberAgents(tabs, "qw2-x"); !reflect.DeepEqual(got, []string{"qw2-x-lead"}) {
+	if got := MemberAgents(tabs, fixtureSeen("qw2-x")); !reflect.DeepEqual(fixtureSpellings(got), []string{"qw2-x-lead"}) {
 		t.Errorf("MemberAgents(qw2-x) = %v", got)
 	}
 }
@@ -119,16 +119,16 @@ func TestMemberAgentsKeepsAnotherTeamOut(t *testing.T) {
 // (d-da92).
 func TestRunningTeamsFindsATeamByItsNamedPane(t *testing.T) {
 	tabs := []Tab{
-		{ID: "t1", Label: "half", Panes: []string{"half-lead", "half-builder"}},
-		{ID: "t2", Label: "notes", Panes: []string{"mine"}},
-		{ID: "t3", Label: "worker:half/deps", Panes: []string{"half-deps"}},
+		{ID: "t1", Label: fixtureSeen("half"), Panes: fixtureSeenList([]string{"half-lead", "half-builder"})},
+		{ID: "t2", Label: fixtureSeen("notes"), Panes: fixtureSeenList([]string{"mine"})},
+		{ID: "t3", Label: fixtureSeen("worker:half/deps"), Panes: fixtureSeenList([]string{"half-deps"})},
 	}
-	got := RunningTeams(tabs, []Launch{{Team: "half", Definition: "halfdef"}}, true)
+	got := RunningTeams(tabs, []Launch{{Team: fixtureSeen("half"), Definition: "halfdef"}}, true)
 	want := []Running{{Team: fixtureRunningTeam("half"), Definition: "halfdef"}}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("RunningTeams = %+v, want %+v", got, want)
 	}
-	if panes := MemberPanes(tabs, "half"); !reflect.DeepEqual(panes, []string{"half-lead", "half-builder"}) {
+	if panes := MemberPanes(tabs, fixtureSeen("half")); !reflect.DeepEqual(fixtureSpellings(panes), []string{"half-lead", "half-builder"}) {
 		t.Errorf("MemberPanes = %v", panes)
 	}
 }
@@ -140,12 +140,12 @@ func TestRunningTeamsFindsATeamByItsNamedPane(t *testing.T) {
 // team's (r-87c8).
 func TestRunningTeamsReadsTheRecordOfTheProjectItsPanesStandIn(t *testing.T) {
 	launches := []Launch{
-		{Team: "core", Definition: "alpha-core", Project: "/work/alpha"},
-		{Team: "core", Definition: "beta-core", Project: "/work/beta"}, // the newest of the name
+		{Team: fixtureSeen("core"), Definition: "alpha-core", Project: "/work/alpha"},
+		{Team: fixtureSeen("core"), Definition: "beta-core", Project: "/work/beta"}, // the newest of the name
 	}
 	tabs := []Tab{{
-		ID: "t1", Label: "core",
-		Panes:    []string{"core-lead"},
+		ID: "t1", Label: fixtureSeen("core"),
+		Panes:    fixtureSeenList([]string{"core-lead"}),
 		PaneDirs: []string{"/work/alpha"},
 	}}
 	got := RunningTeams(tabs, launches, true)
@@ -158,8 +158,8 @@ func TestRunningTeamsReadsTheRecordOfTheProjectItsPanesStandIn(t *testing.T) {
 	// definition is the team's own name, and the project is left to the reading
 	// that knows the projects a serve lists.
 	other := []Tab{{
-		ID: "t2", Label: "core",
-		Panes:    []string{"core-lead"},
+		ID: "t2", Label: fixtureSeen("core"),
+		Panes:    fixtureSeenList([]string{"core-lead"}),
 		PaneDirs: []string{"/work/gamma"},
 	}}
 	want = []Running{{Team: fixtureRunningTeam("core"), Definition: "core"}}

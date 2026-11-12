@@ -140,9 +140,11 @@ func (s *Server) renameTeam(old string, in apiIn) (any, *apiErr) {
 	if err != nil {
 		return nil, refuse(http.StatusUnprocessableEntity, err.Error())
 	}
+	renamed, _ := domainname.NewDefinitionName(*in.RenameTo)
+	renameNames := domainname.DefinitionNames(renamed)
 	for i := range def.Graph.Members {
-		if _, err := domainname.MemberForInput(*in.RenameTo, def.Graph.Members[i].Name); err != nil {
-			return nil, refuseAt("name", i18n.Tf("error.herdr_name_pattern", domainname.PreviewName(*in.RenameTo, def.Graph.Members[i].Name.String())))
+		if _, err := renameNames.MemberTarget(def.Graph.Members[i].Name); err != nil {
+			return nil, refuseAt("name", i18n.Tf("error.herdr_name_pattern", renameNames.Member(def.Graph.Members[i].Name)))
 		}
 	}
 	if err := moveDefinition(oldPath, newPath, in.Hash, text, edited); err != nil {

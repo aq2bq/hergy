@@ -552,13 +552,13 @@ func setClock(t *testing.T, at time.Time) {
 // (r-103d).
 func TestTeamOfAgentNamesTheTeamAMemberBelongsTo(t *testing.T) {
 	running := []team.Running{{Team: fixtureRunningTeam("sig")}, {Team: fixtureRunningTeam("hergy-dev")}}
-	if got := teamOfAgent(running, "hergy-dev-spec"); got != "hergy-dev" {
+	if got := teamOfAgent(running, fixtureSeen("hergy-dev-spec")); got.String() != "hergy-dev" {
 		t.Errorf("hergy-dev-spec: %q, want hergy-dev", got)
 	}
-	if got := teamOfAgent(running, "sig-dev"); got != "sig" {
+	if got := teamOfAgent(running, fixtureSeen("sig-dev")); got.String() != "sig" {
 		t.Errorf("sig-dev: %q, want sig", got)
 	}
-	if got := teamOfAgent(running, "other-lead"); got != "" {
+	if got := teamOfAgent(running, fixtureSeen("other-lead")); got.String() != "" {
 		t.Errorf("other-lead: %q, want none", got)
 	}
 }
@@ -568,7 +568,7 @@ func TestTeamOfAgentChoosesLongestNameRegardlessOfOrder(t *testing.T) {
 		{{Team: fixtureRunningTeam("a")}, {Team: fixtureRunningTeam("a-b")}},
 		{{Team: fixtureRunningTeam("a-b")}, {Team: fixtureRunningTeam("a")}},
 	} {
-		if got := teamOfAgent(running, "a-b-c-d"); got != "a-b" {
+		if got := teamOfAgent(running, fixtureSeen("a-b-c-d")); got.String() != "a-b" {
 			t.Fatalf("got %q", got)
 		}
 	}

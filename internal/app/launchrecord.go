@@ -67,6 +67,7 @@ func recordLaunchIn(stderr io.Writer, env team.Env, r *resolved, command string,
 func recordHire(stderr io.Writer, env team.Env, r *resolved, worker definition.Start) {
 	log, err := launchlog.Open()
 	if err == nil {
+		workerName, _ := domainname.ParseWorkerName(worker.Short.String())
 		err = log.Append(launchlog.Record{
 			Time:       time.Now().Format(time.RFC3339),
 			Command:    launchlog.CommandHire,
@@ -74,12 +75,12 @@ func recordHire(stderr io.Writer, env team.Env, r *resolved, worker definition.S
 			Project:    env.ProjectRoot,
 			Layer:      r.team.Definition.Layer,
 			Definition: r.team.Definition.Name.String(),
-			Team:       r.team.Name,
+			Team:       r.team.Name.Observation(),
 			Hire: &launchlog.Hire{
-				Worker:  worker.Name.String(),
+				Worker:  worker.Name.Observation(),
 				From:    worker.From.String(),
 				Purpose: worker.Purpose,
-				Tab:     domainname.Observe(r.team.Name).WorkerLabel(domainname.Observe(worker.Short.String())).String(),
+				Tab:     r.modelTeamName().WorkerTab(workerName),
 			},
 		})
 	}
@@ -102,7 +103,7 @@ func writeLaunch(log launchlog.Log, env team.Env, r *resolved, command string, m
 		Project:     env.ProjectRoot,
 		Layer:       r.team.Definition.Layer,
 		Definition:  r.team.Definition.Name.String(),
-		Team:        r.team.Name,
+		Team:        r.team.Name.Observation(),
 		TeamYAML:    r.team.Definition.TeamYAML,
 		Workspace:   workspace.Label,
 		WorkspaceID: workspace.ID,
@@ -140,7 +141,7 @@ func writeLaunch(log launchlog.Log, env team.Env, r *resolved, command string, m
 		}
 		rec.Members = append(rec.Members, launchlog.Member{
 			Docs:   paths,
-			Name:   member.Name.String(),
+			Name:   member.Name.Observation(),
 			Short:  member.Short.String(),
 			Prompt: hash,
 			Start:  launchlog.StartFingerprint(member.Kind, member.Args),
