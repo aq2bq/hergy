@@ -12,6 +12,7 @@ import (
 
 	"github.com/aq2bq/hergy/internal/cheat"
 	"github.com/aq2bq/hergy/internal/options"
+	"github.com/aq2bq/hergy/internal/words"
 )
 
 // This file holds what every page a person or an agent reads says about which
@@ -49,7 +50,7 @@ func surfaces(t *testing.T) []surface {
 		if err != nil {
 			t.Fatal(err)
 		}
-		out = append(out, surface{path, string(raw)})
+		out = append(out, surface{path, words.Handwritten(string(raw))})
 	}
 	return out
 }
@@ -199,7 +200,8 @@ func TestCheatAIFlagsSectionNamesTheRightCommands(t *testing.T) {
 		}
 		flag := m[1]
 		described[flag] = true
-		for _, word := range token.FindAllString(line[len(m[0]):], -1) {
+		_, commandList, _ := strings.Cut(line, " Commands: ")
+		for _, word := range token.FindAllString(commandList, -1) {
 			kind, isCommand := kindNamed(word)
 			if isCommand && !acceptsFlag(kind, flag) {
 				t.Errorf("cheat --ai, Flags: the line of --%s names hergy %s, which does not take it:\n    %s", flag, word, strings.TrimSpace(line))

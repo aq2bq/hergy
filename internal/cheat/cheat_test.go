@@ -12,35 +12,18 @@ import (
 // that take a flag come from the table. A command or flag added to the table
 // without those words fails here.
 func TestEveryCommandAndFlagHasItsWords(t *testing.T) {
-	commands := map[options.Kind]string{}
-	for i, kind := range options.Kinds {
-		commands[kind] = options.Commands()[i]
-		text, ok := behavior[kind]
-		if !ok || strings.TrimSpace(text) == "" {
-			t.Errorf("hergy %s has no description in behavior (internal/cheat/cheat.go)", options.Commands()[i])
-		}
-		for line := range strings.SplitSeq(strings.TrimRight(text, "\n"), "\n") {
-			if !strings.HasPrefix(line, "      ") {
-				t.Errorf("hergy %s: a line of its description does not start with six spaces: %q", options.Commands()[i], line)
+	for _, kind := range options.Kinds {
+		for _, lang := range []string{"en", "ja"} {
+			if strings.TrimSpace(options.Description(kind, lang)) == "" {
+				t.Errorf("command %d has no %s rules", kind, lang)
 			}
 		}
 	}
-	for kind := range behavior {
-		if _, ok := commands[kind]; !ok {
-			t.Errorf("behavior describes a command kind (%d) that is not in the table", kind)
-		}
-	}
-
-	flags := map[string]bool{}
-	for _, sum := range options.FlagSummaries() {
-		flags[sum.Name] = true
-		if strings.TrimSpace(flagMeaning[sum.Name]) == "" {
-			t.Errorf("--%s has no meaning in flagMeaning (internal/cheat/cheat.go)", sum.Name)
-		}
-	}
-	for name := range flagMeaning {
-		if !flags[name] {
-			t.Errorf("flagMeaning describes --%s, which hergy does not have", name)
+	for _, flag := range options.FlagSummaries() {
+		for _, lang := range []string{"en", "ja"} {
+			if strings.TrimSpace(options.FlagDescriptions(flag.Name, lang)) == "" {
+				t.Errorf("flag %s has no %s meaning", flag.Name, lang)
+			}
 		}
 	}
 }

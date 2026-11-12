@@ -3,6 +3,7 @@ package ops
 import (
 	domainplace "github.com/aq2bq/hergy/internal/domain/place"
 	"github.com/aq2bq/hergy/internal/ops/internal/deliver"
+	"github.com/aq2bq/hergy/internal/words"
 )
 
 // ApplyHow is the closed set of operations selected by definition drift.
@@ -45,6 +46,7 @@ type ApplyMember struct {
 	Changes                  []Change
 	CanApply                 bool
 	WhyNot                   string
+	Rule                     words.RuleID
 	ConversationLost         bool
 }
 

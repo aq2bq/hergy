@@ -26,6 +26,7 @@ import (
 	"github.com/aq2bq/hergy/internal/ops/internal/screenlog"
 	"github.com/aq2bq/hergy/internal/ops/internal/status"
 	"github.com/aq2bq/hergy/internal/progress"
+	"github.com/aq2bq/hergy/internal/words"
 )
 
 // Launcher runs one operation. The mutex protects the progress record, which an
@@ -736,7 +737,7 @@ func (l *Launcher) checkTargets(members []definition.Start, selfPane domainname.
 			return nil, teamTab{}, i18n.Errorf("error.missing_pane_id", member.Name.String())
 		}
 		if selfPane != "" && agent.PaneID == selfPane {
-			return nil, teamTab{}, i18n.Errorf("error.refresh_self", member.Name.String())
+			return nil, teamTab{}, words.Errorf("refresh.own-pane", i18n.Language(), member.Name.String())
 		}
 		l.place(member.Name.String(), agent.PaneID)
 		targets = append(targets, refreshTarget{member: member, pane: agent.PaneID, live: true})
@@ -768,14 +769,14 @@ func (l *Launcher) deadTarget(member *definition.Start, selfPane domainname.Pane
 		return refreshTarget{member: member}, nil
 	}
 	if selfPane != "" && pane == selfPane {
-		return refreshTarget{}, i18n.Errorf("error.refresh_self", member.Name.String())
+		return refreshTarget{}, words.Errorf("refresh.own-pane", i18n.Language(), member.Name.String())
 	}
 	info, err := l.herdr.PaneProcessInfo(pane)
 	if err != nil {
 		return refreshTarget{}, err
 	}
 	if info.Pgid != info.ShellPID {
-		return refreshTarget{}, i18n.Errorf("error.refresh_pane_busy", member.Name.String(), pane)
+		return refreshTarget{}, words.Errorf("refresh.busy-pane", i18n.Language(), member.Name.String(), pane)
 	}
 	l.place(member.Name.String(), pane)
 	return refreshTarget{member: member, pane: pane, live: false}, nil

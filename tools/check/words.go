@@ -17,6 +17,13 @@ func (r *runner) wordsGate() error {
 	if err != nil {
 		return err
 	}
+	docs, err := projectedDocuments(r.root)
+	if err != nil {
+		return err
+	}
+	for path, output := range docs {
+		outputs[path] = output
+	}
 	paths := make([]string, 0, len(outputs))
 	for path := range outputs {
 		paths = append(paths, path)

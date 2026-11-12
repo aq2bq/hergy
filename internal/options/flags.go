@@ -6,12 +6,13 @@ import (
 	"strconv"
 
 	"github.com/aq2bq/hergy/internal/i18n"
+	"github.com/aq2bq/hergy/internal/words"
 )
 
 // Text is one sentence in every language hergy ships, keyed by the language
 // code. The tests walk i18n.Available, so a language added there fails until
 // every Text has it.
-type Text map[string]string
+type Text = words.Text
 
 func text(en, ja string) Text { return Text{"en": en, "ja": ja} }
 

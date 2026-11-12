@@ -10,7 +10,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aq2bq/hergy/internal/cheat"
 	"github.com/aq2bq/hergy/internal/words"
 )
 
@@ -363,7 +362,9 @@ func TestGlossaryBannedWordsStayOut(t *testing.T) {
 		}
 		sort.Strings(keys)
 		for _, key := range keys {
-			check(path+":"+key, key, lang, messages[key])
+			if !words.GeneratedLocaleKey(key) {
+				check(path+":"+key, key, lang, messages[key])
+			}
 		}
 	}
 
@@ -380,14 +381,9 @@ func TestGlossaryBannedWordsStayOut(t *testing.T) {
 		if err != nil {
 			t.Fatalf("read %s: %v", src.path, err)
 		}
-		for i, line := range strings.Split(string(raw), "\n") {
+		for i, line := range strings.Split(words.Handwritten(string(raw)), "\n") {
 			check(fmt.Sprintf("%s:%d", src.path, i+1), "", src.lang, line)
 		}
-	}
-
-	// The agent cheatsheet is a Go constant, so it comes from the package.
-	for i, line := range strings.Split(cheat.Machine, "\n") {
-		check(fmt.Sprintf("internal/cheat/cheat.go:Machine:%d", i+1), "", "en", line)
 	}
 
 	// The screens' own words: their modules, styles and templates write Japanese
@@ -405,7 +401,7 @@ func TestGlossaryBannedWordsStayOut(t *testing.T) {
 				}
 				return nil
 			}
-			if !screenSource(path) {
+			if path == "internal/web/src/lib/terms.generated.ts" || !screenSource(path) {
 				return nil
 			}
 			raw, err := os.ReadFile(path)
@@ -487,7 +483,7 @@ func TestScreensNameTheirNameFields(t *testing.T) {
 				}
 				return nil
 			}
-			if !screenSource(path) {
+			if path == "internal/web/src/lib/terms.generated.ts" || !screenSource(path) {
 				return nil
 			}
 			raw, err := os.ReadFile(path)

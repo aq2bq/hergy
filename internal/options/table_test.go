@@ -1,6 +1,7 @@
 package options
 
 import (
+	"github.com/aq2bq/hergy/internal/words"
 	"strings"
 	"testing"
 
@@ -78,8 +79,8 @@ func TestTableHasEveryDescription(t *testing.T) {
 	}
 	for _, s := range specs {
 		wantText(t, "hergy "+s.Name+": the summary", s.Summary)
-		if s.Detail != nil {
-			wantText(t, "hergy "+s.Name+": the detail", s.Detail)
+		if len(s.Rules) > 0 {
+			wantText(t, "hergy "+s.Name+": the detail", Text{"en": words.Describe(s.Rules, "en"), "ja": words.Describe(s.Rules, "ja")})
 		}
 		if s.Bare && (len(s.Flags) > 0 || len(s.Args) > 0) {
 			t.Errorf("hergy %s answers before any flag is read, so it cannot list flags or arguments", s.Name)

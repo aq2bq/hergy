@@ -1,7 +1,7 @@
 package options
 
 import (
-	"encoding/json"
+	"github.com/aq2bq/hergy/internal/words"
 	"os"
 	"regexp"
 	"strings"
@@ -38,10 +38,10 @@ func withoutOtherTools(line string) string {
 	return b.String()
 }
 
-// TestSkillAndCheatNamesExist walks the names the bundled skill and the
+// TestHandwrittenSkillNamesExist walks the names the bundled skill and the
 // people's cheat put in front of a person or an agent. A name hergy does not
 // have is a promise it cannot keep, so the test prints the name and fails.
-func TestSkillAndCheatNamesExist(t *testing.T) {
+func TestHandwrittenSkillNamesExist(t *testing.T) {
 	sources := map[string]string{}
 
 	for _, path := range []string{"../../skills/hergy/SKILL.md"} {
@@ -49,19 +49,7 @@ func TestSkillAndCheatNamesExist(t *testing.T) {
 		if err != nil {
 			t.Fatalf("read the bundled skill: %v", err)
 		}
-		sources[strings.TrimPrefix(path, "../../")] = string(skill)
-	}
-
-	for _, lang := range []string{"en", "ja"} {
-		raw, err := os.ReadFile("../../internal/i18n/locales/" + lang + ".json")
-		if err != nil {
-			t.Fatalf("read locale %s: %v", lang, err)
-		}
-		var messages map[string]string
-		if err := json.Unmarshal(raw, &messages); err != nil {
-			t.Fatalf("locale %s: %v", lang, err)
-		}
-		sources["locales/"+lang+".json (cheat.people)"] = messages["cheat.people"]
+		sources[strings.TrimPrefix(path, "../../")] = words.Handwritten(string(skill))
 	}
 
 	commands := map[string]bool{}
