@@ -6,7 +6,7 @@ import { useEffect } from '../lib/preact.js';
 import { YamlTab } from '../lib/yamltab.js';
 import { Badge } from '../lib/ruledoc.js';
 import {
-  PLACES, LNAME, DIR, state, filesList, live, issuesOf,
+  PLACES, LNAME, DIR, state, filesList, issuesOf,
   pathOf, yamlSaved, pressTab, pressYfile, setYfile, tellDirty,
 } from './state.js';
 import type { Place, RoleRow, SavedFileEntry } from './state.js';
@@ -22,7 +22,7 @@ function YamlFile({ file }: { file: SavedFileEntry }) {
   const { r, l, e } = file;
   // The owner marks a name both layers hold (r-ea17); the section does not
   // compare the two places itself.
-  const hid = r.mark === 'hidden' && l === 'global';
+  const hid = r.mark === 'hidden';
   const both = !!r.mark;
   const name = e.saved.name;
   return <section class="yed" data-key={keyOfYed(r, l)} data-hash={e.hash || ''}>
@@ -62,7 +62,7 @@ function YamlPageBody() {
   const one = files.find(({ r, l }) => keyOfYed(r, l) === chosen) || null;
   return <div class="ylay">
       <nav class="files">{PLACES.map((l) => <div class="fgroup"><div class="gh"><b>{LNAME[l]}</b><code>{DIR[l]}</code></div>{files.filter((f) => f.l === l).map(({ r, e }) => {
-        const key = keyOfYed(r, l), is = issuesOf(r, l), hid = l === 'global' && live(r, 'project');
+        const key = keyOfYed(r, l), is = issuesOf(r, l), hid = r.mark === 'hidden';
         return <button class={['file', chosen === key ? 'on' : '', hid ? 'hid' : ''].filter(Boolean).join(' ')} data-act="yfile" data-key={key} aria-pressed={chosen === key} onClick={() => pressYfile(key)}><code>{e.saved.name}.md</code><span class="fs">{ychecksText({ r, l, e })}{badgeOrCount(is, e.saved)}</span><span class="ft">{e.saved.title}{hid ? '・無効' : ''}</span></button>;
       })}</div>)}</nav>
       {one ? <YamlFile key={chosen} file={one} /> : <div class="none">ロールの文書はありません</div>}

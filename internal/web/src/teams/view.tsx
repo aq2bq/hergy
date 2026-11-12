@@ -502,7 +502,7 @@ function AgreePanel({ r }: { r: Rec }) {
     setScanned((previous) => { const next = { ...previous }; if (places) next[name] = places; else delete next[name]; return next; });
   }, []);
   const places = [...new Set(Object.values(scanned).flat())];
-  const shadowed = r.place.value === 'global' && (r.places || []).includes('project');
+  const shadowed = r.mark.value === 'hidden';
   const mode = pmodeOf(r);
   const workspace = useRef<HTMLDivElement>(null);
   // Opening the tab, and picking other documents, only changes what stands in

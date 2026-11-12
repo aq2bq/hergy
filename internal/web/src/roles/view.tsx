@@ -200,7 +200,7 @@ function Panel({ r, l }: { r: RoleRow; l: Place }) {
   const e = r[l];
   if (!e) return '';
   const d = e.draft, key = r.uid + l;
-  const shadowed = r.mark === 'hidden' && l === 'global';
+  const shadowed = r.mark === 'hidden';
   const row = rowOfPanel(r, l);
   if (!row) return '';
   const issues: RuleIssue[] = issuesOf(r, l);
