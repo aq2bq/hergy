@@ -30,6 +30,20 @@ export type CarryTarget = { kind: ResourceKind; place: 'project' | 'global'; pro
 export type Carry<D> = { hash: string; draft: D; target?: CarryTarget; born?: D; saved?: D | null; rename?: boolean };
 export type CompleteCarry<D> = Carry<D> & { target: CarryTarget; born: D; saved: D | null };
 let nextDraft = 0;
+// A carry outlives the page. Keep its sequence in the band's session storage
+// so an editor created on the next page cannot reuse the carried editor's ID.
+function newDraftId(restored?: string): string {
+  const key = 'hergy.editing.draft-sequence';
+  const number = (value: string | null): number => {
+    const n = Number(value);
+    return Number.isSafeInteger(n) && n > 0 ? n : 0;
+  };
+  try { nextDraft = Math.max(nextDraft, number(window.sessionStorage.getItem(key))); } catch { /* the band cannot carry drafts without storage either */ }
+  if (restored?.startsWith('draft-')) nextDraft = Math.max(nextDraft, number(restored.slice(6)));
+  const id = restored || `draft-${++nextDraft}`;
+  try { window.sessionStorage.setItem(key, String(nextDraft)); } catch { /* IDs within this page still differ */ }
+  return id;
+}
 type Definition<K extends ResourceKind, D, W> = {
   origin?: (state: EditingState<D>) => string | null;
   busySave?: string;
@@ -91,7 +105,7 @@ type Control<K extends ResourceKind, D, W> = Editing<K, D, W> & {
 function editing<K extends ResourceKind, D, W>(definition: Definition<K, D, W>, initial: Initial<D>): Control<K, D, W> {
   const state = signal<EditingState<D>>({ saved: snapshot(initial.saved), draft: snapshot(initial.draft), hash: initial.hash, text: initial.text || '', born: snapshot(initial.born ?? initial.draft), problems: snapshot(initial.problems || []),
     baseProblems: snapshot(initial.problems || []), refusal: '', conflict: null, rename: true, savedLine: !!initial.savedLine });
-  const draftId = initial.draftId || `draft-${++nextDraft}`;
+  const draftId = initial.saved === null ? newDraftId(initial.draftId) : '';
   const target = (): CarryTarget => {
     const name = definition.origin ? definition.origin(state.value) : definition.identity.name;
     return { kind: definition.identity.kind, place: definition.identity.place, project: definition.identity.project, name, ...(name === null ? { draftId } : {}) };

@@ -12,7 +12,7 @@ import {
   autosize2,
   insertTab2,
   YamlTab2
-} from "../chunk/nav-0fkstt2f.js";
+} from "../chunk/nav-qdvsv3b8.js";
 import"../chunk/nav-74jj0fve.js";
 import"../chunk/nav-me9ek2sz.js";
 import"../chunk/nav-zn7g81kr.js";

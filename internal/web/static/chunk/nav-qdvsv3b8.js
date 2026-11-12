@@ -284,6 +284,23 @@ function request(kind, name, body) {
   return { kind, name, body };
 }
 var nextDraft = 0;
+function newDraftId(restored) {
+  const key = "hergy.editing.draft-sequence";
+  const number = (value) => {
+    const n = Number(value);
+    return Number.isSafeInteger(n) && n > 0 ? n : 0;
+  };
+  try {
+    nextDraft = Math.max(nextDraft, number(window.sessionStorage.getItem(key)));
+  } catch {}
+  if (restored?.startsWith("draft-"))
+    nextDraft = Math.max(nextDraft, number(restored.slice(6)));
+  const id = restored || `draft-${++nextDraft}`;
+  try {
+    window.sessionStorage.setItem(key, String(nextDraft));
+  } catch {}
+  return id;
+}
 function checkedProblems(answer) {
   if (typeof answer !== "object" || answer === null || !("problems" in answer))
     return;
@@ -315,7 +332,7 @@ function editing(definition, initial) {
     rename: true,
     savedLine: !!initial.savedLine
   });
-  const draftId = initial.draftId || `draft-${++nextDraft}`;
+  const draftId = initial.saved === null ? newDraftId(initial.draftId) : "";
   const target = () => {
     const name = definition.origin ? definition.origin(state.value) : definition.identity.name;
     return { kind: definition.identity.kind, place: definition.identity.place, project: definition.identity.project, name, ...name === null ? { draftId } : {} };
