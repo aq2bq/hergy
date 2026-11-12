@@ -61,7 +61,11 @@ var labels = map[string]Text{
 	"cheat.summary":              bilingual("Show the {{cheatsheet}}", "{{cheatsheet}}を見る"),
 	"people.steps":               bilingual("hergy cheat\n\nFirst steps\n  hergy new myteam\n  edit team.yaml\n  hergy up myteam\n\n", "hergy cheat\n\nはじめて使うとき\n  hergy new myteam\n  team.yaml を編集\n  hergy up myteam\n\n"),
 	"usage.intro":                bilingual("hergy - run a {{team}} of agents on top of herdr\n\nUsage: hergy <command> [options]\n\n", "hergy - herdr の上でエージェントの{{team}}を動かす\n\n使い方: hergy <コマンド> [{{flag}}]\n\n"),
-	"usage.detail":               bilingual("Details of one command: hergy <command> --help\nFor an agent: hergy cheat --ai\n", "コマンドの詳細: hergy <コマンド> --help\nAI 向け: hergy cheat --ai\n"),
+	// The two sections under the command list. A row is "label<TAB>text"; the
+	// help lines its second column up with the command list's.
+	"usage.options": bilingual("Common options\n--dry\tShow what would happen, and do nothing\n--as <team>\tRun the same team definition under another team name (up only)\n--team <team>\tThe team for apply, refresh, reprompt, hire, focus, nudge, stop and tell\n-C <dir>\tUse this directory as the project\n--lang en|ja\tLanguage of the command line (default en); the WebUI is Japanese\n--port <port>\tThe port hergy serve listens on (default 8787)\n", "主なオプション\n--dry\t実行せず、何をするかだけを表示する\n--as <チーム名>\t同じチーム定義を別のチーム名で動かす（up だけ）\n--team <チーム名>\tapply・refresh・reprompt・hire・focus・nudge・stop・tell の対象のチーム\n-C <ディレクトリ>\tプロジェクトの場所を指定する\n--lang en|ja\tコマンドの出力の言語（既定は en）。WebUI は日本語\n--port <ポート>\tserve が待ち受けるポート（既定 8787）\n"),
+	"usage.places":  bilingual("Where team definitions live\nProject\t.hergy/teams/<definition>/team.yaml\nOutside the project\t~/.config/hergy/teams/<definition>/team.yaml\n", "チーム定義の場所\nプロジェクト\t.hergy/teams/<チーム定義>/team.yaml\nプロジェクトの外\t~/.config/hergy/teams/<チーム定義>/team.yaml\n"),
+	"usage.detail":  bilingual("Details of one command: hergy <command> --help\n", "コマンドごとの説明は hergy <コマンド> --help\n"),
 }
 
 var rules = []Rule{

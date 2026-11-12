@@ -303,6 +303,17 @@ func BuildUsage(lang string) string {
 		fmt.Fprintf(&b, "  %s%s  %s\n", labels[i], strings.Repeat(" ", width-i18n.Width(labels[i])), s.Summary[lang])
 	}
 	b.WriteString("\n")
+	for _, section := range []string{"usage.options", "usage.places"} {
+		for i, line := range strings.Split(strings.TrimRight(words.Label(section)[lang], "\n"), "\n") {
+			label, text, row := strings.Cut(line, "\t")
+			if i == 0 || !row {
+				b.WriteString(line + "\n")
+				continue
+			}
+			fmt.Fprintf(&b, "  %s%s  %s\n", label, strings.Repeat(" ", max(0, width-i18n.Width(label))), text)
+		}
+		b.WriteString("\n")
+	}
 	b.WriteString(words.Label("usage.detail")[lang])
 	return b.String()
 }
