@@ -26,6 +26,7 @@ import (
 	"github.com/aq2bq/hergy/internal/ops/internal/screenlog"
 	"github.com/aq2bq/hergy/internal/ops/internal/status"
 	"github.com/aq2bq/hergy/internal/progress"
+	"github.com/aq2bq/hergy/internal/words"
 )
 
 // Launcher runs one operation. The mutex protects the progress record, which an
@@ -582,7 +583,7 @@ func (l *Launcher) Nudge(member *definition.Start, text string) error {
 		return err
 	}
 	if agent.Status != "idle" && agent.Status != "done" {
-		return i18n.Errorf("error.nudge_busy", member.Name.String(), agent.Status)
+		return words.Errorf("control.nudge-state", i18n.Language(), member.Name.String(), agent.Status)
 	}
 	if err := l.herdr.Prompt(member.Name, text); err != nil {
 		return err
@@ -613,7 +614,7 @@ func (l *Launcher) Stop(member *definition.Start, selfPane domainname.PaneID) (s
 		return false, err
 	}
 	if selfPane != "" && agent.PaneID == selfPane {
-		return false, i18n.Errorf("error.stop_self", member.Name.String())
+		return false, words.Errorf("control.stop-self", i18n.Language(), member.Name.String())
 	}
 	if agent.Status != "working" {
 		fmt.Fprintf(l.out, i18n.T("stop.not_working"), member.Name.String(), agent.Status)
@@ -736,7 +737,7 @@ func (l *Launcher) checkTargets(members []definition.Start, selfPane domainname.
 			return nil, teamTab{}, i18n.Errorf("error.missing_pane_id", member.Name.String())
 		}
 		if selfPane != "" && agent.PaneID == selfPane {
-			return nil, teamTab{}, i18n.Errorf("error.refresh_self", member.Name.String())
+			return nil, teamTab{}, words.Errorf("refresh.own-pane", i18n.Language(), member.Name.String())
 		}
 		l.place(member.Name.String(), agent.PaneID)
 		targets = append(targets, refreshTarget{member: member, pane: agent.PaneID, live: true})
@@ -768,14 +769,14 @@ func (l *Launcher) deadTarget(member *definition.Start, selfPane domainname.Pane
 		return refreshTarget{member: member}, nil
 	}
 	if selfPane != "" && pane == selfPane {
-		return refreshTarget{}, i18n.Errorf("error.refresh_self", member.Name.String())
+		return refreshTarget{}, words.Errorf("refresh.own-pane", i18n.Language(), member.Name.String())
 	}
 	info, err := l.herdr.PaneProcessInfo(pane)
 	if err != nil {
 		return refreshTarget{}, err
 	}
 	if info.Pgid != info.ShellPID {
-		return refreshTarget{}, i18n.Errorf("error.refresh_pane_busy", member.Name.String(), pane)
+		return refreshTarget{}, words.Errorf("refresh.busy-pane", i18n.Language(), member.Name.String(), pane)
 	}
 	l.place(member.Name.String(), pane)
 	return refreshTarget{member: member, pane: pane, live: false}, nil
@@ -804,7 +805,7 @@ func (l *Launcher) teamTab(member *definition.Start) (teamTab, error) {
 			}
 		}
 	}
-	return teamTab{}, i18n.Errorf("error.refresh_no_pane", member.Name.String())
+	return teamTab{}, words.Errorf("refresh.no-team-pane", i18n.Language(), member.Name.String())
 }
 
 // addMember makes one member's pane in the team's tab and starts the member in it,
@@ -1547,7 +1548,7 @@ func (l *Launcher) preflight(members []definition.Start) (string, error) {
 func (l *Launcher) preflightIn(workspace string, members []definition.Start) error {
 	for i := range members {
 		if !isDir(members[i].Cwd) {
-			return i18n.Errorf("error.cwd_not_dir", members[i].Cwd)
+			return words.Errorf("start.cwd-directory", i18n.Language(), members[i].Cwd)
 		}
 	}
 	if err := l.herdr.Verify(protocol.ModeBoot); err != nil {
@@ -1561,7 +1562,7 @@ func (l *Launcher) preflightIn(workspace string, members []definition.Start) err
 		return err
 	}
 	if conflicts := intersect(namesOf(members), live); len(conflicts) > 0 {
-		return i18n.Errorf("error.live_names_in_use", strings.Join(conflicts, ", "))
+		return words.Errorf("start.live-names", i18n.Language(), strings.Join(conflicts, ", "))
 	}
 	return nil
 }

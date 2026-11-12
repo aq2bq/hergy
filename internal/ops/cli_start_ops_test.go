@@ -14,6 +14,7 @@ import (
 	"github.com/aq2bq/hergy/internal/ops/internal/herdrcli"
 	"github.com/aq2bq/hergy/internal/ops/internal/protocol"
 	"github.com/aq2bq/hergy/internal/options"
+	"github.com/aq2bq/hergy/internal/words"
 )
 
 func TestCLIAndScreenStartRejectSameRunningName(t *testing.T) {
@@ -37,6 +38,10 @@ func TestCLIAndScreenStartRejectSameRunningName(t *testing.T) {
 				refusal, ok := errors.AsType[*HQError](err)
 				if !ok || refusal.Status != 409 || refusal.At != "name" {
 					t.Fatalf("screen refusal: %v", err)
+				}
+				rule, ok := errors.AsType[*words.Refusal](err)
+				if !ok || rule.Rule != "up.name-taken" {
+					t.Fatalf("lost operation rule: %v", err)
 				}
 				message = err.Error()
 			}

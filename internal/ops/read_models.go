@@ -9,6 +9,7 @@ import (
 // person reads, and, for a start that has to say what else could be done, the
 // name hergy suggests and the thing that is in the way.
 type HQError struct {
+	cause         error // retain the operation RuleID through HTTP presentation
 	Status        int
 	Text          string
 	At            string
@@ -410,6 +411,7 @@ type PromptHistory struct {
 }
 
 func (e *HQError) Error() string { return e.Text }
+func (e *HQError) Unwrap() error { return e.cause }
 
 // Actions identify the operation whose progress is being read.
 const (

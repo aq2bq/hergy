@@ -9,6 +9,7 @@ import (
 	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/ops/internal/protocol"
+	"github.com/aq2bq/hergy/internal/words"
 )
 
 // Undelivered names an initial prompt for which herdr did not observe receipt
@@ -22,8 +23,11 @@ type Undelivered struct {
 }
 
 func (e *Undelivered) Error() string {
-	return i18n.Tf("launcher.undelivered", e.Name, e.Pane, protocol.Message(e.Cause), e.Recovery)
+	return words.Errorf("prompt.missing-receipt", i18n.Language(), e.Name, e.Pane, protocol.Message(e.Cause), e.Recovery).Error()
 }
+
+// RuleID is the shared rule for an initial prompt without a receipt.
+func (*Undelivered) RuleID() words.RuleID { return "prompt.missing-receipt" }
 
 // IsUndelivered recognizes receipt failures, including the joined failures an
 // operation returns after processing its remaining members.
