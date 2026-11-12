@@ -1,4 +1,5 @@
 // Shared document state and prose editing for role and team screens.
+import { term } from './terms.generated.js';
 import type { ReadonlyDeep } from './editing.js';
 import type { TransferSource } from './prose-transfer.js';
 import { Field } from './field.js';
@@ -28,8 +29,8 @@ export function Vm({ list }: { list: Pick<RuleIssue, 'sev' | 'text'>[] }) {
 }
 export function RuleDoc({ row, hasName = true, heading, nameError, issues, onDraft, rename, nameChanged, transfer }: RuleDocProps) {
  const change = onDraft;
- return <>{hasName ? <label class="prose-name">ロール名<Field class="in-name" data-f="name" value={row.draft.name} onInput={(event: Event) => { if (event.currentTarget instanceof HTMLInputElement) { change({ ...row.draft, name: event.currentTarget.value }); } }} />{nameError ? <span class="errline name" role="alert">{nameError}</span> : null}</label> : null}
- {hasName && nameChanged ? <label class="rename"><input type="checkbox" checked={rename!.value} onChange={(event) => { rename!.change(event.currentTarget.checked); }} />使っているチームのロール名も変更する</label> : null}
+ return <>{hasName ? <label class="prose-name">{term('role-name')}<Field class="in-name" data-f="name" value={row.draft.name} onInput={(event: Event) => { if (event.currentTarget instanceof HTMLInputElement) { change({ ...row.draft, name: event.currentTarget.value }); } }} />{nameError ? <span class="errline name" role="alert">{nameError}</span> : null}</label> : null}
+ {hasName && nameChanged ? <label class="rename"><input type="checkbox" checked={rename!.value} onChange={(event) => { rename!.change(event.currentTarget.checked); }} />{`使っている${term('team')}の${term('role-name')}も変更する`}</label> : null}
  <ProseEditor transfer={transfer} heading={heading} text={row.draft.text} onChange={(text) => { change({ ...row.draft, text, title: title(text, row.draft.name) }); }} />
  <Vm list={issues.filter((p) => p.f !== 'name' && p.f !== 'size')} /></>;
 }

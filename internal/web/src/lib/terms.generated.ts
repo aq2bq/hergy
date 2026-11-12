@@ -120,6 +120,10 @@ export const terms = {
     "en": "profile name",
     "ja": "プロファイル名"
   },
+  "project": {
+    "en": "project",
+    "ja": "プロジェクト"
+  },
   "purpose": {
     "en": "purpose",
     "ja": "目的"
@@ -219,6 +223,10 @@ export const terms = {
   "tell": {
     "en": "tell",
     "ja": "伝える"
+  },
+  "turn": {
+    "en": "turn",
+    "ja": "ターン"
   },
   "undo": {
     "en": "undo",

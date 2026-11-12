@@ -1,3 +1,4 @@
+import { term } from './terms.generated.js';
 import type { DangerDecision } from './danger.js';
 // undo.tsx — すぐ実行した操作の取り戻し方を、その場に 1 行で示す (d-79e3 の A,
 // d-021e). ④ の持ち物の置き場所で、保存していない編集の「元に戻す」が最初の
@@ -82,5 +83,5 @@ export function dropUndo(): void {
 function UndoNotice(): JSX.Element | null {
   const one = currentUndo.value;
   if (!one) return null;
-  return <div class="undo" role="status"><span>{one.said}</span><button type="button" class="btn sm" onClick={takeUndo}>取り消す</button></div>;
+  return <div class="undo" role="status"><span>{one.said}</span><button type="button" class="btn sm" onClick={takeUndo}>{term('undo')}</button></div>;
 }

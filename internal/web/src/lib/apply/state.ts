@@ -8,6 +8,7 @@
 // ずれと反映の仕方はサーバーが決める（送り直す・起動する・起動し直す・反映できない）。
 // ここはそれを並べ、人が選んだものを送るだけ。送ったあとの進み具合と、起動の途中の
 // 問いは、起動の欄（lib/hq/sheets.js の runStart）が同じ形で出す。
+import { term } from '../terms.generated.js';
 import { signal, computed } from '../preact.js';
 import { applyList, applyCount, applyMembers, problemText, Refusal } from '../api.js';
 import { runStart } from '../hq/sheets.js';
@@ -64,8 +65,8 @@ export const blocked = computed((): boolean => !!(answer.value && answer.value.h
 export const picks = computed((): string[] => pickable.value.filter((name: string) => chosen.value.has(name)));
 export const canApply = computed((): boolean => !sending.value && !blocked.value && picks.value.length > 0);
 export const applyLabel = computed((): string => (picks.value.length
-  ? `選んだ ${picks.value.length} 人に反映する`
-  : '反映する人を選んでください'));
+  ? `選んだ ${picks.value.length} 人に${term('apply')}する`
+  : `${term('apply')}する人を選んでください`));
 
 // teamCount is how many members of one team are not applied yet: the number a
 // screen puts beside that team (the 動き column, the activity screen).
@@ -158,9 +159,9 @@ export async function send(): Promise<void> {
   } catch (e) {
     if (e instanceof Refusal && e.status) {
       // 1 人でも拒めば、誰にも反映していない。欄は閉じない。
-      note.value = `反映していません。${problemText(e, e.text || '')}`;
+      note.value = `${term('apply')}していません。${problemText(e, e.text || '')}`;
     } else {
-      note.value = '反映できませんでした。';
+      note.value = `${term('apply')}できませんでした。`;
     }
   } finally {
     sending.value = false;

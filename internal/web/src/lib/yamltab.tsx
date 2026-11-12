@@ -14,6 +14,7 @@
 // press is handled once: the screen draws the section's element, the part draws
 // what stands inside it, and the screen passes the file and the ways to tell it
 // things as props (依頼書 4).
+import { term } from './terms.generated.js';
 import { runDanger, dangerAttrs } from './danger.js';
 import { useEffect, useRef, useState } from './preact.js';
 import { saved as apiSaved } from './api.js';
@@ -231,13 +232,13 @@ export function YamlTab(props: YamlTabProps) {
   return <><header class="ph"><span class="ln">{label}</span><code class="path">{path}</code>{badge ? <span class={badge.cls}>{badge.text}</span> : ''}</header>
   <div class="ybody">
     <div class={'code h' + heightOf(lines.length)}><pre class="gutter" aria-hidden="true" ref={gutter}>{lines.map((_: string, i: number) => <span class={marks[i + 1] || ''}>{i + 1}</span>)}</pre><textarea class="ytext" data-file={file || undefined} wrap="off" spellcheck={false} autocomplete="off" aria-label={path} ref={ta} onInput={() => { foot(); schedule(); }} onScroll={() => { if (gutter.current && ta.current) gutter.current.scrollTop = ta.current.scrollTop; }} onKeyDown={(e: KeyboardEvent) => { if (e.key === 'Tab' && !e.shiftKey) { const target = e.target; if (target instanceof HTMLTextAreaElement) { e.preventDefault(); insertTab(target); } } }}>{initial.current}</textarea></div>
-    <div class="vlist"><div class="vhead"><span class="vt">設定の検査</span>{now.problems.length ? <span class="vcount">{errs ? <span class="sev err">問題 {errs}</span> : ''}{warns ? <span class="sev warn">警告 {warns}</span> : ''}</span> : <span class="vclean">✓ 問題なし</span>}</div>{now.problems.map((p: Problem) => <button class="vitem" data-act="yaml-jump" data-line={p.line} onClick={() => jump(p.line)}><span class={'sev ' + (p.sev === 'err' ? 'err' : 'warn')}>{p.sev === 'err' ? '問題' : '警告'}</span><span class="lno">{p.line} 行</span><span class="msg">{p.text}</span></button>)}</div>
+    <div class="vlist"><div class="vhead"><span class="vt">{term('settings-check')}</span>{now.problems.length ? <span class="vcount">{errs ? <span class="sev err">問題 {errs}</span> : ''}{warns ? <span class="sev warn">警告 {warns}</span> : ''}</span> : <span class="vclean">✓ 問題なし</span>}</div>{now.problems.map((p: Problem) => <button class="vitem" data-act="yaml-jump" data-line={p.line} onClick={() => jump(p.line)}><span class={'sev ' + (p.sev === 'err' ? 'err' : 'warn')}>{p.sev === 'err' ? '問題' : '警告'}</span><span class="lno">{p.line} 行</span><span class="msg">{p.text}</span></button>)}</div>
   </div>
   {conflict ? <ConflictNotice c={conflict} mine={state.saved || ''} undone={undone} onOverwrite={overwrite} onRevert={readIn} onUndo={undoRead} /> : null}
   <footer class="pf">
     <button class="btn primary" data-act="yaml-save" disabled={!dirty || grew || !!problem} onClick={() => save()}>保存</button><span class="dirty">{dirty ? '変更あり' : ''}</span>
     {problem ? <span class="sev err refusal" role="alert">{problem}</span> : ''}{refusal ? <span class="sev err refusal">{refusal}</span> : ''}{saved ? <span class="ok">保存しました</span> : ''}
-    <span class="acts"><button class="btn" data-act="yaml-revert" {...dangerAttrs('revertDraft')} hidden={!dirty} onClick={revert}>元に戻す</button></span>
+    <span class="acts"><button class="btn" data-act="yaml-revert" {...dangerAttrs('revertDraft')} hidden={!dirty} onClick={revert}>{term('revert')}</button></span>
   </footer></>;
 }
 

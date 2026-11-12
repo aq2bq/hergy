@@ -1,6 +1,7 @@
 // The only owner of an edited resource's saved value, draft, file basis,
 // validation and recovery. Definitions and request constructors are private;
 // screens can choose an editing operation, but cannot supply a request builder.
+import { term } from './terms.generated.js';
 import { signal, computed } from './preact.js';
 import { resource } from './resource.js';
 import { check as apiCheck, save as apiSave, del as apiDel, problemText, Refusal, type Kind, type Request, type Answer, type RawAnswer, type Schemas } from './api.js';
@@ -88,15 +89,15 @@ type TeamWritten = {
   workers: { from: string; purpose: string; profile: string }[];
 };
 const TEAM: Shape<TeamWritten> = { fields: [
-  { key: 'description', label: '説明', get: (v) => v.description },
-  { key: 'turns', label: 'ターン', get: (v) => v.turns },
-  { key: 'members', label: 'メンバー', get: (v) => v.members.map((m) => ({ name: m.name, role: m.role, profile: m.profile })) },
-  { key: 'workers', label: 'ワーカー', get: (v) => v.workers.map((w) => ({ from: w.from, purpose: w.purpose, profile: w.profile })) },
+  { key: 'description', label: term('description'), get: (v) => v.description },
+  { key: 'turns', label: term('turn'), get: (v) => v.turns },
+  { key: 'members', label: term('member'), get: (v) => v.members.map((m) => ({ name: m.name, role: m.role, profile: m.profile })) },
+  { key: 'workers', label: term('worker'), get: (v) => v.workers.map((w) => ({ from: w.from, purpose: w.purpose, profile: w.profile })) },
 ] };
 
 type Agreement = { text: string };
 const TEAM_AGREEMENT: Shape<Agreement> = { fields: [
-  { key: 'text', label: 'チームの規則', get: (v) => v.text },
+  { key: 'text', label: term('team-agreement'), get: (v) => v.text },
 ] };
 
 type ProfileWritten = { name: string; kind: string; args: string[]; env: { key: string; value: string }[] };
@@ -475,7 +476,7 @@ export type RoleEditing = Omit<Editing<'role', RoleDraft, RoleDraft>, 'take'> & 
 const roleDoc = (doc: ReadonlyDeep<RoleDraft>): RoleDraft => ({ name: doc.name, title: doc.title || '', text: doc.text });
 export function editRole(identity: ResourceIdentity<'role'>, initial: Omit<Initial<RoleDraft>, 'saved'> & { saved: SavedRole | null; base?: ResourceIdentity<'role'>; roleContext?: 'project' | 'global' }): RoleEditing {
   let base = initial.base;
-  const doc = editing<'role', RoleDraft, RoleDraft>({ identity, origin: (s) => s.saved?.name || null, busySave: 'ロールを保存しています。完了をお待ちください', shape: ROLE_DOC, written: roleDoc,
+  const doc = editing<'role', RoleDraft, RoleDraft>({ identity, origin: (s) => s.saved?.name || null, busySave: `${term('role')}を保存しています。完了をお待ちください`, shape: ROLE_DOC, written: roleDoc,
     baseline: (s) => s.saved || s.born,
     name: (s) => s.draft.name || s.saved?.name || '_',
     check: (s) => ({ place: identity.place, project: identity.project, original: s.saved?.name || null, doc: roleDoc(s.draft) }),
@@ -661,29 +662,29 @@ export type TeamChanges = ReadonlyDeep<{
 function teamChanges(s: ReadonlyDeep<TeamDocument>, t: ReadonlyDeep<TeamDocument>): TeamChanges {
   const out: ['a' | 'c' | 'd', string][] = [];
   const hasTurn = (team: ReadonlyDeep<TeamDocument>, from: string, to: string) => team.turns.some(([a, b]) => a === from && b === to);
-  const nodeName = (name: string) => name === 'human' ? '人間' : name;
+  const nodeName = (name: string) => name === 'human' ? term('human') : name;
   const sm = new Map(s.members.map((m) => [m.name, m])), cm = new Map(t.members.map((m) => [m.name, m]));
-  if (s.description !== t.description) out.push(['c', `説明: ${t.description}`]);
+  if (s.description !== t.description) out.push(['c', `${term('description')}: ${t.description}`]);
   cm.forEach((m, n) => {
-    if (!sm.has(n)) out.push(['a', `メンバー ${n}（${m.role} · ${m.profile}）`]);
+    if (!sm.has(n)) out.push(['a', `${term('member')} ${n}（${m.role} · ${m.profile}）`]);
     else {
       const o = sm.get(n);
-      if (o && o.role !== m.role) out.push(['c', `${n} のロール ${o.role} → ${m.role}`]);
-      if (o && o.profile !== m.profile) out.push(['c', `${n} のプロファイル ${o.profile} → ${m.profile}`]);
+      if (o && o.role !== m.role) out.push(['c', `${n} の${term('role')} ${o.role} → ${m.role}`]);
+      if (o && o.profile !== m.profile) out.push(['c', `${n} の${term('profile')} ${o.profile} → ${m.profile}`]);
     }
   });
-  sm.forEach((_m, n) => { if (!cm.has(n)) out.push(['d', `メンバー ${n}`]); });
+  sm.forEach((_m, n) => { if (!cm.has(n)) out.push(['d', `${term('member')} ${n}`]); });
   const sw = new Map(s.workers.map((w) => [w.from + '\u0000' + w.purpose, w])), cw = new Map(t.workers.map((w) => [w.from + '\u0000' + w.purpose, w]));
   cw.forEach((w, k) => {
-    if (!sw.has(k)) out.push(['a', `ワーカー ${w.purpose || '（目的）'}（${w.from} · ${w.profile}）`]);
+    if (!sw.has(k)) out.push(['a', `${term('worker')} ${w.purpose || `（${term('purpose')}）`}（${w.from} · ${w.profile}）`]);
     else {
       const o = sw.get(k);
-      if (o && (o.purpose !== w.purpose || o.profile !== w.profile || o.from !== w.from)) out.push(['c', `ワーカー ${w.purpose || '（目的）'}（${w.from} · ${w.profile}）`]);
+      if (o && (o.purpose !== w.purpose || o.profile !== w.profile || o.from !== w.from)) out.push(['c', `${term('worker')} ${w.purpose || `（${term('purpose')}）`}（${w.from} · ${w.profile}）`]);
     }
   });
-  sw.forEach((w, k) => { if (!cw.has(k)) out.push(['d', `ワーカー ${w.purpose || '（目的）'}`]); });
-  t.turns.forEach(([a, b]) => { if (!hasTurn(s, a, b)) out.push(['a', `ターン ${nodeName(a)} → ${nodeName(b)}`]); });
-  s.turns.forEach(([a, b]) => { if (!hasTurn(t, a, b)) out.push(['d', `ターン ${nodeName(a)} → ${nodeName(b)}`]); });
+  sw.forEach((w, k) => { if (!cw.has(k)) out.push(['d', `${term('worker')} ${w.purpose || `（${term('purpose')}）`}`]); });
+  t.turns.forEach(([a, b]) => { if (!hasTurn(s, a, b)) out.push(['a', `${term('turn')} ${nodeName(a)} → ${nodeName(b)}`]); });
+  s.turns.forEach(([a, b]) => { if (!hasTurn(t, a, b)) out.push(['d', `${term('turn')} ${nodeName(a)} → ${nodeName(b)}`]); });
   return {
     members: Object.fromEntries([...new Set(t.members.map((m) => m.name))].map((name) => {
       const m = t.members.find((one) => one.name === name)!;
@@ -755,7 +756,7 @@ export function editTeam(identity: ResourceIdentity<'team'>, input: TeamInitial)
   const teamYaml = textEditing('team', { ...scope(), text: input.teamText || '', hash: input.hash, part: 'team', problem: input.readable === false ? 'unreadable' : '' }, () => meta.value.name);
   const agreementYaml = textEditing('team', { ...scope(), text: input.agreementText ?? input.agreement?.text ?? '', hash: input.agreementHash, part: 'agreement' }, () => meta.value.name);
   const bornValue = () => ({ name: meta.value.name, team: teamDocument(team.read.value.draft), agreement: agreement.read.value.draft.text });
-  const bornShape: Shape<ReturnType<typeof bornValue>> = { fields: [ { key: 'name', label: '名前（保存先のファイルも変わる）', get: (v) => v.name }, { key: 'team', label: 'チーム定義', get: (v) => v.team }, { key: 'agreement', label: 'チームの規則', get: (v) => v.agreement } ] };
+  const bornShape: Shape<ReturnType<typeof bornValue>> = { fields: [ { key: 'name', label: '名前（保存先のファイルも変わる）', get: (v) => v.name }, { key: 'team', label: term('team-definition'), get: (v) => v.team }, { key: 'agreement', label: term('team-agreement'), get: (v) => v.agreement } ] };
   if (meta.value.seeded) set({ born: bornValue() });
   function changedOptions(next: Partial<TeamOptions>): void { set(next); team.change(teamDocument(team.read.value.draft)); }
   async function checkTeam(): Promise<void> {
@@ -832,7 +833,7 @@ export function editTeam(identity: ResourceIdentity<'team'>, input: TeamInitial)
     act: (next) => { actions.value = [...operations(team.read.value), ...snapshot(next)]; team.change(applyTeamActions(team.read.value.draft, next)); },
     replaceOperations: (next) => { actions.value = snapshot([...next]); team.change(applyTeamActions(team.read.value.saved || initialTeam, next)); },
     moveTo: (target) => {
-      if (!meta.value.fresh || target.name !== null) throw new Error('保存前のチーム定義だけ置き場所を変えられます');
+      if (!meta.value.fresh || target.name !== null) throw new Error(`保存前の${term('team-definition')}だけ${term('place')}を変えられます`);
       const next = editTeam(target, { name: meta.value.name, team: teamDocument(null), hash: '', agreement: null, agreementHash: '', how: meta.value.how, base: meta.value.base, seeded: false });
       const carry = next.take();
       carry.folder = { ...snapshot(meta.value), seeded: false, teamPath: '', agreementPath: '' };
