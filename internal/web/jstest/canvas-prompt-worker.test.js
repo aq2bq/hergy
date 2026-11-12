@@ -1,3 +1,4 @@
+import { promptClock } from './prompt-clock.js';
 // CANVAS-PROMPT, the worker: a worker's name and task are chosen at hire, so
 // the column asks the check with two values of its own and draws slots where
 // they stand. Putting the values back gives the prompt the server answered,
@@ -21,8 +22,8 @@ test('a worker\'s prompt shows the slots its name and task stand in', async () =
     if (url.startsWith('/api/role')) return { items: [{ name: 'lead' }] };
     return undefined;
   });
-  await import('../src/teams/main');
-  const { PROMPT_READ } = await import('../src/teams/prompt-source.js'); PROMPT_READ.wait = 0;
+  await promptClock();
+ await import('../src/teams/main');
   const flush = async () => { await settle(); await new Promise((r) => setTimeout(r, 5)); await settle(); };
   await flush();
 

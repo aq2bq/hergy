@@ -110,27 +110,6 @@ func TestPromptFindingsFlagsTheBuilderOutsideItsOwner(t *testing.T) {
 	}
 }
 
-// TestPromptFindingsFlagsTheReadersOutsideTheirOwner: a screen that calls the
-// comparison itself, or brings back an old cache name, fails.
-func TestPromptFindingsFlagsTheReadersOutsideTheirOwner(t *testing.T) {
-	root := t.TempDir()
-	writeTree(t, root, "internal/web/src/teams/canvas/prompt.tsx",
-		"const one = () => call('POST', '/api/team/prompt-comparison');\n"+
-			"const two = () => workerPrompt(r, i);\n")
-	r := &runner{root: root}
-	findings, err := r.promptFindings(ownersFile{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(findings) != 2 {
-		t.Fatalf("findings = %v, want the address and the old name", findings)
-	}
-	joined := strings.Join(findings, "\n")
-	if !strings.Contains(joined, "prompt-comparison") || !strings.Contains(joined, "workerPrompt") {
-		t.Errorf("findings = %v, want both named", findings)
-	}
-}
-
 // TestPromptFindingsLetsTheOwnersThrough: the builder and the reader pass, and
 // the command's own senders are outside the section's scope.
 func TestPromptFindingsLetsTheOwnersThrough(t *testing.T) {

@@ -1,3 +1,4 @@
+import type { PromptRequest } from '../teams/prompt-source.js';
 import type { EditedRequest } from './editing.js';
 // lib/api.ts — the one way a screen talks to the server (spec-boundary 7, r-2cc2).
 //
@@ -104,10 +105,15 @@ function sentenceOf(json: unknown): string {
 // Direct calls cover operations outside resource editing. Resource save/check
 // routes are excluded from this type, so call cannot bypass the editing brand.
 type Route<P extends string> = P extends `${infer Head}{${string}}${infer Tail}` ? `${Head}${string}${Route<Tail>}` : P;
-type DirectPath = Route<Exclude<keyof paths, `/api/${'team' | 'role' | 'profile'}/{name}` | `/api/${'team' | 'role' | 'profile'}/check`>>;
+type DirectPath = Route<Exclude<keyof paths, '/api/team/prompt-comparison' | `/api/${'team' | 'role' | 'profile'}/{name}` | `/api/${'team' | 'role' | 'profile'}/check`>>;
 type DirectURL = DirectPath | `${DirectPath}?${string}`;
 export const call = <T = unknown>(method: string, url: DirectURL, payload?: unknown, opts?: CallOptions): Promise<RawAnswer<T>> =>
   send<T>(method, url, payload, opts);
+
+// The prompt reader alone constructs this request. Direct calls cannot keep a
+// second reading of a member's text in a screen.
+export const readPromptComparison = (request: PromptRequest, opts?: CallOptions): Promise<RawAnswer<Schemas['PromptComparison']>> =>
+  send('POST', '/api/team/prompt-comparison', request.body, opts);
 
 // ---- 書き込みと読み込みの形（spec-boundary 5）------------------------------
 // One place writes the addresses, so a screen asks for what it wants and not for

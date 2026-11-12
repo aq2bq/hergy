@@ -46,3 +46,13 @@ offerUndo({}, {said: '', restore: () => {}});
 confirmView({});
 // @ts-expect-error every marked danger action is known
 dangerAttrs('erase-everything');
+
+import { readPromptComparison, call, type Schemas } from './api.js';
+declare const promptBody: Schemas['PromptComparisonRequest'];
+// @ts-expect-error only prompt-source constructs prompt requests
+readPromptComparison({body: promptBody});
+// @ts-expect-error the raw prompt route is not a direct call
+call('POST', '/api/team/prompt-comparison', {member: 'lead'});
+// @ts-expect-error prompt runs have no exported arbitrary-key writer
+import { setRun } from '../teams/prompt-source.js';
+void setRun;

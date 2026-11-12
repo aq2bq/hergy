@@ -3,7 +3,8 @@
 # enforce: false prints the findings and passes, so copies can be merged before
 # the gate fails. done is enforce: true with no finding.
 # The prompt section: 渡る文 is built by promptsFor (internal/web/api_prompt.go)
-# and read by teams/prompt-source.ts, and nowhere else (⑤ r-ba9b, d-002b).
+# only there in internal/web. The TypeScript reader is protected by types.
+# Go builders stay checked until stage D closes them inside internal/ops.
 prompt_enforce: true
 
 enforce: true

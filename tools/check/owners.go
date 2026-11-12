@@ -71,7 +71,6 @@ var ownerRules = []ownerRule{
 // text and keep no second reading of it.
 const (
 	promptBuilder = "internal/web/api_prompt.go"
-	promptReader  = "internal/web/src/teams/prompt-source.ts"
 )
 
 // promptGoRules are the builder's calls, read only in the WebUI's server: the
@@ -83,36 +82,6 @@ var promptGoRules = []ownerRule{
 	{name: "t2PromptOf", where: "go", scope: []string{"internal/web/"}, files: []string{promptBuilder}},
 	{name: "prompt.TurnsOf", where: "go", scope: []string{"internal/web/"}, files: []string{promptBuilder}},
 	{name: "prompt.WorkersOf", where: "go", scope: []string{"internal/web/"}, files: []string{promptBuilder}},
-}
-
-// promptWords are the names the copies used. They stand only in their owner, and
-// the ones with no owner at all (an old cache, an old reading) stand nowhere.
-var promptWords = []struct {
-	name  string
-	files []string
-}{
-	{"wprompts", nil},
-	{"wpromptReq", nil},
-	{"workerPrompt", nil},
-	{"promptsOf", nil},
-	{"promptsReady", nil},
-	{"memberPrompts", nil},
-	{"keepRun", nil},
-	{"promptRun", []string{promptReader}},
-	{"runOf", []string{promptReader}},
-	{"setRun", []string{promptReader}},
-}
-
-// promptStrings are the addresses only the reader may name: a screen that calls
-// them itself is the second reading the section exists for. The worker check
-// body is constructed only by editing; prompt-source asks its semantic operation.
-var promptStrings = []struct {
-	text  string
-	files []string
-}{
-	{"/api/team/prompt-comparison", []string{promptReader}},
-	{"part: 'worker'", []string{"internal/web/src/lib/editing.ts"}},
-	{`part: "worker"`, []string{"internal/web/src/lib/editing.ts"}},
 }
 
 // ownerAllow is one exception: a name in a file, with why and the decision that
@@ -347,32 +316,16 @@ func (r *runner) promptFindings(conf ownersFile) ([]string, error) {
 		if goFile && strings.HasSuffix(rel, "_test.go") {
 			continue
 		}
-		if !goFile && !allowed(rel, []string{"internal/web/"}) {
+		if !goFile {
 			continue // the WebUI's screens, not a generated contract or another kind
 		}
 		raw, err := os.ReadFile(path)
 		if err != nil {
 			return nil, err
 		}
-		out = append(out, promptFileFindings(rel, string(raw), goFile, conf)...)
+		out = append(out, promptBuilderFindings(rel, maskSpec(string(raw)), conf)...)
 	}
 	return out, nil
-}
-
-// promptFileFindings reads one file for the prompt section's four kinds of
-// copy: a builder call, an old name, and the two addresses a screen may not
-// call itself.
-func promptFileFindings(rel, raw string, goFile bool, conf ownersFile) []string {
-	var out []string
-	code := maskSpec(raw)
-	if goFile {
-		out = append(out, promptBuilderFindings(rel, code, conf)...)
-	}
-	out = append(out, promptNameFindings(rel, code, conf)...)
-	if !goFile {
-		out = append(out, promptAddressFindings(rel, raw)...)
-	}
-	return out
 }
 
 // promptBuilderFindings is the builder's calls outside api_prompt.go.
@@ -392,34 +345,6 @@ func promptBuilderFindings(rel, code string, conf ownersFile) []string {
 	return out
 }
 
-// promptNameFindings is the names the copies used, back again.
-func promptNameFindings(rel, code string, conf ownersFile) []string {
-	var out []string
-	for _, one := range promptWords {
-		if allowed(rel, one.files) || allowedBy(rel, conf.Allow, one.name) {
-			continue
-		}
-		for _, line := range wordLines(code, one.name) {
-			out = append(out, fmt.Sprintf("%s:%d: %s は %s に置いてください", rel, line, one.name, promptReader))
-		}
-	}
-	return out
-}
-
-// promptAddressFindings is the two addresses only the reader may name.
-func promptAddressFindings(rel, raw string) []string {
-	var out []string
-	for _, one := range promptStrings {
-		if allowed(rel, one.files) {
-			continue
-		}
-		for _, line := range stringLines(raw, one.text) {
-			out = append(out, fmt.Sprintf("%s:%d: %s を直に呼ばず %s を通してください", rel, line, one.text, promptReader))
-		}
-	}
-	return out
-}
-
 // wordLines is the 1-based lines where a whole word stands: the name with no
 // identifier character before or after it, so setRun is not setRunning.
 func wordLines(code, name string) []int {
@@ -429,18 +354,4 @@ func wordLines(code, name string) []int {
 		out = append(out, lineOf(code, at[0]))
 	}
 	return out
-}
-
-// stringLines is the 1-based lines where a text stands in the source as written,
-// strings included: an address a screen calls itself is a string.
-func stringLines(text, want string) []int {
-	var out []int
-	for i := 0; ; {
-		j := strings.Index(text[i:], want)
-		if j < 0 {
-			return out
-		}
-		out = append(out, lineOf(text, i+j))
-		i += j + len(want)
-	}
 }
