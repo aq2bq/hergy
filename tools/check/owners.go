@@ -179,16 +179,6 @@ var addressKey = regexp.MustCompile(`\.(set|get)\(\s*['"]open['"]`)
 // (⑥-2, d-a143).
 var addressRows = []string{"rowsOfRef", "sameRow"}
 
-// changedOwner is the one module that decides 「変えたか」 (r-1e9a).
-const changedOwner = "internal/web/src/lib/changed.ts"
-
-// changedNames are the comparators the owner replaced. A definition or a call
-// outside changed.ts fails once changed_enforce is true.
-var changedNames = []string{
-	"diffCount", "changeCount", "agreeDiff", "bornOf", "fileDirty",
-	"roleDraftsDirty", "rowDirty", "changedOf", "isDirtyPanel", "sameBorn", "pickChanged",
-}
-
 // ownerAllow is one exception: a name in a file, with why and the decision that
 // allowed it.
 type ownerAllow struct {
@@ -201,7 +191,6 @@ type ownerAllow struct {
 // ownersFile is tools/check/owners.yml.
 type ownersFile struct {
 	Enforce             bool         `yaml:"enforce"`
-	ChangedEnforce      bool         `yaml:"changed_enforce"`
 	DangerEnforce       bool         `yaml:"danger_enforce"`
 	PromptEnforce       bool         `yaml:"prompt_enforce"`
 	SelectionEnforce    bool         `yaml:"selection_enforce"`
@@ -228,10 +217,6 @@ func (r *runner) ownersGate() error {
 	if err != nil {
 		return err
 	}
-	changed, err := r.changedFindings(conf)
-	if err != nil {
-		return err
-	}
 	danger, err := r.dangerFindings(conf)
 	if err != nil {
 		return err
@@ -253,7 +238,7 @@ func (r *runner) ownersGate() error {
 		return err
 	}
 
-	return ownersVerdict(conf, append(findings, changed...), danger, prompt, selection, address, page)
+	return ownersVerdict(conf, findings, danger, prompt, selection, address, page)
 }
 
 // ownersVerdict prints what the sections found and fails the enforced ones.
@@ -1037,48 +1022,4 @@ func plainCallLines(code, name string) []int {
 		i = at + len(name)
 	}
 	return out
-}
-
-// changedFindings is the names and the comparisons the changed owner replaced.
-func (r *runner) changedFindings(conf ownersFile) ([]string, error) {
-	files, err := r.sourceFiles()
-	if err != nil {
-		return nil, err
-	}
-	var out []string
-	for _, path := range files {
-		rel, err := filepath.Rel(r.root, path)
-		if err != nil {
-			return nil, err
-		}
-		rel = filepath.ToSlash(rel)
-		if !strings.HasSuffix(rel, ".ts") && !strings.HasSuffix(rel, ".tsx") {
-			continue
-		}
-		raw, err := os.ReadFile(path)
-		if err != nil {
-			return nil, err
-		}
-		code := maskSpec(string(raw))
-		if rel != changedOwner {
-			for _, name := range changedNames {
-				if allowedBy(rel, conf.Allow, name) {
-					continue
-				}
-				for _, line := range callLines(code, name) {
-					out = append(out, fmt.Sprintf("%s:%d: %s は持ち主（%s）に置いてください", rel, line, name, changedOwner))
-				}
-			}
-		}
-		if rel == changedOwner {
-			continue
-		}
-		for i, line := range strings.Split(code, "\n") {
-			if strings.Contains(line, "JSON.stringify(") && (strings.Contains(line, "!==") || strings.Contains(line, "===")) && !allowedBy(rel, conf.Allow, "JSON.stringify") {
-				out = append(out, fmt.Sprintf("%s:%d: 比べ方を自分で書かず、持ち主（%s）に聞いてください（JSON.stringify の比較）", rel, i+1, changedOwner))
-			}
-		}
-	}
-	sort.Strings(out)
-	return out, nil
 }

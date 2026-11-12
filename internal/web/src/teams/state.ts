@@ -17,7 +17,6 @@ import {
   fromJSON, clone,
 } from '../lib/ruledoc.js';
 import { parseOpen, readOpen, rowsFor, token, writeOpen } from '../lib/address.js';
-import { snapshot as changedSnapshot } from '../lib/changed.js';
 import { copyGroupOf, groupPlace, projectOfGroup } from '../lib/copy';
 import { roleEntries, pendingRoleChanges, takeRoleEdits, restoreRoleEdits } from './role-modal.js';
 import { runDanger } from '../lib/danger.js';
@@ -1015,21 +1014,7 @@ export function readURL() {
 }
 
 // ---- 共有の部品（ruledoc）の受け口 ------------------------------------
-export const rowOfPanel = (r: Rec) => {
-  const saved = r.agreeSaved.value, draft = r.agreeDraft.value;
-  const check = r.check.value;
-  return {
-    uid: r.uid, l: r.place.value, e: { saved, draft, savedIssues: r.agreeSavedIssues.value },
-    saved, draft, name: r.name.value,
-    // newRow says the definition is not there yet: the rule document's shared
-    // foot is not this row's own, so the part leaves it alone (監査 R9).
-    newRow: !!r.draftRow,
-    issues: agreeIssues(r),
-    savedIssues: r.agreeSavedIssues.value,
-    markdown: check ? check.markdown : { lines: [], chars: 0 },
-    diff: check ? check.diff : { added: [], removedBefore: [], removedAtEnd: false },
-  };
-};
+export const rowOfPanel = (r: Rec) => ({ saved: r.agreeSaved.value, draft: r.agreeDraft.value });
 
 // ---- 帯と、ページの外への受け渡し ------------------------------------------
 // dirty is whether the screen holds anything the files do not: a row's ops, a
@@ -1196,7 +1181,7 @@ export function pressRevertConflict(r: Rec, which: string) { editorOf(r, which).
 export function pressUndoConflict(r: Rec, which: string) { editorOf(r, which).undoConflict(); seedPlaces(r); if (which === 'a') void checkAgree(r); else void checkTeam(r); }
 export function pressTRevert(r: Rec, host?: HTMLElement | null) {
   // 元に戻す goes at once and leaves its 取り消す in place (d-79e3 の A).
-  const ops = changedSnapshot(r.ops.value) as typeof r.ops.value;
+  const ops = clone(r.ops.value) as typeof r.ops.value;
   runDanger('revertDraft', {
     run: () => { setOps(r, []); resetCanvas(r); forgetUndo(r); syncTeam(r); tellDirty(); },
     restore: () => { setOps(r, ops); syncTeam(r); tellDirty(); },
@@ -1209,7 +1194,7 @@ export function pressRevert(r: Rec, host?: HTMLElement | null): void {
   // 元に戻す puts the document back to the one the row opened with: the saved
   // agreement, or, for a team that has none, the empty document it started from
   // (n-e3de).
-  const before = changedSnapshot(r.agreeDraft.value) as typeof r.agreeDraft.value;
+  const before = clone(r.agreeDraft.value) as typeof r.agreeDraft.value;
   runDanger('revertDraft', {
     run: () => { r.editing.agreement.discard(); checkAgree(r); tellDirty(); },
     restore: () => { r.editing.agreement.change(before); checkAgree(r); tellDirty(); },

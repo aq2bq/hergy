@@ -30,10 +30,10 @@ import {
   dkey, currentProjectName, teamLabel, dtabOf, isOpenRow, missingOpen,
   rowIssues, dirtyDef, agreeIssues, agreementChanged, teamChanges, vlistParts,
   rowOfPanel, okOf, refusalOf, pmodeOf, yfiles, fileOf, yamlChanged, yIssues,
-  chosenFile, scheduleAgree, syncURL, focusAsk, groupOfRecord,
+  chosenFile, scheduleAgree, focusAsk, groupOfRecord,
   pressTab, pressToggle, pressNew, pressDup, pressCopy, pressDiscard,
   pressStarterRoles, pressStarterProfile, pressCarry,
-  pressDelYes, pressName, pressDtab, pressPmode, bornTouched,
+  pressDelYes, pressName, pressDtab, bornTouched,
   pressTSave, pressTRevert, pressSave, pressRevert, pressVpick,
   pressToastUndo, pressYfile, fileText,
   conflictAt, pressOverwrite, pressRevertConflict, pressUndoConflict,
@@ -549,8 +549,7 @@ function AgreePanel({ r }: { r: Rec }) {
             path: `${placeName(r.place.value)} · teams/${r.name.value}/agreement.md`, members: r.draft.value.members.map((m) => m.name).join('、'),
             template: r.check.value?.templateSize || 0, state: (agreementChanged(r) ? '未保存' : '保存済み') + (shadowed ? '（無効）' : '') }}
           onDraft={(draft) => { r.editing.agreement.change(draft); scheduleAgree(r); }}
-          onMode={(v: string) => pressPmode(r, v)}
-          onURL={() => syncURL()} />
+ />
       </div>
       <Foot r={r} agree={true} />
     </section>{names.map((name) => <RoleColumn key={name} r={r} name={name} visible={active.includes('role:' + name)} onScanned={onScanned} />)}</div></div>

@@ -1,6 +1,5 @@
 // roles/state.ts — role rows, navigation and read-through projections of editing.
 // Resource drafts, checks, conflicts and save requests belong to lib/editing.
-import { assignDirty } from '../lib/changed.js';
 import { editRole, restoreRole, editRoleAssignments, type RoleCarry, type CompleteCarry, type RoleEditing, type RoleAssignments, type ReadonlyDeep } from '../lib/editing.js';
 import { resourceIdentity, type ResourceIdentity } from '../lib/resource-identity.js';
 import { signal } from '../lib/preact.js';
@@ -54,9 +53,9 @@ export type RoleRow = {
   noDoc?: boolean;
   isNew?: boolean;
 };
-type RoleMember = { name: string; readonly saved: string; readonly draft: string };
+type RoleMember = { name: string; readonly saved: string; readonly draft: string; readonly changed: boolean };
 type TeamCard = Omit<ApiTeamCard, 'group' | 'members' | 'hash'> & { group: string; readonly hash: string; readonly members: RoleMember[]; readonly editing: RoleAssignments };
-type HqTeam = { id: string; group: string; members: RoleMember[] };
+type HqTeam = { id: string; group: string; members: Pick<RoleMember, 'name' | 'saved' | 'draft'>[] };
 type RoleState = {
   tab: 'roles' | 'assign' | 'yaml';
   open: Set<number>;
@@ -258,7 +257,7 @@ const TEAMS: TeamCard[] = teamModel(ISLAND.team || null).teams.map((t) => {
   const editing = editRoleAssignments(resourceIdentity('team', { place: t.place, project: projectOfGroup(currentGroup()), name: t.id }), t.members, t.hash);
   return { ...t, group: currentGroup(), editing,
     get hash() { return editing.read.value.hash; },
-    get members() { return editing.read.value.draft.map((m) => ({ name: m.name, draft: m.role, saved: editing.read.value.saved?.find((p) => p.name === m.name)?.role || '' })); },
+    get members() { return [...editing.rows.value]; },
   };
 });
 // The definitions that read the roles: the current project's for the 割り当て
@@ -360,7 +359,7 @@ export function issuesOf(r: RoleRow, l: Place): RuleIssue[] {
 export function rowOfPanel(r: RoleRow, l: Place): RulePanel | null {
   const e = r[l], c = checkOf(r, l);
   if (!e || !c) return null;
-  return { uid: r.uid, l, saved: e.saved, draft: clone(e.draft), issues: c.issues, markdown: c.markdown, diff: c.diff };
+  return { saved: e.saved, draft: e.draft };
 }
 export async function askCheck(r: RoleRow | null | undefined, l: Place, cb?: (() => void) | null): Promise<void> {
   const e = r?.[l];
@@ -765,7 +764,7 @@ export function lost(): string[] {
     out.push(...e.editing.lost.value);
   }
   for (const t of teams.value) for (const m of t.members) {
-    if (!assignDirty(m)) continue;
+    if (!m.changed) continue;
     out.push(...t.editing.lost.value);
   }
   for (const { e } of allEntries()) {

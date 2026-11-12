@@ -9,12 +9,11 @@ import { useEffect, useRef } from '../lib/preact.js';
 import { Measure } from '../lib/measure.js';
 import { Field } from '../lib/field.js';
 import {
-  PLACES, LNAME, HQ, GROUPED, state, roles, teams, currentProjectName, CURRENT, roleGroups, groupOfRow,
+  PLACES, LNAME, HQ, GROUPED, state, roles, teams, currentProjectName, roleGroups, groupOfRow,
   live, eff, cur, curName, whoReads, projectNameOf, pathOfRow, issuesOf, rowIssues, checkOf,
   rowOfPanel, filtering, ruleShown, filterCount, FILTERS, okOf, refusalOf, touch, scheduleCheck,
-  focusAsk, changeDraft, pressToggle, pressFilter, pressNew, pressPmode,
-  pressDup, pressCopy, pressDiscard, pressSearch, pressTab, pressGoto, canCopy,
-  doSave, doDelete, syncURL, conflictAt, pressOverwrite, pressRevertConflict, pressUndoConflict,
+  focusAsk, changeDraft, pressToggle, pressFilter, pressNew, pressDup, pressCopy, pressDiscard, pressSearch, pressTab, pressGoto, canCopy,
+  doSave, doDelete, conflictAt, pressOverwrite, pressRevertConflict, pressUndoConflict,
 } from './state.js';
 import { ConflictNotice } from '../lib/conflict.js';
 import { movePage } from '../lib/page-position.js';
@@ -189,7 +188,7 @@ function detail(r: RoleRow) {
 function usage(r: RoleRow) {
   const readers = whoReads(curName(r), r.group);
   if (!readers.length) return '';
-  return <><span class="lbl">使っているチーム</span>{readers.map(({ t, m }) => <button class="uchip" data-act="goto" data-t={t.id} data-m={m.name} data-i={t.members.indexOf(m)} onClick={() => pressGoto(t.id, m.name, t.members.indexOf(m))}><span class="g">{r.group === 'global' ? `${projectNameOf(t.group)}: ` : ''}{t.id}</span>{m.name}</button>)}</>;
+  return <><span class="lbl">使っているチーム</span>{readers.map(({ t, m }) => <button class="uchip" data-act="goto" data-t={t.id} data-m={m.name} data-i={t.members.findIndex((one) => one.name === m.name)} onClick={() => pressGoto(t.id, m.name, t.members.findIndex((one) => one.name === m.name))}><span class="g">{r.group === 'global' ? `${projectNameOf(t.group)}: ` : ''}{t.id}</span>{m.name}</button>)}</>;
 }
 
 // onChange is the shared part saying the document it was handed changed: the row
@@ -204,7 +203,7 @@ function Panel({ r, l }: { r: RoleRow; l: Place }) {
   const shadowed = r.mark === 'hidden' && l === 'global';
   const row = rowOfPanel(r, l);
   if (!row) return '';
-  const issues: RuleIssue[] = row.issues || [];
+  const issues: RuleIssue[] = issuesOf(r, l);
   const nread = e.saved && !r[other(l)] ? whoReads(e.saved.name, r.group).length : 0;
   const mode = state.value.pmode[key] || 'edit';
   const placeLabel = r.group === 'global' ? LNAME.global : (r.group ? projectNameOf(r.group) : currentProjectName());
@@ -246,12 +245,9 @@ function Panel({ r, l }: { r: RoleRow; l: Place }) {
         </span></header>
       <div class="pmain"><RuleDoc row={row} issues={issues} nameError={nameError} heading={{ kind: 'ロール', name: row.draft.name || '新しいロール', title: row.draft.title,
           id: `role-${r.uid}-${l}`, compact: true, path: `${placeLabel} · roles/${d.name}.md`, fullPath: pathOfRow(r, l, d), state: (n ? '未保存' : '保存済み') + (shadowed ? '（無効）' : ''), members: whoReads(row.draft.name, r.group).map((u) => `${u.t.id}: ${u.m.name}`).join('、') }}
-        filtering={filtering()} query={state.value.q}
-        readerCount={(name: string) => whoReads(name, GROUPED ? CURRENT : '').length}
         onDraft={(draft) => { changeDraft(r.uid, l, draft); touch(); scheduleCheck(r, l); }}
         rename={{ value: e.editing.read.value.rename, change: (on) => e.editing.renameUsers(on) }}
-        onMode={(v: 'edit' | 'md') => pressPmode(r.uid, l, v)}
-        onURL={() => syncURL(false)} /></div>
+        nameChanged={e.editing.nameChanged.value} /></div>
       {hold ? <ConflictNotice c={hold.c} mine={e.text || ''} undone={hold.undone}
         onOverwrite={() => pressOverwrite(r.uid, l)}
         onRevert={() => pressRevertConflict(r.uid, l)}

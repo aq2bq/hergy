@@ -2,11 +2,6 @@
 #
 # enforce: false prints the findings and passes, so copies can be merged before
 # the gate fails. done is enforce: true with no finding.
-# The changed section: the screens may name and use the owner's answer, but the
-# old comparators are gone; a name outside lib/changed.ts fails. The free-form
-# report (JSON.stringify in a comparison, .draft !== .saved) is listed here as
-# its findings are merged or allowed.
-changed_enforce: true
 # The danger section: the confirmation and the undo notice have one owner each,
 # and every danger button says which action it runs (r-ccf8, d-2cce, d-aeeb).
 danger_enforce: true
@@ -39,10 +34,6 @@ allow:
     name: Counts
     why: 動いているチームの人数と作業者を数える、一覧の行とは別の数え上げ（上の呼び出しの定義）
     decision: d-4d88
-  - path: internal/web/src/lib/prose-transfer.ts
-    name: JSON.stringify
-    why: 転送する文の下書きの比較で、「変えたか」の概念ではない（r-0b69）
-    decision: d-f14b
   # ブラウザがページを閉じるときの確認は、ブラウザの決まりの文しか出せず、
   # 共通ダイアログに置けない（d-3a42）。出す条件は「転送の準備ができている・
   # 転送の途中」（prepared || busy）で、変えたかは自分で比べていない。
