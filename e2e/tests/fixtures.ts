@@ -13,7 +13,7 @@ import { observePerformance } from './performance-observation';
 // ~/.config/hergy, not ~/.local/state/hergy (d-a861).
 import { test as base, expect, type Page } from '@playwright/test';
 import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { hergyBin, lay, startHerdrSocket, zone } from '../scripts/fixture.mjs';
@@ -137,8 +137,14 @@ export const test = base.extend<{ reads: Screen; app: App; observations: void }>
             return diagnostics?.snapshot() || null;
           }), profiler ? profiler.send('Profiler.stop') : Promise.resolve(null)]), deadline]);
           if (failed) await testInfo.attach('page-dom', { body, contentType: 'text/html' });
-          await testInfo.attach('page-performance', { body: JSON.stringify(timeline, null, 2), contentType: 'application/json' });
-          if (profile) await testInfo.attach('page-cpu', { body: JSON.stringify(profile), contentType: 'application/json' });
+          const performancePath = testInfo.outputPath('page-performance.json');
+          writeFileSync(performancePath, JSON.stringify(timeline, null, 2));
+          await testInfo.attach('page-performance', { path: performancePath, contentType: 'application/json' });
+          if (profile) {
+            const cpuPath = testInfo.outputPath('page-cpu.json');
+            writeFileSync(cpuPath, JSON.stringify(profile));
+            await testInfo.attach('page-cpu', { path: cpuPath, contentType: 'application/json' });
+          }
         } catch (error) {
           await testInfo.attach('page-dom-error', { body: String(error), contentType: 'text/plain' });
         } finally { clearTimeout(timer); }
