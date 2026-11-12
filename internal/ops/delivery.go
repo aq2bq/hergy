@@ -15,6 +15,7 @@ import (
 	"github.com/aq2bq/hergy/internal/ops/internal/launchlog"
 	"github.com/aq2bq/hergy/internal/prompt"
 	"github.com/aq2bq/hergy/internal/source"
+	"github.com/aq2bq/hergy/internal/words"
 )
 
 // DeliveryPlan is one reading of the running Members: the drift the apply sheet
@@ -34,6 +35,7 @@ type PlannedMember struct {
 	Changes []Change
 	How     ApplyHow
 	WhyNot  string
+	Rule    words.RuleID
 }
 
 // CanApply says whether hergy may apply the drift to this member now: a member
@@ -118,7 +120,8 @@ func planTeam(one *DeliveryPlan, running RunningTeam, judged activity.Team, byHe
 			Changed: drift.any(), Changes: drift.Changes, How: drift.How(state),
 		}
 		if !planned.CanApply() {
-			planned.WhyNot = drift.WhyNot(start.Short.String())
+			planned.Rule = drift.RefusalRule()
+			planned.WhyNot = words.Errorf(planned.Rule, i18n.Language(), start.Short.String()).Error()
 		}
 		one.Members[start.Name.String()] = planned
 		for _, change := range drift.Changes {
@@ -135,7 +138,8 @@ func planTeam(one *DeliveryPlan, running RunningTeam, judged activity.Team, byHe
 			CanApply: drift.CanApply(state), ConversationLost: drift.How(state) == ApplyRestart,
 		}
 		if !applied.CanApply {
-			applied.WhyNot = drift.WhyNot(start.Short.String())
+			applied.Rule = planned.Rule
+			applied.WhyNot = planned.WhyNot
 		}
 		row.Members = append(row.Members, applied)
 	}
@@ -159,15 +163,15 @@ func planTeam(one *DeliveryPlan, running RunningTeam, judged activity.Team, byHe
 			continue
 		}
 		short := domainname.ShortIn(hired.Herdr, running.Name.Observation()).String()
-		why := i18n.Tf("apply.refused_removed", short)
+		why := words.Errorf("apply.removed", i18n.Language(), short).Error()
 		one.Members[hired.Herdr.String()] = PlannedMember{
 			Team: running, State: hired.State.Slug(), Changed: true,
-			How: ApplyCannot, WhyNot: why,
+			How: ApplyCannot, WhyNot: why, Rule: "apply.removed",
 		}
 		row.Members = append(row.Members, ApplyMember{
 			Name: hired.Herdr.String(), Short: short, State: hired.State.Slug(),
 			How: ApplyCannot, Changes: []Change{}, CanApply: false,
-			WhyNot: why,
+			WhyNot: why, Rule: "apply.removed",
 		})
 	}
 	if len(row.Members) > 0 {
@@ -256,12 +260,13 @@ func (d memberDrift) How(state string) ApplyHow {
 // CanApply says whether hergy may apply the member now.
 func (d memberDrift) CanApply(state string) bool { return d.How(state) != ApplyCannot }
 
-// whyNot is the sentence the sheet writes beside a member it cannot apply.
-func (d memberDrift) WhyNot(short string) string {
+// RefusalRule keeps the reason in the operation's result; CLI and HTTP
+// adapters present the same record's explanation.
+func (d memberDrift) RefusalRule() words.RuleID {
 	if d.env {
-		return i18n.Tf("apply.refused_env", short)
+		return "apply.env-changed"
 	}
-	return i18n.Tf("apply.refused_state", short)
+	return "apply.state"
 }
 
 // memberDrift reads one live member's drift: the prompt comparison, and the

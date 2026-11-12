@@ -2,6 +2,7 @@ package launcher
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"os/exec"
 	"slices"
@@ -160,6 +161,10 @@ func TestBootstrapContinuesOnlyAfterMissingReceipt(t *testing.T) {
 					t.Fatalf("receipt states: %+v", l.progress.States)
 				}
 				if code != "send_failed" {
+					missing, ok := errors.AsType[*Undelivered](err)
+					if !ok || missing.RuleID() != "prompt.missing-receipt" {
+						t.Fatalf("missing rule: %v", err)
+					}
 					if !IsUndelivered(err) || !strings.Contains(err.Error(), "team-b") {
 						t.Fatalf("missing summary: %v", err)
 					}

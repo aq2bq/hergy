@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/aq2bq/hergy/internal/i18n"
+	"github.com/aq2bq/hergy/internal/words"
 )
 
 // spelling is how a command line writes a flag: the one-letter form when it
@@ -109,7 +110,7 @@ type row struct{ label, desc string }
 // runs over more than one line carries on under the second column.
 func writeRows(b *strings.Builder, rows []row, col int) {
 	for _, r := range rows {
-		lines := strings.Split(r.desc, "\n")
+		lines := strings.Split(wrapDetail(r.desc, max(1, 100-col-4)), "\n")
 		fmt.Fprintf(b, "  %s%s  %s\n", r.label, strings.Repeat(" ", col-i18n.Width(r.label)), lines[0])
 		for _, more := range lines[1:] {
 			fmt.Fprintf(b, "%s%s\n", strings.Repeat(" ", 2+col+2), more)
@@ -151,8 +152,8 @@ func CommandHelp(kind Kind) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "hergy %s - %s\n\n", s.Name, s.Summary[lang])
 	fmt.Fprintf(&b, "%s %s\n", i18n.T("help.usage_label"), usageLine(s, lang))
-	if detail := s.Detail[lang]; detail != "" {
-		fmt.Fprintf(&b, "\n%s\n", detail)
+	if detail := words.Describe(s.Rules, lang); detail != "" {
+		fmt.Fprintf(&b, "\n%s\n", wrapDetail(detail, 100))
 	}
 	if len(argRows) > 0 {
 		fmt.Fprintf(&b, "\n%s\n", i18n.T("help.arguments"))
@@ -202,4 +203,117 @@ func has(s Spec, f *Flag) bool {
 		}
 	}
 	return false
+}
+
+// wrapDetail keeps prose independent of a display's width. Facts are written
+// once in words; only the help renderer introduces presentation line breaks.
+func wrapDetail(text string, width int) string {
+	var lines []string
+	for paragraph := range strings.SplitSeq(text, "\n") {
+		rest := []rune(strings.TrimSpace(paragraph))
+		for len(rest) > 0 {
+			end, space := 0, -1
+			for end < len(rest) && i18n.Width(string(rest[:end+1])) <= width {
+				if rest[end] == ' ' {
+					space = end
+				}
+				end++
+			}
+			if end == len(rest) {
+				lines = append(lines, string(rest))
+				break
+			}
+			if space > 0 {
+				end = space
+			}
+			if end == 0 {
+				end = 1
+			}
+			lines = append(lines, strings.TrimSpace(string(rest[:end])))
+			rest = []rune(strings.TrimSpace(string(rest[end:])))
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
+// Description renders the command's public rules. Every display uses these
+// IDs; the Spec holds syntax, never a second account of the operation.
+func Description(kind Kind, lang string) string { return words.Describe(specOf(kind).Rules, lang) }
+
+// FlagDescriptions groups uses by the actual shared description. A flag may
+// mean different things on different commands (especially --dry and --json).
+func FlagDescriptions(name, lang string) string {
+	type group struct {
+		text     string
+		commands []string
+	}
+	var groups []group
+	for _, s := range specs {
+		for _, u := range s.Flags {
+			if u.Flag.Name != name {
+				continue
+			}
+			description := u.Desc[lang]
+			at := -1
+			for i, g := range groups {
+				if g.text == description {
+					at = i
+					break
+				}
+			}
+			if at < 0 {
+				groups = append(groups, group{text: description})
+				at = len(groups) - 1
+			}
+			groups[at].commands = append(groups[at].commands, s.Name)
+		}
+	}
+	for _, u := range common {
+		if u.Flag.Name == name {
+			return strings.ReplaceAll(u.Desc[lang], "\n", " ")
+		}
+	}
+	var lines []string
+	for _, g := range groups {
+		lines = append(lines, strings.Join(g.commands, ", ")+": "+strings.ReplaceAll(g.text, "\n", " "))
+	}
+	var description strings.Builder
+	description.WriteString(strings.Join(lines, "; "))
+	for _, flag := range allFlags {
+		if flag.Name == name && len(flag.Alias) > 0 {
+			description.WriteString(" " + fmt.Sprintf(words.Label("flag.aliases")[lang], "--"+strings.Join(flag.Alias, ", --")))
+		}
+	}
+	return description.String()
+}
+
+// BuildUsage uses the same syntax and summary records as each command's page.
+// The locale generator owns the output; Usage reads it without a second table.
+func BuildUsage(lang string) string {
+	var b strings.Builder
+	b.WriteString(words.Label("usage.intro")[lang])
+	width := 0
+	var labels []string
+	for _, s := range specs {
+		label := strings.Join(append([]string{s.Name}, argWords(&s, lang)...), " ")
+		labels = append(labels, label)
+		width = max(width, i18n.Width(label))
+	}
+	for i, s := range specs {
+		fmt.Fprintf(&b, "  %s%s  %s\n", labels[i], strings.Repeat(" ", width-i18n.Width(labels[i])), s.Summary[lang])
+	}
+	b.WriteString("\n")
+	for _, section := range []string{"usage.options", "usage.places"} {
+		for i, line := range strings.Split(strings.TrimRight(words.Label(section)[lang], "\n"), "\n") {
+			label, text, row := strings.Cut(line, "\t")
+			if i == 0 || !row {
+				b.WriteString(line + "\n")
+				continue
+			}
+			fmt.Fprintf(&b, "  %s%s  %s\n", label, strings.Repeat(" ", max(0, width-i18n.Width(label))), text)
+		}
+		b.WriteString("\n")
+	}
+	b.WriteString(words.Label("usage.detail")[lang])
+	return b.String()
 }

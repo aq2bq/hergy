@@ -64,17 +64,17 @@ func TestGatesForPicksWhatAChangeCanFail(t *testing.T) {
 		want  string
 	}{
 		{nil, ""},
-		{[]string{"README.md"}, "test"},
+		{[]string{"README.md"}, "words test"},
 		{[]string{"internal/cli/serve.go"}, "fmt tidy fix lint arch test owners e2e coverage deadcode"},
 		{[]string{"internal/cli/serve_test.go"}, "fmt fix lint arch test coverage deadcode"},
-		{[]string{"tools/check/diff.go"}, "fmt fix lint arch test owners coverage deadcode"},
-		{[]string{"internal/web/src/roles/main.tsx"}, "webbuild types unit test owners e2e"},
+		{[]string{"tools/check/diff.go"}, "words fmt fix lint arch test owners coverage deadcode"},
+		{[]string{"internal/web/src/roles/main.tsx"}, "words webbuild types unit test owners e2e"},
 		{[]string{"internal/web/static/app.js"}, "webbuild test e2e"},
 		{[]string{"internal/web/static/app.css"}, "test e2e"},
 		{[]string{"internal/web/templates/roles_v2.html"}, "webbuild test e2e"},
 		{[]string{"internal/web/tsconfig.json"}, "webbuild types unit test e2e"},
-		{[]string{"internal/cheat/cheat.go"}, "fmt tidy fix lint arch test owners coverage deadcode"},
-		{[]string{"internal/options/help.go"}, "fmt tidy fix lint arch test owners coverage deadcode"},
+		{[]string{"internal/cheat/cheat.go"}, "words fmt tidy fix lint arch test owners coverage deadcode"},
+		{[]string{"internal/options/help.go"}, "words fmt tidy fix lint arch test owners coverage deadcode"},
 		{[]string{"internal/cli/apply_cli.go"}, "fmt tidy fix lint arch test owners coverage deadcode"},
 		{[]string{"internal/cli/apply.go"}, "fmt tidy fix lint arch test owners e2e coverage deadcode"},
 		{[]string{"tools/webvendor/build-site.js"}, "webbuild test deadcode"},
@@ -83,7 +83,7 @@ func TestGatesForPicksWhatAChangeCanFail(t *testing.T) {
 		{[]string{"internal/web/jstest/resource.test.js"}, "names unit test"},
 		{[]string{"e2e/tests/home.spec.ts"}, "test reading e2e"},
 		{[]string{"go.sum"}, "tidy lint test e2e deadcode vuln"},
-		{[]string{".testcoverage.yml", "skills/hergy/SKILL.md"}, "test coverage"},
+		{[]string{".testcoverage.yml", "skills/hergy/SKILL.md"}, "words test coverage"},
 	}
 	for _, c := range cases {
 		if got := names(c.paths...); got != c.want {

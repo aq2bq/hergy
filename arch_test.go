@@ -20,7 +20,7 @@ import (
 const modulePath = "github.com/aq2bq/hergy"
 
 // leaves have no operational dependencies; source uses place, which uses name.
-var leaves = []string{"browser", "domain/name", "domain/place", "i18n", "layout", "scaffold", "source", "version"}
+var leaves = []string{"browser", "domain/name", "domain/place", "i18n", "layout", "scaffold", "source", "version", "words"}
 
 // importsOf maps each non-test Go file to the module packages it imports, as
 // package names under internal/ ("cli", "i18n", …); main.go is "main".

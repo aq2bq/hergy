@@ -73,7 +73,7 @@ func (r *runner) git(args ...string) (string, error) {
 // files and environment their tests read, have changed (terms_test.go reads
 // the documents, so a change to a README reruns it).
 func gatesFor(paths []string) []gate {
-	want := map[string]bool{}
+	want := map[string]bool{"words": slices.ContainsFunc(paths, wordsPath)}
 	add := func(names ...string) {
 		for _, n := range names {
 			want[n] = true
@@ -149,6 +149,17 @@ func gatesFor(paths []string) []gate {
 		}
 	}
 	return out
+}
+
+// wordsPath covers the catalog, its renderers and generated outputs. Changes to
+// screen text also check the vocabulary artifact before a future TermID migration.
+func wordsPath(p string) bool {
+	for _, prefix := range []string{"internal/words/", "internal/options/", "internal/cheat/", "internal/i18n/", "internal/ops/", "internal/web/src/", "tools/check/"} {
+		if strings.HasPrefix(p, prefix) {
+			return true
+		}
+	}
+	return p == "README.md" || p == "README.ja.md" || p == "skills/hergy/SKILL.md"
 }
 
 func (r *runner) diff() error {
