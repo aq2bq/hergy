@@ -1,3 +1,4 @@
+import { term } from '../terms.generated.js';
 import { dangerAttrs } from '../../lib/danger.js';
 // lib/hq/sheets.tsx — 本部の欄と、帯の探す欄（n-7f3c、spec 2・3・5 章）。
 //
@@ -125,7 +126,7 @@ function ProjectsSheet(): JSX.Element {
   const [error, setError] = useState('');
   const [path, setPath] = useState('');
   const p = st.projects.value;
-  if (!p) return <><Head title="本部に並べるプロジェクト" /><p class="hq-sub">読み込んでいます…</p></>;
+  if (!p) return <><Head title={`${term('headquarters')}に並べる${term('project')}`} /><p class="hq-sub">読み込んでいます…</p></>;
   const listed = (p.projects || []).filter((x) => x.listed);
   const candidates = (p.projects || []).filter((x) => !x.listed && x.source === 'launch');
   const current: HQProject = p.current;
@@ -136,19 +137,19 @@ function ProjectsSheet(): JSX.Element {
     location.reload();
   };
   const row = (project: HQProject): JSX.Element => <div class="hq-li" key={project.path} data-path={project.path}><span class="hq-pn">{project.name}</span><span class="hq-pp">{project.display}</span>
-      <span class="hq-pc">チーム定義 {project.definitions || 0} · 動いているチーム {project.running || 0}</span>
+      <span class="hq-pc">{`${term('team-definition')} `}{project.definitions || 0}{` · 動いている${term('team')} `}{project.running || 0}</span>
       <span class="hq-act"><button type="button" class="hq-btn sm" data-hq="unlist" data-path={project.path} onClick={async (e: Event) => { const host = (e.currentTarget as HTMLElement).closest('.hq-li') as HTMLElement | null; const no = await unlistProject(project.path, host); if (no) setError(no); }} {...dangerAttrs('unlistProject')}>外す</button></span></div>;
   const cand = (project: HQProject): JSX.Element => <div class="hq-li cand" key={project.path} data-path={project.path}><span class="hq-pn">{project.name}</span><span class="hq-pp">{project.display}</span>
-      <span class="hq-pc">最後の起動 {mmdd(project.last_launch)} · チーム定義 {project.definitions || 0}</span>
+      <span class="hq-pc">{`最後の${term('start')} `}{mmdd(project.last_launch)}{` · ${term('team-definition')} `}{project.definitions || 0}</span>
       <span class="hq-act"><button type="button" class="hq-btn sm" data-hq="list" data-path={project.path} onClick={rewrite(listProject, project.path)}>並べる</button></span></div>;
   // Without projects:, the project serve was started in is not listed yet. It
   // stands in the sheet with 並べる, and listing anything lists it first, so the
   // teams a person is looking at do not fall out of the screen (r-5b96 audit 7).
   const currentRow = currentOnly
-    ? <div class="hq-li" key={current.path} data-path={current.path}><span class="hq-pn">{current.name}</span><span class="hq-pp">{current.display}</span><span class="hq-pc">チーム定義 {current.definitions || 0} · 動いているチーム {current.running || 0}</span><span class="hq-act"><button type="button" class="hq-btn sm" data-hq="list" data-path={current.path} onClick={rewrite(listProject, current.path)}>並べる</button></span></div>
+    ? <div class="hq-li" key={current.path} data-path={current.path}><span class="hq-pn">{current.name}</span><span class="hq-pp">{current.display}</span><span class="hq-pc">{`${term('team-definition')} `}{current.definitions || 0}{` · 動いている${term('team')} `}{current.running || 0}</span><span class="hq-act"><button type="button" class="hq-btn sm" data-hq="list" data-path={current.path} onClick={rewrite(listProject, current.path)}>並べる</button></span></div>
     : '';
   const unlisted = p.mode === 'listed' && !current.listed
-    ? <div class="hq-li cand" key={current.path} data-path={current.path}><span class="hq-pn">{current.name}</span><span class="hq-pp">{current.display}</span><span class="hq-pc">この serve を起動したプロジェクト（並んでいない）</span><span class="hq-act"><button type="button" class="hq-btn sm" data-hq="list" data-path={current.path} onClick={rewrite(listProject, current.path)}>並べる</button></span></div>
+    ? <div class="hq-li cand" key={current.path} data-path={current.path}><span class="hq-pn">{current.name}</span><span class="hq-pp">{current.display}</span><span class="hq-pc">{`この serve を${term('start')}した${term('project')}（並んでいない）`}</span><span class="hq-act"><button type="button" class="hq-btn sm" data-hq="list" data-path={current.path} onClick={rewrite(listProject, current.path)}>並べる</button></span></div>
     : '';
   const others = candidates.filter((x) => x.path !== current.path).map(cand);
   // alreadyListed is the listed project a typed path names, if one: the same
@@ -161,7 +162,7 @@ function ProjectsSheet(): JSX.Element {
   };
   const add = async (): Promise<void> => {
     const want = path.trim();
-    if (!want) { setError('プロジェクトのディレクトリのパスを書いてください'); return; }
+    if (!want) { setError(`${term('project')}のディレクトリのパスを書いてください`); return; }
     const already = alreadyListed(want);
     if (already) { setError(`${already.name} はもう並んでいます`); return; }
     const no = await listProject(want);
@@ -169,14 +170,14 @@ function ProjectsSheet(): JSX.Element {
     location.reload();
   };
   return <>
-      <Head title="本部に並べるプロジェクト" />
-      <p class="hq-sub">並べたプロジェクトのチーム定義・ロール・プロファイルと、動いているチームが、どの画面にも出ます。どこで hergy serve を起動しても、同じ並びです。</p>
+      <Head title={`${term('headquarters')}に並べる${term('project')}`} />
+      <p class="hq-sub">{`並べた${term('project')}の${term('team-definition')}・${term('role')}・${term('profile')}と、動いている${term('team')}が、どの画面にも出ます。どこで hergy serve を${term('start')}しても、同じ並びです。`}</p>
       {currentOnly
-        ? <div class="hq-sec"><span class="hq-lbl">この serve を起動したプロジェクト（まだ並べていない）</span>{currentRow}</div>
+        ? <div class="hq-sec"><span class="hq-lbl">{`この serve を${term('start')}した${term('project')}（まだ並べていない）`}</span>{currentRow}</div>
         : <div class="hq-sec"><span class="hq-lbl">並べている {listed.length}</span>{listed.length ? listed.map(row) : <p class="hq-sub">まだありません</p>}</div>}
-      <div class="hq-sec"><span class="hq-lbl">起動の記録にあって、並べていないプロジェクト</span>{unlisted}{others.length ? others : unlisted ? '' : <p class="hq-sub">ありません</p>}</div>
-      <p class="hq-note">並びは <code>~/.config/hergy/config.yaml</code> の <code>projects:</code> に書きます。外しても、そのプロジェクトのファイルは変わりません。{currentOnly ? <> 並べると <code>config.yaml</code> に <code>projects:</code> を作ります。この serve を起動した {current.name} も一緒に並べます。</> : ''}</p>
-      <div class="hq-sec hq-foot"><span class="hq-lbl">パスで並べる（まだチームを起動したことのないプロジェクト）</span><div class="hq-acts"><Seeded id="hq-path" class="hq-sel" placeholder="~/src/…" autoComplete="off" aria-label="プロジェクトのパス" value={path} onInput={(e) => setPath(e.currentTarget.value)} /><button type="button" class="hq-btn sm" data-hq="add" onClick={add}>並べる</button></div><Err text={error} /></div>
+      <div class="hq-sec"><span class="hq-lbl">{`${term('start')}の記録にあって、並べていない${term('project')}`}</span>{unlisted}{others.length ? others : unlisted ? '' : <p class="hq-sub">ありません</p>}</div>
+      <p class="hq-note">並びは <code>~/.config/hergy/config.yaml</code> の <code>projects:</code>{` に書きます。外しても、その${term('project')}のファイルは変わりません。`}{currentOnly ? <> 並べると <code>config.yaml</code> に <code>projects:</code>{` を作ります。この serve を${term('start')}した `}{current.name} も一緒に並べます。</> : ''}</p>
+      <div class="hq-sec hq-foot"><span class="hq-lbl">{`パスで並べる（まだ${term('team')}を${term('start')}したことのない${term('project')}）`}</span><div class="hq-acts"><Seeded id="hq-path" class="hq-sel" placeholder="~/src/…" autoComplete="off" aria-label={`${term('project')}のパス`} value={path} onInput={(e) => setPath(e.currentTarget.value)} /><button type="button" class="hq-btn sm" data-hq="add" onClick={add}>並べる</button></div><Err text={error} /></div>
     </>;
 }
 
@@ -194,7 +195,7 @@ function StartSheet({ definition, place, project }: { definition: string; place:
   const [error, setError] = useState('');
   const [nameError, setNameError] = useState('');
   const [busy, setBusy] = useState(false);
-  const title = isGlobal ? 'プロジェクトを選んで起動する' : 'このプロジェクトで起動する';
+  const title = isGlobal ? `${term('project')}を選んで${term('start')}する` : `この${term('project')}で${term('start')}する`;
 
   // A name is seeded only when the definition's own name is taken: the sheet's
   // team name is empty otherwise, so the start uses the definition's name
@@ -216,7 +217,7 @@ function StartSheet({ definition, place, project }: { definition: string; place:
       if (project) q.set('project', project);
       const next = await readJSONOr<HQLaunchOptions>('/api/hq/launch/options?' + q.toString());
       if (!alive) return;
-      if (!next) { setError('起動の選択肢を読めませんでした'); setOptions({ broken: true }); return; }
+      if (!next) { setError(`${term('start')}の選択肢を読めませんでした`); setOptions({ broken: true }); return; }
       take(next);
     })();
     return () => { alive = false; };
@@ -268,12 +269,12 @@ function StartSheet({ definition, place, project }: { definition: string; place:
     const asPart = written ? ` --as ${written}` : '';
     return chosen
       ? <><code>{projectName(chosen)}</code> で <code>{`hergy up ${definition}${asPart}`}</code> を打つのと同じ</>
-      : <>選んだプロジェクトで <code>{`hergy up ${definition}${asPart}`}</code> を打つのと同じ</>;
+      : <>{`選んだ${term('project')}で `}<code>{`hergy up ${definition}${asPart}`}</code> を打つのと同じ</>;
   };
-  const wsWhy = (w: HQWorkspaceChoice): string => (w.why === 'last' ? `前に ${definition} が動いたワークスペース` : w.why === 'project' ? 'プロジェクトの名前で始まるワークスペース' : w.why === 'busy' ? `${w.team} が動いている（1 つのワークスペースにチームは 1 つ）` : 'hergy のチームはいない');
+  const wsWhy = (w: HQWorkspaceChoice): string => (w.why === 'last' ? `前に ${definition} が動いたワークスペース` : w.why === 'project' ? `${term('project')}の名前で始まるワークスペース` : w.why === 'busy' ? `${w.team} が動いている（1 つのワークスペースに${term('team')}は 1 つ）` : `hergy の${term('team')}はいない`);
   const start = async (): Promise<void> => {
     const proj = isGlobal ? chosen : project;
-    if (!proj) { setError('どのプロジェクトで起動するかを選んでください'); return; }
+    if (!proj) { setError(`どの${term('project')}で${term('start')}するかを選んでください`); return; }
     // Which workspace is picked, and the name a new one takes, are the sheet's
     // state: nothing is read back from the boxes (5 章 2).
     if (!picked) { setError('ワークスペースを選んでください'); return; }
@@ -295,7 +296,7 @@ function StartSheet({ definition, place, project }: { definition: string; place:
       launchAnswer = answer.json;
     } catch (e) {
       setBusy(false);
-      const text = problemText(e, '起動できませんでした');
+      const text = problemText(e, `${term('start')}できませんでした`);
       // The server says which field its refusal is about. A refused name stands
       // beside the name's own field, not with the sheet's other refusals
       // (r-df61: 画面で決まりを作り直さない).
@@ -312,28 +313,28 @@ function StartSheet({ definition, place, project }: { definition: string; place:
   return <>
       <Head title={title} label={definition} />
       <dl class="hq-kv">
-        <dt>チーム定義</dt><dd><code>{definition}</code>（{isGlobal ? 'グローバル' : projectName(chosen)}）</dd>
-        <dt>説明</dt><dd data-role="description">{options.description || '—'}</dd>
-        <dt>プロジェクト</dt><dd>{isGlobal
+        <dt>{term('team-definition')}</dt><dd><code>{definition}</code>（{isGlobal ? term('global') : projectName(chosen)}）</dd>
+        <dt>{term('description')}</dt><dd data-role="description">{options.description || '—'}</dd>
+        <dt>{term('project')}</dt><dd>{isGlobal
           ? <><select id="hq-proj" class="hq-sel" onChange={(e) => pickProject(e.currentTarget.value)}><option value="">選んでください</option>{(options.projects || []).map((x: HQLaunchProject) => (x.available
             ? <option value={x.path} selected={x.path === chosen}>{x.name}</option>
-            : <option value="" disabled>{`${x.name}（${x.reason}）`}</option>))}</select><div class="hq-sub">グローバルのチーム定義は、どのプロジェクトで起動するかを選びます</div></>
+            : <option value="" disabled>{`${x.name}（${x.reason}）`}</option>))}</select><div class="hq-sub">{`${term('global')}の${term('team-definition')}は、どの${term('project')}で${term('start')}するかを選びます`}</div></>
           : <code>{projectName(chosen)}</code>}</dd>
-        <dt>メンバー</dt><dd data-role="members">{members.length ? <>{`${members.length} 人: `}{spaced(members.map((m) => <code>{m.name}</code>))}</> : '—'}</dd>
-        <dt>チームの名前</dt><dd data-role="team-name">
-          <Seeded id="hq-as" class="hq-sel" value={asName} onInput={(e) => { setAsName(e.currentTarget.value); setNameError(''); }} aria-label="チームの名前" />
-          <p class="hq-sub">空なら、チームの名前はチーム定義の名前 <code>{definition}</code> です。書けば、その名前で起動します（<code>hergy up --as</code> と同じ）。</p>
-          {clash.length ? <p class="hq-sub" data-role="clash">{definition} という名前のチームが {clash.map((c) => projectName(c.project)).join(' · ')} で動いています。この名前で起動します（hergy up --as と同じ）。</p> : ''}
+        <dt>{term('member')}</dt><dd data-role="members">{members.length ? <>{`${members.length} 人: `}{spaced(members.map((m) => <code>{m.name}</code>))}</> : '—'}</dd>
+        <dt>{`${term('team')}の名前`}</dt><dd data-role="team-name">
+          <Seeded id="hq-as" class="hq-sel" value={asName} onInput={(e) => { setAsName(e.currentTarget.value); setNameError(''); }} aria-label={`${term('team')}の名前`} />
+          <p class="hq-sub">{`空なら、${term('team')}の名前は${term('team-definition')}の名前 `}<code>{definition}</code>{` です。書けば、その名前で${term('start')}します（`}<code>hergy up --as</code> と同じ）。</p>
+          {clash.length ? <p class="hq-sub" data-role="clash">{definition}{` という名前の${term('team')}が `}{clash.map((c) => projectName(c.project)).join(' · ')}{` で動いています。この名前で${term('start')}します（hergy up --as と同じ）。`}</p> : ''}
           {nameError ? <p class="hq-err" data-role="name-error">{nameError}</p> : ''}
         </dd>
       </dl>
       <div class="hq-sec"><span class="hq-lbl">ワークスペース</span><div class="hq-ws" data-role="wslist">{isGlobal && !chosen
-        ? <p class="hq-sub">プロジェクトを選ぶと、ワークスペースが出ます</p>
+        ? <p class="hq-sub">{`${term('project')}を選ぶと、ワークスペースが出ます`}</p>
         : <>{(options.workspaces || []).map((w) => (w.selectable
           ? <label class="hq-wo"><input type="radio" name="hq-ws" value={w.id} checked={w.id === picked} onChange={() => setPicked(w.id)} /><span class="hq-wn">{w.label}</span><span class="hq-wd">{wsWhy(w)}</span></label>
           : <label class="hq-wo no"><input type="radio" name="hq-ws" disabled /><span class="hq-wn">{w.label}</span><span class="hq-wd">{wsWhy(w)}</span></label>))}<label class="hq-wo"><input type="radio" name="hq-ws" value="__new" checked={picked === '__new'} onChange={() => setPicked('__new')} /><span class="hq-wn">新しく作る</span><span class="hq-wd"><Seeded id="hq-wsname" class="hq-in" value={options.new_workspace_name || definition} onInput={(e) => setWsName(e.currentTarget.value)} aria-label="新しいワークスペースの名前" /></span></label></>}</div></div>
       <Err text={error} />
-      <div class="hq-acts"><button type="button" class="hq-btn primary" data-hq="go" data-def={definition} data-place={place || 'project'} disabled={busy} onClick={start}>起動する</button><button type="button" class="hq-btn" data-hqx="close" onClick={closeSheet}>やめる</button>
+      <div class="hq-acts"><button type="button" class="hq-btn primary" data-hq="go" data-def={definition} data-place={place || 'project'} disabled={busy} onClick={start}>{`${term('start')}する`}</button><button type="button" class="hq-btn" data-hqx="close" onClick={closeSheet}>やめる</button>
       <span class="hq-sub" data-role="same">{same(asName)}</span></div>
     </>;
 }
@@ -384,7 +385,7 @@ function RunSheet({ id, launch: first }: { id: string; launch: HQLaunch }): JSX.
   const raised = launch.action === 'refresh';
   const applied = launch.action === 'apply';
   const who = raised || applied ? (launch.members || []).join(' · ') : launch.team;
-  const verb = applied ? '反映' : '起動';
+  const verb = applied ? term('apply') : term('start');
   const space = launch.workspace.label || launch.workspace.id;
   const waitingWhere = launch.waiting ? [
     launch.waiting.workspace ? `ワークスペース ${launch.waiting.workspace}` : '',
@@ -432,19 +433,19 @@ function RunSheet({ id, launch: first }: { id: string; launch: HQLaunch }): JSX.
         const mark = now ? 'now' : step.kind === 'done' || step.kind === 'member' ? 'done' : '';
         return <li class={mark}><span>{step.text}</span></li>;
       })}</ul>
-      <div data-role="waitbox">{launch.waiting ? <div class="hq-wait"><div class="hq-wh"><span class="hq-on wait">許可待ち</span><b><code>{launch.waiting.herdr}</code> が、起動の途中で確認に答えを待っています</b></div>
+      <div data-role="waitbox">{launch.waiting ? <div class="hq-wait"><div class="hq-wh"><span class="hq-on wait">{term('waiting-for-permission')}</span><b><code>{launch.waiting.herdr}</code>{` が、${term('start')}の途中で確認に答えを待っています`}</b></div>
           {waitingWhere ? <p class="hq-where">{waitingWhere}</p> : ''}
           <p>エージェントが、このフォルダを信頼するか、などを聞いています。そのペインを開いて答えてください。確認は続けて出ることがあります。</p>
-          <p>答え終わると、hergy は <code>{launch.waiting.herdr}</code> に初期プロンプトを送って続きを進めます。</p></div> : ''}</div>
+          <p>答え終わると、hergy は <code>{launch.waiting.herdr}</code>{` に${term('bootstrap-prompt')}を送って続きを進めます。`}</p></div> : ''}</div>
       <div class="hq-acts" data-role="endacts">{launch.phase === 'done'
         ? <><p class="hq-ok">{`${verb}しました: ${who}${doneWhere ? `（${doneWhere}）` : ''}`}</p>
-        <a class="hq-btn primary" href={`/activity?open=${encodeURIComponent(token(launch.team, launch.project))}`}>アクティビティで見る</a><button type="button" class="hq-btn" data-hqx="close" onClick={closeSheet}>閉じる</button></>
+        <a class="hq-btn primary" href={`/activity?open=${encodeURIComponent(token(launch.team, launch.project))}`}>{`${term('activity')}で見る`}</a><button type="button" class="hq-btn" data-hqx="close" onClick={closeSheet}>閉じる</button></>
         : launch.phase === 'failed'
           ? <><p class="hq-err" data-role="launch-error">{launch.error || verb + 'できませんでした'}</p>
-            {launch.tab.id ? <button type="button" class="hq-btn danger" {...dangerAttrs('stopTeam')} data-hq="stop" data-team={launch.team} onClick={() => stopSheet(launch.team)}>チームを終了する…</button> : ''}
+            {launch.tab.id ? <button type="button" class="hq-btn danger" {...dangerAttrs('stopTeam')} data-hq="stop" data-team={launch.team} onClick={() => stopSheet(launch.team)}>{`${term('team')}を${term('down')}…`}</button> : ''}
             <button type="button" class="hq-btn" data-hqx="close" onClick={closeSheet}>閉じる</button></>
           : launch.phase === 'cancelled'
-            ? <><p class="hq-sub">{`${verb}をやめました。`}{raised || applied ? 'ペインは残っています（チームを終了する欄から操作できます）。' : '作ったタブとペインは残っています（チームを終了する欄から操作できます）。'}</p><button type="button" class="hq-btn" data-hqx="close" onClick={closeSheet}>閉じる</button></>
+            ? <><p class="hq-sub">{`${verb}をやめました。`}{raised || applied ? `ペインは残っています（${term('team')}を${term('down')}欄から操作できます）。` : `作ったタブとペインは残っています（${term('team')}を${term('down')}欄から操作できます）。`}</p><button type="button" class="hq-btn" data-hqx="close" onClick={closeSheet}>閉じる</button></>
             : <button type="button" class="hq-btn danger" data-hq="abort" data-launch={id} onClick={abort}>{verb}をやめる</button>}</div>
     </>;
 }
@@ -482,10 +483,10 @@ function StopSheet({ team }: { team: string }): JSX.Element {
   if (result) return <StopResult result={result} team={team} />;
   if (!running) {
     readRunning();
-    return <><Head title="終了する" label={team} /><p class="hq-sub">このチームは動いていません。読み直してから、もう一度お試しください。</p></>;
+    return <><Head title={term('down')} label={team} /><p class="hq-sub">{`この${term('team')}は動いていません。読み直してから、もう一度お試しください。`}</p></>;
   }
   return <>
-      <Head title={error ? "終了できませんでした" : "終了する"} label={team} />
+      <Head title={error ? "終了できませんでした" : term('down')} label={team} />
       {!error ? <p class="hq-sub" role="status">ペインを閉じ、herdr から名前が消えるまで待っています。</p> : null}
       <Err text={error} />
       {error ? <div class="hq-acts"><button type="button" class="hq-btn" data-hqx="close" onClick={closeSheet}>閉じる</button></div> : null}
@@ -502,8 +503,8 @@ function StopResult({ result, team }: { result: HQStopped; team: string }): JSX.
   const project = projectName(result.project);
   return <>
       <Head title="終了しました" label={team} />
-      <dl class="hq-kv"><dt>プロジェクト</dt><dd><code>{project}</code></dd>
-        <dt>閉じたペイン</dt><dd>{`メンバー ${result.closed.members} 人${result.closed.workers ? `、ワーカー ${result.closed.workers} 人` : ''}`}</dd></dl>
+      <dl class="hq-kv"><dt>{term('project')}</dt><dd><code>{project}</code></dd>
+        <dt>閉じたペイン</dt><dd>{`${term('member')} ${result.closed.members} 人${result.closed.workers ? `、${term('worker')} ${result.closed.workers} 人` : ''}`}</dd></dl>
       {worktrees.length || stashes ? <div class="hq-left" data-role="leftovers">
         <p class="hq-lbl">{`${team} が動いている間にできたワークツリー（git）:`}</p>
         {worktrees.map((w) => <div class="hq-wt" data-worktree={w.path}>
@@ -511,7 +512,7 @@ function StopResult({ result, team }: { result: HQStopped; team: string }): JSX.
           <p class="hq-sub">消すには: <code>{`git worktree remove ${w.path}`}</code></p>
           {w.dirty || w.ahead > 0 ? <p class="hq-sub">保存していない変更か、入っていないコミットがあります。消す前に中身を確かめてください</p> : ''}
         </div>)}
-        {stashes > 0 ? <p class="hq-sub">このプロジェクトの stash: {stashes} 件（<code>git stash list</code> で見る）</p> : ''}
+        {stashes > 0 ? <p class="hq-sub">{`この${term('project')}の stash: `}{stashes} 件（<code>git stash list</code> で見る）</p> : ''}
         <p class="hq-sub">hergy は消しません。消してよいかを確かめてから、上のコマンドを打ってください。</p>
       </div> : ''}
       <div class="hq-acts"><button type="button" class="hq-btn primary" data-hqx="close" onClick={closeSheet}>閉じる</button></div>
@@ -526,7 +527,7 @@ export function startSheet(definition: string, place: string, project: string): 
 // stopSheet asks in the shared dialog, listing the panes it will close, and runs
 // the stop only after the person chose 終了する (r-d480, d-021e).
 export function stopSheet(team: string): void {
-  runDanger('stopTeam', { run: () => { openSheet(<StopSheet team={team} />); }, loss: { kind: 'activity', name: team }, confirm: { title: `チーム ${team} を終了しますか`, label: '終了する' } });
+  runDanger('stopTeam', { run: () => { openSheet(<StopSheet team={team} />); }, loss: { kind: 'activity', name: team }, confirm: { title: `${term('team')} ${team} を終了しますか`, label: term('down') } });
 }
 
 export function projectsSheet(): void {
@@ -536,8 +537,8 @@ export function projectsSheet(): void {
 // ---- 横断して探す（spec 3 章） -------------------------------------------
 // Each result group shows five rows and the rest as ほか N 件.
 const KINDS: [SearchKind, string][] = [
-  ['live', '動いているチーム'], ['def', 'チーム定義'], ['ws', 'ワークスペース'], ['member', 'メンバー'],
-  ['role', 'ロール'], ['profile', 'プロファイル'],
+  ['live', `動いている${term('team')}`], ['def', term('team-definition')], ['ws', 'ワークスペース'], ['member', term('member')],
+  ['role', term('role')], ['profile', term('profile')],
 ];
 const CAP = 5;
 
@@ -574,10 +575,10 @@ function buildIndex(): SearchEntry[] {
       const href = `/teams?open=${encodeURIComponent(token(item.name, group))}`;
       out.push({ kind: 'def', group, project: label, label: item.name, sub: doc.description || '', text: `${item.name} ${doc.description || ''}`, href });
       for (const m of doc.members || []) {
-        out.push({ kind: 'member', group, project: label, label: `${item.name} の ${m.name}`, sub: `ロール ${m.role || ''} · プロファイル ${m.profile || ''}`, text: `${m.name} ${item.name}-${m.name} ${m.role || ''} ${m.profile || ''}`, href });
+        out.push({ kind: 'member', group, project: label, label: `${item.name} の ${m.name}`, sub: `${term('role')} ${m.role || ''} · ${term('profile')} ${m.profile || ''}`, text: `${m.name} ${item.name}-${m.name} ${m.role || ''} ${m.profile || ''}`, href });
       }
       const agree = doc.agreement && doc.agreement.doc;
-      if (agree) out.push({ kind: 'def', group, project: label, label: agree.title || item.name, sub: `${item.name} の規則`, text: agree.text, body: agree.text, href: href + '&agree=' + encodeURIComponent(item.name) });
+      if (agree) out.push({ kind: 'def', group, project: label, label: agree.title || item.name, sub: `${item.name} の${term('rule')}`, text: agree.text, body: agree.text, href: href + '&agree=' + encodeURIComponent(item.name) });
     }
   }
   for (const g of groupOf('roles')) {
@@ -613,7 +614,7 @@ function liveEntries(): SearchEntry[] {
     const wait = (t.waiting || []).length;
     const sub = [
       t.workspace.label ? `ワークスペース ${t.workspace.label}` : '',
-      wait ? `許可待ち（${t.waiting.join(' · ')}）` : t.starting ? '起動の途中' : '動いている',
+      wait ? `${term('waiting-for-permission')}（${t.waiting.join(' · ')}）` : t.starting ? `${term('start')}の途中` : '動いている',
     ].filter(Boolean).join(' · ');
     out.push({
       kind: 'live', group: t.project, project: t.project_name || projectName(t.project),
@@ -627,7 +628,7 @@ function liveEntries(): SearchEntry[] {
     out.push({
       kind: 'ws', group: last ? last.project : '', project: last ? (last.project_name || projectName(last.project)) : '',
       label: w.label,
-      sub: last ? `${last.team} が動いている` : `hergy のチームはいない${w.last_team ? `（前は ${w.last_team}）` : ''}`,
+      sub: last ? `${last.team} が動いている` : `hergy の${term('team')}はいない${w.last_team ? `（前は ${w.last_team}）` : ''}`,
       text: `${w.label} ${last ? last.team : ''} ${w.last_team || ''}`,
       href: last ? `/activity?open=${encodeURIComponent(token(last.team, last.project))}` : '',
     });
@@ -701,7 +702,7 @@ function Results(): JSX.Element | null {
   const q = text.trim();
   let body: JSX.Element | JSX.Element[];
   if (loading) body = <p class="hq-sub">読み込んでいます…</p>;
-  else if (!groups.length) body = <p class="hq-sub">{`「${q}」に合うものはありません。探すのは、並べたプロジェクトとグローバルの、チーム・ワークスペース・メンバー・ロール・プロファイルです。`}</p>;
+  else if (!groups.length) body = <p class="hq-sub">{`「${q}」に合うものはありません。${term('find')}のは、並べた${term('project')}と${term('global')}の、${term('team')}・ワークスペース・${term('member')}・${term('role')}・${term('profile')}です。`}</p>;
   else {
     let i = 0;
     body = groups.map((g) => {

@@ -13,13 +13,14 @@
 // 行を両方（今のプロジェクトとグローバルの行）開く（d-a143 とその補足）。その
 // どちらにも無い名前は、その名前の最初の行を開く（古いリンクの読み方）。どの値が
 // どの行を指すかは rowsFor 1 つが決め、画面は行の名前と置き場所を渡すだけ。
+import { term } from './terms.generated.js';
 export type Ref = Readonly<{ name: string; group: string }>;
 const addressBrand: unique symbol = Symbol('RowAddress');
 export type RowAddress = Ref & { readonly [addressBrand]: true };
 
 // Only a complete row address can be written. Old links remain readable.
 export function rowAddress(name: string, group: string): RowAddress {
-  if (!group) throw new Error(`置き場所の無い行は URL に書けません: ${name}`);
+  if (!group) throw new Error(`${term('place')}の無い行は URL に書けません: ${name}`);
   return Object.freeze({ name, group, [addressBrand]: true as const });
 }
 
@@ -44,7 +45,7 @@ export const readOpen = (params: URLSearchParams): Ref[] => parseOpen(params.get
 // writes one.
 export function writeOpen(params: URLSearchParams, refs: readonly RowAddress[]): void {
   const tokens = refs.map((one) => {
-    if (!one.group) throw new Error(`置き場所の無い行は URL に書けません: ${one.name}`);
+    if (!one.group) throw new Error(`${term('place')}の無い行は URL に書けません: ${one.name}`);
     return token(one.name, one.group);
   });
   if (tokens.length) params.set('open', tokens.join(','));

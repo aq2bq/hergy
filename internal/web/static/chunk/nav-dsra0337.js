@@ -12,6 +12,9 @@ import {
   u
 } from "./nav-zn7g81kr.js";
 import {
+  term
+} from "./nav-4q8266gs.js";
+import {
   bandActivity2,
   st,
   setRunning2,
@@ -38,13 +41,13 @@ import {
   searchHook,
   teamCount,
   openSheet
-} from "./nav-pvgkc05c.js";
+} from "./nav-gh2djj24.js";
 import {
   token2,
   parseOpen2,
   readOpen2,
   writeOpen2
-} from "./nav-nmj3geqx.js";
+} from "./nav-ctrsx4mj.js";
 var __defProp = Object.defineProperty;
 var __returnValue = (v) => v;
 function __exportSetter(name, newValue) {
@@ -85,13 +88,13 @@ __export(exports_hq, {
 });
 
 // lib/hq/run.tsx
-var startLabel = (place) => place === "global" ? "プロジェクトを選んで起動する" : "このプロジェクトで起動する";
+var startLabel = (place) => place === "global" ? `${term("project")}を選んで${term("start")}する` : `この${term("project")}で${term("start")}する`;
 function RunCell2({ definition, place, project }) {
   const live = runningFor(definition, place, project || "");
   return /* @__PURE__ */ u(S, {
     children: [
       live.map((t) => {
-        const label = t.starting ? "起動の途中 · 許可待ち" : (t.waiting || []).length ? "動いている · 許可待ち" : "動いている";
+        const label = t.starting ? `${term("start")}の途中 · ${term("waiting-for-permission")}` : (t.waiting || []).length ? `動いている · ${term("waiting-for-permission")}` : "動いている";
         const where = [place === "global" ? t.project_name || projectName2(t.project) : "", t.workspace.label || t.workspace.id || ""].filter(Boolean).join(" · ");
         const notUp = t.not_up || [];
         const changed = teamCount(t.team);
@@ -116,7 +119,7 @@ function RunCell2({ definition, place, project }) {
               "data-hq": "stop",
               "data-team": t.team,
               onClick: () => stopSheet2(t.team),
-              children: "終了する"
+              children: term("down")
             }),
             t.error ? /* @__PURE__ */ u("span", {
               class: "hq-why",
@@ -130,7 +133,7 @@ function RunCell2({ definition, place, project }) {
               "data-team": t.team,
               onClick: () => openSheet(t.team),
               children: [
-                "反映していない変更 ",
+                `${term("apply")}していない変更 `,
                 /* @__PURE__ */ u("b", {
                   children: changed
                 })
@@ -242,7 +245,7 @@ function TeamFigure2({ team, turns, W = 440, H = 236, layout = "default" }) {
       /* @__PURE__ */ u("text", {
         x: W / 2,
         y: "35",
-        children: "人間"
+        children: term("human")
       })
     ]
   }));
@@ -345,7 +348,7 @@ function TeamFigure2({ team, turns, W = 440, H = 236, layout = "default" }) {
     class: "hq-svg",
     viewBox: `0 0 ${W} ${H}`,
     role: "img",
-    "aria-label": `${t.name} のメンバーとターン`,
+    "aria-label": `${t.name} の${term("member")}と${term("turn")}`,
     children: [
       edges,
       calls,
@@ -368,11 +371,11 @@ var nodeState = (state) => {
   const labels = {
     active: "仕事中",
     idle: "止まっている",
-    blocked: "許可待ち",
-    handed: "人間の返事待ち",
+    blocked: term("waiting-for-permission"),
+    handed: term("handed"),
     absent: "動いていない"
   };
-  return labels[state] || state || "状態不明";
+  return labels[state] || state || `${term("status")}不明`;
 };
 var ownerlessHeading = "雇い主不明";
 function PackedFigure({ team, turns, W }) {
@@ -566,7 +569,7 @@ function PackedFigure({ team, turns, W }) {
         class: "hq-n ownerless",
         children: [
           /* @__PURE__ */ u("title", {
-            children: `${ownerlessHeading} · 持ち主を特定できないワーカー`
+            children: `${ownerlessHeading} · 持ち主を特定できない${term("worker")}`
           }),
           /* @__PURE__ */ u("text", {
             class: "lbl left",
@@ -583,7 +586,7 @@ function PackedFigure({ team, turns, W }) {
       const worker = slot.item;
       const owner = column.owner;
       const state = nodeState(worker.state);
-      const ownerText = owner ? `${owner} のワーカー` : "持ち主を特定できないワーカー";
+      const ownerText = owner ? `${owner} の${term("worker")}` : `持ち主を特定できない${term("worker")}`;
       nodes.push(/* @__PURE__ */ u("g", {
         class: "hq-n wkr " + worker.state,
         "data-owner": owner || "",
@@ -632,19 +635,19 @@ function PackedFigure({ team, turns, W }) {
       /* @__PURE__ */ u("text", {
         x: viewWidth / 2,
         y: "35",
-        children: "人間"
+        children: term("human")
       })
     ]
   })];
   const summary = [
-    `メンバー: ${crew.map((member) => `${member.name} ${nodeState(member.state)}`).join("、") || "なし"}`,
-    `ワーカー: ${workers.map((worker) => `${worker.name}（${worker.from || "持ち主不明"}） ${nodeState(worker.state)}`).join("、") || "なし"}`
+    `${term("member")}: ${crew.map((member) => `${member.name} ${nodeState(member.state)}`).join("、") || "なし"}`,
+    `${term("worker")}: ${workers.map((worker) => `${worker.name}（${worker.from || "持ち主不明"}） ${nodeState(worker.state)}`).join("、") || "なし"}`
   ].join("。");
   return /* @__PURE__ */ u("svg", {
     class: "hq-svg packed",
     viewBox: `0 0 ${viewWidth} ${H}`,
     role: "img",
-    "aria-label": `${t.name} のアクティビティ図。${summary}`,
+    "aria-label": `${t.name} の${term("activity")}図。${summary}`,
     children: [
       workers.length ? /* @__PURE__ */ u(S, {
         children: [
@@ -660,7 +663,7 @@ function PackedFigure({ team, turns, W }) {
             class: "lbl left",
             x: "12",
             y: "184",
-            children: "ワーカー"
+            children: term("worker")
           })
         ]
       }) : null,

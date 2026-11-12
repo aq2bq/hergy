@@ -11,8 +11,11 @@ import {
   u
 } from "./nav-zn7g81kr.js";
 import {
+  term
+} from "./nav-4q8266gs.js";
+import {
   confirmLeave2
-} from "./nav-bsvbpa2b.js";
+} from "./nav-9n0fqd7r.js";
 
 // lib/copy.ts
 var copyGroupOf = (to, from, current) => {
@@ -36,9 +39,9 @@ function ProjectView({ projects }) {
     children: [
       /* @__PURE__ */ u("label", {
         children: [
-          "表示するプロジェクト ",
+          `表示する${term("project")} `,
           /* @__PURE__ */ u("select", {
-            "aria-label": "表示するプロジェクト",
+            "aria-label": `表示する${term("project")}`,
             value: current?.path || "",
             onChange: (e) => {
               const next = e.currentTarget.value;
@@ -64,7 +67,7 @@ function ProjectView({ projects }) {
         ]
       }),
       /* @__PURE__ */ u("span", {
-        children: "このプロジェクトとグローバルの設定を表示しています。"
+        children: `この${term("project")}と${term("global")}の設定を表示しています。`
       })
     ]
   });

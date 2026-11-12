@@ -6,6 +6,7 @@
 // 位置は保存しない: 開き直すと引き直す（d-a575）。
 
 // Spot is where one point stands, in the figure's own coordinates.
+import { term } from '../lib/terms.generated.js';
 export type Spot = [number, number];
 
 // Figure is the part of a team a figure is drawn from: its members, and the
@@ -30,7 +31,7 @@ const textW = (s: unknown, mono?: boolean): number => [...String(s)].reduce((w, 
 export function boxOf(id: string, t: Figure): Box {
   if (id === 'human') return { w: 76, h: 36 };
   const w = (t.workers || []).find((_worker, i) => 'w' + i === id);
-  if (w) return { w: Math.max(108, textW(w.purpose || '（目的）') + 26), h: 40 };
+  if (w) return { w: Math.max(108, textW(w.purpose || `（${term('purpose')}）`) + 26), h: 40 };
   return { w: Math.max(96, textW(id, true) + 30), h: 46 };
 }
 

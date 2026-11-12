@@ -8,6 +8,10 @@
 // tools/webvendor/package.json and bun.lock.
 
 import {
+  movePage,
+  installWheel
+} from "../chunk/nav-9pzbh62h.js";
+import {
   S,
   R,
   h,
@@ -19,20 +23,15 @@ import {
 import {
   dangerAttrs,
   runDanger
-} from "../chunk/nav-pfvc24x1.js";
+} from "../chunk/nav-1dnphn3q.js";
 import {
+  term,
   profileModel2
-} from "../chunk/nav-ncqt2ghs.js";
+} from "../chunk/nav-4q8266gs.js";
 import {
   takeDraft2,
   setDirty2
-} from "../chunk/nav-bsvbpa2b.js";
-import {
-  rowAddress,
-  readOpen2,
-  writeOpen2,
-  rowsFor
-} from "../chunk/nav-nmj3geqx.js";
+} from "../chunk/nav-9n0fqd7r.js";
 import {
   ConflictNotice,
   resourceIdentity,
@@ -41,19 +40,21 @@ import {
   editYaml,
   profileFiles,
   YamlTab2
-} from "../chunk/nav-hvx192pf.js";
+} from "../chunk/nav-efmr64nf.js";
+import {
+  rowAddress,
+  readOpen2,
+  writeOpen2,
+  rowsFor
+} from "../chunk/nav-ctrsx4mj.js";
 import {
   copyGroupOf,
   ProjectView
-} from "../chunk/nav-k6cajr7a.js";
+} from "../chunk/nav-pmxmg887.js";
 import {
   Field
 } from "../chunk/nav-9htrbyn7.js";
-import {
-  movePage,
-  installWheel
-} from "../chunk/nav-31sebn46.js";
-import"../chunk/nav-pxepfcmw.js";
+import"../chunk/nav-apgb46t2.js";
 
 // profiles/state.ts
 function mustElement(id) {
@@ -99,14 +100,14 @@ var otherKinds = () => stringList(view.dataset.otherKinds);
 var classOf = (kind) => BASE_KINDS.includes(kind) ? "k-" + kind : "";
 var PLACES = ["project", "global"];
 var placeOf = (file) => file === "global" ? "global" : "project";
-var labelOf = (file) => file === "global" ? "グローバル" : "プロジェクト";
+var labelOf = (file) => file === "global" ? term("global") : term("project");
 var otherOf = (file) => file === "global" ? "project" : "global";
 var pathOf = (file) => (file === "global" ? view.dataset.pathShared : view.dataset.pathProject) || "";
 var HQ = ISLAND.hq || null;
 var GROUPED = !!(HQ && HQ.projects && HQ.projects.mode === "listed");
 var CURRENT = HQ ? HQ.projects && HQ.projects.current && HQ.projects.current.path || "" : "";
 var groupKeyOf = (g) => g.global ? "global" : g.project ? g.project.path : "";
-var groupNameOf = (g) => g.global ? "グローバル" : g.project ? g.project.name : "";
+var groupNameOf = (g) => g.global ? term("global") : g.project ? g.project.name : "";
 var GROUPS = HQ ? HQ.profiles || [] : null;
 var placeGroups = () => {
   if (HQ && HQ.profiles && HQ.profiles.length) {
@@ -119,7 +120,7 @@ var placeGroups = () => {
   }
   return [
     { key: "", global: false, name: currentProjectName(), display: pathOf("project") },
-    { key: "global", global: true, name: "グローバル", display: pathOf("global") }
+    { key: "global", global: true, name: term("global"), display: pathOf("global") }
   ];
 };
 var groupOrder = () => placeGroups().map((g) => g.key);
@@ -129,22 +130,22 @@ var groupRank = (group) => {
 };
 var groupName = (key) => {
   if (key === "global")
-    return "グローバル";
+    return term("global");
   if (!key || key === CURRENT) {
     if (!HQ)
-      return "プロジェクト";
+      return term("project");
     const p = HQ.projects;
     if (p.mode === "current")
-      return p.current && p.current.name || "プロジェクト";
+      return p.current && p.current.name || term("project");
     const found = (p.projects || []).find((x) => x.path === CURRENT);
-    return found ? found.name : p.current && p.current.name || "プロジェクト";
+    return found ? found.name : p.current && p.current.name || term("project");
   }
   const g = (GROUPS || []).find((x) => groupKeyOf(x) === key);
   return g ? groupNameOf(g) : String(key).split("/").filter(Boolean).pop() || "";
 };
 var currentProjectName = () => {
   if (!HQ)
-    return "プロジェクト";
+    return term("project");
   const p = HQ.projects;
   return p.current && p.current.name || "";
 };
@@ -1074,7 +1075,7 @@ function Toolbar() {
         id: "q",
         class: "search",
         type: "search",
-        placeholder: "プロファイル名",
+        placeholder: term("profile-name"),
         value: query.value,
         autocomplete: "off",
         onInput: (e) => pressQuery(inputValue(e))
@@ -1087,7 +1088,7 @@ function PersonChip({ c }) {
     children: [
       /* @__PURE__ */ u("span", {
         class: "wk",
-        children: "ワーカー"
+        children: term("worker")
       }),
       /* @__PURE__ */ u("span", {
         class: "r",
@@ -1125,11 +1126,11 @@ function PlacePills({ row }) {
     children: [
       /* @__PURE__ */ u("span", {
         class: "pill on",
-        children: row.group === "global" ? "グローバル" : groupName(row.group)
+        children: row.group === "global" ? term("global") : groupName(row.group)
       }),
       row.group && row.group !== "global" && (over[row.name] || []).includes(row.group) ? /* @__PURE__ */ u("span", {
         class: "pill shadow",
-        children: "グローバル"
+        children: term("global")
       }) : "",
       row.group === "global" ? (over[row.name] || []).map((p) => /* @__PURE__ */ u("span", {
         class: "pill hq-ov",
@@ -1165,7 +1166,7 @@ function Row({ row }) {
             type: "button",
             class: "chev disclosure",
             ref: sum,
-            "aria-label": `${name || "新しいプロファイル"} を開閉する`,
+            "aria-label": `${name || `新しい${term("profile")}`} を開閉する`,
             "aria-expanded": row.open,
             onClick: (e) => {
               e.stopPropagation();
@@ -1184,7 +1185,7 @@ function Row({ row }) {
               }),
               row.mark ? /* @__PURE__ */ u("span", {
                 class: "state " + (row.mark === "hidden" ? "off" : "on"),
-                children: row.mark === "hidden" ? "無効" : "優先"
+                children: row.mark === "hidden" ? term("inactive") : term("preferred")
               }) : null,
               row.isNew ? /* @__PURE__ */ u("span", {
                 class: "tag",
@@ -1328,7 +1329,7 @@ function Panel({ panel }) {
       held.push(text);
   };
   if (!panel.draft.name.trim())
-    say("プロファイル名を入力してください。");
+    say(`${term("profile-name")}を入力してください。`);
   say(panel.refusal);
   (panel.problems || []).filter((p) => p.sev === "err").forEach((p) => say(p.text));
   const nameInput = A(null);
@@ -1409,7 +1410,7 @@ function Panel({ panel }) {
         class: "btn danger",
         "data-act": "del",
         ...dangerAttrs("deleteProfile"),
-        onClick: () => runDanger("deleteProfile", { run: () => pressDelYes(panel.key), loss: { kind: "profile", name: panel.draft.name || panel.saved?.name || "", place: panel.file, project: panel.group }, confirm: { title: `プロファイル ${panel.draft.name || panel.saved?.name || ""} を削除しますか`, label: `削除する${panel.users ? `（${panel.users} 人が使っている）` : ""}` } }),
+        onClick: () => runDanger("deleteProfile", { run: () => pressDelYes(panel.key), loss: { kind: "profile", name: panel.draft.name || panel.saved?.name || "", place: panel.file, project: panel.group }, confirm: { title: `${term("profile")} ${panel.draft.name || panel.saved?.name || ""} を削除しますか`, label: `削除する${panel.users ? `（${panel.users} 人が使っている）` : ""}` } }),
         children: "削除"
       }) : /* @__PURE__ */ u("button", {
         class: "btn danger",
@@ -1449,7 +1450,7 @@ function Panel({ panel }) {
           }),
           panel.mark ? /* @__PURE__ */ u("span", {
             class: "state " + (panel.mark === "hidden" ? "off" : "on"),
-            children: panel.mark === "hidden" ? "無効" : "優先"
+            children: panel.mark === "hidden" ? term("inactive") : term("preferred")
           }) : "",
           /* @__PURE__ */ u("span", {
             class: "acts",
@@ -1461,12 +1462,12 @@ function Panel({ panel }) {
         class: "field",
         children: [
           /* @__PURE__ */ u("label", {
-            children: "プロファイル名"
+            children: term("profile-name")
           }),
           /* @__PURE__ */ u("div", {
             children: [
               /* @__PURE__ */ u(Field, {
-                "aria-label": "プロファイル名",
+                "aria-label": term("profile-name"),
                 class: "in-name" + (changed.name ? " changed" : "") + (bad.name ? " bad" : ""),
                 "data-f": "name",
                 value: panel.draft.name,
@@ -1503,7 +1504,7 @@ function Panel({ panel }) {
         class: "field",
         children: [
           /* @__PURE__ */ u("label", {
-            children: "kind"
+            children: term("kind")
           }),
           /* @__PURE__ */ u("div", {
             children: [
@@ -1732,7 +1733,7 @@ function kindSelect(panel) {
     class: "sel",
     children: /* @__PURE__ */ u("select", {
       "data-f": "kind-other",
-      "aria-label": "ほかの kind",
+      "aria-label": `ほかの ${term("kind")}`,
       value: chosen,
       onChange: (e) => pressKindOther(panel.key, inputValue(e)),
       children: [
@@ -1871,13 +1872,13 @@ function List() {
             children: [
               /* @__PURE__ */ u("span", {}),
               /* @__PURE__ */ u("span", {
-                children: "プロファイル名"
+                children: term("profile-name")
               }),
               /* @__PURE__ */ u("span", {
-                children: "kind"
+                children: term("kind")
               }),
               /* @__PURE__ */ u("span", {
-                children: "置き場所"
+                children: term("place")
               }),
               /* @__PURE__ */ u("span", {
                 children: "引数"
@@ -1896,7 +1897,7 @@ function List() {
               visible.length === 0 && rows.value.length > 0 ? /* @__PURE__ */ u("p", {
                 class: "none",
                 id: "no-match",
-                children: "合うプロファイルはありません"
+                children: `合う${term("profile")}はありません`
               }) : "",
               placeGroups().map((g) => {
                 const list = visible.filter((row) => (row.group || "") === g.key);
@@ -1912,7 +1913,7 @@ function List() {
                         class: "none",
                         children: [
                           g.name,
-                          " にはプロファイルがありません。"
+                          ` には${term("profile")}がありません。`
                         ]
                       })
                     }) : null
@@ -1928,13 +1929,13 @@ function List() {
 }
 function GroupHead({ group }) {
   const target = group.key === "global" ? "global" : "project";
-  const said = group.key === "global" ? "グローバル" : group.name;
+  const said = group.key === "global" ? term("global") : group.name;
   const count = rows.value.filter((row) => (row.group || "") === group.key).length;
   return /* @__PURE__ */ u("div", {
     class: "hq-gh" + (group.global ? " global" : ""),
     "data-group": group.key,
     "data-place": target,
-    "aria-label": `置き場所: ${said}`,
+    "aria-label": `${term("place")}: ${said}`,
     children: [
       /* @__PURE__ */ u("span", {
         class: "hq-gn",
@@ -1946,11 +1947,11 @@ function GroupHead({ group }) {
       }),
       group.global ? /* @__PURE__ */ u("span", {
         class: "hq-gc",
-        children: "どのプロジェクトからも使える。同じ名前があれば、そのプロジェクトのほうが使われる"
+        children: `どの${term("project")}からも使える。同じ名前があれば、その${term("project")}のほうが使われる`
       }) : /* @__PURE__ */ u("span", {
         class: "hq-gc",
         children: [
-          "プロファイル ",
+          `${term("profile")} `,
           /* @__PURE__ */ u("b", {
             children: count
           })
@@ -1965,7 +1966,7 @@ function GroupHead({ group }) {
         children: [
           "＋ ",
           said,
-          " にプロファイルを追加"
+          ` に${term("profile")}を追加`
         ]
       })
     ]
@@ -2034,7 +2035,7 @@ function Pick({ row, team }) {
         children: /* @__PURE__ */ u("select", {
           "data-k": row.key,
           "data-act": "pick",
-          "aria-label": `${row.name} のプロファイル`,
+          "aria-label": `${row.name} の${term("profile")}`,
           onChange: (e) => {
             setPick(team, row.key, inputValue2(e));
             tellDirty();
@@ -2139,7 +2140,7 @@ function TeamCard({ team }) {
         children: [
           /* @__PURE__ */ u("span", {
             class: "tl",
-            children: "チーム定義"
+            children: term("team-definition")
           }),
           /* @__PURE__ */ u("code", {
             class: "tid",
@@ -2194,7 +2195,7 @@ function TeamCard({ team }) {
           team.place === "global" ? /* @__PURE__ */ u("span", {
             class: "tnote",
             "data-role": "place-note",
-            children: "グローバルの定義です。直すと、すべてのプロジェクトの同じチーム定義が変わります"
+            children: `${term("global")}の定義です。直すと、すべての${term("project")}の同じ${term("team-definition")}が変わります`
           }) : ""
         ]
       }),
@@ -2206,7 +2207,7 @@ function TeamCard({ team }) {
         children: [
           /* @__PURE__ */ u("div", {
             class: "sub",
-            children: "ワーカー"
+            children: term("worker")
           }),
           rows.filter((row) => row.kind === "w").map((row) => /* @__PURE__ */ u(AssignRowView, {
             row,
@@ -2230,7 +2231,7 @@ function AssignPageBody() {
         children: [
           assign.value.empty ? /* @__PURE__ */ u("p", {
             class: "none",
-            children: "チーム定義はありません"
+            children: `${term("team-definition")}はありません`
           }) : "",
           (assign.value.teams || []).map((team) => /* @__PURE__ */ u(TeamCard, {
             team

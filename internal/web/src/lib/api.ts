@@ -1,3 +1,4 @@
+import { term } from './terms.generated.js';
 import { mark } from './diagnostics.js';
 import type { PromptRequest } from '../teams/prompt-source.js';
 import type { EditedRequest } from './editing.js';
@@ -262,7 +263,7 @@ function nestedSentence(value: unknown): string {
 // and draws that. No screen digs into the fields of an answer itself.
 
 const PLACES = ['project', 'global'] as const;
-const PLACE_LABEL: Record<Place, string> = { project: 'プロジェクト', global: 'グローバル' };
+const PLACE_LABEL: Record<Place, string> = { project: term('project'), global: term('global') };
 const placeLabel = (place: string): string => (place === 'project' || place === 'global' ? PLACE_LABEL[place] : '');
 const countOf = (c: { err?: number | null; warn?: number | null } | null | undefined): { err: number; warn: number } => ({ err: (c && c.err) || 0, warn: (c && c.warn) || 0 });
 const jsonOf = (v: unknown): string => JSON.stringify(v || []);

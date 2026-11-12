@@ -1,3 +1,4 @@
+import { term } from './terms.generated.js';
 import { confirmLeave } from './nav';
 import type { components } from '../../../apicontract/api-types';
 type Projects = components['schemas']['HQProjects'];
@@ -6,7 +7,7 @@ export function ProjectView({ projects }: { projects?: Projects | null }) {
   const current = projects.current;
   const choices = projects.projects.filter((p) => p.listed || p.path === current?.path);
   if (current && !choices.some((p) => p.path === current.path)) choices.unshift(current);
-  return <div class="project-view"><label>表示するプロジェクト <select aria-label="表示するプロジェクト" value={current?.path || ''} onChange={(e) => {
+  return <div class="project-view"><label>{`表示する${term('project')} `}<select aria-label={`表示する${term('project')}`} value={current?.path || ''} onChange={(e) => {
     const next = e.currentTarget.value;
     const go = () => {
       const url = new URL(location.href);
@@ -17,5 +18,5 @@ export function ProjectView({ projects }: { projects?: Projects | null }) {
     // goes back to the project it was on while the answer stands (d-021e).
     if (confirmLeave(go)) e.currentTarget.value = current?.path || '';
     else go();
-  }}>{choices.map((p) => <option value={p.path}>{p.name} — {p.display}</option>)}</select></label><span>このプロジェクトとグローバルの設定を表示しています。</span></div>;
+  }}>{choices.map((p) => <option value={p.path}>{p.name} — {p.display}</option>)}</select></label><span>{`この${term('project')}と${term('global')}の設定を表示しています。`}</span></div>;
 }

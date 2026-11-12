@@ -8,6 +8,10 @@
 // tools/webvendor/package.json and bun.lock.
 
 import {
+  movePage,
+  installWheel
+} from "../chunk/nav-9pzbh62h.js";
+import {
   S,
   R,
   d,
@@ -18,11 +22,12 @@ import {
   u
 } from "../chunk/nav-zn7g81kr.js";
 import {
+  term,
   call2,
   read2,
   problemText2
-} from "../chunk/nav-ncqt2ghs.js";
-import"../chunk/nav-pfvc24x1.js";
+} from "../chunk/nav-4q8266gs.js";
+import"../chunk/nav-1dnphn3q.js";
 import {
   bandActivity2,
   setRunning2,
@@ -33,30 +38,26 @@ import {
   stopSheet2,
   teamCount,
   openSheet
-} from "../chunk/nav-pvgkc05c.js";
+} from "../chunk/nav-gh2djj24.js";
 import {
   rowAddress,
   token2,
   readOpen2,
   writeOpen2,
   placeGroup
-} from "../chunk/nav-nmj3geqx.js";
+} from "../chunk/nav-ctrsx4mj.js";
 import {
   TeamFigure2,
   exports_hq
-} from "../chunk/nav-9wayq1az.js";
-import {
-  movePage,
-  installWheel
-} from "../chunk/nav-31sebn46.js";
+} from "../chunk/nav-dsra0337.js";
 import {
   resource
-} from "../chunk/nav-pxepfcmw.js";
+} from "../chunk/nav-apgb46t2.js";
 
 // activity/state.ts
 var POLL = 1e4;
-var ST = { answer: "許可待ち", turn: "人間の返事待ち", stalled: "止まっている", working: "仕事中" };
-var NS = { blocked: "許可待ち", handed: "人間の返事待ち", active: "仕事中", idle: "止まっている", absent: "動いていない" };
+var ST = { answer: term("waiting-for-permission"), turn: term("handed"), stalled: "止まっている", working: "仕事中" };
+var NS = { blocked: term("waiting-for-permission"), handed: term("handed"), active: "仕事中", idle: "止まっている", absent: "動いていない" };
 var RANK = { answer: 0, turn: 1, stalled: 2, working: 3 };
 var words = JSON.parse((document.getElementById("activity-words") || {}).textContent || "{}");
 var enc = (s) => encodeURIComponent(String(s == null ? "" : s));
@@ -153,7 +154,7 @@ async function readBoard(stop) {
 var reading = resource(readBoard);
 var teams = O(() => reading.value.value ? reading.value.value.teams : []);
 var note = O(() => reading.value.value && reading.value.value.note || { ok: true, text: "" });
-var noneText = words.none || "並べたプロジェクトに、動いているチームはありません。チーム定義の画面で起動できます。";
+var noneText = words.none || `並べた${term("project")}に、動いている${term("team")}はありません。${term("team-definition")}の画面で${term("start")}できます。`;
 var current = O(() => {
   const rows = teams.value;
   return rows.find((t) => t.name === selected.value) || rows[0] || null;
@@ -184,15 +185,15 @@ function Figure({ team }) {
       /* @__PURE__ */ u("label", {
         class: "hq-worker-note",
         children: [
-          "表示するターン ",
+          `表示する${term("turn")} `,
           /* @__PURE__ */ u("select", {
-            "aria-label": `${team.name} の表示するターン`,
+            "aria-label": `${team.name} の表示する${term("turn")}`,
             value: member,
             onChange: (e) => setMember(e.currentTarget.value),
             children: [
               /* @__PURE__ */ u("option", {
                 value: "human",
-                children: "人間"
+                children: term("human")
               }),
               team.crew.map((m) => /* @__PURE__ */ u("option", {
                 value: m.name,
@@ -210,7 +211,7 @@ function Figure({ team }) {
       }),
       unknown ? /* @__PURE__ */ u("p", {
         class: "hq-worker-note",
-        children: "雇ったメンバーを確認できないワーカーがいます。"
+        children: `雇った${term("member")}を確認できない${term("worker")}がいます。`
       }) : null
     ]
   });
@@ -251,7 +252,7 @@ function Attention({ rows }) {
     for (const m of t.crew) {
       if (m.state !== "blocked" && m.state !== "handed")
         continue;
-      const q = m.question || t.question || (t.starting ? "起動の途中で、このフォルダを信頼するかを聞いています" : "");
+      const q = m.question || t.question || (t.starting ? `${term("start")}の途中で、このフォルダを信頼するかを聞いています` : "");
       waiting.push(/* @__PURE__ */ u("div", {
         class: "hq-at",
         "data-pick": t.name,
@@ -259,7 +260,7 @@ function Attention({ rows }) {
         children: [
           /* @__PURE__ */ u("span", {
             class: "st " + (m.state === "blocked" ? "answer" : "turn"),
-            children: m.state === "blocked" ? "許可待ち" : ST.turn
+            children: m.state === "blocked" ? term("waiting-for-permission") : ST.turn
           }),
           /* @__PURE__ */ u("span", {
             class: "hq-aw",
@@ -289,7 +290,7 @@ function Attention({ rows }) {
             type: "button",
             class: "hq-btn",
             onClick: () => pickTile(t.name),
-            children: "チームを見る"
+            children: `${term("team")}を見る`
           }),
           /* @__PURE__ */ u("button", {
             type: "button",
@@ -330,7 +331,7 @@ function Attention({ rows }) {
       }),
       /* @__PURE__ */ u("span", {
         class: "hq-aq",
-        children: "誰もターンを持っていない"
+        children: `誰も${term("turn")}を持っていない`
       }),
       /* @__PURE__ */ u("span", {
         class: "hq-where",
@@ -346,7 +347,7 @@ function Attention({ rows }) {
     return /* @__PURE__ */ u("section", {
       class: "hq-att calm",
       children: /* @__PURE__ */ u("p", {
-        children: "人間を待っているチームも、止まっているチームもありません。"
+        children: `${term("waiting-for-the-human")}${term("team")}も、止まっている${term("team")}もありません。`
       })
     });
   return /* @__PURE__ */ u("section", {
@@ -356,7 +357,7 @@ function Attention({ rows }) {
         class: "hq-ah",
         children: [
           /* @__PURE__ */ u("b", {
-            children: "人間を待っている"
+            children: term("waiting-for-the-human")
           }),
           /* @__PURE__ */ u("span", {
             class: "n",
@@ -390,7 +391,7 @@ function Attention({ rows }) {
       }) : null,
       /* @__PURE__ */ u("p", {
         class: "hq-sub",
-        children: "止まっている：エージェントは起動していますが、今は作業していません。動いていない：起動中のエージェントがいません。"
+        children: `止まっている：エージェントは${term("start")}していますが、今は作業していません。動いていない：${term("start")}中のエージェントがいません。`
       })
     ]
   });
@@ -432,8 +433,8 @@ function countsLine(t) {
   return /* @__PURE__ */ u("div", {
     class: "hq-tc",
     children: [
-      group("メンバー", t.crew),
-      group("ワーカー", t.workers)
+      group(term("member"), t.crew),
+      group(term("worker"), t.workers)
     ]
   });
 }
@@ -450,7 +451,7 @@ function Tile({ team: t }) {
   const stall = t.state === "stalled" ? /* @__PURE__ */ u("p", {
     class: "hq-why",
     children: [
-      "誰もターンを持っていません。人間の返事待ちのメンバーもいません。最後に動いたのは ",
+      `誰も${term("turn")}を持っていません。${term("handed")}の${term("member")}もいません。最後に動いたのは `,
       lastMoment(t) || t.since && t.since.at || "",
       "。lead に続きを渡すか、",
       /* @__PURE__ */ u("code", {
@@ -487,7 +488,7 @@ function Tile({ team: t }) {
           }) : "",
           /* @__PURE__ */ u("span", {
             class: "st " + t.state,
-            children: t.starting ? "起動の途中 · 許可待ち" : ST[t.state] || ""
+            children: t.starting ? `${term("start")}の途中 · ${term("waiting-for-permission")}` : ST[t.state] || ""
           }),
           /* @__PURE__ */ u("span", {
             class: "hq-tl",
@@ -517,7 +518,7 @@ function Tile({ team: t }) {
           /* @__PURE__ */ u("a", {
             class: "hq-btn sm",
             href: defHref,
-            children: "チーム定義を開く"
+            children: `${term("team-definition")}を開く`
           }),
           changed > 0 ? /* @__PURE__ */ u("button", {
             type: "button",
@@ -526,7 +527,7 @@ function Tile({ team: t }) {
             "data-team": t.name,
             onClick: () => openSheet(t.name),
             children: [
-              "反映していない変更 ",
+              `${term("apply")}していない変更 `,
               /* @__PURE__ */ u("b", {
                 children: changed
               })
@@ -538,7 +539,7 @@ function Tile({ team: t }) {
             "data-hq": "stop",
             "data-team": t.name,
             onClick: () => stopSheet2(t.name),
-            children: "チームを終了する…"
+            children: `${term("team")}を${term("down")}…`
           })
         ]
       })
@@ -587,7 +588,7 @@ function BoardRows() {
       }),
       rows.some((t) => t.workers.some((w) => !w.from)) ? /* @__PURE__ */ u("p", {
         class: "hq-worker-guide",
-        children: "雇い主不明：起動記録には、ワーカーを雇ったメンバーの情報がありません。ワーカーのペインで確認してください。"
+        children: `雇い主不明：${term("launch-record")}には、${term("worker")}を雇った${term("member")}の情報がありません。${term("worker")}のペインで確認してください。`
       }) : null
     ]
   });

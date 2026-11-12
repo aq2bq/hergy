@@ -1,3 +1,4 @@
+import { term } from './terms.generated.js';
 import { mark } from './diagnostics.js';
 import { Field } from './field.js';
 import { useState, useRef, useLayoutEffect } from './preact.js';
@@ -32,9 +33,9 @@ export function ProseHeader({ heading, text, children, position }: { heading: Pr
   {!heading.compact ? <ProseIdentity heading={heading} /> : null}
   <p class="prose-title" title={heading.title}>{heading.title && heading.title !== heading.name ? heading.title : '題なし'}</p>
   <code class="path" title={heading.fullPath || heading.path}>{heading.path || '保存先を確認しています'}</code>
-  {!heading.compact ? <p class="prose-readers" title={heading.members}>{heading.members ? `使うメンバー: ${heading.members}` : '使うメンバーなし'}</p> : null}
-  {heading.otherTeams ? <p class="prose-readers prose-other-teams" title={`ほかのチーム: ${heading.otherTeams}`}>ほかのチーム: {heading.otherTeams}</p> : null}
-  <div class="prose-budget" title={template ? `内訳: 規則 ${num(count)} 字・ひな形 ${num(template)} 字` : undefined}><Measure chars={total} limit={1200} /></div>
+  {!heading.compact ? <p class="prose-readers" title={heading.members}>{heading.members ? `使う${term('member')}: ${heading.members}` : `使う${term('member')}なし`}</p> : null}
+  {heading.otherTeams ? <p class="prose-readers prose-other-teams" title={`ほかの${term('team')}: ${heading.otherTeams}`}>{`ほかの${term('team')}: `}{heading.otherTeams}</p> : null}
+  <div class="prose-budget" title={template ? `内訳: ${term('rule')} ${num(count)} 字・ひな形 ${num(template)} 字` : undefined}><Measure chars={total} limit={1200} /></div>
   <div class="prose-status"><span class={position ? 'prose-current' : undefined} title={position} aria-live="polite">{position || heading.state || '保存済み'}</span>{children}</div>
  </header>;
  mark('prose:header:end', { id: heading.id || heading.name });
@@ -85,7 +86,7 @@ export function ProseEditor({ text, heading, onChange, transfer }: { text: strin
    <button type="button" class="btn sm" title="見出しだけ" aria-label="見出しだけ" aria-pressed={showOutline} onClick={() => { setOutline(true); setFocused(false); }}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5h13M8 12h13M8 19h13"/><circle cx="3" cy="5" r="1"/><circle cx="3" cy="12" r="1"/><circle cx="3" cy="19" r="1"/></svg></button>
   </div></></ProseHeader>
   {showOutline ? <ul class="prose-outline" aria-label={`${heading.name} の見出し`}>{parts.map((part, index) => <li onDragOver={(e) => { if (transfer) e.preventDefault(); }} onDrop={(e) => { if (transfer) dropTransfer(e, transfer.id, part.start); }} style={{ paddingLeft: `${Math.max(0, part.depth - 1) * (narrow ? 2 : 14)}px` }}><span class="prose-block-name">{transfer ? <TransferGrip source={transfer} index={index} open={(choice) => setMenu({ index, ...choice })} /> : null}<button type="button" class="prose-heading-link" title={part.heading} onClick={() => { setOutline(false); if (heading.id) widths.value = { ...widths.value, [heading.id]: '' }; requestAnimationFrame(() => { input.current?.focus({ preventScroll: true }); input.current?.setSelectionRange(part.start, part.start); }); }}>{part.heading}</button></span><span>{num(chars(text.slice(part.start, part.end)))} 字</span>{transfer ? <button type="button" class="prose-more" title={`${part.heading} を写す・移す`} aria-label={`${part.heading} を写す・移す`} onClick={() => setMenu({ index })}>⋯</button> : null}</li>)}</ul>
-   : <Field as="textarea" fieldRef={input} aria-label={`${heading.name} の規則の全文`} placeholder={heading.kind === 'チーム定義' ? 'チームの規則は任意です。本文を入力して保存できます。' : '本文を入力してください。'} value={text} spellcheck={false}
+   : <Field as="textarea" fieldRef={input} aria-label={`${heading.name} の${term('rule')}の全文`} placeholder={heading.kind === term('team-definition') ? `${term('team-agreement')}は任意です。本文を入力して保存できます。` : '本文を入力してください。'} value={text} spellcheck={false}
      onInput={(event: Event) => { mark('prose:input', { id: heading.id || heading.name, length: event.currentTarget instanceof HTMLTextAreaElement ? event.currentTarget.value.length : 0 }); position(event); if (event.currentTarget instanceof HTMLTextAreaElement) onChange(event.currentTarget.value); }}
      onSelect={position} onKeyUp={position} onClick={position} onFocus={(event: Event) => { setFocused(true); position(event); }} onBlur={() => setFocused(false)} />}
  </div>;

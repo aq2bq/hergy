@@ -19,18 +19,19 @@ import {
 import {
   dangerAttrs,
   runDanger
-} from "./nav-pfvc24x1.js";
+} from "./nav-1dnphn3q.js";
 import {
+  term,
   Refusal2,
   check2,
   save2,
   del2,
   saved2,
   problemText2
-} from "./nav-ncqt2ghs.js";
+} from "./nav-4q8266gs.js";
 import {
   resource
-} from "./nav-pxepfcmw.js";
+} from "./nav-apgb46t2.js";
 
 // lib/conflict.tsx
 var str = (v) => typeof v === "string" ? v : "";
@@ -112,7 +113,7 @@ function ConflictNotice({ c, mine, busy, undone, onOverwrite, onRevert, onUndo }
             class: "btn sm",
             "data-act": "cf-undo",
             onClick: onUndo,
-            children: "取り消す"
+            children: term("undo")
           })
         })
       ]
@@ -203,7 +204,7 @@ function ConflictNotice({ c, mine, busy, undone, onOverwrite, onRevert, onUndo }
               const host = from.closest(".panel") || from.closest(".prose-column");
               runDanger("conflictRevert", { run: onRevert, restore: onUndo, said: "ファイルの今の内容に戻しました", host });
             },
-            children: "元に戻す"
+            children: term("revert")
           })
         ]
       })
@@ -336,17 +337,17 @@ var ROLE_DOC = { fields: [
   { key: "text", label: "本文", get: (v) => v.text }
 ] };
 var TEAM = { fields: [
-  { key: "description", label: "説明", get: (v) => v.description },
-  { key: "turns", label: "ターン", get: (v) => v.turns },
-  { key: "members", label: "メンバー", get: (v) => v.members.map((m) => ({ name: m.name, role: m.role, profile: m.profile })) },
-  { key: "workers", label: "ワーカー", get: (v) => v.workers.map((w) => ({ from: w.from, purpose: w.purpose, profile: w.profile })) }
+  { key: "description", label: term("description"), get: (v) => v.description },
+  { key: "turns", label: term("turn"), get: (v) => v.turns },
+  { key: "members", label: term("member"), get: (v) => v.members.map((m) => ({ name: m.name, role: m.role, profile: m.profile })) },
+  { key: "workers", label: term("worker"), get: (v) => v.workers.map((w) => ({ from: w.from, purpose: w.purpose, profile: w.profile })) }
 ] };
 var TEAM_AGREEMENT = { fields: [
-  { key: "text", label: "チームの規則", get: (v) => v.text }
+  { key: "text", label: term("team-agreement"), get: (v) => v.text }
 ] };
 var PROFILE = { fields: [
   { key: "name", label: "名前（保存先のファイルも変わる）", get: (v) => v.name },
-  { key: "kind", label: "kind", get: (v) => v.kind },
+  { key: "kind", label: term("kind"), get: (v) => v.kind },
   { key: "args", label: "引数", get: (v) => v.args },
   { key: "env", label: "環境変数", get: (v) => v.env }
 ] };
@@ -742,7 +743,7 @@ function editRole(identity, initial) {
   const doc = editing({
     identity,
     origin: (s) => s.saved?.name || null,
-    busySave: "ロールを保存しています。完了をお待ちください",
+    busySave: `${term("role")}を保存しています。完了をお待ちください`,
     shape: ROLE_DOC,
     written: roleDoc,
     baseline: (s) => s.saved || s.born,
@@ -1024,46 +1025,46 @@ function teamOperations(before, after) {
 function teamChanges(s, t) {
   const out = [];
   const hasTurn = (team, from, to) => team.turns.some(([a, b]) => a === from && b === to);
-  const nodeName = (name) => name === "human" ? "人間" : name;
+  const nodeName = (name) => name === "human" ? term("human") : name;
   const sm = new Map(s.members.map((m) => [m.name, m])), cm = new Map(t.members.map((m) => [m.name, m]));
   if (s.description !== t.description)
-    out.push(["c", `説明: ${t.description}`]);
+    out.push(["c", `${term("description")}: ${t.description}`]);
   cm.forEach((m, n) => {
     if (!sm.has(n))
-      out.push(["a", `メンバー ${n}（${m.role} · ${m.profile}）`]);
+      out.push(["a", `${term("member")} ${n}（${m.role} · ${m.profile}）`]);
     else {
       const o = sm.get(n);
       if (o && o.role !== m.role)
-        out.push(["c", `${n} のロール ${o.role} → ${m.role}`]);
+        out.push(["c", `${n} の${term("role")} ${o.role} → ${m.role}`]);
       if (o && o.profile !== m.profile)
-        out.push(["c", `${n} のプロファイル ${o.profile} → ${m.profile}`]);
+        out.push(["c", `${n} の${term("profile")} ${o.profile} → ${m.profile}`]);
     }
   });
   sm.forEach((_m, n) => {
     if (!cm.has(n))
-      out.push(["d", `メンバー ${n}`]);
+      out.push(["d", `${term("member")} ${n}`]);
   });
   const sw = new Map(s.workers.map((w) => [w.from + "\x00" + w.purpose, w])), cw = new Map(t.workers.map((w) => [w.from + "\x00" + w.purpose, w]));
   cw.forEach((w, k) => {
     if (!sw.has(k))
-      out.push(["a", `ワーカー ${w.purpose || "（目的）"}（${w.from} · ${w.profile}）`]);
+      out.push(["a", `${term("worker")} ${w.purpose || `（${term("purpose")}）`}（${w.from} · ${w.profile}）`]);
     else {
       const o = sw.get(k);
       if (o && (o.purpose !== w.purpose || o.profile !== w.profile || o.from !== w.from))
-        out.push(["c", `ワーカー ${w.purpose || "（目的）"}（${w.from} · ${w.profile}）`]);
+        out.push(["c", `${term("worker")} ${w.purpose || `（${term("purpose")}）`}（${w.from} · ${w.profile}）`]);
     }
   });
   sw.forEach((w, k) => {
     if (!cw.has(k))
-      out.push(["d", `ワーカー ${w.purpose || "（目的）"}`]);
+      out.push(["d", `${term("worker")} ${w.purpose || `（${term("purpose")}）`}`]);
   });
   t.turns.forEach(([a, b]) => {
     if (!hasTurn(s, a, b))
-      out.push(["a", `ターン ${nodeName(a)} → ${nodeName(b)}`]);
+      out.push(["a", `${term("turn")} ${nodeName(a)} → ${nodeName(b)}`]);
   });
   s.turns.forEach(([a, b]) => {
     if (!hasTurn(t, a, b))
-      out.push(["d", `ターン ${nodeName(a)} → ${nodeName(b)}`]);
+      out.push(["d", `${term("turn")} ${nodeName(a)} → ${nodeName(b)}`]);
   });
   return {
     members: Object.fromEntries([...new Set(t.members.map((m) => m.name))].map((name) => {
@@ -1151,7 +1152,7 @@ function editTeam(identity, input) {
   const teamYaml = textEditing("team", { ...scope(), text: input.teamText || "", hash: input.hash, part: "team", problem: input.readable === false ? "unreadable" : "" }, () => meta.value.name);
   const agreementYaml = textEditing("team", { ...scope(), text: input.agreementText ?? input.agreement?.text ?? "", hash: input.agreementHash, part: "agreement" }, () => meta.value.name);
   const bornValue = () => ({ name: meta.value.name, team: teamDocument(team.read.value.draft), agreement: agreement.read.value.draft.text });
-  const bornShape = { fields: [{ key: "name", label: "名前（保存先のファイルも変わる）", get: (v) => v.name }, { key: "team", label: "チーム定義", get: (v) => v.team }, { key: "agreement", label: "チームの規則", get: (v) => v.agreement }] };
+  const bornShape = { fields: [{ key: "name", label: "名前（保存先のファイルも変わる）", get: (v) => v.name }, { key: "team", label: term("team-definition"), get: (v) => v.team }, { key: "agreement", label: term("team-agreement"), get: (v) => v.agreement }] };
   if (meta.value.seeded)
     set({ born: bornValue() });
   function changedOptions(next) {
@@ -1280,7 +1281,7 @@ function editTeam(identity, input) {
     },
     moveTo: (target) => {
       if (!meta.value.fresh || target.name !== null)
-        throw new Error("保存前のチーム定義だけ置き場所を変えられます");
+        throw new Error(`保存前の${term("team-definition")}だけ${term("place")}を変えられます`);
       const next = editTeam(target, { name: meta.value.name, team: teamDocument(null), hash: "", agreement: null, agreementHash: "", how: meta.value.how, base: meta.value.base, seeded: false });
       const carry = next.take();
       carry.folder = { ...snapshot(meta.value), seeded: false, teamPath: "", agreementPath: "" };
@@ -1630,7 +1631,7 @@ function YamlTab2(props) {
                 children: [
                   /* @__PURE__ */ u("span", {
                     class: "vt",
-                    children: "設定の検査"
+                    children: term("settings-check")
                   }),
                   now.problems.length ? /* @__PURE__ */ u("span", {
                     class: "vcount",
@@ -1726,7 +1727,7 @@ function YamlTab2(props) {
               ...dangerAttrs("revertDraft"),
               hidden: !dirty,
               onClick: revert,
-              children: "元に戻す"
+              children: term("revert")
             })
           })
         ]

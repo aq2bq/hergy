@@ -11,6 +11,7 @@
 //
 // ファイルが消えていれば、上書きの代わりに 書いていた内容で作り直して保存する。
 // どの画面もこの 1 つの部品を出し、押されたときの保存と読み込みだけを自分で持つ。
+import { term } from './terms.generated.js';
 import { useState } from './preact.js';
 import { runDanger, dangerAttrs } from './danger.js';
 
@@ -111,7 +112,7 @@ export function ConflictNotice({ c, mine, busy, undone, onOverwrite, onRevert, o
     return (
       <section class="conflict" data-conflict={c.file.path} data-state="undone" role="status">
         <p class="cf-text">ファイルの今の内容を読み込みました</p>
-        <div class="cf-acts"><button class="btn sm" data-act="cf-undo" onClick={onUndo}>取り消す</button></div>
+        <div class="cf-acts"><button class="btn sm" data-act="cf-undo" onClick={onUndo}>{term('undo')}</button></div>
       </section>
     );
   }
@@ -143,7 +144,7 @@ export function ConflictNotice({ c, mine, busy, undone, onOverwrite, onRevert, o
       const from = e.currentTarget as HTMLElement;
       const host = (from.closest('.panel') || from.closest('.prose-column')) as HTMLElement | null;
       runDanger('conflictRevert', { run: onRevert, restore: onUndo, said: 'ファイルの今の内容に戻しました', host });
-    }}>元に戻す</button>
+    }}>{term('revert')}</button>
       </div>
     </section>
   );

@@ -12,7 +12,7 @@ import {
 } from "./nav-zn7g81kr.js";
 import {
   mark
-} from "./nav-ncqt2ghs.js";
+} from "./nav-4q8266gs.js";
 
 // lib/resource.ts
 function resource(load) {

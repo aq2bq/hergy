@@ -5,6 +5,7 @@
 // 人間が上、メンバーが 1 列、ワーカーはそれを足したメンバーの下。ターンは線で、
 // 人間を待っているメンバーは人間への線で描く。図は「操作しない図」: 押せるものも
 // フォーカスの入るものも無い（role="img"）。
+import { term } from '../terms.generated.js';
 import type { JSX } from 'preact';
 
 type FigureMember = { name: string; state: string; doing?: string };
@@ -42,7 +43,7 @@ export function TeamFigure({ team, turns, W = 440, H = 236, layout = 'default' }
     calls.push(<line class="hq-call" x1={x} y1={y - 14} x2={W / 2} y2="44" />);
   }
   const nodes: JSX.Element[] = [];
-  nodes.push(<g class="hq-n human"><rect x={W / 2 - 26} y="16" width="52" height="28" rx="6" /><text x={W / 2} y="35">人間</text></g>);
+  nodes.push(<g class="hq-n human"><rect x={W / 2 - 26} y="16" width="52" height="28" rx="6" /><text x={W / 2} y="35">{term('human')}</text></g>);
   for (const m of crew) {
     const [x, y] = pos[m.name];
     nodes.push(<g class={'hq-n ' + m.state}><circle class="ring" cx={x} cy={y} r="15" /><circle class="dot" cx={x} cy={y} r="11" />{m.state === 'blocked' ? <text class="bang" x={x} y={y + 4}>!</text> : ''}<text class="lbl" x={x} y={y + 30}>{m.name}</text></g>);
@@ -67,7 +68,7 @@ export function TeamFigure({ team, turns, W = 440, H = 236, layout = 'default' }
     const wx = free.length === 1 ? W / 2 : 30 + (i * (W - 60)) / (free.length - 1), wy = 204;
     nodes.push(<g class={'hq-n wkr ' + w.state}><circle class="dot" cx={wx} cy={wy} r="6" /><text class="lbl s" x={wx} y={wy + 20}>{w.name}</text></g>);
   });
-  return <svg class="hq-svg" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`${t.name} のメンバーとターン`}>{edges}{calls}{nodes}</svg>;
+  return <svg class="hq-svg" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`${t.name} の${term('member')}と${term('turn')}`}>{edges}{calls}{nodes}</svg>;
 }
 
 type FigureWorkerSlot = { item: FigureWorker; width: number; x: number; y: number; row: number };
@@ -98,9 +99,9 @@ const labelWidth = (value: string, size: number): number => Math.ceil(labelUnits
 
 const nodeState = (state: string): string => {
   const labels: Record<string, string> = {
-    active: '仕事中', idle: '止まっている', blocked: '許可待ち', handed: '人間の返事待ち', absent: '動いていない',
+    active: '仕事中', idle: '止まっている', blocked: term('waiting-for-permission'), handed: term('handed'), absent: '動いていない',
   };
-  return labels[state] || state || '状態不明';
+  return labels[state] || state || `${term('status')}不明`;
 };
 
 const ownerlessHeading = '雇い主不明';
@@ -251,7 +252,7 @@ function PackedFigure({ team, turns, W }: { team: FigureTeam; turns?: [string, s
       // The workers whose owner the reading cannot name keep the last column,
       // with no line: the figure does not draw a line it cannot stand behind.
       nodes.push(<g class="hq-n ownerless">
-        <title>{`${ownerlessHeading} · 持ち主を特定できないワーカー`}</title>
+        <title>{`${ownerlessHeading} · 持ち主を特定できない${term('worker')}`}</title>
         <text class="lbl left" x={column.x} y={184} data-label-width={labelWidth(ownerlessHeading, 11.5)} data-label-row="member">{ownerlessHeading}</text>
       </g>);
     }
@@ -259,7 +260,7 @@ function PackedFigure({ team, turns, W }: { team: FigureTeam; turns?: [string, s
       const worker = slot.item;
       const owner = column.owner;
       const state = nodeState(worker.state);
-      const ownerText = owner ? `${owner} のワーカー` : '持ち主を特定できないワーカー';
+      const ownerText = owner ? `${owner} の${term('worker')}` : `持ち主を特定できない${term('worker')}`;
       nodes.push(<g class={'hq-n wkr ' + worker.state} data-owner={owner || ''}>
         <title>{`${worker.name} · ${ownerText} · ${state}${worker.doing ? ` · ${worker.doing}` : ''}`}</title>
         <circle class="dot" cx={slot.x} cy={slot.y} r="6" />
@@ -269,13 +270,13 @@ function PackedFigure({ team, turns, W }: { team: FigureTeam; turns?: [string, s
     return <g class="hq-column" data-member={column.owner || ''} data-x-left={left} data-x-right={right}>{edges}{nodes}</g>;
   });
 
-  const nodes: JSX.Element[] = [<g class="hq-n human"><rect x={viewWidth / 2 - 26} y="16" width="52" height="28" rx="6" /><text x={viewWidth / 2} y="35">人間</text></g>];
+  const nodes: JSX.Element[] = [<g class="hq-n human"><rect x={viewWidth / 2 - 26} y="16" width="52" height="28" rx="6" /><text x={viewWidth / 2} y="35">{term('human')}</text></g>];
   const summary = [
-    `メンバー: ${crew.map((member) => `${member.name} ${nodeState(member.state)}`).join('、') || 'なし'}`,
-    `ワーカー: ${workers.map((worker) => `${worker.name}（${worker.from || '持ち主不明'}） ${nodeState(worker.state)}`).join('、') || 'なし'}`,
+    `${term('member')}: ${crew.map((member) => `${member.name} ${nodeState(member.state)}`).join('、') || 'なし'}`,
+    `${term('worker')}: ${workers.map((worker) => `${worker.name}（${worker.from || '持ち主不明'}） ${nodeState(worker.state)}`).join('、') || 'なし'}`,
   ].join('。');
-  return <svg class="hq-svg packed" viewBox={`0 0 ${viewWidth} ${H}`} role="img" aria-label={`${t.name} のアクティビティ図。${summary}`}>
-    {workers.length ? <><rect class="hq-worker-zone" x="4" y="164" width={viewWidth - 8} height={H - 168} rx="5" /><text class="lbl left" x="12" y="184">ワーカー</text></> : null}
+  return <svg class="hq-svg packed" viewBox={`0 0 ${viewWidth} ${H}`} role="img" aria-label={`${t.name} の${term('activity')}図。${summary}`}>
+    {workers.length ? <><rect class="hq-worker-zone" x="4" y="164" width={viewWidth - 8} height={H - 168} rx="5" /><text class="lbl left" x="12" y="184">{term('worker')}</text></> : null}
     {humanEdges}{turnEdges}{calls}{nodes}{columnNodes}
   </svg>;
 }

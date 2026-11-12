@@ -1,3 +1,4 @@
+import { term } from '../../lib/terms.generated.js';
 import { useEffect, useMemo, useRef, useState } from '../../lib/preact.js';
 import type { Schemas } from '../../lib/api.js';
 import { CurrentPrompt, OriginLegend, OriginMarks, originLines, sectionAt, sectionSpans } from './prompt-origins.js';
@@ -36,8 +37,8 @@ export function PromptComparison({ r, member, close }: {r: Rec; member: string; 
  return <dialog class="prompt-comparison" ref={dialog} aria-labelledby="prompt-comparison-title" onKeyDown={(event) => event.stopPropagation()} onCancel={(event) => {event.preventDefault(); close();}}>
   <header><h2 id="prompt-comparison-title">プロンプト · {r.name.value} / {member}</h2><button class="btn sm" type="button" onClick={close}>閉じる</button></header>
   <div class="prompt-controls">
-   {!!answer?.runs.length && <label>実行中のチーム <select value={picked || answer.selected?.team || ''} onChange={(event) => { initialized.current = false; pickRun(r, event.currentTarget.value); }}>
-    <option value="">チームを選ぶ</option>{answer.runs.map((run) => <option key={run.team} value={run.team}>{run.team} · {run.project}</option>)}
+   {!!answer?.runs.length && <label>{`実行中の${term('team')} `}<select value={picked || answer.selected?.team || ''} onChange={(event) => { initialized.current = false; pickRun(r, event.currentTarget.value); }}>
+    <option value="">{`${term('team')}を選ぶ`}</option>{answer.runs.map((run) => <option key={run.team} value={run.team}>{run.team} · {run.project}</option>)}
    </select></label>}
    <button class="btn sm" type="button" disabled={busy} onClick={() => reloadPrompt(r, { member })}>再取得</button>
   </div>
@@ -45,7 +46,7 @@ export function PromptComparison({ r, member, close }: {r: Rec; member: string; 
   {busy ? <p role="status">本文を読んでいます。</p> : error ? <p role="alert">{error}</p> : answer && <>
    <div class="prompt-context">
     {answer.reason && <p role="status">{answer.reason}</p>}
-    {answer.recorded && <><p>最後に記録された本文 · {answer.recorded.command} · <time dateTime={answer.recorded.time}>{answer.recorded.time}</time></p><p>反映・送り直しの変更理由の前置きは記録に含まれません。送信後の記録であり、受信の確認ではありません。送信の途中や記録に失敗した場合は、実際の送信より古い記録です。</p></>}
+    {answer.recorded && <><p>最後に記録された本文 · {answer.recorded.command} · <time dateTime={answer.recorded.time}>{answer.recorded.time}</time></p><p>{`${term('apply')}・${term('reprompt')}の変更理由の前置きは記録に含まれません。送信後の記録であり、受信の確認ではありません。送信の途中や記録に失敗した場合は、実際の送信より古い記録です。`}</p></>}
     <p>{answer.draft ? '未保存の編集を含む' : '保存済みの定義'} · {answer.team} · {answer.language}</p>
     <p class="prompt-environment" title={`${answer.project} · ${answer.executable}`}>生成条件: {answer.project} · {answer.executable}</p>
     {answer.problems.map((problem) => <p class={problem.sev==='err' ? 'err' : ''}>{problem.text}</p>)}
@@ -94,7 +95,7 @@ function Difference({answer, lines}: {answer: Answer; lines: OriginLine[] | null
    return spans.find(span => span.first >= 0 && before[i] >= span.first && after[i] <= span.last && after[i] === before[i] + 1);
   });
  })();
- return <>{!lines && <p role="alert">本文と由来が一致しないため、印を表示できません。再取得してください。</p>}{answer.recorded.text===answer.current && <p>差はありません。</p>}{answer.diff.map((line,i) => {
+ return <>{!lines && <p role="alert">{`本文と${term('origin')}が一致しないため、印を表示できません。再取得してください。`}</p>}{answer.recorded.text===answer.current && <p>差はありません。</p>}{answer.diff.map((line,i) => {
   const at = line.new ? line.new - 1 : -1;
   const span = at >= 0 ? sectionAt(spans, at) : gap[i];
   return <div key={i} class={`prompt-diff-line ${line.kind}`} data-new-line={line.new || undefined} data-section={span?.kind} data-section-start={span && at >= 0 && span.first === at ? '' : undefined} data-section-end={span && at >= 0 && span.last === at ? '' : undefined}>

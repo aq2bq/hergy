@@ -8,6 +8,10 @@
 // tools/webvendor/package.json and bun.lock.
 
 import {
+  movePage,
+  installWheel
+} from "../chunk/nav-9pzbh62h.js";
+import {
   S,
   R,
   h,
@@ -16,33 +20,16 @@ import {
   u
 } from "../chunk/nav-zn7g81kr.js";
 import {
+  term,
   saved2,
   bases2,
   roleModel2,
   teamModel2
-} from "../chunk/nav-ncqt2ghs.js";
+} from "../chunk/nav-4q8266gs.js";
 import {
   dangerAttrs,
   runDanger
-} from "../chunk/nav-pfvc24x1.js";
-import {
-  takeDraft2,
-  setDirty2
-} from "../chunk/nav-bsvbpa2b.js";
-import {
-  rowAddress,
-  readOpen2,
-  writeOpen2,
-  rowsFor
-} from "../chunk/nav-nmj3geqx.js";
-import {
-  Measure,
-  fromJSON2,
-  Counts2,
-  Badge2,
-  Vm2,
-  RuleDoc2
-} from "../chunk/nav-6kxs92mx.js";
+} from "../chunk/nav-1dnphn3q.js";
 import {
   ConflictNotice,
   roleProblems,
@@ -51,20 +38,34 @@ import {
   restoreRole,
   editRoleAssignments,
   YamlTab2
-} from "../chunk/nav-hvx192pf.js";
+} from "../chunk/nav-efmr64nf.js";
+import {
+  takeDraft2,
+  setDirty2
+} from "../chunk/nav-9n0fqd7r.js";
+import {
+  rowAddress,
+  readOpen2,
+  writeOpen2,
+  rowsFor
+} from "../chunk/nav-ctrsx4mj.js";
+import {
+  Measure,
+  fromJSON2,
+  Counts2,
+  Badge2,
+  Vm2,
+  RuleDoc2
+} from "../chunk/nav-cgyn1dgv.js";
 import {
   copyGroupOf,
   projectOfGroup,
   ProjectView
-} from "../chunk/nav-k6cajr7a.js";
+} from "../chunk/nav-pmxmg887.js";
 import {
   Field
 } from "../chunk/nav-9htrbyn7.js";
-import {
-  movePage,
-  installWheel
-} from "../chunk/nav-31sebn46.js";
-import"../chunk/nav-pxepfcmw.js";
+import"../chunk/nav-apgb46t2.js";
 
 // roles/state.ts
 var view = document.getElementById("view");
@@ -83,7 +84,7 @@ var PLACES = ["project", "global"];
 var DIR = Object.assign({ project: ".hergy/roles/", global: "~/.config/hergy/roles/" }, ISLAND.places || {});
 var TEXT = ISLAND.texts || {};
 var fill = (s, ...a) => String(s || "").replace(/%[sd]/g, () => a.length ? a.shift() || "" : "");
-var LNAME = { project: "プロジェクト", global: "グローバル" };
+var LNAME = { project: term("project"), global: term("global") };
 var clone = (o) => structuredClone(o);
 var other = (l) => l === "project" ? "global" : "project";
 var uid = 0;
@@ -91,7 +92,7 @@ var HQ = ISLAND.hq || null;
 var GROUPED = !!(HQ && HQ.projects && HQ.projects.mode === "listed");
 var CURRENT = GROUPED && HQ ? HQ.projects.current && HQ.projects.current.path || "" : "";
 var groupKeyOf = (g) => g.global ? "global" : g.project ? g.project.path : "";
-var groupNameOf = (g) => g.global ? "グローバル" : g.project ? g.project.name : "";
+var groupNameOf = (g) => g.global ? term("global") : g.project ? g.project.name : "";
 var currentGroup = () => GROUPED ? CURRENT : "";
 var currentProjectName = () => {
   if (!HQ)
@@ -277,7 +278,7 @@ var whoReads = (n, group) => {
 };
 var projectNameOf = (key) => {
   if (key === "global")
-    return "グローバル";
+    return term("global");
   if (key === "" || key === CURRENT)
     return currentGroupName();
   const found = HQ && ((HQ.projects || {}).projects || []).find((x) => x.path === key);
@@ -892,7 +893,7 @@ function ARow({ t, m, i }) {
               id: `s-${t.id}-${i}`,
               "data-t": t.id,
               "data-i": i,
-              "aria-label": `${m.name} のロール`,
+              "aria-label": `${m.name} の${term("role")}`,
               onChange: (e) => {
                 if (e.currentTarget instanceof HTMLSelectElement)
                   pickRole(t.id, i, e.currentTarget.value);
@@ -940,7 +941,7 @@ function Team({ t }) {
         children: [
           /* @__PURE__ */ u("span", {
             class: "tl",
-            children: "チーム定義"
+            children: term("team-definition")
           }),
           /* @__PURE__ */ u("code", {
             class: "tid",
@@ -986,7 +987,7 @@ function Team({ t }) {
           t.place === "global" ? /* @__PURE__ */ u("span", {
             class: "tnote",
             "data-role": "place-note",
-            children: "グローバルの定義です。直すと、すべてのプロジェクトの同じチーム定義が変わります"
+            children: `${term("global")}の定義です。直すと、すべての${term("project")}の同じ${term("team-definition")}が変わります`
           }) : "",
           refusal ? /* @__PURE__ */ u("span", {
             class: "errline",
@@ -1026,7 +1027,7 @@ function RoleBar() {
             children: [
               cur(r).title,
               " · ",
-              r.group === "global" ? "グローバル" : HQ?.projects.current?.name || "プロジェクト"
+              r.group === "global" ? term("global") : HQ?.projects.current?.name || term("project")
             ]
           }),
           /* @__PURE__ */ u("b", {
@@ -1047,7 +1048,7 @@ function AssignPage() {
         }),
         /* @__PURE__ */ u("p", {
           class: "none",
-          children: "チーム定義はありません"
+          children: `${term("team-definition")}はありません`
         })
       ]
     });
@@ -1081,7 +1082,7 @@ function YamlFile({ file }) {
     children: /* @__PURE__ */ u(YamlTab2, {
       label: LNAME[l],
       path: pathOf(l, e.saved),
-      badge: both ? { cls: "state " + (hid ? "off" : "on"), text: hid ? "無効" : "優先" } : null,
+      badge: both ? { cls: "state " + (hid ? "off" : "on"), text: hid ? term("inactive") : term("preferred") } : null,
       editing: e.editing.yaml,
       text: e.editing.yaml.read.value.saved || "",
       hash: e.hash || "",
@@ -1114,10 +1115,10 @@ function YamlPageBody() {
       class: "yed yempty",
       children: [
         /* @__PURE__ */ u("p", {
-          children: "ロールの文書はまだありません。"
+          children: `${term("role-document")}はまだありません。`
         }),
         /* @__PURE__ */ u("p", {
-          children: "一覧の『＋ ロールを追加』で作ると、ここに roles/<ロール名>.md が並びます。"
+          children: `一覧の『＋ ${term("role")}を追加』で作ると、ここに roles/<${term("role-name")}>.md が並びます。`
         }),
         /* @__PURE__ */ u("span", {
           children: /* @__PURE__ */ u("button", {
@@ -1177,7 +1178,7 @@ function YamlPageBody() {
                     class: "ft",
                     children: [
                       e.saved.title,
-                      hid ? "・無効" : ""
+                      hid ? `・${term("inactive")}` : ""
                     ]
                   })
                 ]
@@ -1190,7 +1191,7 @@ function YamlPageBody() {
         file: one
       }, chosen) : /* @__PURE__ */ u("div", {
         class: "none",
-        children: "ロールの文書はありません"
+        children: `${term("role-document")}はありません`
       })
     ]
   });
@@ -1276,7 +1277,7 @@ function List() {
                   class: "n",
                   children: [
                     filterCount(f),
-                    " ロール"
+                    ` ${term("role")}`
                   ]
                 })
               ]
@@ -1286,7 +1287,7 @@ function List() {
             id: "q",
             class: "search",
             type: "search",
-            placeholder: "文書を探す",
+            placeholder: `文書を${term("find")}`,
             value: s.q,
             autocomplete: "off",
             onInput: (e) => {
@@ -1308,16 +1309,16 @@ function List() {
             children: [
               /* @__PURE__ */ u("span", {}),
               /* @__PURE__ */ u("span", {
-                children: "ロール名"
+                children: term("role-name")
               }),
               /* @__PURE__ */ u("span", {
-                children: "置き場所"
+                children: term("place")
               }),
               /* @__PURE__ */ u("span", {
                 children: "大きさ"
               }),
               /* @__PURE__ */ u("span", {
-                children: "使っているチーム"
+                children: `使っている${term("team")}`
               })
             ]
           }),
@@ -1346,7 +1347,7 @@ function rowsHTML() {
             class: "none",
             children: [
               g.name,
-              " にはロールがありません。"
+              ` には${term("role")}がありません。`
             ]
           })
         }) : null
@@ -1356,12 +1357,12 @@ function rowsHTML() {
 }
 function groupHeader(g) {
   const target = g.key === "global" ? "global" : "project";
-  const said = g.key === "global" ? "グローバル" : g.name;
+  const said = g.key === "global" ? term("global") : g.name;
   return /* @__PURE__ */ u("div", {
     class: "hq-gh" + (g.global ? " global" : ""),
     "data-group": g.key,
     "data-place": target,
-    "aria-label": `置き場所: ${said}`,
+    "aria-label": `${term("place")}: ${said}`,
     children: [
       /* @__PURE__ */ u("span", {
         class: "hq-gn",
@@ -1373,11 +1374,11 @@ function groupHeader(g) {
       }),
       g.global ? /* @__PURE__ */ u("span", {
         class: "hq-gc",
-        children: "どのプロジェクトからも使える。同じ名前があれば、そのプロジェクトのほうが使われる"
+        children: `どの${term("project")}からも使える。同じ名前があれば、その${term("project")}のほうが使われる`
       }) : /* @__PURE__ */ u("span", {
         class: "hq-gc",
         children: [
-          "ロール ",
+          `${term("role")} `,
           /* @__PURE__ */ u("b", {
             children: g.count
           })
@@ -1392,7 +1393,7 @@ function groupHeader(g) {
         children: [
           "＋ ",
           said,
-          " にロールを追加"
+          ` に${term("role")}を追加`
         ]
       })
     ]
@@ -1507,7 +1508,7 @@ function placePills(r) {
       }),
       shadow ? /* @__PURE__ */ u("span", {
         class: "pill shadow",
-        children: "グローバル"
+        children: term("global")
       }) : "",
       overriding.map((p) => /* @__PURE__ */ u("span", {
         class: "pill hq-ov",
@@ -1593,7 +1594,7 @@ function sumInner(r) {
           }),
           r.mark ? /* @__PURE__ */ u("span", {
             class: "state " + (r.mark === "hidden" ? "off" : "on"),
-            children: r.mark === "hidden" ? "無効" : "優先"
+            children: r.mark === "hidden" ? term("inactive") : term("preferred")
           }) : "",
           /* @__PURE__ */ u("span", {
             class: "ttl",
@@ -1722,7 +1723,7 @@ function usage(r) {
     children: [
       /* @__PURE__ */ u("span", {
         class: "lbl",
-        children: "使っているチーム"
+        children: `使っている${term("team")}`
       }),
       readers.map(({ t, m }) => /* @__PURE__ */ u("button", {
         class: "uchip",
@@ -1784,7 +1785,7 @@ function Panel({ r, l }) {
         children: [
           /* @__PURE__ */ u("b", {
             children: [
-              "ロール ",
+              `${term("role")} `,
               d.name
             ]
           }),
@@ -1824,7 +1825,7 @@ function Panel({ r, l }) {
                 class: "btn danger",
                 "data-act": "del",
                 ...dangerAttrs("deleteRole"),
-                onClick: () => runDanger("deleteRole", { run: () => doDelete(r.uid, l), loss: { kind: "role", name: d.name, place: l, project: groupOfRow(r) }, confirm: { title: `ロール ${d.name} を削除しますか`, label: `削除する${nread ? `（${nread} 人が読んでいる）` : ""}` } }),
+                onClick: () => runDanger("deleteRole", { run: () => doDelete(r.uid, l), loss: { kind: "role", name: d.name, place: l, project: groupOfRow(r) }, confirm: { title: `${term("role")} ${d.name} を削除しますか`, label: `削除する${nread ? `（${nread} 人が読んでいる）` : ""}` } }),
                 children: "削除"
               })
             ]
@@ -1838,14 +1839,14 @@ function Panel({ r, l }) {
           issues,
           nameError,
           heading: {
-            kind: "ロール",
-            name: row.draft.name || "新しいロール",
+            kind: term("role"),
+            name: row.draft.name || `新しい${term("role")}`,
             title: row.draft.title,
             id: `role-${r.uid}-${l}`,
             compact: true,
             path: `${placeLabel} · roles/${d.name}.md`,
             fullPath: pathOfRow(r, l, d),
-            state: (n ? "未保存" : "保存済み") + (shadowed ? "（無効）" : ""),
+            state: (n ? "未保存" : "保存済み") + (shadowed ? `（${term("inactive")}）` : ""),
             members: whoReads(row.draft.name, r.group).map((u2) => `${u2.t.id}: ${u2.m.name}`).join("、")
           },
           onDraft: (draft) => {
