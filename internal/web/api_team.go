@@ -232,7 +232,7 @@ func (s *Server) t2FilesAt(name, place string) []apiFile {
 		{"team", s.cat.TeamYAML(name, layer)},
 		{"agreement", s.t2AgreeFile(name, layer)},
 	} {
-		if _, there, _ := s.cat.FileState(one.path); !there {
+		if there, _, _ := s.cat.FileState(one.path); !there {
 			continue
 		}
 		if why, _ := s.unreadable(one.path, ""); why != "" {
