@@ -788,7 +788,7 @@ func TestATeamOfTheSameNameInTwoProjectsKeepsItsOwnDefinition(t *testing.T) {
 	if one.Built == nil {
 		t.Fatalf("the team's definition did not read: %q", one.Broken)
 	}
-	if got, want := one.Built.team.Definition.Description, "alpha の説明"; got != want {
+	if got, want := one.Built.Team.Definition.Description, "alpha の説明"; got != want {
 		t.Errorf("the team runs from the definition of %q, want %q", got, want)
 	}
 }

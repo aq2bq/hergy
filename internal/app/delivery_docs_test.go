@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/aq2bq/hergy/internal/ops"
+
 	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/deliver"
 	"github.com/aq2bq/hergy/internal/launchlog"
@@ -103,11 +105,11 @@ func TestRosterChangeHasNoOtherMembersDocumentsOnEitherDeliveryPath(t *testing.T
 	// Changing the role title changes everyone's roster, but only its reader's document.
 	env := serveEnv(t)
 	cat := env.Catalog(source.Disk{})
-	r, err := readDefinition(cat, env.ProjectRoot, "demo", "demo")
+	r, err := ops.ReadDefinition(cat, env.ProjectRoot, "demo", "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
-	resent := promptsToResend(cat, env.ProjectRoot, r, r.starts)
+	resent := promptsToResend(cat, env.ProjectRoot, r, r.Starts)
 	for _, member := range resent {
 		if member.Short.String() == "lead" && strings.Contains(strings.Split(member.Prompt, "You are ")[0], "builder.md") {
 			t.Fatalf("reprompt leaked peer document: %s", member.Prompt)
@@ -146,7 +148,7 @@ func TestRosterChangeHasNoOtherMembersDocumentsOnEitherDeliveryPath(t *testing.T
 			}
 		}
 		for i, member := range resent {
-			if row.Name == member.Name.String() && member.Prompt != deliver.Preamble(row.Changes)+r.starts[i].Prompt {
+			if row.Name == member.Name.String() && member.Prompt != deliver.Preamble(row.Changes)+r.Starts[i].Prompt {
 				t.Fatalf("reprompt differs for %s", row.Name)
 			}
 		}

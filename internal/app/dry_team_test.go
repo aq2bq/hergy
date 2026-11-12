@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/aq2bq/hergy/internal/ops"
+
 	"github.com/aq2bq/hergy/internal/launchlog"
 	"github.com/aq2bq/hergy/internal/source"
 )
@@ -29,7 +31,7 @@ func TestDryCommandsPlanWithoutHerdr(t *testing.T) {
 func recordTeamLaunch(t *testing.T, team string) {
 	t.Helper()
 	env := serveEnv(t)
-	r, err := readDefinition(env.Catalog(source.Disk{}), env.ProjectRoot, "qw", team)
+	r, err := ops.ReadDefinition(env.Catalog(source.Disk{}), env.ProjectRoot, "qw", team)
 	if err != nil {
 		t.Fatalf("read qw as %s: %v", team, err)
 	}
@@ -37,7 +39,7 @@ func recordTeamLaunch(t *testing.T, team string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeLaunch(log, env, r, launchlog.CommandUp, r.starts, launchlog.Workspace{}); err != nil {
+	if err := writeLaunch(log, env, r, launchlog.CommandUp, r.Starts, launchlog.Workspace{}); err != nil {
 		t.Fatalf("record %s: %v", team, err)
 	}
 }

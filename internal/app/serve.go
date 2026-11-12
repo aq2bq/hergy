@@ -4,17 +4,13 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os"
 	"time"
 
 	"github.com/aq2bq/hergy/internal/browser"
 	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/check"
-	"github.com/aq2bq/hergy/internal/herdr"
-	"github.com/aq2bq/hergy/internal/herdrcli"
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/options"
-	"github.com/aq2bq/hergy/internal/protocol"
 	"github.com/aq2bq/hergy/internal/source"
 	"github.com/aq2bq/hergy/internal/team"
 	"github.com/aq2bq/hergy/internal/web"
@@ -32,12 +28,6 @@ func listingPath(row catalog.Listing, layer string) string {
 		return row.GlobalPath
 	}
 	return row.LocalPath
-}
-
-// herdrTabList lists the tabs herdr reports, with the labels a team is found by.
-func herdrTabList() ([]protocol.Tab, error) {
-	port := herdrcli.New(os.Getenv("HERGY_HERDR"))
-	return herdr.New(port).Tabs()
 }
 
 // runServe serves the screens on this machine and prints the URL once the socket

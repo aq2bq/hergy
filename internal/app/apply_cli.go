@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/aq2bq/hergy/internal/ops"
+
 	domainname "github.com/aq2bq/hergy/internal/domain/name"
 
 	"github.com/aq2bq/hergy/internal/definition"
@@ -192,12 +194,12 @@ func applyTeamNow(ctx context.Context, env team.Env, group []plannedMember, time
 		projectEnv = scoped
 	}
 	cat := projectEnv.Catalog(source.Disk{})
-	r, err := buildRunningIn(cat, projectEnv.ProjectRoot,
+	r, err := ops.BuildRunningIn(cat, projectEnv.ProjectRoot,
 		team.Running{Team: domainname.TeamFromObservation(group[0].team.Name.Observation()), Definition: group[0].team.Definition}, group[0].team.Place.Layer())
 	if err != nil {
 		return err
 	}
-	l := newLauncher(r, timeout, stdout).WithContext(ctx).WithoutNextHint()
+	l := launcherFor(r, timeout, stdout).WithContext(ctx).WithoutNextHint()
 	var starts, resends []definition.Start
 	for _, member := range group {
 		if member.how == web.ApplyResend {
@@ -207,7 +209,7 @@ func applyTeamNow(ctx context.Context, env team.Env, group []plannedMember, time
 		starts = append(starts, member.start)
 	}
 	if len(starts) > 0 {
-		if err := l.Refresh(starts, currentPane()); err != nil {
+		if err := l.Refresh(starts, ops.CurrentPane()); err != nil {
 			if !launcher.IsUndelivered(err) {
 				return err
 			}

@@ -10,6 +10,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/aq2bq/hergy/internal/ops"
+
 	domainplace "github.com/aq2bq/hergy/internal/domain/place"
 
 	domainname "github.com/aq2bq/hergy/internal/domain/name"
@@ -49,7 +51,7 @@ type runningTeam struct {
 	Definition string
 	// Built is the built definition: its graph, its members and its workers.
 	// nil when the definition cannot be built.
-	Built *resolved
+	Built *ops.Resolved
 	// Broken is why the definition cannot be built, as hergy status's 詳細 line
 	// reads. Empty when it builds.
 	Broken string
@@ -102,7 +104,7 @@ type projectView struct {
 // The Herdr read is handed in rather than done here, so one snapshot can be used
 // for all the team lookups in this answer.
 func readRunningTeamsIn(views []projectView, read herdrNow, lenient bool) []runningTeam {
-	running := team.RunningTeams(read.tabs, launchTeams(), read.agentsRead)
+	running := team.RunningTeams(read.tabs, ops.LaunchTeams(), read.agentsRead)
 	records := latestLaunches()
 	out := make([]runningTeam, 0, len(running))
 	for _, entry := range running {
@@ -120,7 +122,7 @@ func readRunningTeamsIn(views []projectView, read herdrNow, lenient bool) []runn
 			one.WorkspaceID = tab.WorkspaceID
 			one.WorkspaceLabel = workspaceLabel(read.spaces, tab.WorkspaceID)
 		}
-		r, err := buildRunningIn(view.Cat, view.Env.ProjectRoot, entry, recorded.Layer.String())
+		r, err := ops.BuildRunningIn(view.Cat, view.Env.ProjectRoot, entry, recorded.Layer.String())
 		if err != nil {
 			// A definition that does not read is not this reading's failure: the
 			// row says why in the definition's own words (2.2), as hergy status
@@ -131,7 +133,7 @@ func readRunningTeamsIn(views []projectView, read herdrNow, lenient bool) []runn
 			continue
 		}
 		one.Built = r
-		one.Place = domainplace.Selection(r.team.Definition.Layer).At(view.Path)
+		one.Place = domainplace.Selection(r.Team.Definition.Layer).At(view.Path)
 		out = append(out, one)
 	}
 	return out
@@ -404,17 +406,17 @@ func (a *activityRead) readHerdr(now time.Time) herdrNow {
 			read.err = err
 			return read
 		}
-		read.tabs = teamTabs(snapshot.Tabs, snapshot.Agents, snapshot.Panes)
+		read.tabs = ops.TeamTabs(snapshot.Tabs, snapshot.Agents, snapshot.Panes)
 		read.agents = snapshot.Agents
 		read.agentsRead = true
 		read.spaces = snapshot.Workspaces
 	} else {
-		tabs, agents, agentsRead, err := herdrRead()
+		tabs, agents, agentsRead, err := ops.HerdrRead()
 		read = herdrNow{tabs: tabs, agents: agents, agentsRead: agentsRead, err: err}
 		if err != nil {
 			return read
 		}
-		read.spaces, _ = herdrSpaceList()
+		read.spaces, _ = ops.HerdrSpaceList()
 	}
 	a.watcherMu.Lock()
 	read.seen = a.watcher.Observe(watchedAgents(read.agents), now)
@@ -577,7 +579,7 @@ func judgeOf(one runningTeam, read herdrNow, now time.Time) activity.Team {
 	var graph *definition.Graph
 	agents := agentsOf(read, one.Name)
 	if one.Built != nil {
-		graph = one.Built.team.Definition.Graph
+		graph = one.Built.Team.Definition.Graph
 	} else {
 		// The definition is the thing that could not be read, so the graph here
 		// is made of the team's live agents alone: the row and the right-hand
@@ -764,7 +766,7 @@ func (a *activityRead) One(name string) (web.ActivityDoc, bool) {
 	var graph *definition.Graph
 	agents := agentsOf(read, one.Name)
 	if one.Built != nil {
-		graph = one.Built.team.Definition.Graph
+		graph = one.Built.Team.Definition.Graph
 	} else {
 		// A definition that does not read leaves the live agents as the only
 		// members known (2.2), so they stand in the right-hand column.
