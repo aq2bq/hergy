@@ -2,29 +2,11 @@
 #
 # enforce: false prints the findings and passes, so copies can be merged before
 # the gate fails. done is enforce: true with no finding.
-# The changed section: the screens may name and use the owner's answer, but the
-# old comparators are gone; a name outside lib/changed.ts fails. The free-form
-# report (JSON.stringify in a comparison, .draft !== .saved) is listed here as
-# its findings are merged or allowed.
-changed_enforce: true
-# The danger section: the confirmation and the undo notice have one owner each,
-# and every danger button says which action it runs (r-ccf8, d-2cce, d-aeeb).
-danger_enforce: true
 # The prompt section: 渡る文 is built by promptsFor (internal/web/api_prompt.go)
-# and read by teams/prompt-source.ts, and nowhere else (⑤ r-ba9b, d-002b).
+# only there in internal/web. The TypeScript reader is protected by types.
+# Go builders stay checked until stage D closes them inside internal/ops.
 prompt_enforce: true
-# The selection section: the pick and the right column are written by
-# teams/selection.ts alone, the table is selection-table.ts, and the old writer
-# and reads (selectPick, livePick, selOf) stand nowhere (⑥ r-3d54).
-selection_enforce: true
-# The address section: the rows a screen has open are written and read by
-# lib/address.ts alone; a screen that spells .set('open')/.get('open') itself
-# fails (⑥-2, d-a143).
-address_enforce: true
-# The page-position section: the page and the wheel are moved by
-# lib/page-position.ts, and a panel scrolls only inside itself (⑦ r-6ff8,
-# d-c5ce, d-b608).
-page_position_enforce: true
+
 enforce: true
 #
 # Every entry needs the path, the name, why the owner is not the place for it,
@@ -39,47 +21,3 @@ allow:
     name: Counts
     why: 動いているチームの人数と作業者を数える、一覧の行とは別の数え上げ（上の呼び出しの定義）
     decision: d-4d88
-  - path: internal/web/src/lib/prose-transfer.ts
-    name: JSON.stringify
-    why: 転送する文の下書きの比較で、「変えたか」の概念ではない（r-0b69）
-    decision: d-f14b
-  # ブラウザがページを閉じるときの確認は、ブラウザの決まりの文しか出せず、
-  # 共通ダイアログに置けない（d-3a42）。出す条件は「転送の準備ができている・
-  # 転送の途中」（prepared || busy）で、変えたかは自分で比べていない。
-  - path: internal/web/src/lib/prose-transfer-view.tsx
-    name: beforeunload
-    why: ブラウザを閉じるときの確認はブラウザの決まりの文しか出せない。出す条件は転送の準備ができているか途中かで、変えたかの比較はしていない（d-3a42 の「changed に聞く」は、この画面が変えたかを自分で比べ始めたときに当たる）
-    decision: d-3a42
-  # ⑦ 欄の中のスクロールはその欄の持ち主の中だけで動かす（d-b608）。
-  - path: internal/web/src/teams/canvas/prompt-comparison.tsx
-    name: scrollTop
-    why: 全文と差分の本文の欄。表示の切り替えで先頭へ戻し（d-a9ed）、最初の差へ送る（d-b608）
-    decision: d-b608
-  - path: internal/web/src/teams/canvas/yaml.tsx
-    name: scrollTop
-    why: プレビューの欄。変更の行を見せる
-    decision: d-b608
-  - path: internal/web/src/lib/yamltab.tsx
-    name: scrollTop
-    why: YAML の本文と行番号の欄。誤りの行へ送り、行番号を本文に従わせる
-    decision: d-b608
-  - path: internal/web/src/lib/yamltab.tsx
-    name: scrollLeft
-    why: YAML の本文の欄。誤りの行へ横に送る
-    decision: d-b608
-  - path: internal/web/src/lib/prose-transfer-view.tsx
-    name: scrollTop
-    why: 転送する文の欄。変えた範囲を見せる
-    decision: d-b608
-  - path: internal/web/src/lib/hq/sheets.tsx
-    name: scrollTop
-    why: 進み具合の欄。末尾を追う
-    decision: d-b608
-  - path: internal/web/src/lib/hq/sheets.tsx
-    name: scrollIntoView
-    why: 探す欄の中の選択を欄の中に出す
-    decision: d-b608
-  - path: internal/web/src/teams/role-modal.tsx
-    name: scrollIntoView
-    why: モーダルの中の欄を、モーダルの中に出す
-    decision: d-b608

@@ -187,7 +187,7 @@ function Editor({ session, onScanned, visible }: { session: Session; onScanned: 
     {model.context.loading.value ? <p role="status">ロールと使用先を読んでいます。</p> : null}
     {model.target.value && ctx && model.target.value.path !== ctx.path ? <p role="alert">使われるロールの置き場所が変わりました。ファイルからリロードしてください。</p> : null}
     {e && ctx?.state === 'readable' ? <fieldset disabled={saving() || !model.ready.value}><div class="pmain"><RuleDoc transfer={transfer} hasName={false} heading={heading}
-      row={{ uid: session.id, l: ctx.place, saved: e.saved, draft: e.draft, markdown: answer?.preview || { lines: [], chars: 0 }, diff: answer?.effect?.diff || {}, savedIssues: [] }}
+      row={{ saved: e.saved, draft: e.draft }}
       issues={issues} onDraft={(draft) => { editor!.change(draft); void check(); }} /></div></fieldset> : null}
     {editor?.read.value.conflict && e ? <ConflictNotice c={editor.read.value.conflict.c} mine={e.text || ''} busy={saving()} undone={editor.read.value.conflict.undone}
       onOverwrite={() => void save(true)} onRevert={() => { editor.readConflict(); void check(); }} onUndo={() => { editor.undoConflict(); void check(); }} /> : null}

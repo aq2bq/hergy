@@ -9,7 +9,7 @@ import { signal, computed } from '../lib/preact.js';
 import { resource } from '../lib/resource';
 import { read } from '../lib/api.js';
 import * as A from '../lib/hq.js';
-import { placeGroup } from '../lib/address.js';
+import { placeGroup, rowAddress } from '../lib/address.js';
 import type { components } from '../../../apicontract/api-types';
 
 type ActivityList = components['schemas']['ActivityList'];
@@ -201,7 +201,7 @@ export function pick(name: string): void {
     const q = new URLSearchParams(location.search);
     // The team's own project is the place it stands in; the activity screen
     // reads it back as one row (⑥-2).
-    A.writeOpen(q, [{ name, group: t.project || placeGroup('project') }]);
+    A.writeOpen(q, [rowAddress(name, t.project || placeGroup('project'))]);
     history.replaceState(null, '', location.pathname + '?' + q.toString());
   }
 }

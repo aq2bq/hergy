@@ -7,6 +7,13 @@
 // templates load (webui-preact-design 3 章). The versions are pinned in
 // tools/webvendor/package.json and bun.lock.
 
+// lib/diagnostics.ts
+function mark(name, detail) {
+  const collector = window.hergyDiagnostics;
+  if (collector)
+    collector.mark(name, typeof detail === "function" ? detail() : detail);
+}
+
 // lib/api.ts
 var token3 = document.querySelector("[data-token]")?.dataset?.token || "";
 var enc = (s) => encodeURIComponent(String(s == null ? "" : s));
@@ -24,6 +31,7 @@ class Refusal2 extends Error {
   }
 }
 async function raw(method, url, payload, { signal: stop } = {}) {
+  mark("api:prepare:start", { method, url });
   const project = new URLSearchParams(location.search).get("project");
   if (project && /^\/api\/(team|role|profile)(\/|\?|$)/.test(url)) {
     const target = new URL(url, location.origin);
@@ -41,8 +49,10 @@ async function raw(method, url, payload, { signal: stop } = {}) {
     headers["Content-Type"] = "application/json";
     opts.body = JSON.stringify(payload);
   }
+  mark("api:request", { method, url });
   const response = await fetch(url, opts);
   const text = await response.text();
+  mark("api:response", { method, url, status: response.status, length: text.length });
   let json = null;
   if ((response.headers.get("content-type") || "").includes("application/json")) {
     try {
@@ -51,6 +61,7 @@ async function raw(method, url, payload, { signal: stop } = {}) {
       json = null;
     }
   }
+  mark("api:parsed", { method, url, length: text.length });
   return { ok: response.ok, status: response.status, json, text };
 }
 async function send(method, url, payload, opts) {
@@ -67,6 +78,7 @@ function sentenceOf(json) {
   return typeof json.text === "string" ? json.text : "";
 }
 var call2 = (method, url, payload, opts) => send(method, url, payload, opts);
+var readPromptComparison2 = (request, opts) => send("POST", "/api/team/prompt-comparison", request.body, opts);
 var urls = {
   list: (kind) => `/api/${kind}`,
   get: (kind, name, place, project) => `/api/${kind}/${enc(name)}?${place ? `place=${enc(place)}&` : ""}${project ? `project=${enc(project)}` : ""}`,
@@ -234,4 +246,4 @@ function teamModel2(list) {
   };
 }
 
-export { token3, Refusal2, call2, read2, list2, get2, check2, save2, del2, applyList2, applyCount2, applyMembers2, hqList2, saved2, bases2, problemText2, profileModel2, roleModel2, teamModel2 };
+export { mark, token3, Refusal2, call2, readPromptComparison2, read2, list2, get2, check2, save2, del2, applyList2, applyCount2, applyMembers2, hqList2, saved2, bases2, problemText2, profileModel2, roleModel2, teamModel2 };

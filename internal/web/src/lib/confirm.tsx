@@ -1,6 +1,9 @@
+import { mark } from './diagnostics.js';
+import type { DangerDecision } from './danger.js';
+import type { DialogHost } from './dialogs.js';
 import type { ComponentChildren, JSX } from 'preact';
 import { useEffect, useRef } from './preact.js';
-import { signal } from './preact.js';
+import { signal, computed, h } from './preact.js';
 
 // The one confirmation every screen uses before something that cannot be taken
 // back (r-d480, d-021e): a modal dialog away from the button that asked, with
@@ -17,15 +20,20 @@ export type ConfirmAsk = {
   cancel?: () => void;
 };
 
-export const confirmAsk = signal<ConfirmAsk | null>(null);
-export const askConfirm = (ask: ConfirmAsk): void => { confirmAsk.value = ask; };
-export const closeConfirm = (): void => { confirmAsk.value = null; };
+const currentAsk = signal<ConfirmAsk | null>(null);
+export const confirmAsk = computed(() => {
+  const ask = currentAsk.value;
+  return ask ? Object.freeze({ title: ask.title, body: ask.body, label: ask.label }) : null;
+});
+export const askConfirm = (_decision: DangerDecision, ask: ConfirmAsk): void => { currentAsk.value = ask; };
+export const closeConfirm = (): void => { currentAsk.value = null; };
 // takeBack closes the dialog; the cancel hook runs once the dialog is gone, so
 // a focus it puts back is not taken away by the dialog's own removal.
-const takeBack = (): void => { confirmAsk.value = null; };
+const takeBack = (): void => { currentAsk.value = null; };
 
-export function ConfirmDialog(): JSX.Element | null {
-  const ask = confirmAsk.value;
+function ConfirmDialog(): JSX.Element | null {
+  mark('confirm:render:start');
+  const ask = currentAsk.value;
   const dialog = useRef<HTMLDialogElement>(null);
   const cancel = useRef<HTMLButtonElement>(null);
   // last is the ask the dialog showed; ran says it was run, so closing it is
@@ -48,8 +56,8 @@ export function ConfirmDialog(): JSX.Element | null {
     // (r-d480).
     return undefined;
   }, [ask]);
-  if (!ask) return null;
-  return <dialog class="confirm" ref={dialog} aria-labelledby="confirm-title"
+  if (!ask) { mark('confirm:render:end', {open: false}); return null; }
+  const view = <dialog class="confirm" ref={dialog} aria-labelledby="confirm-title"
     onCancel={(event) => { event.preventDefault(); takeBack(); }}>
     <h2 id="confirm-title">{ask.title}</h2>
     <div class="confirm-body">{ask.body}</div>
@@ -58,4 +66,8 @@ export function ConfirmDialog(): JSX.Element | null {
       <button class="btn danger solid" type="button" onClick={() => { const run = ask.run; ran.current = true; closeConfirm(); void run(); }}>{ask.label}</button>
     </footer>
   </dialog>;
+  mark('confirm:render:end', {open: true});
+  return view;
 }
+
+export function confirmView(_host: DialogHost): JSX.Element { return h(ConfirmDialog, {}); }

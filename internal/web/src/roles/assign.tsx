@@ -1,4 +1,3 @@
-import { assignDirty } from '../lib/changed.js';
 import { ProjectView } from '../lib/project-view';
 // roles/assign.js — 割り当てのタブ（spec 4 章、spec-roles 2「割り当てのタブ」）。
 //
@@ -33,9 +32,9 @@ function ARow({ t, m, i }: { t: TeamCard; m: TeamMember; i: number }) {
   // The sentence the server would print for validate, with its values: the
   // member's own name, and where hergy looked, as a person reads a path.
   const places = [DIR.project + m.draft + '.md', DIR.global + m.draft + '.md'].join(TEXT.separator || '、');
-  return <div class={['arow', assignDirty(m) ? 'changed' : '', r ? '' : 'missing', dim ? 'dim' : ''].filter(Boolean).join(' ')} data-m={m.name}>
+  return <div class={['arow', m.changed ? 'changed' : '', r ? '' : 'missing', dim ? 'dim' : ''].filter(Boolean).join(' ')} data-m={m.name}>
       <div class="who"><code>{m.name}</code></div>
-      <div class="pick">{assignDirty(m) ? <s class="was">{m.saved}</s> : ''}<span class="sel"><select class="pickrole" id={`s-${t.id}-${i}`} data-t={t.id} data-i={i} aria-label={`${m.name} のロール`} onChange={(e: Event) => { if (e.currentTarget instanceof HTMLSelectElement) pickRole(t.id, i, e.currentTarget.value); }}>{roleOptions(m.draft)}</select></span></div>
+      <div class="pick">{m.changed ? <s class="was">{m.saved}</s> : ''}<span class="sel"><select class="pickrole" id={`s-${t.id}-${i}`} data-t={t.id} data-i={i} aria-label={`${m.name} のロール`} onChange={(e: Event) => { if (e.currentTarget instanceof HTMLSelectElement) pickRole(t.id, i, e.currentTarget.value); }}>{roleOptions(m.draft)}</select></span></div>
       {r ? '' : <ul class="vm"><Vm list={[{ sev: 'err', text: fill(TEXT.no_role_doc, m.name, m.draft, places) }]} /></ul>}
     </div>;
 }
@@ -55,7 +54,7 @@ function Team({ t }: { t: TeamCard }) {
     const select = row.querySelector('select');
     if (select) select.focus({ preventScroll: true });
   }, [gotoAsk.value]);
-  const dirty = t.members.filter((m) => assignDirty(m)).length;
+  const dirty = t.members.filter((m) => m.changed).length;
   const errs = t.members.filter((m) => !roleByName(m.draft)).length;
   const refusal = teamErrorOf(t.id);
   return <section class="team" data-t={t.id} data-place={t.place || 'project'} ref={el}>

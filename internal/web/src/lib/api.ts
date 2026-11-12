@@ -1,3 +1,5 @@
+import { mark } from './diagnostics.js';
+import type { PromptRequest } from '../teams/prompt-source.js';
 import type { EditedRequest } from './editing.js';
 // lib/api.ts — the one way a screen talks to the server (spec-boundary 7, r-2cc2).
 //
@@ -58,6 +60,7 @@ export class Refusal extends Error {
 // the header, so POST, PUT and DELETE are one shape (a DELETE carries no body at
 // all). Nothing here decides what a screen does with a non-OK answer.
 async function raw<T = unknown>(method: string, url: string, payload?: unknown, { signal: stop }: CallOptions = {}): Promise<RawAnswer<T>> {
+  mark('api:prepare:start', { method, url });
   const project = new URLSearchParams(location.search).get('project');
   if (project && /^\/api\/(team|role|profile)(\/|\?|$)/.test(url)) {
     const target = new URL(url, location.origin);
@@ -72,14 +75,17 @@ async function raw<T = unknown>(method: string, url: string, payload?: unknown, 
     headers['Content-Type'] = 'application/json';
     opts.body = JSON.stringify(payload);
   }
+  mark('api:request', { method, url });
   const response = await fetch(url, opts);
   const text = await response.text();
+  mark('api:response', { method, url, status: response.status, length: text.length });
   let json: T | null = null;
   if ((response.headers.get('content-type') || '').includes('application/json')) {
     // The boundary: the text the server wrote is the only place a shape is
     // entered from outside TypeScript. Every screen reads the typed answer.
     try { json = JSON.parse(text) as T; } catch { json = null; }
   }
+  mark('api:parsed', { method, url, length: text.length });
   return { ok: response.ok, status: response.status, json, text };
 }
 
@@ -104,10 +110,15 @@ function sentenceOf(json: unknown): string {
 // Direct calls cover operations outside resource editing. Resource save/check
 // routes are excluded from this type, so call cannot bypass the editing brand.
 type Route<P extends string> = P extends `${infer Head}{${string}}${infer Tail}` ? `${Head}${string}${Route<Tail>}` : P;
-type DirectPath = Route<Exclude<keyof paths, `/api/${'team' | 'role' | 'profile'}/{name}` | `/api/${'team' | 'role' | 'profile'}/check`>>;
+type DirectPath = Route<Exclude<keyof paths, '/api/team/prompt-comparison' | `/api/${'team' | 'role' | 'profile'}/{name}` | `/api/${'team' | 'role' | 'profile'}/check`>>;
 type DirectURL = DirectPath | `${DirectPath}?${string}`;
 export const call = <T = unknown>(method: string, url: DirectURL, payload?: unknown, opts?: CallOptions): Promise<RawAnswer<T>> =>
   send<T>(method, url, payload, opts);
+
+// The prompt reader alone constructs this request. Direct calls cannot keep a
+// second reading of a member's text in a screen.
+export const readPromptComparison = (request: PromptRequest, opts?: CallOptions): Promise<RawAnswer<Schemas['PromptComparison']>> =>
+  send('POST', '/api/team/prompt-comparison', request.body, opts);
 
 // ---- 書き込みと読み込みの形（spec-boundary 5）------------------------------
 // One place writes the addresses, so a screen asks for what it wants and not for

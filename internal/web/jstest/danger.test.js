@@ -3,7 +3,7 @@
 import { describe, expect, test } from 'bun:test';
 import { DANGER, runDanger } from '../src/lib/danger';
 import { confirmAsk, closeConfirm } from '../src/lib/confirm';
-import { undo } from '../src/lib/undo';
+import { undo, takeUndo } from '../src/lib/undo';
 
 describe('runDanger', () => {
   test('a confirm action asks and does not run', () => {
@@ -18,7 +18,7 @@ describe('runDanger', () => {
     runDanger('unlistProject', { run: () => { ran = true; }, said: '外しました', restore: () => { back = true; } });
     expect(ran).toBe(true);
     expect(undo.value?.said).toBe('外しました');
-    undo.value?.restore();
+    takeUndo();
     expect(back).toBe(true);
   });
   test('a none action just runs', () => {
@@ -48,10 +48,10 @@ describe('lost', () => {
 
 describe('undo', () => {
   test('a restore the server refuses keeps the notice and says why', async () => {
-    const { offerUndo, takeUndo, dropUndo } = await import('../src/lib/undo.js');
+    const { takeUndo, dropUndo } = await import('../src/lib/undo.js');
     const host = document.createElement('div');
     document.body.appendChild(host);
-    offerUndo({ said: '並びから外しました', restore: () => Promise.resolve('元に戻せませんでした') }, host);
+    runDanger('unlistProject', { run: () => {}, said: '並びから外しました', restore: () => Promise.resolve('元に戻せませんでした'), host });
     expect(host.textContent).toContain('並びから外しました');
     takeUndo();
     await new Promise((done) => setTimeout(done, 0));
@@ -61,23 +61,22 @@ describe('undo', () => {
     host.remove();
   });
   test('a restore that goes through closes the notice', async () => {
-    const { offerUndo, takeUndo } = await import('../src/lib/undo.js');
+    const { takeUndo } = await import('../src/lib/undo.js');
     let back = false;
     const host = document.createElement('div');
     document.body.appendChild(host);
-    offerUndo({ said: '外しました', restore: () => { back = true; } }, host);
+    runDanger('unlistProject', { run: () => {}, said: '外しました', restore: () => { back = true; }, host });
     takeUndo();
     expect(back).toBe(true);
     expect(host.querySelector('.undo')).toBeNull();
     host.remove();
   });
   test('a notice whose row is drawn away moves below the band and still takes it back', async () => {
-    const { offerUndo } = await import('../src/lib/undo.js');
     let back = false;
     document.body.innerHTML = '<div class="bar"></div>';
     const row = document.createElement('div');
     document.querySelector('.bar').appendChild(row);
-    offerUndo({ said: '並びから外しました', restore: () => { back = true; } }, row);
+    runDanger('unlistProject', { run: () => {}, said: '並びから外しました', restore: () => { back = true; }, host: row });
     expect(row.textContent).toContain('並びから外しました');
     // The sheet is drawn again: the row the notice stood in is a new element,
     // and the notice moves to the shared place instead of going with it (d-2cb2).

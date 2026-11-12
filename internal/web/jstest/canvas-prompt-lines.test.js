@@ -1,3 +1,4 @@
+import { promptClock } from './prompt-clock.js';
 // The member panel opens a read-only comparison; full text is never folded.
 // ⑤ r-ba9b: the column and the dialog read through one owner, and an older
 // answer that arrives after a newer one is not shown.
@@ -17,8 +18,8 @@ test('member comparison retains full recorded text and rejects a stale response'
   if(url.startsWith('/api/team/check'))return {problems:[]};
   if(url.startsWith('/api/role'))return {items:[]};
  });
- await import('../src/teams/main');await settle();
- const { PROMPT_READ } = await import('../src/teams/prompt-source.js'); PROMPT_READ.wait = 0;await settle();
+ await promptClock();
+ await import('../src/teams/main');await settle();await settle();
  click(document.querySelector('.tdef[data-name="core"] .cv-n.member[data-cv-n="lead"]'));await settle();
  click(document.querySelector('.tdef[data-name="core"] [data-cv-side="prompt"]'));await settle();await settle();await settle();
  // The first read is out (the test holds its answer): no text stands yet.

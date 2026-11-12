@@ -6,8 +6,7 @@ import { resourceIdentity } from '../lib/resource-identity.js';
 import { signal, computed } from '../lib/preact.js';
 import { saved as apiSaved, list as apiList, hqList, problemText as apiProblemText, bases } from '../lib/api';
 import type { Answer, ApiAnswer, Schemas } from '../lib/api';
-import { select, startSelection } from './selection.js';
-import type { Side } from './selection-table.js';
+import { select, createSelection, type Selection } from './selection.js';
 
 // CheckAnswer is what POST /api/team/check answers with, read from the operation
 // (the saved definition's answer, or the one for a definition not there yet).
@@ -16,8 +15,7 @@ export type CheckAnswer = ApiAnswer<'checkTeam'>;
 import {
   fromJSON, clone,
 } from '../lib/ruledoc.js';
-import { parseOpen, readOpen, rowsFor, token, writeOpen } from '../lib/address.js';
-import { snapshot as changedSnapshot } from '../lib/changed.js';
+import { parseOpen, readOpen, rowsFor, token, writeOpen, rowAddress } from '../lib/address.js';
 import { copyGroupOf, groupPlace, projectOfGroup } from '../lib/copy';
 import { roleEntries, pendingRoleChanges, takeRoleEdits, restoreRoleEdits } from './role-modal.js';
 import { runDanger } from '../lib/danger.js';
@@ -182,7 +180,7 @@ const urlGroup = (r: Rec): string => (GROUPED ? groupOfRecord(r) : r.place.value
 // here is the place this screen writes for its own project, and rowRef reads a
 // row the way the address writes it (⑥-2, d-a143).
 const here = CURRENT;
-const rowRef = (r: Rec): { name: string; group: string } => ({ name: r.name.value, group: urlGroup(r) });
+const rowRef = (r: Rec): { name: string; group: string } => rowAddress(r.name.value, urlGroup(r));
 // withOpen opens or closes one row by the address it stands at: every spelling
 // that names the row goes (the old name-only one included), and the qualified
 // address is put in its place (d-a143).
@@ -262,7 +260,7 @@ export type Rec = {
   starterRoles: Read<boolean>; starterProfile: Read<boolean>;
   carry: Read<Carry | null>;
   preview: Read<TeamPreview>; baseFindings: Read<Finding[]>;
-  sel: Sig<CanvasPick | null>; side: Sig<Side>; menu: Sig<CanvasMenu | null>; typed: Sig<CanvasTyped | null>; flash: Sig<string | null>;
+  readonly selection: Selection; readonly sel: Selection['pick']; readonly side: Selection['side']; menu: Sig<CanvasMenu | null>; typed: Sig<CanvasTyped | null>; flash: Sig<string | null>;
   lastAct: Sig<number>;
   renameNotes: Sig<string[]>;
   placed: Sig<Positions>; layout: Sig<Positions>;
@@ -309,7 +307,7 @@ type RecInit = {
   name: string; place: Place; teamPath: string; agreePath: string; hash: string; agreeHash: string;
   broken: boolean; problem: string; mark: string; hidden: { place: string; path?: string; hash?: string }[];
   saved: Team; agreeSaved: RuleDoc | null; problems: Schemas['TeamCounts']; size: number; limit: number; drawMark: number; seeded: boolean;
-  sel: CanvasPick | null; side: Side; menu: CanvasMenu | null; typed: CanvasTyped | null; flash: string | null; lastAct: number;
+  menu: CanvasMenu | null; typed: CanvasTyped | null; flash: string | null; lastAct: number;
 };
 // recOf puts one record together: every field is written where it stands, so a
 // field the type gains is one the compiler asks for here (依頼書 1). draft and
@@ -321,7 +319,9 @@ function recOf(init: RecInit, held?: TeamEditing): Rec {
     base: init.base ? resourceIdentity('team', init.base) : null, seeded: init.seeded, readable: !(init.broken || init.problem),
   });
   const read = <T>(get: () => T): Read<T> => computed(get);
+  const selection = createSelection(() => { r.typed.value = null; });
   const r: Rec = {
+    selection,
     editing,
     uid: init.uid || 0, dom: init.dom, project: init.project, places: init.places || [],
     get draftRow() { return r.editing.read.value.fresh; }, get how() { return r.editing.read.value.how; }, get base() { const b = r.editing.read.value.base; return b ? { place: b.place, name: b.name || '', project: b.project } : null; },
@@ -337,7 +337,7 @@ function recOf(init: RecInit, held?: TeamEditing): Rec {
     writes: read(() => [...r.editing.read.value.writes]), nameIssues: read(() => r.editing.team.read.value.problems.filter((p) => p.at === 'name' || p.field === 'name')),
     hasRoles: read(() => r.editing.read.value.hasRoles), hasProfiles: read(() => r.editing.read.value.hasProfiles), starterRoles: read(() => r.editing.read.value.starterRoles), starterProfile: read(() => r.editing.read.value.starterProfile),
     carry: read(() => { const c = r.editing.read.value.carry; return c ? { roles: [...c.roles], profiles: [...c.profiles], chosenRoles: [...c.chosenRoles], chosenProfiles: [...c.chosenProfiles] } : null; }), preview: read(() => { const p = r.editing.validation.value.preview; return p && 'diff' in p ? clone(p) as TeamPreview : { lines: [], diff: { added: [], removedBefore: [], removedAtEnd: false } }; }),
-    sel: signal(init.sel), side: signal(init.side), menu: signal(init.menu), typed: signal(init.typed), flash: signal(init.flash),
+    sel: selection.pick, side: selection.side, menu: signal(init.menu), typed: signal(init.typed), flash: signal(init.flash),
     lastAct: signal(init.lastAct), renameNotes: signal<string[]>([]),
     // placed is where a person put a point down (a double press's menu, or a drag
     // that was let go), and layout is where the figure draws every point: the
@@ -428,7 +428,7 @@ function defOf(item: DefItem, project?: string): Rec {
     // The canvas's own picks for this row (webui-components 3 章): what is
     // picked, which column stands on the right, the blank space's menu, the
     // member name being typed, and the line that just lit up.
-    ...startSelection(), menu: null, typed: null, flash: null,
+    menu: null, typed: null, flash: null,
     lastAct: 0,
   });
   r.uid = ++uids;
@@ -495,7 +495,7 @@ function draftRecord(how: string, place: Place, name: string, base: TeamBase | n
     problems: { err: 0, warn: 0 },
     size: 0, limit: 0,
     drawMark: 0, seeded: false,
-    ...startSelection(), menu: null, typed: null, flash: null,
+    menu: null, typed: null, flash: null,
     lastAct: 0,
   }, held);
   seedPlaces(r);
@@ -969,7 +969,7 @@ export function syncURL() {
     const rows = [...s.open]
       .map((one) => rowsFor(parseOpen(one)[0], recs.value, rowRef, here).find((r) => !r.draftRow))
       .filter((r): r is Rec => !!r);
-    writeOpen(params, rows.map((r) => ({ name: r.name.value, group: urlGroup(r) })));
+    writeOpen(params, rows.map((r) => rowAddress(r.name.value, urlGroup(r))));
     const agrees = rows.filter((r) => dtabOf(r) === 'agree').map((r) => token(r.name.value, urlGroup(r)));
     if (agrees.length) params.set('agree', agrees.join(','));
   }
@@ -1015,21 +1015,7 @@ export function readURL() {
 }
 
 // ---- 共有の部品（ruledoc）の受け口 ------------------------------------
-export const rowOfPanel = (r: Rec) => {
-  const saved = r.agreeSaved.value, draft = r.agreeDraft.value;
-  const check = r.check.value;
-  return {
-    uid: r.uid, l: r.place.value, e: { saved, draft, savedIssues: r.agreeSavedIssues.value },
-    saved, draft, name: r.name.value,
-    // newRow says the definition is not there yet: the rule document's shared
-    // foot is not this row's own, so the part leaves it alone (監査 R9).
-    newRow: !!r.draftRow,
-    issues: agreeIssues(r),
-    savedIssues: r.agreeSavedIssues.value,
-    markdown: check ? check.markdown : { lines: [], chars: 0 },
-    diff: check ? check.diff : { added: [], removedBefore: [], removedAtEnd: false },
-  };
-};
+export const rowOfPanel = (r: Rec) => ({ saved: r.agreeSaved.value, draft: r.agreeDraft.value });
 
 // ---- 帯と、ページの外への受け渡し ------------------------------------------
 // dirty is whether the screen holds anything the files do not: a row's ops, a
@@ -1196,7 +1182,7 @@ export function pressRevertConflict(r: Rec, which: string) { editorOf(r, which).
 export function pressUndoConflict(r: Rec, which: string) { editorOf(r, which).undoConflict(); seedPlaces(r); if (which === 'a') void checkAgree(r); else void checkTeam(r); }
 export function pressTRevert(r: Rec, host?: HTMLElement | null) {
   // 元に戻す goes at once and leaves its 取り消す in place (d-79e3 の A).
-  const ops = changedSnapshot(r.ops.value) as typeof r.ops.value;
+  const ops = clone(r.ops.value) as typeof r.ops.value;
   runDanger('revertDraft', {
     run: () => { setOps(r, []); resetCanvas(r); forgetUndo(r); syncTeam(r); tellDirty(); },
     restore: () => { setOps(r, ops); syncTeam(r); tellDirty(); },
@@ -1209,7 +1195,7 @@ export function pressRevert(r: Rec, host?: HTMLElement | null): void {
   // 元に戻す puts the document back to the one the row opened with: the saved
   // agreement, or, for a team that has none, the empty document it started from
   // (n-e3de).
-  const before = changedSnapshot(r.agreeDraft.value) as typeof r.agreeDraft.value;
+  const before = clone(r.agreeDraft.value) as typeof r.agreeDraft.value;
   runDanger('revertDraft', {
     run: () => { r.editing.agreement.discard(); checkAgree(r); tellDirty(); },
     restore: () => { r.editing.agreement.change(before); checkAgree(r); tellDirty(); },

@@ -39,6 +39,7 @@ for (const typed of [false, true]) test(`team save keeps sent basis and later in
  pending.resolve(answer()); await saving;
  expect(asked[0].body.hash).toBe('t1'); expect(asked[0].body.doc.ops).toEqual([{ kind: 'description', text: 'sent' }]);
  expect(e.team.read.value.saved.description).toBe('sent'); expect(e.team.read.value.draft.description).toBe(typed ? 'later' : 'sent');
+ expect(e.changes.value.list).toEqual(typed ? [['c', '説明: later']] : []);
  expect(e.agreement.read.value.hash).toBe('a1'); e.dispose();
 });
 for (const typed of [false, true]) test(`folder save carries a later name into visible rename input ${typed}`, async () => {
@@ -115,4 +116,27 @@ test('the visible rename input carried after a new-folder save survives a band v
  const carry = e.take(); const freshReading = editTeam(id(), { name: 'sample', team: team('sent'), hash: 't2', agreement: { name: '', title: 'sample', text: 'sent rules' }, agreementHash: 'a2' });
  freshReading.restore(carry); expect(freshReading.read.value.renameDraft).toBe('later name');
  e.dispose(); freshReading.dispose();
+});
+
+test('figure marks and the change list come from the same private saved basis', () => {
+ const before = {description: 'old', members: [{name: 'lead', role: 'lead', profile: 'first'}], workers: [{from: 'lead', purpose: 'work', profile: 'first'}], turns: [['human', 'lead']]};
+ const e = editTeam(id(), {name: 'sample', team: before, hash: 'h1', agreement: null, agreementHash: ''});
+ expect(e.changes.value.members.lead).toBe('');
+ e.act([{kind: 'memberProfile', member: 'lead', profile: 'second'}, {kind: 'addMember', member: 'new', role: 'helper', profile: 'first'}, {kind: 'workerProfile', from: 'lead', purpose: 'work', profile: 'second'}, {kind: 'addWorker', from: 'lead', purpose: 'new', profile: 'first'}, {kind: 'addTurn', from: 'lead', to: 'human'}]);
+ const changes = e.changes.value;
+ expect(changes.members).toEqual({lead: 'changed', new: 'new'});
+ expect(changes.workers.map((w) => w.added)).toEqual([false, true]);
+ expect(changes.turns).toEqual([{from: 'human', to: 'lead', added: false}, {from: 'lead', to: 'human', added: true}]);
+ expect(changes.list).toEqual([['c', 'lead のプロファイル first → second'], ['a', 'メンバー new（helper · first）'], ['c', 'ワーカー work（lead · second）'], ['a', 'ワーカー new（lead · first）'], ['a', 'ターン lead → 人間']]);
+ e.replaceOperations([]);
+ expect(e.changes.value.list).toEqual([]);
+ expect(e.changes.value.members).toEqual({lead: ''}); e.dispose();
+});
+
+test('figure marks retain first-member identity when an invalid document repeats a name', () => {
+ const before = {description: '', members: [{name: 'lead', role: 'lead', profile: 'first'}], workers: [], turns: []};
+ const e = editTeam(id(), {name: 'sample', team: before, hash: 'h1', agreement: null, agreementHash: ''});
+ e.team.change({...before, members: [...before.members, {name: 'lead', role: 'other', profile: 'second'}]});
+ expect(e.changes.value.members.lead).toBe('');
+ expect(e.changes.value.list).toEqual([['c', 'lead のロール lead → other'], ['c', 'lead のプロファイル first → second']]); e.dispose();
 });

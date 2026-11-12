@@ -5,7 +5,7 @@
 // フィルタ・明暗では動かさない (n-83f0, d-c5ce)。どちらかは下の PAGE_POSITION の表 1 つ
 // だけが持ち、画面は movePage(act, el) を呼ぶ。'stay' の操作では movePage は
 // 何もしない。window の scrollBy・scrollTo・scrollIntoView はこのファイルの外に
-// 置かない (tools/check/owners.go)。
+// 置かない (ESLint の no-restricted-properties)。
 //
 // 行き先の出し方は 2 つ。行は上端を帯のすぐ下へ (d-943f, r-410c, d-022a)、
 // それ以外の要素は見えている範囲へ (nearest / center)。
@@ -15,7 +15,7 @@
 // する祖先) へ送る。Ctrl/⌘ と横のホイールはブラウザに任せる。
 //
 // 欄の中のスクロール (scrollTop / scrollLeft) は、その欄の持ち主の中だけで動かす。
-// どの欄かは tools/check/owners.yml の許可リストに理由と決定を添えて載せる。
+// どの欄かは tools/webtools/eslint.config.js の対象ファイルに理由と決定を添えて載せる。
 // ページの位置を保つための高さ (d-fe34 の .dbody) は器の持ち主 (画面) が持つ。
 // page-position.ts は高さを書かない。
 
@@ -29,7 +29,7 @@ export type PageAction =
   | 'problemLine' | 'filter' | 'reread' | 'saveAnswer' | 'theme' | 'select';
 
 // PAGE_POSITION は 1 つの表。どこを動かすか、なぜか、どの決定か。
-export const PAGE_POSITION: Record<PageAction, { at: PageAt; why: string; d: string }> = {
+export const PAGE_POSITION: Readonly<Record<PageAction, Readonly<{ at: PageAt; why: string; d: string }>>> = {
   copyRow: { at: 'band', why: 'コピーは押した行と別の置き場所にできる。行を画面の中に出す', d: 'd-022a' },
   newRow: { at: 'band', why: '新しく作った行が画面の外にできる', d: 'd-c5ce' },
   dupRow: { at: 'band', why: '複製した行が画面の外にできる', d: 'd-c5ce' },

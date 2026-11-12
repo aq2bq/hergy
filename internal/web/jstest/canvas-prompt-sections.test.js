@@ -1,3 +1,4 @@
+import { promptClock } from './prompt-clock.js';
 // r-04fc: a topology section stands as one band from its heading to the end of
 // its lines. When the person's own template holds the heading, the band takes
 // it in and the heading keeps no origin of its own; blank lines between the
@@ -31,8 +32,8 @@ test('a template heading, with a blank line under it, stands inside its section 
     if (url.startsWith('/api/role')) return { items: [] };
     return undefined;
   });
-  await import('../src/teams/main');
- const { PROMPT_READ } = await import('../src/teams/prompt-source.js'); PROMPT_READ.wait = 0; await settle();
+  await promptClock();
+ await import('../src/teams/main'); await settle();
   click(document.querySelector('.tdef[data-name="core"] .cv-n.member[data-cv-n="lead"]')); await settle();
   click(document.querySelector('.tdef[data-name="core"] [data-cv-side="prompt"]')); await settle();
   click(document.querySelector('.cv-prompt button')); await settle(); await settle();

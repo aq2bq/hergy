@@ -118,6 +118,7 @@ export type FocusAsk = { key: string; field: string; index: number; select: bool
 
 // ---- the assign tab ----------------------------------------------------
 export type AssignRow = {
+  readonly changed: boolean;
   key: string;
   kind: string;
   name: string;

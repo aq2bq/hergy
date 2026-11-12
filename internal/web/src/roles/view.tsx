@@ -4,17 +4,16 @@
 // も変えずに移した構成を基に、編集操作を上部へそろえる。状態は state.js の signal を読み、押し込みは自分の
 // onClick / onInput / onKeyDown から state.js の関数を直接呼ぶ（5 章 1）。規則の
 // 文書の中は共有部品（lib/ruledoc.js）が描き、その押し込みも部品のもの。
-import { runDanger } from '../lib/danger.js';
+import { runDanger, dangerAttrs } from '../lib/danger.js';
 import { useEffect, useRef } from '../lib/preact.js';
 import { Measure } from '../lib/measure.js';
 import { Field } from '../lib/field.js';
 import {
-  PLACES, LNAME, HQ, GROUPED, state, roles, teams, currentProjectName, CURRENT, roleGroups, groupOfRow,
+  PLACES, LNAME, HQ, GROUPED, state, roles, teams, currentProjectName, roleGroups, groupOfRow,
   live, eff, cur, curName, whoReads, projectNameOf, pathOfRow, issuesOf, rowIssues, checkOf,
   rowOfPanel, filtering, ruleShown, filterCount, FILTERS, okOf, refusalOf, touch, scheduleCheck,
-  focusAsk, changeDraft, pressToggle, pressFilter, pressNew, pressPmode,
-  pressDup, pressCopy, pressDiscard, pressSearch, pressTab, pressGoto, canCopy,
-  doSave, doDelete, syncURL, conflictAt, pressOverwrite, pressRevertConflict, pressUndoConflict,
+  focusAsk, changeDraft, pressToggle, pressFilter, pressNew, pressDup, pressCopy, pressDiscard, pressSearch, pressTab, pressGoto, canCopy,
+  doSave, doDelete, conflictAt, pressOverwrite, pressRevertConflict, pressUndoConflict,
 } from './state.js';
 import { ConflictNotice } from '../lib/conflict.js';
 import { movePage } from '../lib/page-position.js';
@@ -189,7 +188,9 @@ function detail(r: RoleRow) {
 function usage(r: RoleRow) {
   const readers = whoReads(curName(r), r.group);
   if (!readers.length) return '';
-  return <><span class="lbl">使っているチーム</span>{readers.map(({ t, m }) => <button class="uchip" data-act="goto" data-t={t.id} data-m={m.name} data-i={t.members.indexOf(m)} onClick={() => pressGoto(t.id, m.name, t.members.indexOf(m))}><span class="g">{r.group === 'global' ? `${projectNameOf(t.group)}: ` : ''}{t.id}</span>{m.name}</button>)}</>;
+  // Readonly projections may return fresh objects: the row address follows the
+  // member name, never object identity (the old indexOf wrote m--1).
+  return <><span class="lbl">使っているチーム</span>{readers.map(({ t, m }) => <button class="uchip" data-act="goto" data-t={t.id} data-m={m.name} data-i={t.members.findIndex((one) => one.name === m.name)} onClick={() => pressGoto(t.id, m.name, t.members.findIndex((one) => one.name === m.name))}><span class="g">{r.group === 'global' ? `${projectNameOf(t.group)}: ` : ''}{t.id}</span>{m.name}</button>)}</>;
 }
 
 // onChange is the shared part saying the document it was handed changed: the row
@@ -201,10 +202,10 @@ function Panel({ r, l }: { r: RoleRow; l: Place }) {
   const e = r[l];
   if (!e) return '';
   const d = e.draft, key = r.uid + l;
-  const shadowed = r.mark === 'hidden' && l === 'global';
+  const shadowed = r.mark === 'hidden';
   const row = rowOfPanel(r, l);
   if (!row) return '';
-  const issues: RuleIssue[] = row.issues || [];
+  const issues: RuleIssue[] = issuesOf(r, l);
   const nread = e.saved && !r[other(l)] ? whoReads(e.saved.name, r.group).length : 0;
   const mode = state.value.pmode[key] || 'edit';
   const placeLabel = r.group === 'global' ? LNAME.global : (r.group ? projectNameOf(r.group) : currentProjectName());
@@ -231,7 +232,7 @@ function Panel({ r, l }: { r: RoleRow; l: Place }) {
       <header class="edit-actions"><b>ロール {d.name}</b>        <span class="acts">
           {e.saved ? <button class="btn" data-act="dup" onClick={() => pressDup(r.uid, l)}>複製</button> : ''}
           {canCopy(r, l) ? <button class="btn" data-act="copy" onClick={() => pressCopy(r.uid, l)}>{LNAME[other(l)]}にコピー</button> : ''}
-          {!e.saved ? <button class="btn danger" data-act="discard" data-danger data-danger-act="discardRow" onClick={() => {
+          {!e.saved ? <button class="btn danger" data-act="discard" {...dangerAttrs('discardRow')} onClick={() => {
             // Compared with what the row was made with (a new one, a duplicate
             // or a copy), so a fresh copy that nobody touched goes at once
             // (r-d480).
@@ -242,16 +243,13 @@ function Panel({ r, l }: { r: RoleRow; l: Place }) {
             if (untouched) { pressDiscard(r.uid, l); return; }
             runDanger('discardRow', { run: () => pressDiscard(r.uid, l), lost: e.editing.bornLost.value, confirm: { title: '入力した内容を捨てますか', label: '破棄する' } });
           }}>取り消し</button>
-            : <button class="btn danger" data-act="del" data-danger data-danger-act="deleteRole" onClick={() => runDanger('deleteRole', { run: () => doDelete(r.uid, l), loss: { kind: 'role', name: d.name, place: l, project: groupOfRow(r) }, confirm: { title: `ロール ${d.name} を削除しますか`, label: `削除する${nread ? `（${nread} 人が読んでいる）` : ''}` } })}>削除</button>}
+            : <button class="btn danger" data-act="del" {...dangerAttrs('deleteRole')} onClick={() => runDanger('deleteRole', { run: () => doDelete(r.uid, l), loss: { kind: 'role', name: d.name, place: l, project: groupOfRow(r) }, confirm: { title: `ロール ${d.name} を削除しますか`, label: `削除する${nread ? `（${nread} 人が読んでいる）` : ''}` } })}>削除</button>}
         </span></header>
       <div class="pmain"><RuleDoc row={row} issues={issues} nameError={nameError} heading={{ kind: 'ロール', name: row.draft.name || '新しいロール', title: row.draft.title,
           id: `role-${r.uid}-${l}`, compact: true, path: `${placeLabel} · roles/${d.name}.md`, fullPath: pathOfRow(r, l, d), state: (n ? '未保存' : '保存済み') + (shadowed ? '（無効）' : ''), members: whoReads(row.draft.name, r.group).map((u) => `${u.t.id}: ${u.m.name}`).join('、') }}
-        filtering={filtering()} query={state.value.q}
-        readerCount={(name: string) => whoReads(name, GROUPED ? CURRENT : '').length}
         onDraft={(draft) => { changeDraft(r.uid, l, draft); touch(); scheduleCheck(r, l); }}
         rename={{ value: e.editing.read.value.rename, change: (on) => e.editing.renameUsers(on) }}
-        onMode={(v: 'edit' | 'md') => pressPmode(r.uid, l, v)}
-        onURL={() => syncURL(false)} /></div>
+        nameChanged={e.editing.nameChanged.value} /></div>
       {hold ? <ConflictNotice c={hold.c} mine={e.text || ''} undone={hold.undone}
         onOverwrite={() => pressOverwrite(r.uid, l)}
         onRevert={() => pressRevertConflict(r.uid, l)}

@@ -8,9 +8,8 @@ import { signal, computed } from '../lib/preact.js';
 import { editProfile, editProfileAssignments, editYaml, profileFiles, type ProfileAssignments, type YamlEditing, type ProfileEditing } from '../lib/editing.js';
 import { resourceIdentity } from '../lib/resource-identity.js';
 import { profileModel, list as apiList, type Answer, type Place, type ProfilePanel, type ProfileRow } from '../lib/api.js';
-import { readOpen, rowsFor, writeOpen } from '../lib/address.js';
+import { readOpen, rowsFor, writeOpen, rowAddress } from '../lib/address.js';
 import { copyGroupOf } from '../lib/copy';
-import { assignDirty } from '../lib/changed.js';
 import { setDirty } from '../lib/nav.js';
 import type {
   Assign, AssignRow, Carried, Draft, EnvPair, FocusAsk, Island,
@@ -565,7 +564,7 @@ export function syncURL(): void {
   // `project`/`global`, never a bare name (⑥-2, d-a143).
   const open = rows.value
     .filter((row) => row.open && !row.isNew && row.name)
-    .map((row) => ({ name: row.name, group: GROUPED && row.group ? row.group : (row.group === 'global' ? 'global' : 'project') }));
+    .map((row) => rowAddress(row.name, GROUPED && row.group ? row.group : (row.group === 'global' ? 'global' : 'project')));
   writeOpen(params, open);
   const search = params.toString();
   history.replaceState(null, '', location.pathname + (search ? '?' + search : ''));
@@ -598,7 +597,7 @@ export const chips = computed(() => {
 export function dirty(): boolean {
   const panels = allPanels().some(({ panel }) => profileDirty(panel));
   const ytexts = yamlTexts().some((one) => one.editing.dirty.value);
-  const picks = assignTeams().some((team) => (team.rows || []).some((row) => assignDirty({ name: row.key, saved: row.saved || '', draft: row.profile })));
+  const picks = assignTeams().some((team) => (team.rows || []).some((row) => row.changed));
   return panels || ytexts || picks;
 }
 export function tellDirty(): void {
@@ -618,7 +617,7 @@ export function lost(): string[] {
     out.push(...one.editing.lost.value);
   }
   for (const team of assignTeams()) for (const row of team.rows || []) {
-    if (!assignDirty({ name: row.key, saved: row.saved || '', draft: row.profile })) continue;
+    if (!row.changed) continue;
     out.push(...(assignmentEdits.get(team.name)?.lost.value || []));
   }
   return [...new Set(out)];
@@ -642,12 +641,12 @@ export function take(): Carried {
     });
   });
   yamlTexts().forEach((one) => {
-    if (one.text === one.base) return;
+    if (!one.editing.dirty.value) return;
     out.ytexts.push({ file: one.file, hash: one.hash, text: one.text });
   });
   assignTeams().forEach((team) => {
     (team.rows || []).forEach((row) => {
-      if (!assignDirty({ name: row.key, saved: row.saved || '', draft: row.profile })) return;
+      if (!row.changed) return;
       out.picks.push({ team: team.name, hash: team.hash, key: row.key, profile: row.profile });
     });
   });
@@ -687,7 +686,8 @@ export function initAssign(): void {
         name: row.name,
         role: row.role,
         get profile() { return editing.read.value.draft.find((r) => r.key === row.id)?.profile || ''; },
-        get saved() { return editing.read.value.saved?.find((r) => r.key === row.id)?.profile || ''; },
+        get saved() { return editing.rows.value.find((r) => r.key === row.id)?.saved || ''; },
+        get changed() { return editing.rows.value.find((r) => r.key === row.id)?.changed || false; },
         options: row.options || [],
         get missing() { return !!row.missing && editing.read.value.draft.find((r) => r.key === row.id)?.profile === row.profile; },
         get error() { return this.missing ? row.error || '' : ''; },
@@ -702,7 +702,7 @@ export function setPick(teamName: string, key: string, profile: string): void {
 }
 
 export function teamDirty(team: Team): number {
-  return (team.rows || []).filter((row) => assignDirty({ name: row.key, saved: row.saved || '', draft: row.profile })).length;
+  return (team.rows || []).filter((row) => row.changed).length;
 }
 export function teamMissing(team: Team): number {
   return (team.rows || []).filter((row) => row.missing).length;

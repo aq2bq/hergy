@@ -63,11 +63,8 @@ test('a start that failed says who, why and what is left, and opens the stop she
 
   // The way to put the remains away is the stop sheet for the same team: the
   // shared dialog asks first (r-d480).
-  const { ConfirmDialog } = await import('../src/lib/confirm.js');
-  const { render, h } = await import('../src/lib/preact.js');
-  const confirmHost = document.createElement('div');
-  document.body.appendChild(confirmHost);
-  render(h(ConfirmDialog, {}), confirmHost);
+  const { mountDialogs } = await import('../src/lib/dialogs.js');
+  mountDialogs();
   const stop = sheet.querySelector('[data-hq=stop]');
   expect(stop.textContent).toBe('チームを終了する…');
   stop.click();

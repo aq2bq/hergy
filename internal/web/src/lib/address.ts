@@ -13,7 +13,15 @@
 // 行を両方（今のプロジェクトとグローバルの行）開く（d-a143 とその補足）。その
 // どちらにも無い名前は、その名前の最初の行を開く（古いリンクの読み方）。どの値が
 // どの行を指すかは rowsFor 1 つが決め、画面は行の名前と置き場所を渡すだけ。
-export type Ref = { name: string; group: string };
+export type Ref = Readonly<{ name: string; group: string }>;
+const addressBrand: unique symbol = Symbol('RowAddress');
+export type RowAddress = Ref & { readonly [addressBrand]: true };
+
+// Only a complete row address can be written. Old links remain readable.
+export function rowAddress(name: string, group: string): RowAddress {
+  if (!group) throw new Error(`置き場所の無い行は URL に書けません: ${name}`);
+  return Object.freeze({ name, group, [addressBrand]: true as const });
+}
 
 // token joins a row's name and the place it stands in for the address. A name
 // alone is the old value: it names every row of that name.
@@ -34,7 +42,7 @@ export const readOpen = (params: URLSearchParams): Ref[] => parseOpen(params.get
 // writeOpen writes the refs a screen has open. A ref with no place would name
 // every row of that name: a screen always knows the place it draws, so it never
 // writes one.
-export function writeOpen(params: URLSearchParams, refs: Ref[]): void {
+export function writeOpen(params: URLSearchParams, refs: readonly RowAddress[]): void {
   const tokens = refs.map((one) => {
     if (!one.group) throw new Error(`置き場所の無い行は URL に書けません: ${one.name}`);
     return token(one.name, one.group);
@@ -58,7 +66,7 @@ export function groupPlace(group: string, current: string): 'project' | 'global'
 // AddressRow is one row as an address names it: the name it shows and the place
 // it stands in, written the way writeOpen writes it (a project's path or
 // `global`, or `project`/`global` on a one-project screen).
-export type AddressRow = { name: string; group: string };
+export type AddressRow = Ref;
 
 // rowsFor is the rows one address names. A value with a place names the rows at
 // that place alone. The old value, a name with no place, names this project's row

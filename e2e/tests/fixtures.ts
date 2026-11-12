@@ -1,3 +1,4 @@
+import { observePerformance } from './performance-observation';
 // One project, one serve, one page per test.
 //
 // The Go walks started a serve for each test (internal/cli startServe: `hergy
@@ -12,7 +13,7 @@
 // ~/.config/hergy, not ~/.local/state/hergy (d-a861).
 import { test as base, expect, type Page } from '@playwright/test';
 import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { hergyBin, lay, startHerdrSocket, zone } from '../scripts/fixture.mjs';
@@ -108,6 +109,11 @@ export const test = base.extend<{ reads: Screen; app: App; observations: void }>
   // Keep observations only for a failed walk. The trace also records the DOM
   // before an action, so an unresponsive renderer does not erase that evidence.
   observations: [async ({ page }, use, testInfo) => {
+    await page.addInitScript(observePerformance);
+    const target = /(?:teams-role-modal|nav)\.spec\.ts$/.test(testInfo.file);
+    const examine = target && !!process.env.HERGY_E2E_PERFORMANCE;
+    const profiler = target && (process.env.CI || examine) ? await page.context().newCDPSession(page) : null;
+    if (profiler) { await profiler.send('Profiler.enable'); await profiler.send('Profiler.setSamplingInterval', { interval: 1000 }); await profiler.send('Profiler.start'); }
     const events: unknown[] = [];
     const consoleMessage = (message: import('@playwright/test').ConsoleMessage) => {
       events.push({ type: message.type(), text: message.text(), location: message.location() });
@@ -116,8 +122,9 @@ export const test = base.extend<{ reads: Screen; app: App; observations: void }>
     page.on('console', consoleMessage); page.on('pageerror', pageError);
     try { await use(); }
     finally {
-      if (testInfo.status !== testInfo.expectedStatus) {
-        await testInfo.attach('page-console', { body: JSON.stringify(events, null, 2), contentType: 'application/json' });
+      const failed = testInfo.status !== testInfo.expectedStatus;
+      if (failed || examine) {
+        if (failed) await testInfo.attach('page-console', { body: JSON.stringify(events, null, 2), contentType: 'application/json' });
         // A hung page may not answer content(). Bound this diagnostic by the
         // existing action timeout; this does not extend or retry any action.
         let timer: ReturnType<typeof setTimeout> | undefined;
@@ -125,12 +132,25 @@ export const test = base.extend<{ reads: Screen; app: App; observations: void }>
           const deadline = new Promise<never>((_, reject) => {
             timer = setTimeout(() => reject(new Error('the failed page did not answer the DOM snapshot')), testInfo.project.use.actionTimeout);
           });
-          const body = await Promise.race([page.content(), deadline]);
-          await testInfo.attach('page-dom', { body, contentType: 'text/html' });
+          const [body, timeline, profile] = await Promise.race([Promise.all([failed ? page.content() : Promise.resolve(''), page.evaluate(() => {
+            const diagnostics = (window as typeof window & {hergyDiagnostics?: {snapshot: () => unknown}}).hergyDiagnostics;
+            return diagnostics?.snapshot() || null;
+          }), profiler ? profiler.send('Profiler.stop') : Promise.resolve(null)]), deadline]);
+          if (failed) await testInfo.attach('page-dom', { body, contentType: 'text/html' });
+          const performancePath = testInfo.outputPath('page-performance.json');
+          writeFileSync(performancePath, JSON.stringify(timeline, null, 2));
+          await testInfo.attach('page-performance', { path: performancePath, contentType: 'application/json' });
+          if (profile) {
+            const cpuPath = testInfo.outputPath('page-cpu.json');
+            writeFileSync(cpuPath, JSON.stringify(profile));
+            await testInfo.attach('page-cpu', { path: cpuPath, contentType: 'application/json' });
+          }
         } catch (error) {
           await testInfo.attach('page-dom-error', { body: String(error), contentType: 'text/plain' });
         } finally { clearTimeout(timer); }
       }
+      if (profiler && !failed && !examine) await profiler.send('Profiler.stop');
+      await profiler?.detach();
       page.off('console', consoleMessage); page.off('pageerror', pageError);
     }
   }, { auto: true }],

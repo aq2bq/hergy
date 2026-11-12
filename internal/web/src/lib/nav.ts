@@ -11,7 +11,7 @@ import { runDanger } from './danger.js';
 
 mountDialogs();
 
-// 画面は setCount / setActivity / takeDraft を import で読む。
+// 画面は持ち越した下書きを takeDraft で読む。
 
 type HergyPageBase = { screen?: string; tellDirty?: () => void; settled?: boolean; lost?: () => string[] };
 type HergyPage = HergyPageBase & (
@@ -111,45 +111,6 @@ export function setDirty(on: boolean): void {
   setDot(scr(mine()), !!on);
 }
 
-// setCount is how a page keeps the band's number the same as its own when a
-// profile or a role is added or removed (1.1).
-export function setCount(screen: string, n: number): void {
-  const el = scr(screen);
-  const num = el?.querySelector('.n');
-  if (num) num.textContent = String(n);
-}
-
-// setActivity writes the activity's two numbers (spec-activity 2.1): アクティビティ N
-// while this project has a team running, and 待ち N while a member waits for
-// a human or a permission, which is dropped at zero. counts is false while
-// herdr cannot be read or none is running, and then アクティビティ stands alone (2.7).
-// The screen calls this on every re-reading, so the band's two numbers are
-// the reading's own and not the page's first ones.
-export function setActivity(running: number, waiting: number, counts: boolean): void {
-  const el = scr('activity');
-  if (!el) return;
-  let num = el.querySelector('.n');
-  if (counts && !num) {
-    num = document.createElement('span');
-    num.className = 'n';
-    el.appendChild(num);
-  }
-  if (!counts && num) {
-    num.remove();
-    num = null;
-  }
-  if (num) num.textContent = String(running);
-  let wait = el.querySelector('.wait');
-  if (!wait && waiting > 0) {
-    wait = document.createElement('span');
-    wait.className = 'wait';
-    if (num) num.after(wait);
-    else el.appendChild(wait);
-  }
-  if (!wait) return;
-  if (waiting > 0) wait.textContent = '待ち ' + waiting;
-  else wait.remove();
-}
 
 if (band) {
   // The page moves the address bar (a filter, an opened row, a chosen file)

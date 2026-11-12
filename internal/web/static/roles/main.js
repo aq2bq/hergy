@@ -20,14 +20,21 @@ import {
   bases2,
   roleModel2,
   teamModel2
-} from "../chunk/nav-hz0pc9aj.js";
+} from "../chunk/nav-ncqt2ghs.js";
 import {
+  dangerAttrs,
   runDanger
-} from "../chunk/nav-n44pqppw.js";
+} from "../chunk/nav-pfvc24x1.js";
 import {
   takeDraft2,
   setDirty2
-} from "../chunk/nav-v59w2j53.js";
+} from "../chunk/nav-bsvbpa2b.js";
+import {
+  rowAddress,
+  readOpen2,
+  writeOpen2,
+  rowsFor
+} from "../chunk/nav-nmj3geqx.js";
 import {
   Measure,
   fromJSON2,
@@ -35,7 +42,7 @@ import {
   Badge2,
   Vm2,
   RuleDoc2
-} from "../chunk/nav-1b8pm6h2.js";
+} from "../chunk/nav-6kxs92mx.js";
 import {
   ConflictNotice,
   roleProblems,
@@ -44,12 +51,12 @@ import {
   restoreRole,
   editRoleAssignments,
   YamlTab2
-} from "../chunk/nav-wtkrx9gm.js";
+} from "../chunk/nav-hvx192pf.js";
 import {
   copyGroupOf,
   projectOfGroup,
   ProjectView
-} from "../chunk/nav-ak3bme2w.js";
+} from "../chunk/nav-k6cajr7a.js";
 import {
   Field
 } from "../chunk/nav-9htrbyn7.js";
@@ -57,15 +64,7 @@ import {
   movePage,
   installWheel
 } from "../chunk/nav-31sebn46.js";
-import {
-  readOpen2,
-  writeOpen2,
-  rowsFor
-} from "../chunk/nav-hr74m0fy.js";
-import {
-  assignDirty
-} from "../chunk/nav-5jk1wdkd.js";
-import"../chunk/nav-74jj0fve.js";
+import"../chunk/nav-pxepfcmw.js";
 
 // roles/state.ts
 var view = document.getElementById("view");
@@ -238,7 +237,7 @@ var TEAMS = teamModel2(ISLAND.team || null).teams.map((t) => {
       return editing.read.value.hash;
     },
     get members() {
-      return editing.read.value.draft.map((m) => ({ name: m.name, draft: m.role, saved: editing.read.value.saved?.find((p) => p.name === m.name)?.role || "" }));
+      return [...editing.rows.value];
     }
   };
 });
@@ -333,7 +332,7 @@ function rowOfPanel(r, l) {
   const e = r[l], c = checkOf(r, l);
   if (!e || !c)
     return null;
-  return { uid: r.uid, l, saved: e.saved, draft: clone(e.draft), issues: c.issues, markdown: c.markdown, diff: c.diff };
+  return { saved: e.saved, draft: e.draft };
 }
 async function askCheck(r, l, cb) {
   const e = r?.[l];
@@ -419,7 +418,7 @@ function syncURL(push) {
       q.set("filter", s.filter);
     if (s.q)
       q.set("q", s.q);
-    const open = [...s.open].map((u) => byUid(u)).filter((r) => !!r).map((r) => ({ name: curName(r), group: rowGroup(r) }));
+    const open = [...s.open].map((u) => byUid(u)).filter((r) => !!r).map((r) => rowAddress(curName(r), rowGroup(r)));
     if (open.length)
       writeOpen2(q, open);
   }
@@ -508,10 +507,6 @@ function pressNew(group) {
     askFocus(nr.uid, "[data-f=name]");
     touch();
   });
-}
-function pressPmode(id, l, v) {
-  patch({ pmode: { ...state.value.pmode, [id + l]: v } });
-  touch();
 }
 var basePlaceOf = (r, l) => resourceIdentity("role", { place: l, name: r[l]?.saved?.name, project: projectOfGroup(l === "global" ? "global" : groupOfRow(r)) });
 function pressDup(id, l) {
@@ -737,7 +732,7 @@ function lost() {
     }
   for (const t of teams.value)
     for (const m of t.members) {
-      if (!assignDirty(m))
+      if (!m.changed)
         continue;
       out.push(...t.editing.lost.value);
     }
@@ -874,7 +869,7 @@ function ARow({ t, m, i }) {
   const dim = hi && m.draft !== hi;
   const places = [DIR.project + m.draft + ".md", DIR.global + m.draft + ".md"].join(TEXT.separator || "、");
   return /* @__PURE__ */ u("div", {
-    class: ["arow", assignDirty(m) ? "changed" : "", r ? "" : "missing", dim ? "dim" : ""].filter(Boolean).join(" "),
+    class: ["arow", m.changed ? "changed" : "", r ? "" : "missing", dim ? "dim" : ""].filter(Boolean).join(" "),
     "data-m": m.name,
     children: [
       /* @__PURE__ */ u("div", {
@@ -886,7 +881,7 @@ function ARow({ t, m, i }) {
       /* @__PURE__ */ u("div", {
         class: "pick",
         children: [
-          assignDirty(m) ? /* @__PURE__ */ u("s", {
+          m.changed ? /* @__PURE__ */ u("s", {
             class: "was",
             children: m.saved
           }) : "",
@@ -931,7 +926,7 @@ function Team({ t }) {
     if (select)
       select.focus({ preventScroll: true });
   }, [gotoAsk.value]);
-  const dirty = t.members.filter((m) => assignDirty(m)).length;
+  const dirty = t.members.filter((m) => m.changed).length;
   const errs = t.members.filter((m) => !roleByName(m.draft)).length;
   const refusal = teamErrorOf(t.id);
   return /* @__PURE__ */ u("section", {
@@ -1076,7 +1071,7 @@ function AssignPage() {
 var keyOfYed = (r, l) => r.uid + l;
 function YamlFile({ file }) {
   const { r, l, e } = file;
-  const hid = r.mark === "hidden" && l === "global";
+  const hid = r.mark === "hidden";
   const both = !!r.mark;
   const name = e.saved.name;
   return /* @__PURE__ */ u("section", {
@@ -1157,7 +1152,7 @@ function YamlPageBody() {
               ]
             }),
             files.filter((f) => f.l === l).map(({ r, e }) => {
-              const key = keyOfYed(r, l), is = issuesOf(r, l), hid = l === "global" && live(r, "project");
+              const key = keyOfYed(r, l), is = issuesOf(r, l), hid = r.mark === "hidden";
               return /* @__PURE__ */ u("button", {
                 class: ["file", chosen === key ? "on" : "", hid ? "hid" : ""].filter(Boolean).join(" "),
                 "data-act": "yfile",
@@ -1734,8 +1729,8 @@ function usage(r) {
         "data-act": "goto",
         "data-t": t.id,
         "data-m": m.name,
-        "data-i": t.members.indexOf(m),
-        onClick: () => pressGoto(t.id, m.name, t.members.indexOf(m)),
+        "data-i": t.members.findIndex((one) => one.name === m.name),
+        onClick: () => pressGoto(t.id, m.name, t.members.findIndex((one) => one.name === m.name)),
         children: [
           /* @__PURE__ */ u("span", {
             class: "g",
@@ -1755,11 +1750,11 @@ function Panel({ r, l }) {
   if (!e)
     return "";
   const d = e.draft, key = r.uid + l;
-  const shadowed = r.mark === "hidden" && l === "global";
+  const shadowed = r.mark === "hidden";
   const row = rowOfPanel(r, l);
   if (!row)
     return "";
-  const issues = row.issues || [];
+  const issues = issuesOf(r, l);
   const nread = e.saved && !r[other2(l)] ? whoReads(e.saved.name, r.group).length : 0;
   const mode = state.value.pmode[key] || "edit";
   const placeLabel = r.group === "global" ? LNAME.global : r.group ? projectNameOf(r.group) : currentProjectName();
@@ -1815,8 +1810,7 @@ function Panel({ r, l }) {
               !e.saved ? /* @__PURE__ */ u("button", {
                 class: "btn danger",
                 "data-act": "discard",
-                "data-danger": true,
-                "data-danger-act": "discardRow",
+                ...dangerAttrs("discardRow"),
                 onClick: () => {
                   const untouched = !e.editing.bornLost.value.length;
                   if (untouched) {
@@ -1829,8 +1823,7 @@ function Panel({ r, l }) {
               }) : /* @__PURE__ */ u("button", {
                 class: "btn danger",
                 "data-act": "del",
-                "data-danger": true,
-                "data-danger-act": "deleteRole",
+                ...dangerAttrs("deleteRole"),
                 onClick: () => runDanger("deleteRole", { run: () => doDelete(r.uid, l), loss: { kind: "role", name: d.name, place: l, project: groupOfRow(r) }, confirm: { title: `ロール ${d.name} を削除しますか`, label: `削除する${nread ? `（${nread} 人が読んでいる）` : ""}` } }),
                 children: "削除"
               })
@@ -1855,17 +1848,13 @@ function Panel({ r, l }) {
             state: (n ? "未保存" : "保存済み") + (shadowed ? "（無効）" : ""),
             members: whoReads(row.draft.name, r.group).map((u2) => `${u2.t.id}: ${u2.m.name}`).join("、")
           },
-          filtering: filtering(),
-          query: state.value.q,
-          readerCount: (name) => whoReads(name, GROUPED ? CURRENT : "").length,
           onDraft: (draft) => {
             changeDraft(r.uid, l, draft);
             touch();
             scheduleCheck(r, l);
           },
           rename: { value: e.editing.read.value.rename, change: (on) => e.editing.renameUsers(on) },
-          onMode: (v) => pressPmode(r.uid, l, v),
-          onURL: () => syncURL(false)
+          nameChanged: e.editing.nameChanged.value
         })
       }),
       hold ? /* @__PURE__ */ u(ConflictNotice, {
