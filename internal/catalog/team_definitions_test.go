@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"testing"
 
+	domainname "github.com/aq2bq/hergy/internal/domain/name"
 	"github.com/aq2bq/hergy/internal/source"
 )
 
@@ -16,6 +17,10 @@ func TestResidualTeamFoldersDoNotChangeDefinitionsOrDefault(t *testing.T) {
 		t.Run(layer, func(t *testing.T) {
 			l := newLayers(t)
 			l.writeFullTeam(t, layer, "one", "the only definition")
+			one, err := domainname.ParseDefinitionName("one")
+			if err != nil {
+				t.Fatal(err)
+			}
 			held := l.catalog()
 			before := held.Definitions()
 			_, defaultErr := held.Definition("", "")
@@ -30,13 +35,13 @@ func TestResidualTeamFoldersDoNotChangeDefinitionsOrDefault(t *testing.T) {
 				if got := cat.candidateNames(); !reflect.DeepEqual(got, []string{"one"}) {
 					t.Errorf("candidate names = %v, want only one", got)
 				}
-				if def, err := cat.Definition("", layer); err != nil || def.Name != "one" {
+				if def, err := cat.Definition("", layer); err != nil || def.Name != one {
 					t.Errorf("unnamed %s definition = %v, %v; want one", layer, def, err)
 				}
-				if def, err := cat.Definition("", ""); fmt.Sprint(err) != fmt.Sprint(defaultErr) || err == nil && def.Name != "one" {
+				if def, err := cat.Definition("", ""); fmt.Sprint(err) != fmt.Sprint(defaultErr) || err == nil && def.Name != one {
 					t.Errorf("unnamed definition = %v, %v; previous error %v", def, err, defaultErr)
 				}
-				if def, err := cat.Read(""); fmt.Sprint(err) != fmt.Sprint(readErr) || err == nil && def.Name != "one" {
+				if def, err := cat.Read(""); fmt.Sprint(err) != fmt.Sprint(readErr) || err == nil && def.Name != one {
 					t.Errorf("unnamed read = %v, %v; previous error %v", def, err, readErr)
 				}
 				for _, rowLayer := range []string{source.LayerLocal, source.LayerGlobal} {
