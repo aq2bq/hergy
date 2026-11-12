@@ -18,14 +18,14 @@ import {
 } from "../chunk/nav-zn7g81kr.js";
 import {
   runDanger
-} from "../chunk/nav-n7k9prc1.js";
+} from "../chunk/nav-me9ek2sz.js";
 import {
   profileModel2
-} from "../chunk/nav-5wk0yvna.js";
+} from "../chunk/nav-ghcq2kwy.js";
 import {
   takeDraft2,
   setDirty2
-} from "../chunk/nav-6xksh4n8.js";
+} from "../chunk/nav-fsrd36y0.js";
 import {
   ConflictNotice,
   resourceIdentity,
@@ -34,11 +34,11 @@ import {
   editYaml,
   profileFiles,
   YamlTab2
-} from "../chunk/nav-9as7qv3s.js";
+} from "../chunk/nav-qdvsv3b8.js";
 import {
   copyGroupOf,
   ProjectView
-} from "../chunk/nav-hcs16qxf.js";
+} from "../chunk/nav-b3v9q990.js";
 import {
   Field
 } from "../chunk/nav-9htrbyn7.js";
@@ -53,7 +53,7 @@ import {
 } from "../chunk/nav-hr74m0fy.js";
 import {
   assignDirty
-} from "../chunk/nav-36f6dmhj.js";
+} from "../chunk/nav-w5ecmbs1.js";
 import"../chunk/nav-74jj0fve.js";
 
 // profiles/state.ts

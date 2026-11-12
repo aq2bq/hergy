@@ -18,13 +18,13 @@ import {
 } from "./nav-zn7g81kr.js";
 import {
   problemText2
-} from "./nav-5wk0yvna.js";
+} from "./nav-ghcq2kwy.js";
 import {
   Field
 } from "./nav-9htrbyn7.js";
 import {
   roleDirty
-} from "./nav-36f6dmhj.js";
+} from "./nav-w5ecmbs1.js";
 
 // lib/measure.tsx
 var num = (n) => Number(n || 0).toLocaleString("ja-JP");
@@ -903,7 +903,15 @@ function Vm2({ list }) {
     }))
   });
 }
-function RuleDoc2({ row, hasName = true, heading, nameError, issues, onChange, transfer }) {
+function RuleDoc2({ row, hasName = true, heading, nameError, issues, onChange, onDraft, rename, transfer }) {
+  function change(draft) {
+    if (onDraft)
+      onDraft(draft);
+    else {
+      Object.assign(row.draft, draft);
+      onChange?.(row);
+    }
+  }
   return /* @__PURE__ */ u(S, {
     children: [
       hasName ? /* @__PURE__ */ u("label", {
@@ -916,8 +924,7 @@ function RuleDoc2({ row, hasName = true, heading, nameError, issues, onChange, t
             value: row.draft.name,
             onInput: (event) => {
               if (event.currentTarget instanceof HTMLInputElement) {
-                row.draft.name = event.currentTarget.value;
-                onChange?.(row);
+                change({ ...row.draft, name: event.currentTarget.value });
               }
             }
           }),
@@ -933,9 +940,12 @@ function RuleDoc2({ row, hasName = true, heading, nameError, issues, onChange, t
         children: [
           /* @__PURE__ */ u("input", {
             type: "checkbox",
-            checked: renameCarries2(row.uid + row.l),
+            checked: rename ? rename.value : renameCarries2(row.uid + row.l),
             onChange: (event) => {
-              renameBox.value = { ...renameBox.value, [row.uid + row.l]: event.currentTarget.checked };
+              if (rename)
+                rename.change(event.currentTarget.checked);
+              else
+                renameBox.value = { ...renameBox.value, [row.uid + row.l]: event.currentTarget.checked };
             }
           }),
           "使っているチームのロール名も変更する"
@@ -946,9 +956,7 @@ function RuleDoc2({ row, hasName = true, heading, nameError, issues, onChange, t
         heading: heading || { kind: "ロール", name: row.draft.name || "新しいロール", title: row.draft.title, path: row.draft.__path, state: roleDirty(row) ? "未保存" : "保存済み" },
         text: row.draft.text,
         onChange: (text) => {
-          row.draft.text = text;
-          row.draft.title = title(text, row.draft.name);
-          onChange?.(row);
+          change({ ...row.draft, text, title: title(text, row.draft.name) });
         }
       }),
       /* @__PURE__ */ u(Vm2, {

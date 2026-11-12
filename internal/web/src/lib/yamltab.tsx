@@ -195,7 +195,7 @@ export function YamlTab(props: YamlTabProps) {
     return () => {
       alive.current = false;
       clearTimeout(timer.current);
-      editing.dispose();
+      if (!props.editing) editing.dispose();
     };
   }, []);
 

@@ -21,9 +21,9 @@ import {
   call2,
   read2,
   problemText2
-} from "../chunk/nav-5wk0yvna.js";
-import"../chunk/nav-n7k9prc1.js";
-import"../chunk/nav-6xksh4n8.js";
+} from "../chunk/nav-ghcq2kwy.js";
+import"../chunk/nav-me9ek2sz.js";
+import"../chunk/nav-fsrd36y0.js";
 import {
   setRunning2,
   projectName2,
@@ -34,11 +34,11 @@ import {
   stopSheet2,
   teamCount,
   openSheet
-} from "../chunk/nav-mvjbr7t3.js";
+} from "../chunk/nav-xckgx88h.js";
 import {
   TeamFigure2,
   exports_hq
-} from "../chunk/nav-1g2p38ew.js";
+} from "../chunk/nav-sd0hps2t.js";
 import {
   movePage,
   installWheel
