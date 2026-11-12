@@ -16,6 +16,7 @@ import (
 	"github.com/aq2bq/hergy/internal/ops/internal/team"
 	"github.com/aq2bq/hergy/internal/options"
 	"github.com/aq2bq/hergy/internal/source"
+	"github.com/aq2bq/hergy/internal/words"
 )
 
 // MemberInput is an unresolved CLI member selection with an execution policy.
@@ -86,7 +87,7 @@ func memberPlan(in MemberInput, mode string, dryRead bool) (*Plan, error) {
 
 func requireMemberPane(in MemberInput) error {
 	if in.RequirePane && (!in.ManagedPane || CurrentPane() == "") {
-		return i18n.Errorf("error.not_under_herdr")
+		return words.Errorf("runtime.managed-pane", i18n.Language())
 	}
 	return nil
 }
@@ -109,7 +110,7 @@ func Refresh(ctx context.Context, in MemberInput) (MemberResult, error) {
 		for _, name := range newPanes.Members {
 			names = append(names, domainname.ShortIn(name.Observation(), r.Team.Name.Observation()).String())
 		}
-		return out, i18n.Errorf("refresh.use_apply", strings.Join(names, i18n.T("list.separator")))
+		return out, words.Errorf("refresh.no-pane", i18n.Language(), strings.Join(names, i18n.T("list.separator")))
 	}
 	member := in.Member
 	if in.All {

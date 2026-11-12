@@ -1,6 +1,10 @@
 package options
 
-import "sort"
+import (
+	"sort"
+
+	"github.com/aq2bq/hergy/internal/words"
+)
 
 // Use says one command accepts one flag, and what the flag means there. The
 // same flag reads differently from command to command (up --dry prints the boot
@@ -21,14 +25,14 @@ type Arg struct {
 	Or       *Flag // a flag that stands in for it: refresh <member>|--all
 }
 
-// Spec is one command: the one place its words, its arguments and the flags it
-// accepts are written. The parser, hergy <command> --help and the cheatsheet's
+// Spec owns command syntax: arguments and accepted flags. Public words are
+// references to internal/words. The parser, hergy <command> --help and the cheatsheet's
 // command lines all read it.
 type Spec struct {
 	Kind    Kind
-	Name    string // the command word
-	Summary Text   // one line; the same sentence as the command's row in hergy --help
-	Detail  Text   // optional: a line or two under the usage line of its --help
+	Name    string         // the command word
+	Summary Text           // one line; the same sentence as the command's row in hergy --help
+	Rules   []words.RuleID // public facts, owned by internal/words
 	Args    []Arg
 	Flags   []Use // the flags of this command, in the order --help shows them; never --lang or --help
 	Bare    bool  // version: answers before any flag is read, has no help page of its own
@@ -41,8 +45,8 @@ type Spec struct {
 // common is what every command but version accepts. It is written once, so a
 // command's Flags leaves it out.
 var common = []Use{
-	{Flag: flagLang, Desc: text("Language of the command line's output (default en)\nThe WebUI is Japanese", "コマンドの出力の言語（既定は en）\nWebUI は日本語")},
-	{Flag: flagHelp, Desc: text("Show this text", "この説明を表示する")},
+	{Flag: flagLang, Desc: words.Sentences("flag.lang")},
+	{Flag: flagHelp, Desc: words.Sentences("flag.help")},
 }
 
 func use(f *Flag, desc Text) Use { return Use{Flag: f, Desc: desc} }
@@ -50,162 +54,107 @@ func use(f *Flag, desc Text) Use { return Use{Flag: f, Desc: desc} }
 func required(f *Flag, desc Text) Use { return Use{Flag: f, Desc: desc, Required: true} }
 
 var (
-	descDir = text(
-		"The project root to resolve against\n(default: the git root, else the current directory)",
-		"プロジェクトの場所を指定する\n（既定は git のルート。なければ今のディレクトリ）")
-	descJSON    = text("With --dry, print the plan as JSON (--dry is required)", "--dry の計画を JSON で表示する（--dry が必要）")
-	descTimeout = text("Startup timeout in milliseconds, 3001..300000 (default 30000)", "起動を待つ時間（ミリ秒。3001〜300000、既定 30000）")
-	descTeam    = text(
-		"The team to act on, by team name\n(with --dry, a team definition name the launch record does not\nknow is also taken; left out: the one running team, or with\n--dry the one team in this project's launch record)",
-		"対象のチーム名\n（--dry では、起動の記録に無いチーム定義名も書ける。\n省くと動いているチームが1つだけならそのチーム、--dry では\nこのプロジェクトの起動の記録にある1つのチーム）")
-	descHireTeam = text(
-		"The team, by team name or team definition name\n(left out: with --dry, the one team in this project's\nlaunch record; else the one running team)",
-		"対象のチーム（チーム名かチーム定義名）\n（省くと、--dry ではこのプロジェクトの起動の記録にある1つのチーム。\nそうでなければ、動いているチームが1つだけなら省ける）")
+	descDir      = words.Sentences("flag.dir")
+	descJSON     = words.Sentences("flag.json")
+	descTimeout  = words.Sentences("startup.timeout")
+	descTeam     = words.Sentences("team.selection")
+	descHireTeam = words.Sentences("hire.team-selection")
 )
 
 // specs is every command, in the order the cheatsheet lists them.
 var specs = []Spec{
 	{
-		Kind: Up, Name: "up",
-		Summary: text("Start a team", "チームを起動する"),
-		Detail: text(
-			"Boot a team definition in a new herdr tab: one pane per member, each handed its bootstrap prompt.\nConfirm receipt within five seconds and retry once on a sending error.\nMissing receipts are listed after the remaining members; the command fails.\nOther sending or startup failures stop immediately.",
-			"チーム定義を新しいタブに起動する。メンバーごとにペインを作り、初期プロンプトを渡す。\n受け取りを5秒待ち、送信の失敗時は1回だけ送り直す。\n届かなかった相手は残りの処理後に並べ、失敗で終わる。\n送信そのものや起動の失敗は、その場で止まる。"),
+		Kind: Up, Name: "up", Rules: words.ForCommand("up"),
+		Summary: words.Label("up.summary"),
 		Args: []Arg{{
-			Name: text("definition", "チーム定義"), Optional: true,
-			Desc: text(
-				"The team definition to start\n(left out: the lone project one)",
-				"起動するチーム定義の名前\n（省くと、プロジェクトのチーム定義が1つならそれ）"),
+			Name: words.Label("argument.definition"), Optional: true,
+			Desc: words.Label("argument.up-definition"),
 		}},
 		Flags: []Use{
-			use(flagAs, text(
-				"Start the team under this team name (default: the team definition name)\nIt is the first half of the herdr name",
-				"このチーム名で起動する（既定はチーム定義名）\nherdr 名の前半になる")),
-			use(flagDry, text(
-				"Print the plan (each member's prompt as text) and start nothing\nIt never reads herdr",
-				"起動せず、計画（メンバーごとのプロンプト）だけを表示する\nherdr は読まない")),
+			use(flagAs, words.Sentences("flag.as.up")),
+			use(flagDry, words.Sentences("flag.dry.up")),
 			use(flagJSON, descJSON),
 			use(flagTimeout, descTimeout),
 			use(flagDir, descDir),
 		},
 	},
 	{
-		Kind: Down, Name: "down",
-		Summary: text("Stop a team, or one of its workers", "チーム、またはそのワーカーを終了する"),
-		Detail: text(
-			"With a team name, close the panes hergy named for its members and hired workers,\nincluding panes whose agents have stopped.\nA name that is not a running team is looked for as a worker of one (its short name or its\nherdr name), and only that worker's pane is closed; the worker's own tab goes when that pane\nwas the last one in it. A name that is both is refused, naming both. Left out, down uses the one\nrunning team.\nAfter closing a team's panes, wait up to 30000 ms in total for herdr to forget their names;\na timeout fails and lists the remaining names. From a team pane, wait for the other names\nbefore closing your own pane last; your own name cannot be awaited. On timeout, keep your\nown pane open and run hergy down again after the names disappear. --dry never waits.\nFor a team, even on a name-release timeout, list remaining worktrees and clear the team's\nturn record before returning failure. Other errors stop before this cleanup.\nFor one worker, wait for herdr to forget its name before succeeding; a timeout fails.\nAfter closing, down lists the git worktrees that came while the team was running — after the\nworker was hired, for one worker — other than the project root; an agent keeps its pane in the\nproject root and cds into a worktree, so the pane's own directory is not enough to find them.\nThe time comes from the launch record, and a worktree a closed pane stood in is marked. Each\nworktree comes with its branch, uncommitted changes and commits not in main, and the project's\nstashes, and the commands that remove them; hergy removes nothing. Temporary documents are not\nlisted: hergy cannot tell which are the team's.",
-			"チーム名なら、そのチームのメンバーと、hire したワーカーのペインを閉じる。\nエージェントが動いていない名前つきのペインも閉じる。\n動いているチームに無い名前は、そのワーカー（短い名前か herdr 名）として探し、\nそのワーカーのペインだけを閉じる。ワーカーのタブは、そのペインが最後の 1 枚だった\nときに閉じる。チーム名にもワーカー名にも当たる名前は断り、両方を名指す。\n省くと、動いているチームが 1 つだけのときにそのチームを使う。\nチームのペインを閉じたあと、herdr から名前が消えるまで全員で最大 30000 ミリ秒待つ。\n時間切れなら、残った名前を示して失敗で終わる。チームのペインから打つと、ほかの名前が\n消えたあとに自分のペインを最後に閉じる。自分の名前は待てない。時間切れなら自分の\nペインを残す。名前が消えたあと hergy down をもう一度打つ。--dry は待たない。\nチームの終了は、名前の待ちが時間切れでもワークツリーを一覧にし、ターンの記録を\n消してから失敗で終わる。ほかのエラーでは、一覧表示と記録の消去をしない。\nワーカー1人の終了は、herdrから名前が消えるまで待つ。時間切れなら失敗で終わる。\n閉じたあと、チームが動いている間にできた git ワークツリー（ワーカー 1 人を閉じたときは、\nそのワーカーを雇ったあとにできたもの）を、プロジェクトのルートを除いて一覧にする。\nエージェントはペインの作業ディレクトリをルートに置いたまま cd してワークツリーで働くので、\nペインの作業ディレクトリだけでは見つからない。できた時刻は起動の記録から読み、ペインの\n作業ディレクトリがそこにあったワークツリーには、そう添える。一覧の中身は、枝・保存して\nいない変更・main に入っていないコミットの数と、このプロジェクトの stash の数、消すコマンド。\nhergy は消さない。一時文書は、どれがチームのものか分からないので一覧に入れない。"),
+		Kind: Down, Name: "down", Rules: words.ForCommand("down"),
+		Summary: words.Label("down.summary"),
 		Args: []Arg{{
-			Name: text("team|worker", "チーム|ワーカー"), Optional: true,
-			Desc: text(
-				"A team name, or a worker of one (short or herdr name)",
-				"チーム名、または動いているチームのワーカー（短い名前か herdr 名）"),
+			Name: words.Label("argument.team-or-worker"), Optional: true,
+			Desc: words.Label("argument.down-target"),
 		}},
 		Flags: []Use{
-			use(flagDry, text(
-				"Print what would close and close nothing\nIt reads herdr's live agents and tabs",
-				"閉じる予定だけを表示し、何も閉じない\nherdr の今のエージェントとタブを読む")),
+			use(flagDry, words.Sentences("flag.dry.down")),
 			use(flagJSON, descJSON),
 			use(flagDir, descDir),
 		},
 	},
 	{
-		Kind: Status, Name: "status",
-		Summary: text("Show how the members and workers are doing", "メンバーとワーカーの状態を見る"),
-		Detail: text(
-			"One line per member and worker with its live herdr state, then who is waiting for a human.",
-			"メンバーとワーカーごとに herdr の今の状態を1行ずつ出し、\n最後に、人の返事を待っている者がいるかを判定する。"),
+		Kind: Status, Name: "status", Rules: words.ForCommand("status"),
+		Summary: words.Label("status.summary"),
 		Args: []Arg{{
-			Name: text("team", "チーム"), Optional: true,
-			Desc: text("The team name (left out: every running team)", "チーム名（省くと、動いているチームをすべて一覧する）"),
+			Name: words.Label("argument.team"), Optional: true,
+			Desc: words.Label("argument.status-team"),
 		}},
 		Flags: []Use{
-			use(flagJSON, text(
-				"Print the rows as JSON (state and unchanged_minutes) instead of text",
-				"行を JSON で表示する（state と unchanged_minutes）")),
+			use(flagJSON, words.Sentences("flag.json.status")),
 			use(flagDir, descDir),
 		},
 	},
 	{
-		Kind: Refresh, Name: "refresh",
-		Summary: text("Restart a member", "メンバーを起動し直す"),
-		Detail: text(
-			"End each selected member's agent and start it again in the same pane.\nA member with no live agent is refused: adding a member to a running team\nis hergy apply. Give a member or --all.\nConfirm receipt within five seconds and retry once on a sending error.\nMissing receipts are listed after the remaining members; the command fails.\nOther sending or startup failures stop immediately.",
-			"選んだメンバーのエージェントを終わらせ、同じペインで起動し直す。\n動いていないメンバーは断り、hergy apply を示す。\nメンバーか --all のどちらかを指定する。\n受け取りを5秒待ち、送信の失敗時は1回だけ送り直す。\n届かなかった相手は残りの処理後に並べ、失敗で終わる。\n送信そのものや起動の失敗は、その場で止まる。"),
+		Kind: Refresh, Name: "refresh", Rules: words.ForCommand("refresh"),
+		Summary: words.Label("refresh.summary"),
 		Args: []Arg{{
-			Name: text("member", "メンバー"), Or: flagAll,
-			Desc: text(
-				"The member to restart, by short member name or herdr name",
-				"起動し直すメンバー（短いメンバー名か herdr 名）"),
+			Name: words.Label("argument.member"), Or: flagAll,
+			Desc: words.Label("argument.refresh-member"),
 		}},
 		Flags: []Use{
-			use(flagAll, text(
-				"Restart every member (not with a member)",
-				"全メンバーを起動し直す（メンバーとは同時に指定できない）")),
+			use(flagAll, words.Sentences("flag.all.refresh")),
 			use(flagTeam, descTeam),
-			use(flagDry, text(
-				"Print what would restart or be added, and change nothing\nIt reads herdr's live agents and tabs, and refuses\nyour own pane as a real run does",
-				"起動し直す予定と、足す予定を表示し、何も変えない\nherdr の今の状態を読み、自分のペインは本番と同じく断る")),
+			use(flagDry, words.Sentences("flag.dry.refresh")),
 			use(flagJSON, descJSON),
 			use(flagTimeout, descTimeout),
 			use(flagDir, descDir),
 		},
 	},
 	{
-		Kind: Reprompt, Name: "reprompt",
-		Summary: text("Send the bootstrap prompt again; the conversation stays", "初期プロンプトを送り直す。会話は残る"),
-		Detail: text(
-			"Re-send the bootstrap prompt to members that are idle or done. It starts nothing.\nGive a member or --all.\nConfirm receipt within five seconds and retry once on a sending error.\nMissing receipts are listed after the remaining members; the command fails.\nOther sending or startup failures stop immediately.",
-			"待機中（idle か done）のメンバーに初期プロンプトを送り直す。何も起動しない。\nメンバーか --all のどちらかを指定する。\n受け取りを5秒待ち、送信の失敗時は1回だけ送り直す。\n届かなかった相手は残りの処理後に並べ、失敗で終わる。\n送信そのものや起動の失敗は、その場で止まる。"),
+		Kind: Reprompt, Name: "reprompt", Rules: words.ForCommand("reprompt"),
+		Summary: words.Label("reprompt.summary"),
 		Args: []Arg{{
-			Name: text("member", "メンバー"), Or: flagAll,
-			Desc: text(
-				"The member to send it to, by short member name or herdr name",
-				"送り直すメンバー（短いメンバー名か herdr 名）"),
+			Name: words.Label("argument.member"), Or: flagAll,
+			Desc: words.Label("argument.reprompt-member"),
 		}},
 		Flags: []Use{
-			use(flagAll, text("Send it to every member (not with a member)", "全メンバーに送り直す（メンバーとは同時に指定できない）")),
+			use(flagAll, words.Sentences("flag.all.reprompt")),
 			use(flagTeam, descTeam),
-			use(flagDry, text(
-				"Print what would be sent and send nothing\nIt never reads herdr",
-				"送る予定だけを表示し、何も送らない\nherdr は読まない")),
+			use(flagDry, words.Sentences("flag.dry.reprompt")),
 			use(flagJSON, descJSON),
 			use(flagDir, descDir),
 		},
 	},
 	{
-		Kind: Apply, Name: "apply", Variadic: true,
-		Summary: text("Apply a changed definition to a running team", "動いているチームに定義の変更を反映する"),
-		Detail: text(
-			"Compare the saved definition with the running teams and apply each\nmember's drift: send its prompt again, start it, or restart it.\nName no member to apply every member with drift.\nConfirm receipt within five seconds and retry once on a sending error.\nMissing receipts are listed after the remaining members; the command fails.\nOther sending or startup failures stop immediately.",
-			"保存した定義と動いているチームを比べ、メンバーごとのずれを反映する。\n送り直す・起動する・起動し直すのどれかを hergy が決める。\nメンバーを名指さなければ、ずれのあるメンバー全員を反映する。\n受け取りを5秒待ち、送信の失敗時は1回だけ送り直す。\n届かなかった相手は残りの処理後に並べ、失敗で終わる。\n送信そのものや起動の失敗は、その場で止まる。"),
+		Kind: Apply, Name: "apply", Rules: words.ForCommand("apply"), Variadic: true,
+		Summary: words.Label("apply.summary"),
 		Args: []Arg{{
-			Name: text("member", "メンバー"), Optional: true,
-			Desc: text(
-				"The members to apply, by short member name or herdr name\n(left out: every member with drift)",
-				"反映するメンバー（短いメンバー名か herdr 名）\n（省くと、ずれのあるメンバー全員）"),
+			Name: words.Label("argument.member"), Optional: true,
+			Desc: words.Label("argument.apply-members"),
 		}},
 		Flags: []Use{
 			use(flagTeam, descTeam),
-			use(flagDry, text(
-				"Print each member's way of applying, what changed and the team's notes\nIt changes nothing; it reads herdr's live agents and tabs\nExit 1 if any member cannot be applied, including with --json",
-				"メンバーごとの反映の仕方・変わったこと・チームの知らせを表示する\n何も変えない。herdr の今の状態を読む\n反映できずに残るメンバーがいれば終了コードは 1（--json でも同じ）")),
+			use(flagDry, words.Sentences("flag.dry.apply")),
 			use(flagJSON, descJSON),
 			use(flagTimeout, descTimeout),
 			use(flagDir, descDir),
 		},
 	},
 	{
-		Kind: Focus, Name: "focus",
-		Summary: text("Move the focus to a member's pane", "メンバーのペインに移動する"),
-		Detail: text(
-			"Move the focus to a member's pane, so a person can answer it there. It changes nothing else.",
-			"メンバーのペインに移動する。人がそこで答えるため。ほかのことは何も変えない。"),
+		Kind: Focus, Name: "focus", Rules: words.ForCommand("focus"),
+		Summary: words.Label("focus.summary"),
 		Args: []Arg{{
-			Name: text("member", "メンバー"),
-			Desc: text(
-				"The member to move to, by short member name or herdr name",
-				"移動先のメンバー（短いメンバー名か herdr 名）"),
+			Name: words.Label("argument.member"),
+			Desc: words.Label("argument.focus-member"),
 		}},
 		Flags: []Use{
 			use(flagTeam, descTeam),
@@ -213,242 +162,152 @@ var specs = []Spec{
 		},
 	},
 	{
-		Kind: Nudge, Name: "nudge",
-		Summary: text("Push a member that has stopped to carry on", "止まっているメンバーに続けるよううながす"),
-		Detail: text(
-			"Send a member a short push to carry on, only when it is idle or done.\nA working or blocked member is left alone, and the command errors.",
-			"待機中（idle か done）のときだけ、メンバーに続けるよう短く送る。\n作業中か許可待ちのメンバーには送らず、エラーになる。"),
+		Kind: Nudge, Name: "nudge", Rules: words.ForCommand("nudge"),
+		Summary: words.Label("nudge.summary"),
 		Args: []Arg{
 			{
-				Name: text("member", "メンバー"),
-				Desc: text(
-					"The member to push, by short member name or herdr name",
-					"うながすメンバー（短いメンバー名か herdr 名）"),
+				Name: words.Label("argument.member"),
+				Desc: words.Label("argument.nudge-member"),
 			},
 			{
-				Name: text("text", "本文"), Optional: true,
-				Desc: text(
-					"What to send (left out: a short \"carry on\")",
-					"送る本文（省くと、続けるよう短く送る）"),
+				Name: words.Label("argument.text"), Optional: true,
+				Desc: words.Label("argument.nudge-text"),
 			},
 		},
 		Flags: []Use{
 			use(flagTeam, descTeam),
-			use(flagDry, text(
-				"Print what would be sent and send nothing\nIt never reads herdr; the sender is the human\n(a --dry run cannot read the pane's member)",
-				"送る予定だけを表示し、何も送らない\nherdr は読まない。送り主は人間として出す\n（--dry では、打ったペインのメンバーを読まない）")),
+			use(flagDry, words.Sentences("flag.dry.nudge")),
 			use(flagDir, descDir),
 		},
 	},
 	{
-		Kind: Stop, Name: "stop",
-		Summary: text("Interrupt a member's current turn", "メンバーの今のターンを止める"),
-		Detail: text(
-			"Send esc to a working member, ending its current turn and keeping its conversation.\nAn idle or done member is left alone, and the command still succeeds.\nSome agents need esc twice: the first only asks them to interrupt. hergy watches the member's\nstate after each esc and sends a second esc only while the member is still working, so an agent\nthat stops on the first is never sent a second. A member still working after two escs is reported\nas not stopped (exit 1), and refresh is named as the next step.",
-			"作業中のメンバーに esc を送り、今のターンを終わらせる。会話は残る。\n待機中（idle か done）のメンバーには何もしないが、コマンドは成功する。\nesc を 2 回必要とするエージェントがある（1 回目の esc では止まらない）。hergy は esc を\n送るたびにメンバーの状態を見て、作業中のままならもう 1 回送る。1 回で止まったエージェントには\n2 回目を送らない。2 回送っても作業中のままなら、止まらなかったと言って失敗し（exit 1）、\nrefresh を next に出す。"),
+		Kind: Stop, Name: "stop", Rules: words.ForCommand("stop"),
+		Summary: words.Label("stop.summary"),
 		Args: []Arg{{
-			Name: text("member", "メンバー"),
-			Desc: text(
-				"The member to stop, by short member name or herdr name",
-				"止めるメンバー（短いメンバー名か herdr 名）"),
+			Name: words.Label("argument.member"),
+			Desc: words.Label("argument.stop-member"),
 		}},
 		Flags: []Use{
 			use(flagTeam, descTeam),
-			use(flagDry, text(
-				"Print what would stop and change nothing\nIt never reads herdr",
-				"止める予定だけを表示し、何も変えない\nherdr は読まない")),
+			use(flagDry, words.Sentences("flag.dry.stop")),
 			use(flagDir, descDir),
 		},
 	},
 	{
-		Kind: Tell, Name: "tell",
-		Summary: text("Send a message to a member or worker", "メンバーかワーカーに伝える（誰からかを付けられる）"),
-		Detail: text(
-			"Members and workers can send and receive messages, headed by who they are from.\nIt does not check the recipient's state: the message reaches an agent in any state.\nhergy tell human, from a member's or worker's pane, sends nothing: it marks what they\nwrote in their pane as the person's, so hergy turns does not ask who it is for.",
-			"メンバーとワーカーが、誰からかを頭に付けて本文を送る。\n相手の状態は見ない。どの状態のエージェントにも届く。\nメンバーかワーカーのペインから打つ hergy tell 人間 は何も送らない。\nペインに書いた文を人間向けと記し、hergy turns が渡し先を聞かなくなる。"),
+		Kind: Tell, Name: "tell", Rules: words.ForCommand("tell"),
+		Summary: words.Label("tell.summary"),
 		Args: []Arg{
 			{
-				Name: text("name", "名前"),
-				Desc: text(
-					"The member or worker to send to, by short name or herdr name",
-					"送る相手のメンバーかワーカー（短い名前か herdr 名）"),
+				Name: words.Label("argument.name"),
+				Desc: words.Label("argument.tell-recipient"),
 			},
 			{
-				Name: text("text", "本文"), Optional: true,
-				Desc: text(
-					"What to send. Required for a member or worker.\nThe human receives nothing and needs no text",
-					"送る本文。メンバーとワーカーへは必須。\n人間へは何も送らないので要らない"),
+				Name: words.Label("argument.text"), Optional: true,
+				Desc: words.Label("argument.tell-text"),
 			},
 		},
 		Flags: []Use{
-			use(flagFrom, text(
-				"The member or worker the message is from (short name or herdr name)\nLeft out: whoever owns the pane you type in, else the human",
-				"誰からの本文か（メンバーかワーカーの短い名前か herdr 名）\n省くと、打ったペインのメンバーかワーカー。それ以外のペインでは人間")),
+			use(flagFrom, words.Sentences("flag.from.tell")),
 			use(flagTeam, descTeam),
-			use(flagDry, text(
-				"Print what would be sent and send nothing\nRead definition members only; never read herdr or resolve workers\nWithout --from the sender is the human",
-				"送る予定だけを表示し、何も送らない\n定義のメンバーだけを使い、herdr は読まず、ワーカーは解決しない\n--from が無ければ送り主は人間")),
+			use(flagDry, words.Sentences("flag.dry.tell")),
 			use(flagDir, descDir),
 		},
 	},
 	{
-		Kind: Hire, Name: "hire",
-		Summary: text("Add a worker", "ワーカーを追加する"),
-		Detail: text(
-			"A member starts a worker of its own in a tab of its own and hands it a task.\nConfirm receipt within five seconds and retry once on a sending error.\nMissing receipts are listed after the remaining members; the command fails.\nOther sending or startup failures stop immediately.",
-			"メンバーが、自分のワーカーを別タブに起動して依頼を渡す。\n受け取りを5秒待ち、送信の失敗時は1回だけ送り直す。\n届かなかった相手は残りの処理後に並べ、失敗で終わる。\n送信そのものや起動の失敗は、その場で止まる。"),
+		Kind: Hire, Name: "hire", Rules: words.ForCommand("hire"),
+		Summary: words.Label("hire.summary"),
 		Args: []Arg{{
-			Name: text("name", "名前"),
-			Desc: text(
-				"The worker's name (not a member name or a herdr name already in use)",
-				"ワーカーの名前（メンバー名とも、使用中の herdr 名とも重ならないこと）"),
+			Name: words.Label("argument.name"),
+			Desc: words.Label("argument.hire-name"),
 		}},
 		Flags: []Use{
-			required(flagPurpose, text(
-				"What the worker is for (required)\nA purpose the hiring member's workers: names;\nthe profile comes from that entry",
-				"ワーカーの目的（必須）\n呼ぶメンバーの workers: が名指す目的であること。\nプロファイルはその組から決まる")),
-			required(flagTask, text("The task text handed to the worker (required)", "ワーカーに渡す依頼の文（必須）")),
-			use(flagFrom, text(
-				"The member that hires the worker (short member name or herdr name)\nLeft out: required unless exactly one member hires for this purpose",
-				"ワーカーを追加するメンバー（短いメンバー名か herdr 名）\nこの目的のワーカーを持つメンバーが1人だけなら省ける")),
+			required(flagPurpose, words.Sentences("flag.purpose.hire")),
+			required(flagTask, words.Sentences("flag.task.hire")),
+			use(flagFrom, words.Sentences("flag.from.hire")),
 			use(flagTeam, descHireTeam),
 			use(flagTimeout, descTimeout),
-			use(flagDry, text(
-				"Print the plan and start nothing\nThe team is the one --team names (a team name, or a team\ndefinition name the launch record does not know), else the one\nteam in this project's launch record. herdr is not read, so a team\nthat is not running can be planned for",
-				"起動せず、計画だけを表示する\nチームは --team が名指すもの（チーム名か、起動の記録に無い\nチーム定義名）。無ければ、このプロジェクトの起動の記録にある1つの\nチーム。herdr は読まないので、動いていないチームも計画できる")),
+			use(flagDry, words.Sentences("flag.dry.hire")),
 			use(flagJSON, descJSON),
 			use(flagDir, descDir),
 		},
 	},
 	{
-		Kind: Turns, Name: "turns",
-		Summary: text("Watch a team and ask a member that stopped without handing on", "チームを見張り、渡さずに止まったメンバーに渡し先を聞く"),
-		Detail: text(
-			"Read the tells, the signals and herdr once a second. Members hand the turn on with hergy tell.\nA turn another member opened that ends without a tell is asked about: who is the result for?\nThe answer decides where the text goes; the human, nobody or no clear name leaves it with the human.\nA turn the person opened rests when it ends. hergy up starts this in a four-row pane of the\nteam's tab. The pane shows a three-line band (states, holder, waits / the latest handoffs with\ntheir time / what is being asked); the sentences go to turns/<team>.log (read it with --log).",
-			"tell・合図・herdr を 1 秒ごとに読む。ターンを渡すのはメンバーの hergy tell。\nほかのメンバーが開いたターンが、渡さずに終わったときだけ、本人に「誰に渡しますか」と聞く。\n答えどおりに届ける。人間・誰にも・決まらない答えなら、ターンは人間へ。\n人間が開いたターンの終わりには何もしない。hergy up がチームのタブの 4 行のペインで起動する。\nペインには 3 行の帯（状態・持ち主・待ち／時刻付きの直近の受け渡し／いま聞いていること）を描き、\n文のログは turns/<チーム>.log へ（--log で読む）。"),
+		Kind: Turns, Name: "turns", Rules: words.ForCommand("turns"),
+		Summary: words.Label("turns.summary"),
 		Args: []Arg{{
-			Name: text("team", "チーム"), Optional: true,
-			Desc: text("The team name (left out: the one running team)", "チーム名（省くと、動いている 1 つのチーム）"),
+			Name: words.Label("argument.team"), Optional: true,
+			Desc: words.Label("argument.turns-team"),
 		}},
 		Flags: []Use{
-			use(flagLog, text(
-				"Print the watcher's log (each line with its time) and stop\nThe pane shows the band; the sentences are in turns/<team>.log",
-				"見張りのログ（1 行ごとに時刻付き）を表示して終わる\nペインには帯だけが出る。文は turns/<チーム>.log に残る")),
+			use(flagLog, words.Sentences("flag.log.turns")),
 			use(flagDir, descDir),
 		},
 	},
 	{
-		Kind: TurnDone, Name: "turn-done",
-		Summary: text("Tell hergy a member's turn ended (the harness calls this)", "メンバーのターンの終わりを hergy に知らせる（ハーネスが呼ぶ）"),
-		Detail: text(
-			"The call hergy up wires into each member's harness: Claude Code's Stop hook, Codex's notify\nand opencode's plugin call it when a turn ends, with the turn's last reply (Codex as one JSON\nargument, the others on stdin). hergy writes the signal for the team's watcher (hergy turns),\nwhich hands the turn on from it. A person does not type this.",
-			"hergy up がメンバーのハーネスに差し込む呼び出し。Claude Code の Stop hook、Codex の notify、\nopencode のプラグインが、ターンの終わりに最後の返答を添えて呼ぶ（Codex は引数の JSON、\nほかは標準入力）。hergy は合図を書き、チームの見張り（hergy turns）がそれを読んで渡す。\n人が打つコマンドではない。"),
+		Kind: TurnDone, Name: "turn-done", Rules: words.ForCommand("turn-done"),
+		Summary: words.Label("turn-done.summary"),
 		Args: []Arg{
-			{Name: text("team", "チーム"), Desc: text("The team name", "チーム名")},
-			{Name: text("member", "メンバー"), Desc: text("The member's or worker's short name", "メンバーかワーカーの短い名前")},
-			{Name: text("payload", "本文"), Optional: true, Desc: text("Codex's JSON (left out: read from stdin)", "Codex の JSON（省くと標準入力から読む）")},
+			{Name: words.Label("argument.team"), Desc: words.Label("argument.team-name")},
+			{Name: words.Label("argument.member"), Desc: words.Label("argument.turn-done-member")},
+			{Name: words.Label("argument.payload"), Optional: true, Desc: words.Label("argument.turn-done-payload")},
 		},
 	},
 	{
-		Kind: Ls, Name: "ls",
-		Summary: text("List the team definitions", "チーム定義の一覧を見る"),
-		Detail: text(
-			"List the visible team definitions,\nand the running team names each one booted.",
-			"見えるチーム定義と、そこから動いているチーム名を一覧する。"),
+		Kind: Ls, Name: "ls", Rules: words.ForCommand("ls"),
+		Summary: words.Label("ls.summary"),
 		Flags: []Use{
 			use(flagDir, descDir),
 		},
 	},
 	{
-		Kind: Show, Name: "show",
-		Summary: text("Show the final team definition and where each value came from", "最終的なチーム定義と、その出どころを見る"),
-		Detail: text(
-			"Print the effective team definition and where each value and document came from.",
-			"最終的なチーム定義と、各値と文書の出どころを表示する。"),
+		Kind: Show, Name: "show", Rules: words.ForCommand("show"),
+		Summary: words.Label("show.summary"),
 		Args: []Arg{{
-			Name: text("definition", "チーム定義"),
-			Desc: text("The team definition to show", "表示するチーム定義の名前"),
+			Name: words.Label("argument.definition"),
+			Desc: words.Label("argument.show-definition"),
 		}},
 		Flags: []Use{
 			use(flagDir, descDir),
 		},
 	},
 	{
-		Kind: New, Name: "new",
-		Summary: text("Write a starter team definition", "チーム定義のひな形を作る"),
-		Detail: text(
-			"Write team.yaml and agreement.md.\n"+
-				"The members' roles and profiles are the ones either place already holds:\n"+
-				"hergy writes no role document and no profile the person did not choose.\n"+
-				"While neither place holds a role document, it writes the starter roles\n"+
-				"lead and builder into roles/; while neither defines a profile, it writes\n"+
-				"claude-default into profiles.yaml. Otherwise it names the roles and\n"+
-				"profiles to write in team.yaml, and the next step is hergy validate.\n"+
-				"An existing team is never overwritten. It writes into the project's .hergy/\n"+
-				"inside a git repository, and into ~/.config/hergy/ outside one.\n"+
-				"If the global config.yaml (version and lang) is missing, it is written too.",
-			"team.yaml・agreement.md を書き出す。メンバーのロールとプロファイルは、\n"+
-				"プロジェクトかグローバルのどちらかに今あるものから選ぶ。\n"+
-				"人が選んでいないロールの文書とプロファイルは書かない。\n"+
-				"どちらにもロールの文書が 1 つも無いときだけ、ひな形のロール lead・builder を\n"+
-				"roles/ に書く。プロファイルも、どちらにも 1 つも無いときだけ claude-default を\n"+
-				"profiles.yaml に書く。あるときは、team.yaml に書くロールとプロファイルを名指し、\n"+
-				"次の一手を hergy validate にする。\n"+
-				"既にあるチーム定義は上書きしない。\n"+
-				"書く先は、git の中ならプロジェクトの .hergy/、外なら ~/.config/hergy/。\n"+
-				"グローバルの config.yaml（version と lang）は、無いときだけ作る。"),
+		Kind: New, Name: "new", Rules: words.ForCommand("new"),
+		Summary: words.Label("new.summary"),
 		Args: []Arg{{
-			Name: text("definition", "チーム定義"),
-			Desc: text(
-				"The name of the team definition to write ([a-z][a-z0-9_-]{0,24})",
-				"作るチーム定義の名前（[a-z][a-z0-9_-]{0,24}）"),
+			Name: words.Label("argument.definition"),
+			Desc: words.Label("argument.new-definition"),
 		}},
 		Flags: []Use{
 			use(flagDir, descDir),
 		},
 	},
-	{Kind: Migrate, Name: "migrate", Summary: text("Migrate legacy YAML definitions to Markdown rules", "旧形式の YAML の定義を Markdown の規則へ移す"),
-		Flags: []Use{use(flagDry, text("Inspect every conversion without writing", "全対象を検査して表示する。書き込まない")), use(flagGlobal, text("Convert the global layer instead of the project", "プロジェクトではなくグローバルを変換する")), use(flagDir, descDir)}},
+	{Kind: Migrate, Name: "migrate", Rules: words.ForCommand("migrate"), Summary: words.Label("migrate.summary"),
+		Flags: []Use{use(flagDry, words.Sentences("flag.dry.migrate")), use(flagGlobal, words.Sentences("flag.global.migrate")), use(flagDir, descDir)}},
 	{
-		Kind: Validate, Name: "validate",
-		Summary: text("Check the settings files", "設定ファイルを検査する"),
-		Detail: text(
-			"Check the global config.yaml, every profiles.yaml and every team definition.\nExit 1 if any is broken.",
-			"グローバルの config.yaml、すべての profiles.yaml、\nすべてのチーム定義を検査する。壊れたものがあれば終了コード 1。"),
+		Kind: Validate, Name: "validate", Rules: words.ForCommand("validate"),
+		Summary: words.Label("validate.summary"),
 		Flags: []Use{
 			use(flagDir, descDir),
 		},
 	},
 	{
-		Kind: Serve, Name: "serve",
-		Summary: text("Open the web UI in a browser", "ブラウザで WebUI を開く"),
-		Detail: text(
-			"Serve the screens on 127.0.0.1, in the foreground, and print the URL. The URL is then\nopened in this machine's default browser. Nothing but this machine can reach it, and no\nwrite leaves the settings it shows.",
-			"127.0.0.1 で画面を配り、URL を 1 行表示して、前景で動き続ける。表示した URL は、\nこの機械の既定のブラウザで開く。この機械の外からは届かず、書き込みは表示する設定の外へ出ない。"),
+		Kind: Serve, Name: "serve", Rules: words.ForCommand("serve"),
+		Summary: words.Label("serve.summary"),
 		Flags: []Use{
-			use(flagPort, text(
-				"The port to listen on (default 8787; 0 lets the operating system pick a free one)",
-				"待ち受けるポート（既定は 8787。0 は空きポートを OS が選ぶ）")),
-			use(flagNoOpen, text(
-				"Print the URL and open no browser",
-				"URL を出すだけで、ブラウザを開かない")),
+			use(flagPort, words.Sentences("flag.port.serve")),
+			use(flagNoOpen, words.Sentences("flag.no-open.serve")),
 			use(flagDir, descDir),
 		},
 	},
 	{
-		Kind: Version, Name: "version", Bare: true,
-		Summary: text("Show the version", "バージョンを見る"),
+		Kind: Version, Name: "version", Rules: words.ForCommand("version"), Bare: true,
+		Summary: words.Label("version.summary"),
 	},
 	{
-		Kind: Cheat, Name: "cheat",
-		Summary: text("Show the cheatsheet", "チートシートを見る"),
-		Detail: text(
-			"Print the short cheatsheet. It reads no team settings, and prints even when they are broken.",
-			"短いチートシートを表示する。チーム定義などの設定は読まず、壊れていても表示する。"),
+		Kind: Cheat, Name: "cheat", Rules: words.ForCommand("cheat"),
+		Summary: words.Label("cheat.summary"),
 		Flags: []Use{
-			use(flagAI, text(
-				"Print the whole of hergy for an agent instead (always English)",
-				"代わりに、AI 向けの全量（英語）を表示する")),
+			use(flagAI, words.Sentences("flag.ai.cheat")),
 		},
 	},
 }

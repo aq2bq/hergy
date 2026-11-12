@@ -16,6 +16,7 @@ import (
 
 	domainname "github.com/aq2bq/hergy/internal/domain/name"
 	"github.com/aq2bq/hergy/internal/i18n"
+	"github.com/aq2bq/hergy/internal/words"
 )
 
 // Agent is a live agent as Herdr reports it.
@@ -52,7 +53,7 @@ func (a Agent) CheckLive(name string) error {
 		return i18n.Errorf("error.live_name_mismatch", name)
 	}
 	if a.Status != "idle" && a.Status != "done" {
-		return i18n.Errorf("error.reset_before_refresh", name, a.Status)
+		return words.Errorf("refresh.state", i18n.Language(), name, a.Status)
 	}
 	return nil
 }

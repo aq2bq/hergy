@@ -15,6 +15,7 @@ import (
 	"github.com/aq2bq/hergy/internal/ops/internal/launchlog"
 	"github.com/aq2bq/hergy/internal/ops/internal/team"
 	"github.com/aq2bq/hergy/internal/source"
+	"github.com/aq2bq/hergy/internal/words"
 )
 
 // ApplyInput requests one complete apply under a named selection policy.
@@ -79,7 +80,7 @@ func Apply(ctx context.Context, in ApplyInput) (ApplyResult, error) {
 		return out, nil
 	}
 	if in.RequirePane && (!in.ManagedPane || CurrentPane() == "") {
-		return out, i18n.Errorf("error.not_under_herdr")
+		return out, words.Errorf("runtime.managed-pane", i18n.Language())
 	}
 	child, release, err := in.Locks.acquire(ctx, selection.Teams())
 	if err != nil {

@@ -10,14 +10,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aq2bq/hergy/internal/cheat"
+	"github.com/aq2bq/hergy/internal/words"
 )
 
-// This file is the one place hergy decides what each part of itself is called.
-// The glossary holds the English name, the Japanese name, a short definition,
-// and the words that must not stand in for the term. The tests below hold every
-// string a person or an agent reads to that table, so the same thing is not
-// called one word in --help and another in the cheatsheet.
+// Canonical names live in internal/words; bans guard handwritten text only.
 
 // ban is a word that must not name a term. lang is the language of the ban,
 // which is also the language whose sources are checked and the name the fix is
@@ -37,48 +33,21 @@ type ban struct {
 	whole bool
 }
 
-// term is one thing hergy names, in both languages.
 type term struct {
-	id       string
-	english  string
-	japanese string
-	meaning  string
-	banned   []ban
+	id                         string
+	english, japanese, meaning string
+	banned                     []ban
 }
 
-// glossary is the table. An empty banned list is fine: a term with no word to
-// forbid yet needs none.
-var glossary = []term{
-	{
-		id:       "team-name",
-		english:  "team name",
-		japanese: "チーム名",
-		meaning:  "the name a running team goes by; --as changes it, and it is the first half of the herdr name",
-	},
-	{
-		id:       "team-definition-name",
-		english:  "team definition name",
-		japanese: "チーム定義名",
-		meaning:  "the directory name under teams/ that holds team.yaml; the default team name",
-	},
-	{
-		id:       "team-definition",
-		english:  "team definition",
-		japanese: "チーム定義",
-		meaning:  "how one team is built: the folder under teams/ that holds team.yaml; of two definitions of a name, the project's own is the one used",
-	},
-	{
-		id:       "team",
-		english:  "team",
-		japanese: "チーム",
-		meaning:  "one group started from a team definition; it goes by the team name, and it is what runs on herdr",
-	},
-	{
-		id:       "description",
-		english:  "description",
-		japanese: "説明",
-		meaning:  "what team.yaml's description: says: which case the team is meant for. It is one line and required. The team list, a definition's screen, the start sheet and hergy show read it; a team command's header, a running team's tiles, a member's prompt and hergy apply's drift do not",
-		banned: []ban{
+var glossary = buildGlossary()
+
+func buildGlossary() []term {
+	bans := []term{
+		{id: "team-name"},
+		{id: "team-definition-name"},
+		{id: "team-definition"},
+		{id: "team"},
+		{id: "description", banned: []ban{
 			// mission: was the old key on team.yaml and the old word for this
 			// line (d-5f55): a definition that still writes it is stopped with
 			// the sentence that says how to rewrite it, and no other sentence
@@ -86,421 +55,151 @@ var glossary = []term{
 			// is written, because it is what a person has to remove.
 			{lang: "en", word: "mission", except: "error.mission_gone", whole: true},
 			{lang: "ja", word: "使命", except: "error.mission_gone"},
-		},
-	},
-	{
-		id:       "member",
-		english:  "member",
-		japanese: "メンバー",
-		meaning:  "one entry of team.yaml's members; its short name is the member name",
-		banned: []ban{
+		}},
+		{id: "member", banned: []ban{
 			// "seat" and 担当 were a third and fourth word for the same thing
 			// (d-e425).
 			{lang: "en", word: "seat"},
 			{lang: "ja", word: "担当"},
-		},
-	},
-	{
-		id:       "member-name",
-		english:  "member name",
-		japanese: "メンバー名",
-		meaning:  "the short name written in members[].name (lead); hergy puts the team name in front of it",
-	},
-	{
-		id:       "herdr-name",
-		english:  "herdr name",
-		japanese: "herdr 名",
-		meaning:  "the name herdr and the agents see: <team>-<member>",
-	},
-	{
-		id:       "worker",
-		english:  "worker",
-		japanese: "ワーカー",
-		meaning:  "an agent a member hired with hergy hire, outside the roster",
-	},
-	{
-		id:       "layer",
-		english:  "layer",
-		japanese: "層",
-		meaning:  "one of the two settings roots: the project (<project>/.hergy) and outside it ($XDG_CONFIG_HOME/hergy). It stays inside hergy: it is not a word a person reads (I11)",
-		banned: []ban{
+		}},
+		{id: "member-name"},
+		{id: "herdr-name"},
+		{id: "worker"},
+		{id: "layer", banned: []ban{
 			// The layer is hergy's own word. A person reads the place by its
 			// path, never by this name (I11, 段 7). The Web UI is checked too:
 			// its rebuilt screens name no layer (設計 6 節).
 			{lang: "ja", word: "層"},
 			{lang: "en", word: "layer"},
-		},
-	},
-	{
-		id:       "global",
-		english:  "global",
-		japanese: "グローバル",
-		meaning:  "one of the two places a settings file stands in: プロジェクト (<project>/.hergy) or グローバル (~/.config/hergy). A screen writes it beside プロジェクト",
-		banned: []ban{
+		}},
+		{id: "global", banned: []ban{
 			// 共通 was the older Japanese name for the place (d-04d1).
 			{lang: "ja", word: "共通", instead: "グローバル"},
-		},
-	},
-	{
-		id:       "place",
-		english:  "place",
-		japanese: "置き場所",
-		meaning:  "the two settings roots a person names together: プロジェクト (<project>/.hergy) and グローバル (~/.config/hergy). It is the word a person reads for what layer says inside hergy; a screen's button names the place itself (the project's name, or グローバル), and a list draws a head for each place (d-e77c)",
-		banned: []ban{
+		}},
+		{id: "place", banned: []ban{
 			// ロケーション was the master's temporary name for the two places;
 			// the screen, the API's promises and the glossary say 置き場所 (d-e77c).
 			{lang: "ja", word: "ロケーション", instead: "置き場所"},
-		},
-	},
-	{
-		id:       "preferred",
-		english:  "preferred",
-		japanese: "優先",
-		meaning:  "the mark on the project row when both the project and global places hold the same name; the project's profile, role document or team definition is used",
-		banned: []ban{
+		}},
+		{id: "preferred", banned: []ban{
 			{lang: "ja", word: "効いている", instead: "優先"},
-		},
-	},
-	{
-		id:       "inactive",
-		english:  "inactive",
-		japanese: "無効",
-		meaning:  "the mark on the global row when both the project and global places hold the same name; the global profile, role document or team definition is not used because the project's is used",
-		banned: []ban{
+		}},
+		{id: "inactive", banned: []ban{
 			{lang: "ja", word: "隠れている", instead: "無効"},
-		},
-	},
-	{
-		id:       "profile",
-		english:  "profile",
-		japanese: "プロファイル",
-		meaning:  "a named engine (kind, args, env) in profiles.yaml",
-	},
-	{
-		id:       "profile-name",
-		english:  "profile name",
-		japanese: "プロファイル名",
-		meaning:  "the name under profiles: in profiles.yaml; what a member's or worker's profile: names",
-	},
-	{
-		id:       "kind",
-		english:  "kind",
-		japanese: "kind",
-		meaning:  "the kind of agent (エージェントの種類) a profile starts, for example claude, codex or opencode (hergy keeps no closed list); written in a profile, not on a member, and the Japanese text is kind too",
-	},
-	{
-		id:       "role",
-		english:  "role",
-		japanese: "ロール",
-		meaning:  "what a member acts as; the member reads that role's document",
-		banned: []ban{
+		}},
+		{id: "profile"},
+		{id: "profile-name"},
+		{id: "kind"},
+		{id: "role", banned: []ban{
 			// 役割 was the old Japanese name for a role (合意 7, d-0ccd).
 			{lang: "ja", word: "役割"},
-		},
-	},
-	{
-		id:       "role-document",
-		english:  "role document",
-		japanese: "ロールの文書",
-		meaning:  "one role's rule document, roles/<role>.md; every member of that role reads it",
-		banned: []ban{
+		}},
+		{id: "role-document", banned: []ban{
 			// 役割ファイル was the old Japanese name for a role document.
 			{lang: "ja", word: "役割ファイル"},
-		},
-	},
-	{
-		id:       "role-name",
-		english:  "role name",
-		japanese: "ロール名",
-		meaning:  "the file name under roles/ without .md; what team.yaml's role: names",
-	},
-	{
-		id:       "team-agreement",
-		english:  "team agreement",
-		japanese: "チームの規則",
-		meaning:  "the rules a team definition gives every member of that team, written in the definition's own folder",
-	},
-	{
-		id:       "shared-agreement",
-		english:  "shared agreement",
-		japanese: "全チームの規則",
-		meaning:  "the rules hergy used to read for every team of one place, kept in agreement.yaml beside the teams; it is not read any more (d-31ad), and what is left stops the commands that build a prompt",
-	},
-	{
-		id:       "human",
-		english:  "human",
-		japanese: "人間",
-		meaning:  "the one person outside every team; a team definition's turns write it human, and a Japanese rule text writes it 人間",
-	},
-	{
-		id:       "hands-the-turn-to",
-		english:  "hands the turn to",
-		japanese: "ターンを渡す",
-		meaning:  "the directed relation between two nodes that says which one passes the turn on; a team definition's turns write it <a> -> <b>, and a rule text still writes <a> → <b>",
-		banned: []ban{
+		}},
+		{id: "role-name"},
+		{id: "team-agreement"},
+		{id: "shared-agreement"},
+		{id: "human"},
+		{id: "hands-the-turn-to", banned: []ban{
 			// 手番 and 話しかけてよい were the old Japanese words for this
 			// (合意 7, d-0ccd).
 			{lang: "ja", word: "手番", instead: "ターン"},
 			{lang: "ja", word: "話しかけてよい"},
-		},
-	},
-	{
-		id:       "node",
-		english:  "node",
-		japanese: "ノード",
-		meaning:  "who receives and hands on the turn; today the human, a member, or a worker, and more kinds can be added",
-	},
-	{
-		id:       "edge",
-		english:  "edge",
-		japanese: "エッジ",
-		meaning:  "one node handing the turn to another; a member -> worker edge also carries the purpose and the profile",
-	},
-	{
-		id:       "purpose",
-		english:  "purpose",
-		japanese: "目的",
-		meaning:  "what a worker is hired for; workers: pairs each purpose with a member and a profile",
-	},
-	{
-		id:       "bootstrap-prompt",
-		english:  "bootstrap prompt",
-		japanese: "初期プロンプト",
-		meaning:  "the first prompt hergy hands a member or a worker",
-	},
-	{
-		id:       "apply",
-		english:  "apply",
-		japanese: "反映",
-		meaning:  "put a saved definition's drift into the teams running from it: hergy apply, the screens' 反映, POST /api/apply. hergy decides the way for each member: 送り直し (reprompt), 起動 (start), 起動し直し (refresh), or 反映できない (cannot), where the reason and down・up are named",
-		banned: []ban{
+		}},
+		{id: "node"},
+		{id: "edge"},
+		{id: "purpose"},
+		{id: "bootstrap-prompt"},
+		{id: "apply", banned: []ban{
 			// 変更を伝える and 伝えていない were the screens' and the prose's
 			// words for 反映, and 伝える is tell's (d-3d30, n-f894).
 			{lang: "ja", word: "変更を伝え", instead: "反映し"},
 			{lang: "ja", word: "伝えていない", instead: "反映していない"},
-		},
-	},
-	{
-		id:       "tell",
-		english:  "tell",
-		japanese: "伝える",
-		meaning:  "send one member a message from a person or another member: hergy tell. It is not the word for 反映",
-	},
-	{
-		id:       "start",
-		english:  "start",
-		japanese: "起動",
-		meaning:  "begin a team, or a member of one: hergy up starts a team, and hergy apply starts a member the definition has and no agent is live for; 起動し直し (refresh) is starting a member again",
-		banned: []ban{
+		}},
+		{id: "tell"},
+		{id: "start", banned: []ban{
 			// 起こす was the screens' own word for starting a member, and the
 			// glossary and the command line had called it 起動 all along
 			// (r-5d1a's follow-up). 起こる is another word and is left alone.
 			{lang: "ja", word: "起こす", instead: "起動する"},
 			{lang: "ja", word: "起こし", instead: "起動し"},
 			{lang: "ja", word: "起こせ", instead: "起動でき"},
-		},
-	},
-	{
-		id:       "down",
-		english:  "down",
-		japanese: "終了する",
-		meaning:  "finish a running team and close its panes with hergy down; do not call this チームを止める",
-		banned: []ban{
+		}},
+		{id: "down", banned: []ban{
 			{lang: "ja", word: "チームを止める", instead: "チームを終了する"},
-		},
-	},
-	{
-		id:       "stop",
-		english:  "stop",
-		japanese: "止める",
-		meaning:  "end one member's current turn with hergy stop; use this for a member's turn, not a team",
-	},
-	{
-		id:       "refresh",
-		english:  "refresh",
-		japanese: "起動し直し",
-		meaning:  "end a member's agent and start it again in the same pane, so its conversation starts empty; adding a member to a running team is apply",
-	},
-	{
-		id:       "reprompt",
-		english:  "reprompt",
-		japanese: "送り直し",
-		meaning:  "send the bootstrap prompt to a member again, keeping its conversation, with a preamble saying what changed when the definition moved",
-		banned: []ban{
+		}},
+		{id: "stop"},
+		{id: "refresh"},
+		{id: "reprompt", banned: []ban{
 			// 再投入 was the old Japanese name for this (d-3d30).
 			{lang: "ja", word: "再投入", instead: "送り直し"},
-		},
-	},
-	{
-		id:       "status",
-		english:  "status",
-		japanese: "状態",
-		meaning:  "hergy status: one line per member and worker with its live agent state, then who is waiting on the human",
-	},
-	{
-		id:       "waiting-for-permission",
-		english:  "waiting for permission",
-		japanese: "許可待ち",
-		meaning:  "herdr's blocked: an agent is asking the human a question (a permission, or a question while it starts, such as whether to trust a folder) and waits for the answer",
-		banned: []ban{
+		}},
+		{id: "status"},
+		{id: "waiting-for-permission", banned: []ban{
 			// 承認待ち and 確認待ち were the other words for the same state, and
 			// ブロック is herdr's word for it: hergy writes the state by what the
 			// member is doing, and the question itself is 確認.
 			{lang: "ja", word: "承認待ち"},
 			{lang: "ja", word: "確認待ち"},
 			{lang: "ja", word: "ブロック"},
-		},
-	},
-	{
-		id:       "handed",
-		english:  "waiting for a reply",
-		japanese: "人間の返事待ち",
-		meaning:  "a member that handed the turn to the human and waits for the answer: hergy's handed, not one of herdr's states. It stands beside 許可待ち under 人間を待っている, and the apply sheet, the activity screen and its figure say it the same way",
-		banned: []ban{
+		}},
+		{id: "handed", banned: []ban{
 			// 人間に渡した is the past event, and 人間の番 brings a second word
 			// for the turn: neither reads as who is waiting now (d-7b45).
 			{lang: "ja", word: "人間に渡した", instead: "人間の返事待ち"},
 			{lang: "ja", word: "人間の番", instead: "人間の返事待ち"},
-		},
-	},
-	{
-		id:       "cheatsheet",
-		english:  "cheatsheet",
-		japanese: "チートシート",
-		meaning:  "hergy cheat's text; --ai prints the agent's one",
-		banned: []ban{
+		}},
+		{id: "cheatsheet", banned: []ban{
 			{lang: "ja", word: "早見"},
-		},
-	},
-	{
-		id:       "flag",
-		english:  "flag",
-		japanese: "オプション",
-		meaning:  "a --word on the command line",
-		banned: []ban{
+		}},
+		{id: "flag", banned: []ban{
 			{lang: "ja", word: "旗"},
-		},
-	},
-	{
-		id:       "rule",
-		english:  "rule",
-		japanese: "規則",
-		meaning:  "the contents of a definition; there are no individual units with IDs",
-		banned:   []ban{{lang: "ja", word: "散文"}},
-	},
-	{
-		id:       "rule-note",
-		english:  "note",
-		japanese: "メモ",
-		meaning:  "a legacy YAML note retained in the migration backup; current documents have no separate note field",
-	},
-	{
-		id:       "origin",
-		english:  "origin",
-		japanese: "由来",
-		meaning:  "where a rule came from: an incident, an instruction, or another rule it was derived from",
-	},
-	{
-		id:       "reason",
-		english:  "reason",
-		japanese: "理由",
-		meaning:  "why a rule is there; written as why, and sent unless send_why is false",
-	},
-	{
-		id:       "in-prompt",
-		english:  "in the prompt",
-		japanese: "プロンプトに含める",
-		meaning:  "whether a rule goes into a member's prompt; written in the file as in_prompt: false, and left unsaid when the rule goes in. A rule that is not in the prompt is a rule still: it keeps its id, its origin and its checks, and it is not counted in the amount a member is handed",
-		banned: []ban{
+		}},
+		{id: "rule", banned: []ban{{lang: "ja", word: "散文"}}},
+		{id: "rule-note"},
+		{id: "origin"},
+		{id: "reason"},
+		{id: "in-prompt", banned: []ban{
 			// メンバーに渡す was the older name for this switch (d-30a3).
 			{lang: "ja", word: "メンバーに渡す"},
 			{lang: "ja", word: "渡さない"},
-		},
-	},
-	{
-		id:       "check",
-		english:  "check",
-		japanese: "検証方法",
-		meaning:  "how a rule is shown to have been kept: a report field or a test",
-		banned: []ban{
+		}},
+		{id: "check", banned: []ban{
 			{lang: "ja", word: "確かめる手段"},
 			{lang: "ja", word: "確かめ方"},
-		},
-	},
-	{
-		id:       "report-shape",
-		english:  "report shape",
-		japanese: "報告の形",
-		meaning:  "the fields of one report, written under reports",
-	},
-	{
-		id:       "incident",
-		english:  "incident",
-		japanese: "インシデント",
-		meaning:  "something that went wrong and put a rule there; one kind of origin",
-		banned: []ban{
+		}},
+		{id: "report-shape"},
+		{id: "incident", banned: []ban{
 			{lang: "ja", word: "事故"},
-		},
-	},
-	{
-		id:       "activity",
-		english:  "activity",
-		japanese: "アクティビティ",
-		meaning:  "how a running team stands now: who is waiting on the human, what needs deciding, and why it is stopped",
-		banned: []ban{
+		}},
+		{id: "activity", banned: []ban{
 			{lang: "ja", word: "活動", instead: "アクティビティ"},
-		},
-	},
-	{
-		id:       "launch-record",
-		english:  "launch record",
-		japanese: "起動記録",
-		meaning:  "what a running team was started from: the definition and the hash of its content at that time",
-	},
-	{
-		id:       "undo",
-		english:  "undo",
-		japanese: "取り消す",
-		meaning:  "take back the one operation just made (the notice's 取り消す and ⌘Z); a change already saved is not brought back by it",
-	},
-	{
-		id:       "revert",
-		english:  "revert",
-		japanese: "元に戻す",
-		meaning:  "throw away every change not saved in this panel and write the file's own text again (the save band's 元に戻す)",
-	},
-	{id: "settings-check", english: "settings check", japanese: "設定の検査", meaning: "the result of checking the settings; the CLI remains hergy validate"},
-	{id: "revision-number", english: "revision", japanese: "改訂番号", meaning: "a document management number not sent to the agent, separate from the format version"},
-	{id: "size-guide", english: "provisional size guide", japanese: "暫定の目安", meaning: "the character meter line; exceeding it does not prohibit saving or starting"},
-
-	{
-		id:       "running-column",
-		english:  "Running",
-		japanese: "状態と操作",
-		meaning:  "the column of the team definitions list that says whether a team of that definition is running, and starts or stops it",
-	},
-	{
-		id:       "find",
-		english:  "Find",
-		japanese: "探す",
-		meaning:  "the field in the band that finds running teams, team definitions, workspaces, members, roles, rules and profiles across the listed projects and the global settings",
-		banned: []ban{
+		}},
+		{id: "launch-record"},
+		{id: "undo"},
+		{id: "revert"},
+		{id: "settings-check"},
+		{id: "revision-number"},
+		{id: "size-guide"},
+		{id: "running-column"},
+		{id: "find", banned: []ban{
 			// 検索 was the other word for this field; the screens say 探す.
 			{lang: "ja", word: "検索", instead: "探す"},
-		},
-	},
-	{
-		id:       "waiting-for-the-human",
-		english:  "waiting for the human",
-		japanese: "人間を待っている",
-		meaning:  "the group at the top of the activity screen: members waiting for permission and members that handed the turn to the human",
-	},
-	{
-		id:       "headquarters",
-		english:  "headquarters",
-		japanese: "本部",
-		meaning:  "hergy serve reading every project listed under projects: in the global config.yaml (d-73fc). The screens use it in the sheet's title 本部に並べるプロジェクト / Projects in the headquarters and in the notice about an unlisted project, and nowhere else",
-	},
+		}},
+		{id: "waiting-for-the-human"},
+		{id: "headquarters"},
+	}
+	byID := map[string][]ban{}
+	for _, t := range bans {
+		byID[t.id] = t.banned
+	}
+	var out []term
+	for _, t := range words.Terms() {
+		out = append(out, term{id: string(t.ID), english: t.English, japanese: t.Japanese, meaning: t.Meaning, banned: byID[string(t.ID)]})
+	}
+	return out
 }
 
 // bannedWords are words hergy does not use for anything, ruled out by the
@@ -663,7 +362,22 @@ func TestGlossaryBannedWordsStayOut(t *testing.T) {
 		}
 		sort.Strings(keys)
 		for _, key := range keys {
-			check(path+":"+key, key, lang, messages[key])
+			if !words.GeneratedLocaleKey(key) {
+				check(path+":"+key, key, lang, messages[key])
+			}
+		}
+	}
+
+	// The rules: internal/words is where the sentences of help, both cheats and
+	// the generated parts of README and SKILL are written, once. Those outputs
+	// are not read again below, so a banned word is caught here, at the one
+	// place a person writes it, and the hit names the rule (n-42bb).
+	for _, rule := range words.Rules() {
+		for _, lang := range []string{"en", "ja"} {
+			where := "internal/words rule " + string(rule.ID)
+			check(where, "", lang, words.Describe([]words.RuleID{rule.ID}, lang))
+			check(where+" (statement)", "", lang, rule.Statement[lang])
+			check(where+" (recovery)", "", lang, rule.Recovery[lang])
 		}
 	}
 
@@ -680,14 +394,9 @@ func TestGlossaryBannedWordsStayOut(t *testing.T) {
 		if err != nil {
 			t.Fatalf("read %s: %v", src.path, err)
 		}
-		for i, line := range strings.Split(string(raw), "\n") {
+		for i, line := range strings.Split(words.Handwritten(string(raw)), "\n") {
 			check(fmt.Sprintf("%s:%d", src.path, i+1), "", src.lang, line)
 		}
-	}
-
-	// The agent cheatsheet is a Go constant, so it comes from the package.
-	for i, line := range strings.Split(cheat.Machine, "\n") {
-		check(fmt.Sprintf("internal/cheat/cheat.go:Machine:%d", i+1), "", "en", line)
 	}
 
 	// The screens' own words: their modules, styles and templates write Japanese
@@ -705,7 +414,7 @@ func TestGlossaryBannedWordsStayOut(t *testing.T) {
 				}
 				return nil
 			}
-			if !screenSource(path) {
+			if path == "internal/web/src/lib/terms.generated.ts" || !screenSource(path) {
 				return nil
 			}
 			raw, err := os.ReadFile(path)
@@ -787,7 +496,7 @@ func TestScreensNameTheirNameFields(t *testing.T) {
 				}
 				return nil
 			}
-			if !screenSource(path) {
+			if path == "internal/web/src/lib/terms.generated.ts" || !screenSource(path) {
 				return nil
 			}
 			raw, err := os.ReadFile(path)

@@ -18,6 +18,7 @@ import (
 	"github.com/aq2bq/hergy/internal/ops/internal/launchlog"
 	"github.com/aq2bq/hergy/internal/ops/internal/team"
 	"github.com/aq2bq/hergy/internal/source"
+	"github.com/aq2bq/hergy/internal/words"
 )
 
 // Refusal identifies a precondition for an adapter's error presentation.
@@ -88,7 +89,7 @@ func StartTeam(ctx context.Context, in StartInput) (*Plan, error) {
 	}
 	plan.Resolved, plan.Members = r, r.Starts
 	if in.RequirePane && (!in.ManagedPane || CurrentPane() == "") {
-		return nil, i18n.Errorf("error.not_under_herdr")
+		return nil, words.Errorf("runtime.managed-pane", i18n.Language())
 	}
 	if _, err = startName(in, true); err != nil {
 		return nil, err
@@ -203,7 +204,7 @@ func startName(in StartInput, checkRunning bool) (string, error) {
 		return "", &Refusal{Kind: "invalid", At: "name", Err: i18n.Errorf("error.team_name_pattern", name)}
 	}
 	if checkRunning && nameRunning(name, readSession(in.Port)) {
-		return "", &Refusal{Kind: "conflict", At: "name", SuggestedName: in.Definition.String() + "-" + in.ProjectName, Err: i18n.Errorf("error.team_name_taken", name)}
+		return "", &Refusal{Kind: "conflict", At: "name", SuggestedName: in.Definition.String() + "-" + in.ProjectName, Err: words.Errorf("up.name-taken", i18n.Language(), name)}
 	}
 	return name, nil
 }

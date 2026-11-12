@@ -11,6 +11,7 @@ import (
 	"github.com/aq2bq/hergy/internal/ops/internal/catalog"
 	"github.com/aq2bq/hergy/internal/ops/internal/resourcewrite"
 	"github.com/aq2bq/hergy/internal/source"
+	"github.com/aq2bq/hergy/internal/words"
 	"go.yaml.in/yaml/v3"
 )
 
@@ -162,7 +163,7 @@ func (s ResourceScope) prepareResourceReferences(old SeenResource, next domainpl
 		}
 	}
 	if len(failures) > 0 {
-		return nil, &ResourceFailure{Text: i18n.Tf("error.resource_references_unreadable", strings.Join(failures, "\n"))}
+		return nil, &ResourceFailure{Text: words.Errorf("resources.references-unreadable", i18n.Language(), strings.Join(failures, "\n")).Error()}
 	}
 	return writes, nil
 }
@@ -187,7 +188,7 @@ func referenceWriteFailure(err error, refs []resourceRewrite, done int, target s
 	if done == len(refs) {
 		pending = append(pending, target)
 	}
-	return &ResourceFailure{Text: i18n.Tf("error.resource_references_write", strings.Join(completed, "\n"), strings.Join(pending, "\n"), fmt.Sprint(err)), Path: target, Internal: true, Conflict: errors.Is(err, resourcewrite.ErrChanged)}
+	return &ResourceFailure{Text: words.Errorf("resources.references-write", i18n.Language(), strings.Join(completed, "\n"), strings.Join(pending, "\n"), fmt.Sprint(err)).Error(), Path: target, Internal: true, Conflict: errors.Is(err, resourcewrite.ErrChanged)}
 }
 
 func resourceReferenceDestination(op definition.Op, n string) definition.Op {

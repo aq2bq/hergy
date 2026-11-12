@@ -458,7 +458,7 @@ func hqOperationError(err error) error {
 		case "internal":
 			status = http.StatusInternalServerError
 		}
-		return &HQError{Status: status, At: refusal.At, Text: refusal.Error(), SuggestedName: refusal.SuggestedName}
+		return &HQError{Status: status, At: refusal.At, Text: refusal.Error(), SuggestedName: refusal.SuggestedName, cause: err}
 	}
 	return hqError(err)
 }
