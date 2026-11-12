@@ -31,7 +31,7 @@ func TestConfirmPrompt(t *testing.T) {
 				}
 				return map[string]any{}, nil
 			}
-			err := New(port).ConfirmPrompt("recipient", "identical text")
+			err := New(port).ConfirmPrompt(fixtureSeen("recipient"), "identical text")
 			if protocol.ErrorCode(err) != tc.failure {
 				t.Fatalf("last answer=%v, want %s", err, tc.failure)
 			}

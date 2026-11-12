@@ -6,6 +6,9 @@ import (
 	"path/filepath"
 	"strings"
 
+	domainplace "github.com/aq2bq/hergy/internal/domain/place"
+
+	domainname "github.com/aq2bq/hergy/internal/domain/name"
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/profile"
 	"github.com/aq2bq/hergy/internal/source"
@@ -55,7 +58,7 @@ type Input struct {
 	Layer        string
 	TeamYAMLPath string
 	TeamDir      string
-	Base         string // the project root, for cwd values
+	Base         domainplace.Project // the project root, for cwd values
 	Reader       source.Reader
 }
 
@@ -191,12 +194,13 @@ func Read(in Input) (*Definition, error) {
 		return nil, err
 	}
 	graph := NewGraph(members, workers, turns)
+	definitionName, _ := domainname.ParseDefinitionName(in.Name)
 	def := &Definition{
-		Name:         in.Name,
+		Name:         definitionName,
 		Description:  description,
 		Graph:        graph,
 		Dir:          in.TeamDir,
-		TeamYAML:     in.TeamYAMLPath,
+		TeamYAML:     domainplace.Observe(in.TeamYAMLPath),
 		Layer:        in.Layer,
 		Version:      version,
 		Agreement:    agreement,
@@ -286,10 +290,10 @@ func parseMembers(raw rawTeam, in Input) ([]MemberNode, error) {
 	}
 	seen := map[string]bool{}
 	for i, member := range members {
-		if seen[member.Name] {
-			return nil, field(fmt.Sprintf("members[%d].name", i), i18n.Errorf("error.duplicate_member", member.Name))
+		if seen[member.Name.String()] {
+			return nil, field(fmt.Sprintf("members[%d].name", i), i18n.Errorf("error.duplicate_member", member.Name.String()))
 		}
-		seen[member.Name] = true
+		seen[member.Name.String()] = true
 	}
 	return members, nil
 }
@@ -305,13 +309,11 @@ func parseWorkers(raw rawTeam) ([]WorkerNode, error) {
 		if strings.TrimSpace(rw.From) == "" {
 			return nil, field(label+".from", i18n.Errorf("error.workers_from_empty", label))
 		}
-		if strings.TrimSpace(rw.Purpose) == "" {
-			return nil, field(label, i18n.Errorf("error.workers_purpose_empty", label))
-		}
-		// A purpose is one word: hire --purpose names one, so a value with a
-		// separator would be read two ways (d-37ac, n-b7de). Two purposes are
-		// two workers: the same profile may be written twice.
-		if strings.ContainsAny(rw.Purpose, ",、") {
+		purpose, purposeErr := domainname.ParsePurpose(rw.Purpose)
+		if purposeErr != nil {
+			if problem, ok := errors.AsType[*domainname.Problem](purposeErr); ok && problem.Rule == domainname.EmptyPurpose {
+				return nil, field(label, i18n.Errorf("error.workers_purpose_empty", label))
+			}
 			return nil, field(label, i18n.Errorf("error.workers_purpose_one", label, rw.Purpose))
 		}
 		if rw.Profile == "" {
@@ -328,7 +330,7 @@ func parseWorkers(raw rawTeam) ([]WorkerNode, error) {
 			return nil, field(label, i18n.Errorf("error.workers_duplicate_purpose", label, rw.From, rw.Purpose))
 		}
 		seen[key] = true
-		workers = append(workers, WorkerNode(rw))
+		workers = append(workers, WorkerNode{From: rw.From, Purpose: purpose, Profile: rw.Profile})
 	}
 	return workers, nil
 }
@@ -419,7 +421,8 @@ func memberPrompt(rm rawMember, label string) (*string, error) {
 
 func parseMember(rm rawMember, teamCwd string, in Input, index int) (MemberNode, error) {
 	label := fmt.Sprintf("members[%d]", index)
-	if !profile.NamePattern.MatchString(rm.Name) {
+	memberName, nameErr := domainname.ParseMemberName(rm.Name)
+	if nameErr != nil {
 		return MemberNode{}, field(label+".name", i18n.Errorf("error.name_pattern", label))
 	}
 	if strings.TrimSpace(rm.Role) == "" {
@@ -437,13 +440,13 @@ func parseMember(rm rawMember, teamCwd string, in Input, index int) (MemberNode,
 		cwd = "."
 	}
 	if !filepath.IsAbs(cwd) {
-		cwd = filepath.Join(in.Base, cwd)
+		cwd = filepath.Join(in.Base.String(), cwd)
 	}
 	prompt, err := memberPrompt(rm, label)
 	if err != nil {
 		return MemberNode{}, field(label+".prompt", err)
 	}
-	node := MemberNode{Name: rm.Name, Role: rm.Role, Profile: name, Cwd: cwd}
+	node := MemberNode{Name: memberName, Role: rm.Role, Profile: name, Cwd: cwd}
 	if prompt != nil {
 		node.Prompt = *prompt
 		node.HasPrompt = true

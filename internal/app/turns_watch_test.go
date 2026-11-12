@@ -52,7 +52,7 @@ func memberNodeID(name string) definition.NodeID {
 // builder -> lead, lead -> human.
 func starterGraph() *definition.Graph {
 	e := func(a, b definition.NodeID) definition.Edge { return definition.Edge{From: a, To: b} }
-	return definition.NewGraph([]definition.MemberNode{{Name: "lead"}, {Name: "builder"}}, nil, []definition.Edge{
+	return definition.NewGraph([]definition.MemberNode{{Name: fixtureMemberName("lead")}, {Name: fixtureMemberName("builder")}}, nil, []definition.Edge{
 		e(humanNodeID(), memberNodeID("lead")), e(memberNodeID("lead"), memberNodeID("builder")),
 		e(memberNodeID("builder"), memberNodeID("lead")), e(memberNodeID("lead"), humanNodeID()),
 	})
@@ -72,13 +72,13 @@ func newTurnsFixture(t *testing.T) *turnsFixture {
 	inJapanese(t)
 	f := &turnsFixture{port: &turnsPort{panes: map[string]string{}}, out: &bytes.Buffer{}, scr: &bytes.Buffer{}, now: time.Date(2026, 11, 6, 21, 20, 0, 0, time.UTC)}
 	dir := t.TempDir()
-	f.w = newTurnWatcher("demo", starterGraph(), herdr.New(f.port), filepath.Join(dir, "demo.json"), f.out)
+	f.w = newTurnWatcher(fixtureDemoTeam(), starterGraph(), herdr.New(f.port), filepath.Join(dir, "demo.json"), f.out)
 	f.w.screen = &screen{out: f.scr}
 	f.w.band.width = func() int { return 120 }
 	f.w.tells = turns.TellDir(dir, "demo")
 	f.w.signals = turns.SignalDir(dir, "demo")
 	f.w.read = func() ([]team.Tab, []protocol.Agent, bool, error) {
-		tabs := []team.Tab{{ID: "t1", Label: "demo", Agents: []string{"demo-lead", "demo-builder"}}}
+		tabs := []team.Tab{{ID: "t1", Label: fixtureSeen("demo"), Agents: fixtureSeenList([]string{"demo-lead", "demo-builder"})}}
 		return tabs, f.agents, true, nil
 	}
 	f.w.clock = func() time.Time { return f.now }
@@ -90,12 +90,12 @@ func newTurnsFixture(t *testing.T) *turnsFixture {
 
 func (f *turnsFixture) set(name, status string, seq int) {
 	for i := range f.agents {
-		if f.agents[i].Name == name {
+		if f.agents[i].Name.String() == name {
 			f.agents[i].Status, f.agents[i].Seq = status, seq
 			return
 		}
 	}
-	f.agents = append(f.agents, protocol.Agent{Name: name, Status: status, Seq: seq, TabID: "t1"})
+	f.agents = append(f.agents, protocol.Agent{Name: fixtureSeen(name), Status: status, Seq: seq, TabID: "t1"})
 }
 
 // tell records a hergy tell the way the command does, from a member or the
@@ -271,7 +271,7 @@ func TestTurnsAsksAnUnhandedTurnAndDeliversAsAnswered(t *testing.T) {
 	if f.w.state.Holder != "lead" || f.w.state.From != "builder" || len(f.w.state.Asked) != 0 {
 		t.Errorf("state = %+v, want lead holding it from builder", f.w.state)
 	}
-	saved, err := turns.Load(f.w.path, "demo")
+	saved, err := turns.Load(f.w.path, fixtureSeen("demo"))
 	if err != nil || saved.Holder != "lead" || len(saved.Opened["lead"]) != 1 {
 		t.Errorf("the saved state = %+v, %v; want lead holding it, opened by builder", saved, err)
 	}
@@ -465,3 +465,45 @@ func TestTurnsWaitsForAWiredMembersSignalThenReadsThePane(t *testing.T) {
 		t.Errorf("the watcher's pane does not say the signal never came:\n%s", f.out.String())
 	}
 }
+
+// An orphaned legacy recipient cannot be made into a model name. It follows
+// the normal missing-agent outcomes without inventing an observed target.
+func TestWatcherTreatsAnInvalidOrphanAsAnAbsentRecipient(t *testing.T) {
+	for _, operation := range []string{"ask", "deliver"} {
+		t.Run(operation, func(t *testing.T) {
+			f := newTurnsFixture(t)
+			f.w.state.Holder = "1"
+			if operation == "ask" {
+				f.w.state.Asked = map[string]turns.Question{"1": {At: f.now}}
+			}
+			calls := &orphanPort{Port: f.port}
+			f.w.herdr = herdr.New(calls)
+			action := turns.Action{To: "1", From: "lead"}
+			if operation == "ask" {
+				f.w.ask(action, "")
+			} else {
+				f.w.deliver(action, "")
+			}
+			if calls.calls != 0 {
+				t.Fatalf("contacted herdr %d times", calls.calls)
+			}
+			if f.w.state.Holder != turns.Human {
+				t.Fatalf("holder=%q", f.w.state.Holder)
+			}
+			if _, asked := f.w.state.Asked["1"]; asked {
+				t.Fatal("left the missing recipient asked")
+			}
+		})
+	}
+}
+
+type orphanPort struct {
+	herdr.Port
+	calls int
+}
+
+func (p *orphanPort) JSON(args ...string) (map[string]any, error) {
+	p.calls++
+	return p.Port.JSON(args...)
+}
+func (p *orphanPort) Text(args ...string) (string, error) { p.calls++; return p.Port.Text(args...) }

@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	domainplace "github.com/aq2bq/hergy/internal/domain/place"
+
 	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/launchlog"
@@ -97,8 +99,8 @@ fi
 	}
 	if err := log.Append(launchlog.Record{
 		Command:  launchlog.CommandUp,
-		Team:     "demo-2",
-		TeamYAML: filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml"),
+		Team:     fixtureSeen("demo-2"),
+		TeamYAML: domainplace.Observe(filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml")),
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -170,18 +172,18 @@ func TestShowPrintsTheLedger(t *testing.T) {
 func TestTeamNamesAddsTheNamesTheRecordShows(t *testing.T) {
 	f := newFixture(t)
 	def := &definition.Definition{
-		Name:     "demo",
-		TeamYAML: filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml"),
+		Name:     fixtureDefinitionName("demo"),
+		TeamYAML: domainplace.Observe(filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml")),
 	}
 	log, err := launchlog.Open()
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, record := range []launchlog.Record{
-		{Command: launchlog.CommandUp, Team: "demo-2", TeamYAML: def.TeamYAML},
-		{Command: launchlog.CommandUp, Team: "demo", TeamYAML: def.TeamYAML}, // its own name: not repeated
-		{Command: launchlog.CommandUp, Team: "other", TeamYAML: filepath.Join(f.proj, ".hergy", "teams", "other", "team.yaml")},
-		{Command: launchlog.CommandUp, Team: "", TeamYAML: def.TeamYAML},
+		{Command: launchlog.CommandUp, Team: fixtureSeen("demo-2"), TeamYAML: def.TeamYAML},
+		{Command: launchlog.CommandUp, Team: fixtureSeen("demo"), TeamYAML: def.TeamYAML}, // its own name: not repeated
+		{Command: launchlog.CommandUp, Team: fixtureSeen("other"), TeamYAML: domainplace.Observe(filepath.Join(f.proj, ".hergy", "teams", "other", "team.yaml"))},
+		{Command: launchlog.CommandUp, Team: fixtureSeen(""), TeamYAML: def.TeamYAML},
 	} {
 		if err := log.Append(record); err != nil {
 			t.Fatal(err)
@@ -189,7 +191,7 @@ func TestTeamNamesAddsTheNamesTheRecordShows(t *testing.T) {
 	}
 	got := teamNames(def)
 	want := []string{"demo", "demo-2"}
-	if strings.Join(got, ",") != strings.Join(want, ",") {
+	if strings.Join(namingStrings(got), ",") != strings.Join(want, ",") {
 		t.Errorf("teamNames = %v, want %v", got, want)
 	}
 }

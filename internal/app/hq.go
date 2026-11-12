@@ -10,11 +10,15 @@ import (
 	"sync"
 	"time"
 
+	"github.com/aq2bq/hergy/internal/ops"
+
+	domainplace "github.com/aq2bq/hergy/internal/domain/place"
+
 	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/launchlog"
 	"github.com/aq2bq/hergy/internal/source"
-	"github.com/aq2bq/hergy/internal/team"
+
 	"github.com/aq2bq/hergy/internal/web"
 )
 
@@ -29,7 +33,8 @@ import (
 
 // hqRead is one serve's headquarters reading.
 type hqRead struct {
-	act *activityRead
+	act   *activityRead
+	locks *ops.OperationLocks
 	// mu guards the starts: an HTTP request reads one while its goroutine
 	// writes it.
 	mu sync.Mutex
@@ -48,6 +53,7 @@ type hqRead struct {
 // launchOp is one start from the screens, with the state the polling reads.
 type launchOp struct {
 	mu       sync.Mutex
+	teams    []string
 	launch   web.HQLaunch
 	cancel   func()
 	finished time.Time
@@ -55,7 +61,7 @@ type launchOp struct {
 
 // newHQRead builds the headquarters reading on one activity reading.
 func newHQRead(act *activityRead) *hqRead {
-	return &hqRead{act: act, ops: map[string]*launchOp{}, started: time.Now()}
+	return &hqRead{act: act, locks: &ops.OperationLocks{}, ops: map[string]*launchOp{}, started: time.Now()}
 }
 
 // The activityRead answers the headquarters interface itself, so the server that
@@ -69,7 +75,7 @@ func (a *activityRead) RemoveProject(path string) (web.HQProjects, int, error) {
 }
 func (a *activityRead) Running() web.HQRunning       { return a.hq.Running() }
 func (a *activityRead) Workspaces() web.HQWorkspaces { return a.hq.Workspaces() }
-func (a *activityRead) LaunchOptions(project, definition, place string) (web.HQLaunchOptions, error) {
+func (a *activityRead) LaunchOptions(project domainplace.Input, definition, place string) (web.HQLaunchOptions, error) {
 	return a.hq.LaunchOptions(project, definition, place)
 }
 func (a *activityRead) StartLaunch(in web.HQLaunchIn) (web.HQLaunch, error) {
@@ -85,15 +91,12 @@ func (a *activityRead) Stop(teamName string) (web.HQStopped, error) { return a.h
 // project beside a team, role or profile. Only the listed projects (or, when the
 // config names none, the project serve was started in) are reachable; a write
 // that names any other directory is refused (api.md, r-b7e1).
-func (a *activityRead) ProjectCatalog(path string) (*catalog.Catalog, error) {
+func (a *activityRead) ProjectCatalog(path domainplace.Project) (*catalog.Catalog, error) {
 	allowed, err := a.hq.allowedProjects()
 	if err != nil {
 		return nil, err
 	}
-	want, err := team.ExpandProjectPath(path)
-	if err != nil {
-		return nil, hqRefuse(http.StatusUnprocessableEntity, err.Error())
-	}
+	want := path
 	if !a.hq.isListedProject(allowed, want) {
 		return nil, hqRefuse(http.StatusUnprocessableEntity, i18n.T("web.error.project_unknown"))
 	}
@@ -108,7 +111,7 @@ func (a *activityRead) GlobalCatalog() *catalog.Catalog {
 
 // catalogAt builds one project's catalog with the headquarters' display: the
 // same project reads the same paths in every serve.
-func (h *hqRead) catalogAt(path string) (*catalog.Catalog, error) {
+func (h *hqRead) catalogAt(path domainplace.Project) (*catalog.Catalog, error) {
 	env, err := h.act.envAt(path)
 	if err != nil {
 		return nil, err
@@ -119,7 +122,8 @@ func (h *hqRead) catalogAt(path string) (*catalog.Catalog, error) {
 // globalCatalog is the global layer alone, with the headquarters' display.
 func (h *hqRead) globalCatalog() *catalog.Catalog {
 	env := h.act.env
-	return catalog.New(env.GlobalDir, filepath.Join(env.GlobalDir, ".hq", "no-layer"), env.GlobalDir, h.act.fileReader(), env.DisplayPath).InRepo(env.InRepo())
+	base := env.Catalog(h.act.fileReader()).GlobalBase()
+	return catalog.New(env.GlobalDir, filepath.Join(env.GlobalDir, ".hq", "no-layer"), base, h.act.fileReader(), env.DisplayPath).InRepo(env.InRepo())
 }
 
 // hqRefuse is a refusal the boundary answers with this status and sentence.
@@ -130,7 +134,7 @@ func hqRefuse(status int, text string) *web.HQError {
 // listedProjects is the projects config.yaml lists, in its order, and whether it
 // lists any at all. A broken entry is the serve's failure, which runServe
 // refuses before it starts.
-func (h *hqRead) listedProjects() ([]string, bool, error) {
+func (h *hqRead) listedProjects() ([]domainplace.Project, bool, error) {
 	cfg, err := h.act.env.ReadConfigFile()
 	if err != nil {
 		return nil, false, err
@@ -142,16 +146,12 @@ func (h *hqRead) listedProjects() ([]string, bool, error) {
 // A listed directory inside a git repository is that repository's project: the
 // headquarters shows the repository's root, and the screen asks for what it
 // shows, so both spellings name the listed project (r-1db7 L1).
-func (h *hqRead) isListedProject(paths []string, path string) bool {
-	want, err := team.ExpandProjectPath(path)
-	if err != nil {
-		return false
-	}
+func (h *hqRead) isListedProject(paths []domainplace.Project, want domainplace.Project) bool {
 	for _, one := range paths {
-		if samePath(one, want) {
+		if one.Compare(want) == domainplace.Same {
 			return true
 		}
-		if env, err := h.act.envAt(one); err == nil && samePath(env.ProjectRoot, want) {
+		if env, err := h.act.envAt(one); err == nil && env.ProjectRoot.Compare(want) == domainplace.Same {
 			return true
 		}
 	}
@@ -160,13 +160,13 @@ func (h *hqRead) isListedProject(paths []string, path string) bool {
 
 // allowedProjects is every project a screen may read or write: the listed ones,
 // and the project serve was started in (which a config naming no projects shows).
-func (h *hqRead) allowedProjects() ([]string, error) {
+func (h *hqRead) allowedProjects() ([]domainplace.Project, error) {
 	paths, present, err := h.listedProjects()
 	if err != nil {
 		return nil, err
 	}
 	if !present {
-		return []string{h.act.env.ProjectRoot}, nil
+		return []domainplace.Project{h.act.env.ProjectRoot}, nil
 	}
 	return paths, nil
 }
@@ -184,7 +184,7 @@ func (h *hqRead) Projects() (web.HQProjects, error) {
 	current.Current = true
 	current.Listed = false
 	for _, path := range paths {
-		if samePath(path, h.act.env.ProjectRoot) {
+		if path.Compare(h.act.env.ProjectRoot) == domainplace.Same {
 			current.Listed = true
 		}
 	}
@@ -199,20 +199,20 @@ func (h *hqRead) Projects() (web.HQProjects, error) {
 		out.Mode = "listed"
 	}
 	records := h.launchRecords()
-	seen := map[string]bool{}
+	seen := map[domainplace.Project]bool{}
 	for _, path := range paths {
 		one, err := h.projectOf(path, true, "projects")
 		if err != nil {
 			return web.HQProjects{}, err
 		}
-		one.Current = samePath(path, h.act.env.ProjectRoot)
+		one.Current = path.Compare(h.act.env.ProjectRoot) == domainplace.Same
 		seen[one.Path] = true
 		out.Projects = append(out.Projects, one)
 	}
 	// The launch record's projects that are not listed are the candidates a
 	// person can list again (api.md 1).
 	for _, one := range launchProjects(records) {
-		if seen[one] || samePath(one, h.act.env.ProjectRoot) {
+		if seen[one] || one.Compare(h.act.env.ProjectRoot) == domainplace.Same {
 			continue
 		}
 		candidate, err := h.projectOf(one, false, "launch")
@@ -292,18 +292,18 @@ func screenPath(path string) error {
 }
 
 // projectOf is one project as the headquarters reads it.
-func (h *hqRead) projectOf(path string, listed bool, sourceName string) (web.HQProject, error) {
+func (h *hqRead) projectOf(path domainplace.Project, listed bool, sourceName string) (web.HQProject, error) {
 	env, err := h.act.envAt(path)
 	if err != nil {
 		return web.HQProject{}, hqRefuse(http.StatusUnprocessableEntity, err.Error())
 	}
 	cat := env.Catalog(h.act.fileReader())
 	defs, roles, profiles := cat.Counts(source.LayerLocal)
-	_, statErr := os.Stat(env.ProjectRoot)
+	_, statErr := os.Stat(env.ProjectRoot.String())
 	_, hergyErr := os.Stat(env.LocalDir)
 	one := web.HQProject{
-		Path: env.ProjectRoot, Name: filepath.Base(env.ProjectRoot),
-		Display: h.act.env.DisplayPath(env.ProjectRoot),
+		Path: env.ProjectRoot, Name: filepath.Base(env.ProjectRoot.String()),
+		Display: h.act.env.DisplayPath(env.ProjectRoot.String()),
 		Listed:  listed, Exists: statErr == nil, HasHergy: hergyErr == nil,
 		Defs: defs, Roles: roles, Profiles: profiles,
 		Source: sourceName,
@@ -322,10 +322,10 @@ func (h *hqRead) projectOf(path string, listed bool, sourceName string) (web.HQP
 // the directory's name, or the parent's and the directory's when another project
 // has the same name (d-73fc).
 func currentName(current web.HQProject, projects []web.HQProject) string {
-	base := filepath.Base(current.Path)
+	base := filepath.Base(current.Path.String())
 	for _, one := range projects {
-		if one.Path != current.Path && filepath.Base(one.Path) == base {
-			return filepath.Join(filepath.Base(filepath.Dir(current.Path)), base)
+		if one.Path != current.Path && filepath.Base(one.Path.String()) == base {
+			return filepath.Join(filepath.Base(filepath.Dir(current.Path.String())), base)
 		}
 	}
 	return base
@@ -340,7 +340,7 @@ func nameProjectsOf(projects []web.HQProject) {
 	}
 	for i := range projects {
 		if count[projects[i].Name] > 1 {
-			projects[i].Name = filepath.Join(filepath.Base(filepath.Dir(projects[i].Path)), projects[i].Name)
+			projects[i].Name = filepath.Join(filepath.Base(filepath.Dir(projects[i].Path.String())), projects[i].Name)
 		}
 	}
 }
@@ -356,7 +356,7 @@ func (h *hqRead) globalCounts() web.HQGlobal {
 }
 
 // runningIn is how many running teams belong to one project.
-func (h *hqRead) runningIn(path string) int {
+func (h *hqRead) runningIn(path domainplace.Project) int {
 	now := h.act.clock()
 	read := h.act.readHerdr(now)
 	if read.err != nil {
@@ -364,7 +364,7 @@ func (h *hqRead) runningIn(path string) int {
 	}
 	count := 0
 	for _, one := range h.act.teamsOf(read) {
-		if samePath(one.Project, path) {
+		if one.Project.Compare(path) == domainplace.Same {
 			count++
 		}
 	}
@@ -385,15 +385,15 @@ func (h *hqRead) launchRecords() []launchlog.Record {
 }
 
 // launchProjects is every project the launch record names, newest first.
-func launchProjects(records []launchlog.Record) []string {
-	seen := map[string]bool{}
-	var out []string
+func launchProjects(records []launchlog.Record) []domainplace.Project {
+	seen := map[domainplace.Project]bool{}
+	var out []domainplace.Project
 	for _, record := range slices.Backward(records) {
 		if record.IsHire() {
 			continue
 		}
-		project := record.Project
-		if project == "" || seen[project] {
+		project := record.Project.Project()
+		if project.IsZero() || seen[project] {
 			continue
 		}
 		seen[project] = true
@@ -403,13 +403,13 @@ func launchProjects(records []launchlog.Record) []string {
 }
 
 // latestProjectLaunch is the newest launch record of one project.
-func (h *hqRead) latestProjectLaunch(path string) (launchlog.Record, bool) {
+func (h *hqRead) latestProjectLaunch(path domainplace.Project) (launchlog.Record, bool) {
 	records := h.launchRecords()
 	for _, record := range slices.Backward(records) {
 		if record.IsHire() {
 			continue
 		}
-		if samePath(record.Project, path) {
+		if record.Project.Project().Compare(path) == domainplace.Same {
 			return record, true
 		}
 	}
@@ -431,4 +431,25 @@ func clockText(at time.Time) string { return at.Format(time.RFC3339) }
 type removedProject struct {
 	at    int
 	lines []string
+}
+
+func hqOperationError(err error) error {
+	if err == nil {
+		return nil
+	}
+	if refusal, ok := errors.AsType[*ops.Refusal](err); ok {
+		status := http.StatusUnprocessableEntity
+		switch refusal.Kind {
+		case "conflict":
+			status = http.StatusConflict
+		case "unavailable":
+			status = http.StatusServiceUnavailable
+		case "notfound":
+			status = http.StatusNotFound
+		case "internal":
+			status = http.StatusInternalServerError
+		}
+		return &web.HQError{Status: status, At: refusal.At, Text: refusal.Error(), SuggestedName: refusal.SuggestedName}
+	}
+	return hqError(err)
 }

@@ -124,7 +124,7 @@ func ledgerNames(rest string) []string {
 // isMemberName reports whether a name is one of the definition's member names.
 func isMemberName(members []MemberNode, name string) bool {
 	for i := range members {
-		if members[i].Name == name {
+		if members[i].Name.String() == name {
 			return true
 		}
 	}
@@ -136,7 +136,7 @@ func isMemberName(members []MemberNode, name string) bool {
 // write.
 func isWorkerName(workers []WorkerNode, name string) bool {
 	for _, worker := range workers {
-		if name == worker.From+"/"+worker.Purpose || name == worker.Purpose {
+		if name == worker.From+"/"+worker.Purpose.String() || name == worker.Purpose.String() {
 			return true
 		}
 	}

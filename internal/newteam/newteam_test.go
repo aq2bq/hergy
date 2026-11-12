@@ -27,7 +27,7 @@ func starterIn(t *testing.T) (In, string) {
 			t.Fatal(err)
 		}
 	}
-	cat := catalog.New(global, filepath.Join(proj, ".hergy"), proj, source.Disk{}, func(path string) string { return path })
+	cat := catalog.New(global, filepath.Join(proj, ".hergy"), projectPath(proj), source.Disk{}, func(path string) string { return path })
 	files, err := scaffold.Team("ja")
 	if err != nil {
 		t.Fatal(err)

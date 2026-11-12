@@ -16,7 +16,7 @@ func wired(names ...string) func(string) bool {
 // turn spec opened, is asked), and the stop herdr then sees is that turn's,
 // not acted on again (d-ef1d, d-5f1a).
 func TestASignalEndsTheTurnBeforeHerdrSeesTheStop(t *testing.T) {
-	st := &State{Team: "t", Holder: "dev", From: "spec", Opened: map[string][]Opening{"dev": {{By: "spec", At: at.Add(-time.Minute)}}}}
+	st := &State{Team: fixtureSeen("t"), Holder: "dev", From: "spec", Opened: map[string][]Opening{"dev": {{By: "spec", At: at.Add(-time.Minute)}}}}
 	working := []Agent{{Name: "spec", Status: "idle", Seq: 1}, {Name: "dev", Status: "working", Seq: 2}}
 	sig := Signal{Member: "dev", At: at, Text: "d6465cd を積んだ。", Source: "claude"}
 	got := Step(st, Input{Graph: ring(), Before: working, Now: working, Signals: []Signal{sig}, Wired: wired("dev"), At: at,
@@ -44,7 +44,7 @@ func TestASignalEndsTheTurnBeforeHerdrSeesTheStop(t *testing.T) {
 // TestASignalAfterThePaneWasHandedIsDropped: herdr saw an unwired member stop
 // and the pane was acted on; a signal for the same stop acts twice on nothing.
 func TestASignalAfterThePaneWasHandedIsDropped(t *testing.T) {
-	st := &State{Team: "t", Holder: "dev", From: "spec", Opened: map[string][]Opening{"dev": {{By: "spec", At: at.Add(-time.Minute)}}}}
+	st := &State{Team: fixtureSeen("t"), Holder: "dev", From: "spec", Opened: map[string][]Opening{"dev": {{By: "spec", At: at.Add(-time.Minute)}}}}
 	before := []Agent{{Name: "spec", Status: "idle", Seq: 1}, {Name: "dev", Status: "working", Seq: 2}}
 	now := []Agent{{Name: "spec", Status: "idle", Seq: 1}, {Name: "dev", Status: "done", Seq: 3}}
 	got := Step(st, Input{Graph: ring(), Before: before, Now: now, Wrote: wrote(map[string]string{"dev": "積んだ"}), At: at})
@@ -61,7 +61,7 @@ func TestASignalAfterThePaneWasHandedIsDropped(t *testing.T) {
 // not acted on from the pane at once; the signal that comes in time ends it,
 // and one that never comes leaves the pane to be read after SignalGrace.
 func TestAWiredStopWaitsForItsSignalThenReadsThePane(t *testing.T) {
-	st := &State{Team: "t", Holder: "dev", From: "spec", Opened: map[string][]Opening{"dev": {{By: "spec", At: at.Add(-time.Minute)}}}}
+	st := &State{Team: fixtureSeen("t"), Holder: "dev", From: "spec", Opened: map[string][]Opening{"dev": {{By: "spec", At: at.Add(-time.Minute)}}}}
 	before := []Agent{{Name: "spec", Status: "idle", Seq: 1}, {Name: "dev", Status: "working", Seq: 2}}
 	now := []Agent{{Name: "spec", Status: "idle", Seq: 1}, {Name: "dev", Status: "done", Seq: 3}}
 	in := Input{Graph: ring(), Before: before, Now: now, Wired: wired("dev"), Wrote: wrote(map[string]string{"dev": "ペインから"}), At: at}
@@ -88,7 +88,7 @@ func TestAWiredStopWaitsForItsSignalThenReadsThePane(t *testing.T) {
 	}
 
 	// Without a signal: the pane is read once SignalGrace has passed.
-	st = &State{Team: "t", Holder: "dev", From: "spec", Opened: map[string][]Opening{"dev": {{By: "spec", At: at.Add(-time.Minute)}}}}
+	st = &State{Team: fixtureSeen("t"), Holder: "dev", From: "spec", Opened: map[string][]Opening{"dev": {{By: "spec", At: at.Add(-time.Minute)}}}}
 	in = Input{Graph: ring(), Before: before, Now: now, Wired: wired("dev"), Wrote: wrote(map[string]string{"dev": "ペインから"}), At: at}
 	_ = Step(st, in)
 	in.Before, in.At = now, at.Add(SignalGrace-time.Second)
@@ -108,7 +108,7 @@ func TestAWiredStopWaitsForItsSignalThenReadsThePane(t *testing.T) {
 // TestAWaitingStopIsForgottenWhenTheAgentMovesOn: the person typed in the pane
 // while the stop waited; that turn is gone and the new one is the person's.
 func TestAWaitingStopIsForgottenWhenTheAgentMovesOn(t *testing.T) {
-	st := &State{Team: "t", Holder: "spec", From: "dev"}
+	st := &State{Team: fixtureSeen("t"), Holder: "spec", From: "dev"}
 	before := []Agent{{Name: "dev", Status: "working", Seq: 2}}
 	stopped := []Agent{{Name: "dev", Status: "done", Seq: 3}}
 	_ = Step(st, Input{Graph: ring(), Before: before, Now: stopped, Wired: wired("dev"), At: at})
@@ -149,7 +149,7 @@ func TestSignalsAreTakenOldestFirstAndOnce(t *testing.T) {
 // stop herdr saw). A tell that came during the ended turn opens the next one,
 // which is asked about when it ends unhanded (2026-11-09 実機).
 func TestASignalWhileWorkingBeginsTheNextTurn(t *testing.T) {
-	st := &State{Team: "t", Holder: Human, Started: map[string]time.Time{"lead": at}}
+	st := &State{Team: fixtureSeen("t"), Holder: Human, Started: map[string]time.Time{"lead": at}}
 	working := []Agent{{Name: "lead", Status: "working", Seq: 2}, {Name: "dev", Status: "idle", Seq: 1}}
 	// dev tells lead during lead's turn; the turn then ends by signal.
 	_ = Step(st, Input{Graph: ring(), Before: working, Now: working, Tells: []Tell{{From: "dev", To: "lead", At: at.Add(30 * time.Second)}}, At: at.Add(30 * time.Second)})

@@ -6,7 +6,6 @@ package scaffold
 import (
 	"embed"
 	"io/fs"
-	"regexp"
 )
 
 //go:embed files
@@ -15,10 +14,6 @@ var embedded embed.FS
 // Fallback is the scaffold used when a language has none. It mirrors the
 // language fallback of the CLI.
 const Fallback = "en"
-
-// NamePattern is the team definition names hergy new accepts: short enough that
-// "<team>-builder" is still a valid member name.
-var NamePattern = regexp.MustCompile(`^[a-z][a-z0-9_-]{0,24}$`)
 
 // Names are the files a starter team has, in the order hergy new writes them.
 var Names = []string{"team.yaml", "agreement.md"}

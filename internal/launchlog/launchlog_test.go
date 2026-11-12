@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	domainplace "github.com/aq2bq/hergy/internal/domain/place"
 )
 
 // testLog is a log in a working directory, with XDG_STATE_HOME pointing at it,
@@ -68,9 +70,9 @@ func TestAppendAndRead(t *testing.T) {
 
 	first := Record{
 		Time: "2026-10-15T22:10:03+09:00", Command: CommandUp, Hergy: "hergy abc1234",
-		Project: "/tmp/project", Layer: "local", Definition: "agile-dev", Team: "agile-dev",
-		TeamYAML: "/tmp/project/.hergy/teams/agile-dev/team.yaml", Hash: "0123456789abcdef",
-		Members: []Member{{Name: "agile-dev-lead", Short: "lead", Prompt: prompt}},
+		Project: domainplace.Observe("/tmp/project"), Layer: "local", Definition: "agile-dev", Team: fixtureSeen("agile-dev"),
+		TeamYAML: domainplace.Observe("/tmp/project/.hergy/teams/agile-dev/team.yaml"), Hash: "0123456789abcdef",
+		Members: []Member{{Name: fixtureSeen("agile-dev-lead"), Short: "lead", Prompt: prompt}},
 		Docs:    []Doc{{Path: "/tmp/project/.hergy/common/00_TEAM_PROTOCOL.yaml", Layer: "local", Revision: 3, SHA256: doc}},
 	}
 	if err := log.Append(first); err != nil {
@@ -78,8 +80,8 @@ func TestAppendAndRead(t *testing.T) {
 	}
 	second := Record{
 		Time: "2026-10-15T22:20:00+09:00", Command: CommandReprompt, Layer: "local",
-		Definition: "agile-dev", Team: "agile-dev", Hash: "0123456789abcdef",
-		Members: []Member{{Name: "agile-dev-worker", Short: "worker", Prompt: doc}},
+		Definition: "agile-dev", Team: fixtureSeen("agile-dev"), Hash: "0123456789abcdef",
+		Members: []Member{{Name: fixtureSeen("agile-dev-worker"), Short: "worker", Prompt: doc}},
 	}
 	if err := log.Append(second); err != nil {
 		t.Fatal(err)
@@ -95,7 +97,7 @@ func TestAppendAndRead(t *testing.T) {
 	if records[0].Command != CommandUp || records[1].Command != CommandReprompt {
 		t.Errorf("Read() returned %q then %q, want them oldest first", records[0].Command, records[1].Command)
 	}
-	if got := records[0]; got.Members[0].Prompt != prompt || got.Docs[0].Revision != 3 || got.Team != "agile-dev" {
+	if got := records[0]; got.Members[0].Prompt != prompt || got.Docs[0].Revision != 3 || got.Team.String() != "agile-dev" {
 		t.Errorf("the first record came back as %+v", got)
 	}
 	text, err := log.Text(prompt)
@@ -139,7 +141,7 @@ func TestReadWithoutALog(t *testing.T) {
 	if len(records) != 0 {
 		t.Errorf("Read() returned %d records, want none", len(records))
 	}
-	if _, ok, err := log.Latest("/p/.hergy/teams/demo/team.yaml"); err != nil || ok {
+	if _, ok, err := log.Latest(projectPath("/p/.hergy/teams/demo/team.yaml")); err != nil || ok {
 		t.Errorf("Latest() = %v, %v, want none and no failure", ok, err)
 	}
 }
@@ -174,26 +176,26 @@ func TestLatestPicksTheNewestOfOneDefinition(t *testing.T) {
 		global = "/cfg/hergy/teams/demo/team.yaml"
 	)
 	for _, rec := range []Record{
-		{Command: CommandUp, Layer: "local", Definition: "demo", TeamYAML: demo, Hash: "first"},
-		{Command: CommandUp, Layer: "global", Definition: "demo", TeamYAML: global, Hash: "global"},
-		{Command: CommandUp, Layer: "local", Definition: "other", TeamYAML: other, Hash: "other"},
+		{Command: CommandUp, Layer: "local", Definition: "demo", TeamYAML: domainplace.Observe(demo), Hash: "first"},
+		{Command: CommandUp, Layer: "global", Definition: "demo", TeamYAML: domainplace.Observe(global), Hash: "global"},
+		{Command: CommandUp, Layer: "local", Definition: "other", TeamYAML: domainplace.Observe(other), Hash: "other"},
 		// The same definition name in another project: the team.yaml tells them
 		// apart, so this one is not the launch of the definition above (M1).
-		{Command: CommandUp, Layer: "local", Definition: "demo", TeamYAML: "/elsewhere/.hergy/teams/demo/team.yaml", Hash: "elsewhere"},
-		{Command: CommandReprompt, Layer: "local", Definition: "demo", TeamYAML: demo, Hash: "last"},
+		{Command: CommandUp, Layer: "local", Definition: "demo", TeamYAML: domainplace.Observe("/elsewhere/.hergy/teams/demo/team.yaml"), Hash: "elsewhere"},
+		{Command: CommandReprompt, Layer: "local", Definition: "demo", TeamYAML: domainplace.Observe(demo), Hash: "last"},
 	} {
 		if err := log.Append(rec); err != nil {
 			t.Fatal(err)
 		}
 	}
-	got, ok, err := log.Latest(demo)
+	got, ok, err := log.Latest(projectPath(demo))
 	if err != nil || !ok {
 		t.Fatalf("Latest() = %v, %v", ok, err)
 	}
 	if got.Hash != "last" || got.Command != CommandReprompt {
 		t.Errorf("Latest(%s) = %+v, want the last launch of it", demo, got)
 	}
-	if _, ok, err := log.Latest("/nowhere/.hergy/teams/demo/team.yaml"); err != nil || ok {
+	if _, ok, err := log.Latest(projectPath("/nowhere/.hergy/teams/demo/team.yaml")); err != nil || ok {
 		t.Errorf("Latest() found a record for a definition no launch read: %v, %v", ok, err)
 	}
 }
@@ -300,5 +302,34 @@ func TestPutKeepsABlobWhole(t *testing.T) {
 	}
 	if string(text) != "one" {
 		t.Errorf("the stored text is %q", text)
+	}
+}
+
+// Old records keep their spelling, but the file they identify is canonical.
+func TestLatestMatchesCanonicalDefinitionPath(t *testing.T) {
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	realDir := filepath.Join(root, "project")
+	if err := os.Mkdir(realDir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	alias := filepath.Join(root, "alias")
+	if err := os.Symlink(realDir, alias); err != nil {
+		t.Fatal(err)
+	}
+	realFile := filepath.Join(realDir, "team.yaml")
+	if err := os.WriteFile(realFile, []byte("definition"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	log := At(filepath.Join(root, "launches"))
+	recorded := filepath.Join(alias, "team.yaml")
+	if err := log.Append(Record{TeamYAML: domainplace.Observe(recorded), Hash: "same-file"}); err != nil {
+		t.Fatal(err)
+	}
+	got, ok, err := log.Latest(projectPath(realFile))
+	if err != nil || !ok || got.Hash != "same-file" || got.TeamYAML.String() != recorded {
+		t.Fatalf("latest=%+v, found=%t, err=%v", got, ok, err)
 	}
 }

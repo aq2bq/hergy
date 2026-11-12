@@ -4,6 +4,10 @@ import (
 	"path/filepath"
 	"slices"
 
+	domainplace "github.com/aq2bq/hergy/internal/domain/place"
+
+	domainname "github.com/aq2bq/hergy/internal/domain/name"
+
 	"github.com/aq2bq/hergy/internal/launchlog"
 )
 
@@ -16,19 +20,23 @@ import (
 // definition, the team's project and the exact team.yaml path are compared, so a
 // project-less old record is not borrowed for another project's or another
 // definition's same-named member.
-func lastPromptRecord(records []launchlog.Record, project, path, definition, team, member string) (launchlog.Record, launchlog.Member, bool) {
+func lastPromptRecord(records []launchlog.Record, project, target domainplace.Project, definition, team, member string) (launchlog.Record, launchlog.Member, bool) {
+
+	d, _ := domainname.ParseDefinitionName(team)
+	naming := domainname.DefinitionNames(d)
+	short, _ := domainname.ParseMemberName(member)
 	for _, r := range slices.Backward(records) {
-		if r.Team != team || r.Definition != definition || !promptCommand(r.Command) {
+		if r.Team.String() != team || r.Definition != definition || !promptCommand(r.Command) {
 			continue
 		}
-		if r.Project != "" && !samePath(r.Project, project) {
+		if !r.Project.Project().IsZero() && r.Project.Project().Compare(project) != domainplace.Same {
 			continue
 		}
-		if !filepath.IsAbs(r.TeamYAML) || !samePath(r.TeamYAML, path) {
+		if !filepath.IsAbs(r.TeamYAML.String()) || r.TeamYAML.Project().Compare(target) != domainplace.Same {
 			continue
 		}
 		for _, m := range r.Members {
-			if m.Name == team+"-"+member {
+			if m.Name.String() == naming.Member(short) {
 				return r, m, true
 			}
 		}

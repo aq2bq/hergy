@@ -24,6 +24,10 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	domainplace "github.com/aq2bq/hergy/internal/domain/place"
+
+	domainname "github.com/aq2bq/hergy/internal/domain/name"
 )
 
 const (
@@ -49,10 +53,10 @@ const (
 // it was hired for, and the tab it was put in. A worker hired before this line
 // was written has no hire line and no From anywhere.
 type Hire struct {
-	Worker  string `json:"worker"` // the name herdr sees ("<team>-<worker>")
-	From    string `json:"from"`   // the short name of the member that added it
-	Purpose string `json:"purpose"`
-	Tab     string `json:"tab"`
+	Worker  domainname.Seen `json:"worker"` // the name herdr sees ("<team>-<worker>")
+	From    string          `json:"from"`   // the short name of the member that added it
+	Purpose string          `json:"purpose"`
+	Tab     domainname.Seen `json:"tab"`
 }
 
 // Member records the body before any apply/reprompt change-reason preamble.
@@ -63,12 +67,12 @@ type Hire struct {
 // they were kept has neither.
 type Member struct {
 	// Docs names the documents this member read. Nil means a legacy record.
-	Docs   []string `json:"docs"`
-	Name   string   `json:"name"`            // the name herdr sees ("<team>-<member>")
-	Short  string   `json:"short"`           // the short name team.yaml writes
-	Prompt string   `json:"prompt"`          // sha256 of the prompt text
-	Start  string   `json:"start,omitempty"` // sha256 of the command the member is started by
-	Env    string   `json:"env,omitempty"`   // sha256 of the env keys and values; the values are written nowhere
+	Docs   []string        `json:"docs"`
+	Name   domainname.Seen `json:"name"`            // the name herdr sees ("<team>-<member>")
+	Short  string          `json:"short"`           // the short name team.yaml writes
+	Prompt string          `json:"prompt"`          // sha256 of the prompt text
+	Start  string          `json:"start,omitempty"` // sha256 of the command the member is started by
+	Env    string          `json:"env,omitempty"`   // sha256 of the env keys and values; the values are written nowhere
 }
 
 // Worker is one worker entry of a team definition as it stood at a launch: the
@@ -104,14 +108,14 @@ type Doc struct {
 // A record written before these were kept has neither, and nothing can be
 // rebuilt from it.
 type Record struct {
-	Time       string `json:"time"` // RFC 3339, where hergy ran
-	Command    string `json:"command"`
-	Hergy      string `json:"hergy"` // which hergy wrote this: version.Line()
-	Project    string `json:"project"`
-	Layer      string `json:"layer"`
-	Definition string `json:"definition"`
-	Team       string `json:"team"`
-	TeamYAML   string `json:"team_yaml"`
+	Time       string                `json:"time"` // RFC 3339, where hergy ran
+	Command    string                `json:"command"`
+	Hergy      string                `json:"hergy"` // which hergy wrote this: version.Line()
+	Project    domainplace.Seen      `json:"project"`
+	Layer      domainplace.Selection `json:"layer"`
+	Definition string                `json:"definition"`
+	Team       domainname.Seen       `json:"team"`
+	TeamYAML   domainplace.Seen      `json:"team_yaml"`
 	// Workspace is the herdr workspace the team was started in: the label a
 	// person reads, and the id it had then. The headquarters offers the last one
 	// as "前に動いた所" (d-73fc). A record written before this was kept has
@@ -373,13 +377,13 @@ func (l Log) Read() ([]Record, error) {
 // holds every project's launches, and two projects can hold a definition of the
 // same name, so the layer and the name alone would hand back another project's
 // launch (M1).
-func (l Log) Latest(teamYAML string) (Record, bool, error) {
+func (l Log) Latest(teamYAML domainplace.Project) (Record, bool, error) {
 	records, err := l.Read()
 	if err != nil {
 		return Record{}, false, err
 	}
 	for _, record := range slices.Backward(records) {
-		if record.TeamYAML == teamYAML {
+		if record.TeamYAML.Project().Compare(teamYAML) == domainplace.Same || (record.TeamYAML.Project().IsZero() && teamYAML.IsZero()) {
 			return record, true, nil
 		}
 	}

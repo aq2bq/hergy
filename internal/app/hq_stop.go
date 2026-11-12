@@ -1,13 +1,15 @@
 package app
 
 import (
-	"io"
+	"context"
 	"net/http"
-	"os"
 	"time"
 
+	"github.com/aq2bq/hergy/internal/ops"
+
+	domainname "github.com/aq2bq/hergy/internal/domain/name"
+
 	"github.com/aq2bq/hergy/internal/i18n"
-	"github.com/aq2bq/hergy/internal/source"
 	"github.com/aq2bq/hergy/internal/team"
 	"github.com/aq2bq/hergy/internal/web"
 )
@@ -30,94 +32,68 @@ func (h *hqRead) Stop(teamName string) (web.HQStopped, error) {
 	if err != nil {
 		return web.HQStopped{}, hqError(err)
 	}
-	// The panes' working directories are read before they close, and the launch
-	// record says when the team was started, so the worktrees that came while it
-	// ran can be listed afterwards (r-b65e, d-970c).
-	dirs := teamPaneDirs(read.tabs, one.Name)
-	owner := teamLeftovers(one.Project, one.Name)
-	closed, err := h.closeTeam(env, one, read)
+	result, err := ops.StopTeam(context.Background(), h.stopInput(env, one, read))
 	if err != nil {
 		return web.HQStopped{}, hqRefuse(http.StatusInternalServerError, err.Error())
 	}
-	h.finishLaunchFor(teamName)
-	return web.HQStopped{
-		Team: teamName, Definition: one.Definition, Project: one.Project,
+	return web.HQStopped{Team: teamName, Definition: one.Definition, Project: one.Project,
 		Workspace: web.HQWorkspace{ID: one.WorkspaceID, Label: one.WorkspaceLabel},
-		Closed:    closed, StoppedAt: clockText(time.Now()),
-		Leftovers: hqLeftoversOf(team.GitLeftovers(env.ProjectRoot, owner.Since, dirs)),
-	}, nil
+		Closed:    web.HQClosed{Members: result.Closed.Members, Workers: result.Closed.Workers},
+		StoppedAt: clockText(time.Now()), Leftovers: hqLeftoversOf(result.Leftovers)}, nil
+}
+
+func (h *hqRead) stopInput(env team.Env, one runningTeam, read herdrNow) ops.StopInput {
+	running := team.Running{Team: domainname.TeamFromObservation(one.Name), Definition: one.Definition, Project: one.Project}
+	target := ops.TeamStopTarget(running, read.tabs)
+	return ops.StopInput{Env: env, Target: target, Layer: one.Place.Layer(), Timeout: 30000,
+		SelfPane: ops.CurrentPane(), Port: h.act.herdrPort(), Now: h.stopNow, Pause: h.stopPause,
+		PendingLaunches: h.visitPendingLaunches, Locks: h.locks}
 }
 
 // findRunning is one running team the headquarters shows, by name.
 func (h *hqRead) findRunning(read herdrNow, name string) (runningTeam, bool) {
 	for _, one := range h.act.teamsOf(read) {
-		if one.Name == name {
+		if one.Name.String() == name {
 			return one, true
+		}
+	}
+	if one, ok := ops.StoppedTeam(read.tabs, name); ok {
+		view, record, found := projectOf(one, latestLaunches(), h.act.projectViews(), read.tabs, false)
+		if found {
+			tab, _ := teamTab(read.tabs, one.Team.Observation())
+			return runningTeam{Name: one.Team.Observation(), Definition: one.Definition, Project: view.Path,
+				Place: record.Layer.At(view.Path), WorkspaceID: tab.WorkspaceID,
+				WorkspaceLabel: workspaceLabel(read.spaces, tab.WorkspaceID), TabID: tab.ID}, true
 		}
 	}
 	return runningTeam{}, false
 }
 
-// stopTarget is what stopping one team takes: the panes it closes, and the one
-// way to close them. Stop and the confirmation both take it from here (ac-ddb6).
-type stopTarget struct {
-	members []string
-	workers []string
-	close   func(selfPane string) error
-}
+// stopTarget is presentation of the operation's plan, without its execution.
+type stopTarget struct{ members, workers []string }
 
-// stopTargets is that one answer: a definition that reads closes every member's
-// pane by the starts it was launched with; one that does not is closed by the
-// names hergy gave its panes.
 func (h *hqRead) stopTargets(env team.Env, one runningTeam, read herdrNow) stopTarget {
-	cat := env.Catalog(source.Disk{})
-	r, buildErr := buildRunningIn(cat, env.ProjectRoot, team.Running{Team: one.Name, Definition: one.Definition}, one.Place)
-	workers := workerNamesOf(read.tabs, one.Name)
-	if buildErr != nil {
-		l := newLauncherWithPort(&resolved{team: team.Team{Name: one.Name}}, 30000, io.Discard, h.act.herdrPort()).WithWaitClock(h.stopNow, h.stopPause)
-		agents := team.MemberAgents(read.tabs, one.Name)
-		return stopTarget{members: append([]string{}, agents...), workers: workers, close: func(selfPane string) error {
-			_, err := l.DownByName(agents, selfPane, false)
-			return err
-		}}
-	}
-	l := newLauncherWithPort(r, 30000, io.Discard, h.act.herdrPort()).WithWaitClock(h.stopNow, h.stopPause)
-	members := make([]string, 0, len(r.starts))
-	for _, start := range r.starts {
-		members = append(members, start.Short)
-	}
-	return stopTarget{members: members, workers: workers, close: func(selfPane string) error {
-		_, err := l.Down(r.starts, selfPane, false)
-		return err
-	}}
+	in := h.stopInput(env, one, read)
+	in.PlanOnly = true
+	result, _ := ops.StopTeam(context.Background(), in)
+	plan := result.Plan
+	return stopTarget{members: plan.MemberLabels, workers: seenStrings(plan.Workers)}
 }
 
-// closeTeam puts one team away through the one answer the confirmation reads.
-func (h *hqRead) closeTeam(env team.Env, one runningTeam, read herdrNow) (web.HQClosed, error) {
-	selfPane := os.Getenv("HERDR_PANE_ID")
-	target := h.stopTargets(env, one, read)
-	if err := target.close(selfPane); err != nil {
-		return web.HQClosed{}, err
-	}
-	return web.HQClosed{Members: len(target.members), Workers: len(target.workers)}, nil
-}
-
-// finishLaunchFor marks this serve's start of a team as given up: the panes it
-// made are being closed, so its progress must not keep saying it is starting.
-func (h *hqRead) finishLaunchFor(name string) {
+// visitPendingLaunches adapts locked UI state to the operation's view. It makes
+// no decision about which launch to cancel or which stop outcome permits it.
+func (h *hqRead) visitPendingLaunches(visit func(ops.PendingLaunch)) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	for _, id := range h.order {
 		op := h.ops[id]
 		op.mu.Lock()
-		if op.launch.Team == name && (op.launch.Phase == "starting" || op.launch.Phase == "awaiting") {
-			if op.cancel != nil {
-				op.cancel()
-			}
-			op.launch.Phase = "cancelled"
-			op.launch.Waiting = nil
-			op.finished = time.Now()
-		}
+		visit(ops.PendingLaunch{Team: op.launch.Team, Teams: op.teams, Phase: op.launch.Phase, Cancel: op.cancel,
+			Finish: func(phase string, at time.Time) {
+				op.launch.Phase = phase
+				op.launch.Waiting = nil
+				op.finished = at
+			}})
 		op.mu.Unlock()
 	}
 }
@@ -132,13 +108,4 @@ func hqLeftoversOf(left team.Leftovers) web.HQLeftovers {
 		})
 	}
 	return out
-}
-
-// workerOf is the worker name a tab label carries ("worker:<team>/<worker>").
-func workerOf(label, teamName string) (string, bool) {
-	prefix := "worker:" + teamName + "/"
-	if len(label) <= len(prefix) || label[:len(prefix)] != prefix {
-		return "", false
-	}
-	return label[len(prefix):], true
 }

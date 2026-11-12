@@ -14,6 +14,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/aq2bq/hergy/internal/definition"
+	domainname "github.com/aq2bq/hergy/internal/domain/name"
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/migrate"
 )
@@ -87,7 +88,7 @@ type Doc struct {
 // in (the launch record's, which the current prompt is rebuilt with); oldDocs is
 // only that member's previously read documents by path; current is the current Start (its
 // prompt, segments, turns and workers) and docs are the current rule documents.
-func Compare(lang, oldPrompt string, oldDocs map[string]string, current definition.Start, docs []Doc) []Change {
+func Compare(team domainname.TeamName, lang, oldPrompt string, oldDocs map[string]string, current definition.Start, docs []Doc) []Change {
 	if oldPrompt == "" {
 		return []Change{{Kind: "no_record", Text: i18n.T("delivery.no_record")}}
 	}
@@ -103,7 +104,7 @@ func Compare(lang, oldPrompt string, oldDocs map[string]string, current definiti
 		case "team_rules", "role_doc":
 			continue
 		case "turns":
-			out = append(out, turnChanges(current, segment.Text, oldPrompt, lang)...)
+			out = append(out, turnChanges(domainname.RunningNames(team.Ref()), current, segment.Text, oldPrompt, lang)...)
 		case "workers":
 			out = append(out, workerChanges(current, segment.Text, oldPrompt)...)
 		case "roster":
@@ -131,21 +132,20 @@ func displayOf(doc Doc) string { return filepath.Base(doc.Path) }
 // current endpoints come from the definition (short member names and human);
 // the old endpoints are read from the old prompt's turns note. The summary is
 // the pair "lead → analyst", never a prompt line (r-a8fa audit 1 B).
-func turnChanges(current definition.Start, segment, oldPrompt, lang string) []Change {
-	team := teamOf(current)
+func turnChanges(team domainname.Naming, current definition.Start, segment, oldPrompt, lang string) []Change {
 	now := turnNames(current.Turns, team)
 	old := oldTurnNames(bulletLines(section(oldPrompt, firstHeading(segment))), team, lang)
 	var out []Change
 	for _, to := range now {
 		if !containsLine(old, to) {
-			pair := turnPair(current.Short, to)
+			pair := turnPair(current.Short.String(), to)
 			out = append(out, Change{Kind: "turn", Turn: pair,
 				Text: i18n.Tf("delivery.turn_added", pair)})
 		}
 	}
 	for _, to := range old {
 		if !containsLine(now, to) {
-			pair := turnPair(current.Short, to)
+			pair := turnPair(current.Short.String(), to)
 			out = append(out, Change{Kind: "turn", Turn: pair,
 				Text: i18n.Tf("delivery.turn_removed", pair)})
 		}
@@ -153,19 +153,14 @@ func turnChanges(current definition.Start, segment, oldPrompt, lang string) []Ch
 	return out
 }
 
-// teamOf is the running team's name, from the member the prompt is for.
-func teamOf(current definition.Start) string {
-	return strings.TrimSuffix(current.Name, "-"+current.Short)
-}
-
 // turnNames is the endpoints a definition's turns give, with the running team's
 // prefix taken off: a short member name, or human.
-func turnNames(turns []string, team string) []string {
+func turnNames(turns []string, team domainname.Naming) []string {
 	out := make([]string, 0, len(turns))
 	for _, turn := range turns {
 		name := turn
-		if team != "" {
-			name = strings.TrimPrefix(name, team+"-")
+		if team.String() != "" {
+			name = team.Short(name)
 		}
 		if name == "human" || name == "人間" {
 			name = "human"
@@ -179,7 +174,7 @@ func turnNames(turns []string, team string) []string {
 // note writes each party as the item template does ("- <name>（ロール <role>）"
 // or the human's own line); a bullet of another list that follows the note is
 // not a turn, so it is left out (r-7aad).
-func oldTurnNames(lines []string, team, lang string) []string {
+func oldTurnNames(lines []string, team domainname.Naming, lang string) []string {
 	item := turnItemOf(lang)
 	out := make([]string, 0, len(lines))
 	for _, line := range lines {
@@ -191,8 +186,8 @@ func oldTurnNames(lines []string, team, lang string) []string {
 			out = append(out, "human")
 			continue
 		}
-		if team != "" {
-			name = strings.TrimPrefix(name, team+"-")
+		if team.String() != "" {
+			name = team.Short(name)
 		}
 		out = append(out, name)
 	}
@@ -257,8 +252,8 @@ func turnPair(from, to string) string { return from + " → " + to }
 func workerChanges(current definition.Start, segment, oldPrompt string) []Change {
 	var nowPairs, nowPurposes []string
 	for _, worker := range current.Workers {
-		nowPairs = append(nowPairs, worker.Purpose+" → "+worker.Profile)
-		nowPurposes = append(nowPurposes, worker.Purpose)
+		nowPairs = append(nowPairs, worker.Purpose.String()+" → "+worker.Profile)
+		nowPurposes = append(nowPurposes, worker.Purpose.String())
 	}
 	heading := firstHeading(segment)
 	old := section(oldPrompt, heading)

@@ -5,9 +5,11 @@ import (
 	"path/filepath"
 	"strings"
 
+	domainplace "github.com/aq2bq/hergy/internal/domain/place"
+
 	"github.com/aq2bq/hergy/internal/definition"
+	domainname "github.com/aq2bq/hergy/internal/domain/name"
 	"github.com/aq2bq/hergy/internal/i18n"
-	"github.com/aq2bq/hergy/internal/profile"
 	"github.com/aq2bq/hergy/internal/prose"
 	"github.com/aq2bq/hergy/internal/source"
 )
@@ -17,12 +19,12 @@ import (
 type Run struct {
 	// Team is the team name at run time: --as, else the definition name. It
 	// prefixes every member's herdr name.
-	Team string
+	Team domainname.Naming
 	// Executable is the hergy binary, embedded in the hire command a member
 	// reads; empty means "hergy".
 	Executable string
 	// Base is the project root, for cwd values and the embedded hire command.
-	Base string
+	Base domainplace.Project
 	// Lang is the language the prompt is written in: the launch record's when a
 	// prompt is rebuilt to compare it with what was handed out (C9), and empty
 	// for the language in use.
@@ -120,17 +122,6 @@ func withWhere(what Where, err error) error {
 	return &Error{Where: what, Err: err}
 }
 
-// MemberName is the name herdr knows a member by: "<team>-<member>". It is the
-// same name %{name} writes, so the projection and a check refuse a name that is
-// longer than herdr's pattern in one place.
-func MemberName(team string, node *definition.MemberNode) (string, error) {
-	name := team + "-" + node.Name
-	if !profile.NamePattern.MatchString(name) {
-		return "", i18n.Errorf("error.herdr_name_pattern", name)
-	}
-	return name, nil
-}
-
 // Built is one member's prompt and what it was built from.
 type Built struct {
 	Text string
@@ -165,10 +156,10 @@ func Member(def *definition.Definition, node *definition.MemberNode, run Run) (*
 	switch {
 	case node.HasPrompt:
 		template = node.Prompt
-		templateOrigin = definition.PromptOrigin{Kind: "member", Name: node.Name, Path: run.shown(def.TeamYAML), Place: promptPlace(def.Layer)}
+		templateOrigin = definition.PromptOrigin{Kind: "member", Name: node.Name.String(), Path: run.shown(def.TeamYAML.String()), Place: promptPlace(def.Layer)}
 	case def.Prompt != "":
 		template = def.Prompt
-		templateOrigin = definition.PromptOrigin{Kind: "team", Name: run.Team, Path: run.shown(def.TeamYAML), Place: promptPlace(def.Layer)}
+		templateOrigin = definition.PromptOrigin{Kind: "team", Name: run.Team.String(), Path: run.shown(def.TeamYAML.String()), Place: promptPlace(def.Layer)}
 	}
 	if err := checkTemplate(run, def, node, template); err != nil {
 		return nil, err
@@ -189,10 +180,10 @@ func Member(def *definition.Definition, node *definition.MemberNode, run Run) (*
 		return document, true
 	}
 
-	memberName := run.Team + "-" + node.Name
-	teamOrigin := definition.PromptOrigin{Kind: "team", Name: run.Team, Path: run.shown(def.TeamYAML), Place: promptPlace(def.Layer)}
+	memberName := run.Team.Member(node.Name)
+	teamOrigin := definition.PromptOrigin{Kind: "team", Name: run.Team.String(), Path: run.shown(def.TeamYAML.String()), Place: promptPlace(def.Layer)}
 	simple := map[string]func() string{
-		"team": func() string { return run.Team },
+		"team": func() string { return run.Team.String() },
 		"role": func() string { return node.Role },
 		"name": func() string { return memberName },
 	}
@@ -246,7 +237,7 @@ func Member(def *definition.Definition, node *definition.MemberNode, run Run) (*
 				}
 				out = append(out, definition.PromptSegment{
 					Kind: "team_rules", Text: prefix + text,
-					Origin: definition.PromptOrigin{Kind: "team_rules", Name: def.Name, Path: run.shown(doc.Path), Place: promptPlace(doc.Layer)},
+					Origin: definition.PromptOrigin{Kind: "team_rules", Name: def.Name.String(), Path: run.shown(doc.Path), Place: promptPlace(doc.Layer)},
 				})
 			}
 			return out
@@ -261,17 +252,17 @@ func Member(def *definition.Definition, node *definition.MemberNode, run Run) (*
 			}}
 		},
 		"turns": func() []definition.PromptSegment {
-			return oneSegment("turns", TurnsNote(run.Lang, TurnsOf(def, node.Name, run.Team)), teamOrigin)
+			return oneSegment("turns", TurnsNote(run.Lang, TurnsOf(def, node.Name.String(), run.Team)), teamOrigin)
 		},
 		"workers": func() []definition.PromptSegment {
-			workers := WorkersOf(def, node.Name)
+			workers := WorkersOf(def, node.Name.String())
 			if len(workers) == 0 {
 				return nil
 			}
 			// The worker reports back to this member: the note names the herdr
 			// name, the same name the worker's own prompt names, so it follows
 			// --as (the hire command takes the short name).
-			return oneSegment("workers", WorkersNote(run.Lang, memberName, workers, hireCommand(run, node.Name)), teamOrigin)
+			return oneSegment("workers", WorkersNote(run.Lang, memberName, workers, hireCommand(run, node.Name.String())), teamOrigin)
 		},
 	}
 	text, segments, err := ExpandSegments(template, templateOrigin, simple, parts)
@@ -300,10 +291,8 @@ func oneSegment(kind, text string, origin definition.PromptOrigin) []definition.
 // promptPlace is a document's layer in the words a screen uses for its place.
 func promptPlace(layer string) string {
 	switch layer {
-	case source.LayerLocal:
-		return "project"
-	case source.LayerGlobal:
-		return "global"
+	case source.LayerLocal, source.LayerGlobal:
+		return domainplace.Selection(layer).API()
 	}
 	return ""
 }
@@ -311,7 +300,7 @@ func promptPlace(layer string) string {
 // RosterOf is the team's members as the roster shows them: the herdr name each
 // one answers to, and the role it reads. It is the roster the prompt and the
 // figure are both made of.
-func RosterOf(def *definition.Definition, team string, runs ...Run) []RosterEntry {
+func RosterOf(def *definition.Definition, team domainname.Naming, runs ...Run) []RosterEntry {
 	out := make([]RosterEntry, len(def.Graph.Members))
 	for i, member := range def.Graph.Members {
 		title := member.Role
@@ -322,7 +311,7 @@ func RosterOf(def *definition.Definition, team string, runs ...Run) []RosterEntr
 				}
 			}
 		}
-		out[i] = RosterEntry{Name: team + "-" + member.Name, Short: member.Name, Title: title, Role: member.Role}
+		out[i] = RosterEntry{Name: team.Member(member.Name), Short: member.Name.String(), Title: title, Role: member.Role}
 	}
 	return out
 }
@@ -331,7 +320,7 @@ func RosterOf(def *definition.Definition, team string, runs ...Run) []RosterEntr
 // (I13): the human, or another member with the role it reads. The order is the
 // order turns: writes them. It is the projection a member's prompt and the
 // "保存すると" line are both made from.
-func TurnsOf(def *definition.Definition, member, team string) []TurnPart {
+func TurnsOf(def *definition.Definition, member string, team domainname.Naming) []TurnPart {
 	var out []TurnPart
 	for _, edge := range def.Graph.Out(definition.NodeID{Kind: definition.KindMember, Name: member}) {
 		// A worker's edge is made by workers: and is not a turn the member
@@ -351,7 +340,7 @@ func TurnsOf(def *definition.Definition, member, team string) []TurnPart {
 			if !ok {
 				continue
 			}
-			out = append(out, TurnPart{Name: team + "-" + peer.Name, Role: peer.Role})
+			out = append(out, TurnPart{Name: team.Member(peer.Name), Role: peer.Role})
 		case definition.KindWorker:
 			// A worker's edge back is made by workers: (I12c); the worker note
 			// covers it, so it is not a turn the member is told about.
@@ -375,7 +364,7 @@ func WorkersOf(def *definition.Definition, member string) []WorkerPair {
 		if !ok {
 			continue
 		}
-		out = append(out, WorkerPair{Purpose: worker.Purpose, Profile: worker.Profile})
+		out = append(out, WorkerPair{Purpose: worker.Purpose.String(), Profile: worker.Profile})
 	}
 	return out
 }
@@ -401,7 +390,7 @@ func hireCommand(run Run, shortName string) string {
 		executable = "hergy"
 	}
 	return run.textf("hire.command",
-		shellQuote(executable), run.Team, run.language(), shellQuote(run.Base), shortName)
+		shellQuote(executable), run.Team, run.language(), shellQuote(run.Base.String()), shortName)
 }
 
 func shellQuote(s string) string {
@@ -417,7 +406,7 @@ func shellQuote(s string) string {
 // team.yaml it read and, when the template is a member's own, the member, so a
 // person knows which file to open (spec/32 D2).
 func checkTemplate(run Run, def *definition.Definition, node *definition.MemberNode, template string) error {
-	old := source.Doc{Path: filepath.Join(filepath.Dir(def.TeamYAML), "agreement.yaml")}
+	old := source.Doc{Path: filepath.Join(filepath.Dir(def.TeamYAML.String()), "agreement.yaml")}
 	if run.Reader.IsFile(old) {
 		return run.errorf("error.legacy_prose", run.shown(old.Path))
 	}
@@ -430,13 +419,13 @@ func checkTemplate(run Run, def *definition.Definition, node *definition.MemberN
 	where := run.text("prompt.template_default")
 	switch {
 	case node.HasPrompt:
-		where = run.textf("prompt.template_member", node.Name)
+		where = run.textf("prompt.template_member", node.Name.String())
 	case def.Prompt != "":
 		where = run.text("prompt.template_team")
 	}
 	for _, part := range []string{"role_doc", "docs"} {
 		if !strings.Contains(template, "%{"+part+"}") {
-			return withWhere(WhereTemplate, run.errorf("error.prompt_missing_part", run.shown(def.TeamYAML), where, part))
+			return withWhere(WhereTemplate, run.errorf("error.prompt_missing_part", run.shown(def.TeamYAML.String()), where, part))
 		}
 	}
 	return nil
@@ -484,5 +473,5 @@ func missingRole(node *definition.MemberNode, run Run) error {
 			}
 		}
 	}
-	return run.errorf("error.no_role_doc", node.Name, node.Role, strings.Join(places, run.text("list.separator")))
+	return run.errorf("error.no_role_doc", node.Name.String(), node.Role, strings.Join(places, run.text("list.separator")))
 }

@@ -21,7 +21,7 @@ func TestBandRendersStateHandoffsAndWhatIsAsked(t *testing.T) {
 	b.note(turns.Action{Kind: turns.Told, From: "lead", To: "builder"}, at)
 	b.note(turns.Action{Kind: turns.Ask, To: "builder", Waiting: []string{"lead"}}, at.Add(24*time.Second))
 	st := &turns.State{
-		Team: "demo", Holder: "builder", From: "lead",
+		Team: fixtureSeen("demo"), Holder: "builder", From: "lead",
 		Opened: map[string][]turns.Opening{"builder": {{By: "lead", At: at}}},
 		Asked:  map[string]turns.Question{"builder": {Waiting: []string{"lead"}}},
 	}
@@ -41,7 +41,7 @@ func TestBandRendersStateHandoffsAndWhatIsAsked(t *testing.T) {
 		t.Errorf("line 3 = %q, want %q", lines[2], want)
 	}
 	// The human holds it, nothing asked: the third line is empty.
-	rest := &turns.State{Team: "demo", Holder: turns.Human, From: "builder"}
+	rest := &turns.State{Team: fixtureSeen("demo"), Holder: turns.Human, From: "builder"}
 	b.note(turns.Action{Kind: turns.ToHuman, From: "builder"}, at.Add(time.Minute))
 	lines = b.render(rest, 120)
 	if !strings.Contains(lines[0], "turn: human (from builder)") || lines[2] != "" {
@@ -62,7 +62,7 @@ func TestBandKeepsTheNewestHandoffsThatFit(t *testing.T) {
 	for i := range 5 {
 		b.note(turns.Action{Kind: turns.Told, From: "lead", To: "dev"}, at.Add(time.Duration(i)*time.Minute))
 	}
-	st := &turns.State{Team: "demo", Holder: turns.Human}
+	st := &turns.State{Team: fixtureSeen("demo"), Holder: turns.Human}
 	one := " 09:04:00 lead→dev →"
 	if got := b.render(st, 30)[1]; got != one {
 		t.Errorf("at width 30 line 2 = %q, want the newest alone %q", got, one)

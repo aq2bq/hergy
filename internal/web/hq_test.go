@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 
+	domainplace "github.com/aq2bq/hergy/internal/domain/place"
+
 	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/source"
 )
@@ -19,7 +21,7 @@ import (
 // tests are about.
 type fakeHQ struct {
 	projects HQProjects
-	cats     map[string]*catalog.Catalog
+	cats     map[domainplace.Project]*catalog.Catalog
 	global   *catalog.Catalog
 	// running is what GET /api/hq/running answers; empty is herdr with nothing
 	// running.
@@ -29,7 +31,7 @@ type fakeHQ struct {
 func (f fakeHQ) Projects() (HQProjects, error) { return f.projects, nil }
 func (f fakeHQ) AddProject(path string, _ int) (HQProjects, error) {
 	next := f.projects
-	next.Projects = append(next.Projects, HQProject{Path: path, Listed: true})
+	next.Projects = append(next.Projects, HQProject{Path: projectPath(path), Listed: true})
 	return next, nil
 }
 func (f fakeHQ) RemoveProject(string) (HQProjects, int, error) { return f.projects, 0, nil }
@@ -40,7 +42,7 @@ func (f fakeHQ) Running() HQRunning {
 	return HQRunning{Herdr: ActivityNote{OK: true}}
 }
 func (f fakeHQ) Workspaces() HQWorkspaces { return HQWorkspaces{} }
-func (f fakeHQ) LaunchOptions(string, string, string) (HQLaunchOptions, error) {
+func (f fakeHQ) LaunchOptions(domainplace.Input, string, string) (HQLaunchOptions, error) {
 	return HQLaunchOptions{}, nil
 }
 func (f fakeHQ) StartLaunch(HQLaunchIn) (HQLaunch, error) { return HQLaunch{}, nil }
@@ -57,13 +59,13 @@ func (f *launchHQ) StartLaunch(in HQLaunchIn) (HQLaunch, error) {
 	f.started = append(f.started, in)
 	return HQLaunch{
 		ID: "l-1", Action: ActionLaunch, Team: in.Definition, Definition: in.Definition,
-		Place: in.Place, Project: in.Project, ProjectName: "proj",
+		Place: in.Place.String(), Project: projectPath(string(in.Project)), ProjectName: "proj",
 		Workspace: HQWorkspace{ID: "w-1", Label: "workspace"}, Tab: HQTab{ID: "t-1", Label: in.Definition},
 		Phase: "starting", Steps: []HQLaunchStep{}, Error: "",
 	}, nil
 }
 
-func (f fakeHQ) ProjectCatalog(path string) (*catalog.Catalog, error) {
+func (f fakeHQ) ProjectCatalog(path domainplace.Project) (*catalog.Catalog, error) {
 	if cat, ok := f.cats[path]; ok {
 		return cat, nil
 	}
@@ -80,14 +82,14 @@ func (f *fixture) hqServer(t *testing.T) *Server {
 	hq := fakeHQ{
 		projects: HQProjects{
 			Mode:    "current",
-			Current: HQProject{Path: f.proj, Name: "proj", Listed: true},
+			Current: HQProject{Path: projectPath(f.proj), Name: "proj", Listed: true},
 			Projects: []HQProject{
-				{Path: f.proj, Name: "proj", Listed: true},
+				{Path: projectPath(f.proj), Name: "proj", Listed: true},
 			},
 			Global: HQGlobal{Path: f.global, Display: "~/.config/hergy"},
 		},
-		cats:   map[string]*catalog.Catalog{f.proj: f.catalog()},
-		global: catalog.New(f.global, filepath.Join(f.global, "no-local"), f.proj, source.Disk{}, func(p string) string { return p }),
+		cats:   map[domainplace.Project]*catalog.Catalog{projectPath(f.proj): f.catalog()},
+		global: catalog.New(f.global, filepath.Join(f.global, "no-local"), projectPath(f.proj), source.Disk{}, func(p string) string { return p }),
 	}
 	server.hq = hq
 	server.projects = hq
@@ -105,7 +107,7 @@ func TestHQProjectsIsServed(t *testing.T) {
 	if err := json.Unmarshal([]byte(body), &got); err != nil {
 		t.Fatal(err)
 	}
-	if got.Mode != "current" || got.Current.Path != f.proj {
+	if got.Mode != "current" || got.Current.Path.String() != f.proj {
 		t.Errorf("projects = %+v", got)
 	}
 }
@@ -186,7 +188,7 @@ func TestHQTeamsGroupsTheProjectAndTheGlobalLayer(t *testing.T) {
 		t.Fatalf("groups = %+v", got.Groups)
 	}
 	project, globalGroup := got.Groups[0], got.Groups[1]
-	if project.Project == nil || project.Project.Path != f.proj || len(project.List.Items) != 1 {
+	if project.Project == nil || project.Project.Path.String() != f.proj || len(project.List.Items) != 1 {
 		t.Errorf("the project's group = %+v", project)
 	}
 	if !globalGroup.Global || len(globalGroup.List.Items) != 1 || globalGroup.List.Items[0].Name != "docs" {
@@ -212,7 +214,7 @@ func TestAScreenReadsOneProjectWithProject(t *testing.T) {
 	}
 	server := f.hqServer(t)
 	hq := server.hq.(fakeHQ)
-	hq.cats[other] = catalog.New(f.global, filepath.Join(other, ".hergy"), other, source.Disk{}, func(p string) string { return p })
+	hq.cats[projectPath(other)] = catalog.New(f.global, filepath.Join(other, ".hergy"), projectPath(other), source.Disk{}, func(p string) string { return p })
 	server.hq = hq
 	server.projects = hq
 
@@ -302,14 +304,14 @@ func TestHQBandCountsEveryGroup(t *testing.T) {
 	hq := server.hq.(fakeHQ)
 	hq.projects = HQProjects{
 		Mode:    "listed",
-		Current: HQProject{Path: f.proj, Name: "proj", Listed: true},
+		Current: HQProject{Path: projectPath(f.proj), Name: "proj", Listed: true},
 		Projects: []HQProject{
-			{Path: f.proj, Name: "proj", Listed: true, Defs: 1, Roles: 2, Profiles: 2},
-			{Path: other, Name: "other", Listed: true, Defs: 1, Roles: 1, Profiles: 0},
+			{Path: projectPath(f.proj), Name: "proj", Listed: true, Defs: 1, Roles: 2, Profiles: 2},
+			{Path: projectPath(other), Name: "other", Listed: true, Defs: 1, Roles: 1, Profiles: 0},
 		},
 		Global: HQGlobal{Path: f.global, Display: "~/.config/hergy", Defs: 1, Roles: 3, Profiles: 2},
 	}
-	hq.cats[other] = catalog.New(f.global, filepath.Join(other, ".hergy"), other, source.Disk{}, func(p string) string { return p })
+	hq.cats[projectPath(other)] = catalog.New(f.global, filepath.Join(other, ".hergy"), projectPath(other), source.Disk{}, func(p string) string { return p })
 	server.hq, server.projects = hq, hq
 
 	nav := server.navOf("teams")
@@ -371,7 +373,7 @@ func TestTheBandSaysHowManyProjects(t *testing.T) {
 func TestHQRunningCarriesWhyADefinitionCannotBeBuilt(t *testing.T) {
 	f := newFixture(t)
 	hq := fakeHQ{running: HQRunning{Herdr: ActivityNote{OK: true}, Teams: []HQRunningTeam{{
-		Team: "core", Definition: "core", Place: "project", Project: f.proj, ProjectName: "proj",
+		Team: fixtureTeam("core"), Definition: "core", Place: "project", Project: projectPath(f.proj), ProjectName: "proj",
 		Members: []HQMember{{Name: "lead", Herdr: "core-lead", Live: true, State: "idle"}},
 		Workers: []HQWorker{}, Waiting: []string{}, NotUp: []string{},
 		Error: "ロール名「進行管理」は使えません",
@@ -407,9 +409,9 @@ func TestAProjectGroupDoesNotGrowAGlobalRoleRow(t *testing.T) {
 	hq := server.hq.(fakeHQ)
 	hq.projects = HQProjects{
 		Mode:    "listed",
-		Current: HQProject{Path: f.proj, Name: "proj", Listed: true},
+		Current: HQProject{Path: projectPath(f.proj), Name: "proj", Listed: true},
 		Projects: []HQProject{
-			{Path: f.proj, Name: "proj", Listed: true},
+			{Path: projectPath(f.proj), Name: "proj", Listed: true},
 		},
 		Global: HQGlobal{Path: f.global, Display: "~/.config/hergy"},
 	}

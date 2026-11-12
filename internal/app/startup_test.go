@@ -4,12 +4,16 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/aq2bq/hergy/internal/i18n"
 
 	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/herdr"
@@ -83,12 +87,12 @@ func TestBootInterruptedWhileWaitingOnAQuestion(t *testing.T) {
 	inJapanese(t)
 	log := f.blockedStartHerdr(t)
 	starts := []definition.Start{{
-		Name: "demo-lead", Short: "lead", Role: "lead", Kind: "claude",
+		Name: fixtureHerdrName("demo-lead"), Short: fixtureShortName("lead"), Role: "lead", Kind: "claude",
 		Prompt: "read the role document", Cwd: f.proj,
 	}}
 	var out lockedBuffer
 	var errOut bytes.Buffer
-	l := launcher.New(starts, "demo", f.proj, herdr.New(herdrcli.New(os.Getenv("HERGY_HERDR"))), 30000, &out)
+	l := launcher.New(starts, fixtureSeen("demo"), projectPath(f.proj), herdr.New(herdrcli.New(os.Getenv("HERGY_HERDR"))), 30000, &out)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	finished := make(chan struct{})
@@ -154,5 +158,31 @@ func TestBootInterruptedWhileWaitingOnAQuestion(t *testing.T) {
 	}
 	if !strings.Contains(calls(t, log), "agent prompt demo-lead") {
 		t.Fatalf("the boot never submitted the bootstrap prompt after the answer:\n%s", calls(t, log))
+	}
+}
+
+// runOperation runs one Herdr operation, and on Ctrl-C stops with 130. failure,
+// when set, says where a failed operation stopped; interrupted, when set, says
+// where an interrupted one stopped. The two differ: an interruption while hergy
+// waits on a member's question adds how to go on.
+func runOperation(ctx context.Context, stderr io.Writer, failure, interrupted func(io.Writer), fn func() error) error {
+	done := make(chan error, 1)
+	go func() { done <- fn() }()
+	select {
+	case err := <-done:
+		if err != nil {
+			fail(stderr, err)
+			if failure != nil {
+				failure(stderr)
+			}
+			return reportedError{err: err, code: 1}
+		}
+		return nil
+	case <-ctx.Done():
+		fmt.Fprint(stderr, i18n.T("launcher.interrupted"))
+		if interrupted != nil {
+			interrupted(stderr)
+		}
+		return reportedError{err: context.Canceled, code: 130}
 	}
 }

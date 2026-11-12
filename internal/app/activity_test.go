@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	domainplace "github.com/aq2bq/hergy/internal/domain/place"
+
 	"github.com/aq2bq/hergy/internal/activity"
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/launchlog"
@@ -119,9 +121,9 @@ func newActivityFixture(t *testing.T) *activityFixture {
 	} {
 		record := launchlog.Record{
 			Time: activityNow.Format(time.RFC3339), Command: launchlog.CommandUp,
-			Hergy: "hergy (test)", Project: f.proj, Layer: "local",
-			Definition: one.definition, Team: one.team,
-			TeamYAML: filepath.Join(f.proj, ".hergy", "teams", one.definition, "team.yaml"),
+			Hergy: "hergy (test)", Project: domainplace.Observe(f.proj), Layer: "local",
+			Definition: one.definition, Team: fixtureSeen(one.team),
+			TeamYAML: domainplace.Observe(filepath.Join(f.proj, ".hergy", "teams", one.definition, "team.yaml")),
 			Hash:     "test",
 		}
 		if err := log.Append(record); err != nil {
@@ -342,9 +344,9 @@ func TestActivityListKeepsOnlyThisProject(t *testing.T) {
 	for _, one := range []struct{ team, definition string }{{"core", "core"}, {"core-hotfix", "core"}} {
 		if err := log.Append(launchlog.Record{
 			Time: activityNow.Format(time.RFC3339), Command: launchlog.CommandUp,
-			Hergy: "hergy (test)", Project: filepath.Join(f.cfg, "another"), Layer: "local",
-			Definition: one.definition, Team: one.team,
-			TeamYAML: filepath.Join(f.cfg, "another", one.definition, "team.yaml"), Hash: "test",
+			Hergy: "hergy (test)", Project: domainplace.Observe(filepath.Join(f.cfg, "another")), Layer: "local",
+			Definition: one.definition, Team: fixtureSeen(one.team),
+			TeamYAML: domainplace.Observe(filepath.Join(f.cfg, "another", one.definition, "team.yaml")), Hash: "test",
 		}); err != nil {
 			t.Fatal(err)
 		}
@@ -451,7 +453,7 @@ func TestActivityOneReadsTheTileMembersAndQuestion(t *testing.T) {
 	if states["lead"] != "handed" || states["impl-a"] != "idle" {
 		t.Errorf("the members are %v, want lead handed and impl-a idle", states)
 	}
-	if len(doc.Hired) != 1 || doc.Hired[0].Name != "deps" || doc.Hired[0].Herdr != "core-deps" {
+	if len(doc.Hired) != 1 || doc.Hired[0].Name != "deps" || doc.Hired[0].Herdr.String() != "core-deps" {
 		t.Errorf("the workers are %+v, want deps of core-deps", doc.Hired)
 	}
 }
@@ -500,8 +502,8 @@ func TestActivityOneSaysWhenTheDefinitionDoesNotRead(t *testing.T) {
 	log := launchlog.At(filepath.Join(f.state, "hergy", "launches"))
 	if err := log.Append(launchlog.Record{
 		Time: activityNow.Format(time.RFC3339), Command: launchlog.CommandUp,
-		Hergy: "hergy (test)", Project: f.proj, Layer: "local",
-		Definition: "broken", Team: "broken", TeamYAML: filepath.Join(f.proj, ".hergy", "teams", "broken", "team.yaml"),
+		Hergy: "hergy (test)", Project: domainplace.Observe(f.proj), Layer: "local",
+		Definition: "broken", Team: fixtureSeen("broken"), TeamYAML: domainplace.Observe(filepath.Join(f.proj, ".hergy", "teams", "broken", "team.yaml")),
 		Hash: "test",
 	}); err != nil {
 		t.Fatal(err)
@@ -529,7 +531,7 @@ func TestActivityOneSaysWhenTheDefinitionDoesNotRead(t *testing.T) {
 	if doc.Question != "" {
 		t.Errorf("a definition that does not read has question %q, want none", doc.Question)
 	}
-	if len(doc.Nodes) != 1 || doc.Nodes[0].Name != "lead" || doc.Nodes[0].Herdr != "broken-lead" {
+	if len(doc.Nodes) != 1 || doc.Nodes[0].Name != "lead" || doc.Nodes[0].Herdr.String() != "broken-lead" {
 		t.Errorf("the members are %+v, want the live agent broken-lead as lead", doc.Nodes)
 	}
 }
@@ -671,8 +673,8 @@ func TestActivityNodesCarryTheTerminalTitleAndTheHirer(t *testing.T) {
 	log := launchlog.At(filepath.Join(f.state, "hergy", "launches"))
 	if err := log.Append(launchlog.Record{
 		Time: activityNow.Format(time.RFC3339), Command: launchlog.CommandHire,
-		Hergy: "hergy (test)", Project: f.proj, Team: "core",
-		Hire: &launchlog.Hire{Worker: "core-deps", From: "lead", Purpose: "依存の更新", Tab: "worker:core/deps"},
+		Hergy: "hergy (test)", Project: domainplace.Observe(f.proj), Team: fixtureSeen("core"),
+		Hire: &launchlog.Hire{Worker: fixtureSeen("core-deps"), From: "lead", Purpose: "依存の更新", Tab: fixtureSeen("worker:core/deps")},
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -753,24 +755,24 @@ func TestATeamOfTheSameNameInTwoProjectsKeepsItsOwnDefinition(t *testing.T) {
 	} {
 		if err := log.Append(launchlog.Record{
 			Time: one.when.Format(time.RFC3339), Command: launchlog.CommandUp,
-			Project: one.proj, Layer: "local", Definition: "core", Team: "core",
-			TeamYAML: filepath.Join(one.proj, ".hergy", "teams", "core", "team.yaml"), Hash: "test",
+			Project: domainplace.Observe(one.proj), Layer: "local", Definition: "core", Team: fixtureSeen("core"),
+			TeamYAML: domainplace.Observe(filepath.Join(one.proj, ".hergy", "teams", "core", "team.yaml")), Hash: "test",
 		}); err != nil {
 			t.Fatal(err)
 		}
 	}
 
 	env := func(root string) team.Env {
-		return team.Env{ProjectRoot: root, GlobalDir: filepath.Join(f.cfg, "hergy"), LocalDir: filepath.Join(root, ".hergy")}
+		return team.Env{ProjectRoot: projectPath(root), GlobalDir: filepath.Join(f.cfg, "hergy"), LocalDir: filepath.Join(root, ".hergy")}
 	}
 	views := []projectView{
-		{Path: alpha, Name: "alpha", Env: env(alpha), Cat: env(alpha).Catalog(source.Disk{})},
-		{Path: beta, Name: "other", Env: env(beta), Cat: env(beta).Catalog(source.Disk{})},
+		{Path: projectPath(alpha), Name: "alpha", Env: env(alpha), Cat: env(alpha).Catalog(source.Disk{})},
+		{Path: projectPath(beta), Name: "other", Env: env(beta), Cat: env(beta).Catalog(source.Disk{})},
 	}
 	read := herdrNow{
 		tabs: []team.Tab{{
-			ID: "t1", Label: "core", WorkspaceID: "w1",
-			Agents: []string{"core-lead"}, Panes: []string{"core-lead"}, PaneDirs: []string{alpha},
+			ID: "t1", Label: fixtureSeen("core"), WorkspaceID: "w1",
+			Agents: fixtureSeenList([]string{"core-lead"}), Panes: fixtureSeenList([]string{"core-lead"}), PaneDirs: seenPaths([]string{alpha}),
 		}},
 		agentsRead: true,
 		seen:       map[string]activity.Watch{},
@@ -780,13 +782,13 @@ func TestATeamOfTheSameNameInTwoProjectsKeepsItsOwnDefinition(t *testing.T) {
 		t.Fatalf("the reading has %d teams, want the one running", len(out))
 	}
 	one := out[0]
-	if !samePath(one.Project, alpha) {
+	if one.Project.Compare(projectPath(alpha)) != domainplace.Same {
 		t.Errorf("the team stands in %q, want the project its panes stand in, %q", one.Project, alpha)
 	}
 	if one.Built == nil {
 		t.Fatalf("the team's definition did not read: %q", one.Broken)
 	}
-	if got, want := one.Built.team.Definition.Description, "alpha の説明"; got != want {
+	if got, want := one.Built.Team.Definition.Description, "alpha の説明"; got != want {
 		t.Errorf("the team runs from the definition of %q, want %q", got, want)
 	}
 }
@@ -831,7 +833,7 @@ func TestActivityPermissionCommandAndFocus(t *testing.T) {
 	}
 	found := false
 	for _, node := range doc.Nodes {
-		if node.Herdr == "core-lead" {
+		if node.Herdr.String() == "core-lead" {
 			found = node.Question == command
 		}
 	}

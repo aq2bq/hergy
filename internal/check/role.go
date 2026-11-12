@@ -5,6 +5,8 @@ import (
 	"slices"
 	"strings"
 
+	domainname "github.com/aq2bq/hergy/internal/domain/name"
+
 	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/prose"
@@ -157,7 +159,7 @@ func roleReaders(def *definition.Definition, role string) []RoleReader {
 		if member.Role != role {
 			continue
 		}
-		out = append(out, RoleReader{Definition: def.Name, Member: def.Name + "-" + member.Name})
+		out = append(out, RoleReader{Definition: def.Name.String(), Member: domainname.DefinitionNames(def.Name).Member(member.Name)})
 	}
 	return out
 }

@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/aq2bq/hergy/internal/ops"
+
 	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/options"
@@ -195,6 +197,7 @@ if [ -z "$s" ]; then
   exit 0
 fi
 case "$g $s" in
+  "workspace list") echo '{"result":{"workspaces":[{"workspace_id":"w1","label":"workspace"}]}}' ;;
   "pane current") echo '{"result":{"pane":{"workspace_id":"w1"}}}' ;;
   "agent list")
     printf '{"result":{"agents":['
@@ -234,7 +237,7 @@ case "$g $s" in
     while read -r id label; do
       [ -z "$id" ] && continue
       if [ $first -eq 1 ]; then first=0; else printf ','; fi
-      printf '{"tab_id":"%s","label":"%s"}' "$id" "$label"
+      printf '{"tab_id":"%s","label":"%s","workspace_id":"w1"}' "$id" "$label"
     done < "$tabs"
     printf ']}}'
     ;;
@@ -893,14 +896,14 @@ func TestSharedAgreementIsNotReadAndStops(t *testing.T) {
 
 			// The projection does not read it: the rule stands in no member's
 			// prompt, even though the file is there.
-			cat := catalog.New(filepath.Join(f.cfg, "hergy"), filepath.Join(f.proj, ".hergy"), f.proj, source.Disk{}, func(path string) string { return path })
-			r, err := readDefinition(cat, f.proj, "demo", "")
+			cat := catalog.New(filepath.Join(f.cfg, "hergy"), filepath.Join(f.proj, ".hergy"), projectPath(f.proj), source.Disk{}, func(path string) string { return path })
+			r, err := ops.ReadDefinition(cat, projectPath(f.proj), "demo", "")
 			if err != nil {
 				t.Fatalf("the definition does not read: %v", err)
 			}
-			for _, start := range r.starts {
+			for _, start := range r.Starts {
 				if sharedID.MatchString(start.Prompt) || strings.Contains(start.Prompt, "全員が読む") {
-					t.Errorf("%s's prompt carries the shared agreement:\n%s", start.Name, start.Prompt)
+					t.Errorf("%s's prompt carries the shared agreement:\n%s", start.Name.String(), start.Prompt)
 				}
 			}
 
@@ -1304,7 +1307,8 @@ func TestDownDryWithoutLiveMembersHasNoNext(t *testing.T) {
 func TestUpProductionShowsNoPerMemberProvenance(t *testing.T) {
 	f := newFixture(t)
 	mustRun(t, "new", "demo")
-	f.herdr(t, passingHerdr)
+	// This fixture starts a new team; its legacy tab must not already exist.
+	f.herdr(t, strings.Replace(passingHerdr, `"tabs":[{"tab_id":"t1","label":"team:demo@demo"}]`, `"tabs":[]`, 1))
 	t.Setenv("HERDR_ENV", "1")
 	t.Setenv("HERDR_PANE_ID", "p9")
 	got := mustRun(t, "up", "demo")

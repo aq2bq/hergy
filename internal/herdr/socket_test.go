@@ -12,6 +12,8 @@ import (
 	"sync"
 	"testing"
 
+	domainplace "github.com/aq2bq/hergy/internal/domain/place"
+
 	"github.com/aq2bq/hergy/internal/protocol"
 	"go.uber.org/goleak"
 )
@@ -131,13 +133,13 @@ func TestSocketPortReadsSnapshotAndIndividualMethods(t *testing.T) {
 	if len(snapshot.Workspaces) != 1 || snapshot.Workspaces[0] != (Workspace{ID: "w1", Label: "main", Focused: true}) {
 		t.Errorf("workspaces = %+v", snapshot.Workspaces)
 	}
-	if len(snapshot.Tabs) != 1 || snapshot.Tabs[0] != (protocol.Tab{ID: "t1", Label: "core", WorkspaceID: "w1"}) {
+	if len(snapshot.Tabs) != 1 || snapshot.Tabs[0] != (protocol.Tab{ID: "t1", Label: fixtureSeen("core"), WorkspaceID: "w1"}) {
 		t.Errorf("tabs = %+v", snapshot.Tabs)
 	}
-	if len(snapshot.Panes) != 1 || snapshot.Panes[0] != (protocol.Pane{ID: "p1", Label: "core-lead", TabID: "t1", Cwd: "/project"}) {
+	if len(snapshot.Panes) != 1 || snapshot.Panes[0] != (protocol.Pane{ID: "p1", Label: fixtureSeen("core-lead"), TabID: "t1", Cwd: domainplace.Observe("/project")}) {
 		t.Errorf("panes = %+v", snapshot.Panes)
 	}
-	if len(snapshot.Agents) != 1 || snapshot.Agents[0].Name != "core-lead" || snapshot.Agents[0].Seq != 17 || snapshot.Agents[0].Title != "ready" {
+	if len(snapshot.Agents) != 1 || snapshot.Agents[0].Name.String() != "core-lead" || snapshot.Agents[0].Seq != 17 || snapshot.Agents[0].Title != "ready" {
 		t.Errorf("agents = %+v", snapshot.Agents)
 	}
 	if _, err := port.JSON("agent", "get", "core-lead"); err != nil {

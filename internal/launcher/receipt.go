@@ -4,6 +4,8 @@ import (
 	"errors"
 	"strings"
 
+	domainname "github.com/aq2bq/hergy/internal/domain/name"
+
 	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/protocol"
@@ -14,7 +16,7 @@ import (
 // startup and other sending failures keep their existing stop behavior.
 type Undelivered struct {
 	Name     string
-	Pane     string
+	Pane     domainname.PaneID
 	Recovery string
 	Cause    error
 }
@@ -45,9 +47,9 @@ func hireRetry(project, team string, worker *definition.Start, task string) stri
 	purposeSetup, purposeWord := recoveryWord(worker.Purpose, "purpose")
 	taskSetup, taskWord := recoveryWord(task, "task")
 	return projectSetup + purposeSetup + taskSetup +
-		"hergy down " + worker.Name + " -C " + projectWord + " && hergy hire " + worker.Short +
+		"hergy down " + worker.Name.String() + " -C " + projectWord + " && hergy hire " + worker.Short.String() +
 		" --team " + team + " -C " + projectWord + " --purpose " + purposeWord +
-		" --task " + taskWord + " --from " + worker.From
+		" --task " + taskWord + " --from " + worker.From.String()
 }
 
 func repromptRetry(project, team, member string) string {

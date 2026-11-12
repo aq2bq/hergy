@@ -18,13 +18,9 @@ import (
 	"strings"
 	"sync"
 
+	domainname "github.com/aq2bq/hergy/internal/domain/name"
 	"github.com/aq2bq/hergy/internal/i18n"
 )
-
-// NamePattern is the shape of a name hergy writes in a settings file: a profile,
-// a team definition, a member. It is one pattern, so a name that is legal in one
-// place is legal in the others.
-var NamePattern = regexp.MustCompile(`^[a-z][a-z0-9_-]{0,31}$`)
 
 // kindPattern is the shape of a profile's kind: the agent hergy starts.
 var kindPattern = regexp.MustCompile(`^[a-z][a-z0-9_-]*$`)
@@ -34,7 +30,7 @@ var envPattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
 // Profile is one engine choice, named, kept in a profiles.yaml.
 type Profile struct {
-	Name string
+	Name domainname.ProfileName
 	Kind string
 	Args []string
 	Env  map[string]string
@@ -99,7 +95,8 @@ func parseProfiles(text, path string) (map[string]Profile, error) {
 	out := make(map[string]Profile, len(raw.Profiles))
 	for name, value := range raw.Profiles {
 		label := "profiles." + name
-		if !NamePattern.MatchString(name) {
+		profileName, err := domainname.ParseProfileName(name)
+		if err != nil {
 			return nil, i18n.Errorf("error.profile_name_pattern", label)
 		}
 		kind, err := kindOf(value.Kind, label+".kind")
@@ -114,7 +111,7 @@ func parseProfiles(text, path string) (map[string]Profile, error) {
 		if err != nil {
 			return nil, err
 		}
-		out[name] = Profile{Name: name, Kind: kind, Args: args, Env: env, Path: path}
+		out[name] = Profile{Name: profileName, Kind: kind, Args: args, Env: env, Path: path}
 	}
 	return out, nil
 }

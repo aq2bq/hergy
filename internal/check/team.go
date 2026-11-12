@@ -116,10 +116,10 @@ func teamGraph(draft, saved *definition.Definition) TeamGraph {
 	if draft != nil {
 		g.Nodes = append(g.Nodes, TeamNode{ID: "human", Kind: "human"})
 		for _, member := range draft.Graph.Members {
-			g.Nodes = append(g.Nodes, TeamNode{ID: member.Name, Kind: "member", Role: member.Role})
+			g.Nodes = append(g.Nodes, TeamNode{ID: member.Name.String(), Kind: "member", Role: member.Role})
 		}
 		for _, worker := range draft.Graph.Workers {
-			g.Workers = append(g.Workers, TeamWorker{From: worker.From, Purpose: worker.Purpose, Profile: worker.Profile})
+			g.Workers = append(g.Workers, TeamWorker{From: worker.From, Purpose: worker.Purpose.String(), Profile: worker.Profile})
 		}
 		g.Turns = teamTurnPairs(draft)
 	}

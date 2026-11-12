@@ -13,9 +13,9 @@ import (
 // the rules a test writes.
 func ledgerDef(rules ...definition.Ledger) *definition.Definition {
 	return &definition.Definition{
-		Name: "hergy-dev",
+		Name: fixtureDefinitionName("hergy-dev"),
 		Graph: &definition.Graph{
-			Members: []definition.MemberNode{{Name: "lead"}, {Name: "designer"}},
+			Members: []definition.MemberNode{{Name: fixtureMemberName("lead")}, {Name: fixtureMemberName("designer")}},
 		},
 		Ledger: rules,
 	}
@@ -37,7 +37,7 @@ func noDecider(t *testing.T) Decider {
 func TestLedgerFindingsWarnOnABrokenRule(t *testing.T) {
 	def := ledgerDef(definition.Ledger{Write: "req approve", Members: []string{"lead"}})
 	writes := []LedgerWrite{{Actor: "hergy-dev-designer", Node: "r-1c42", Why: "req approve r-1c42"}}
-	got, err := LedgerFindings(def, []string{"hergy-dev"}, writes, noDecider(t))
+	got, err := LedgerFindings(def, fixtureNamingList([]string{"hergy-dev"}), writes, noDecider(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,11 +58,11 @@ func TestLedgerFindingsWarnOnABrokenRule(t *testing.T) {
 	// The member the rule allows, and another write the rule does not speak of,
 	// are not warnings.
 	allowed := []LedgerWrite{{Actor: "hergy-dev-lead", Node: "r-1", Why: "req approve r-1"}}
-	if got, err := LedgerFindings(def, []string{"hergy-dev"}, allowed, noDecider(t)); err != nil || len(got) != 0 {
+	if got, err := LedgerFindings(def, fixtureNamingList([]string{"hergy-dev"}), allowed, noDecider(t)); err != nil || len(got) != 0 {
 		t.Errorf("a write by the allowed member = %v, %v; want none", got, err)
 	}
 	other := []LedgerWrite{{Actor: "hergy-dev-designer", Node: "r-1", Why: "req done r-1"}}
-	if got, err := LedgerFindings(def, []string{"hergy-dev"}, other, noDecider(t)); err != nil || len(got) != 0 {
+	if got, err := LedgerFindings(def, fixtureNamingList([]string{"hergy-dev"}), other, noDecider(t)); err != nil || len(got) != 0 {
 		t.Errorf("a write no rule speaks of = %v, %v; want none", got, err)
 	}
 }
@@ -79,7 +79,7 @@ func TestLedgerFindingsIgnoreWritersOutsideTheTeam(t *testing.T) {
 		{Actor: "hergy-dev-ghost", Node: "r-4", Why: "req approve r-4"}, // a name that is no member
 		{Actor: "", Node: "r-5", Why: "req approve r-5"},                // nobody
 	}
-	got, err := LedgerFindings(def, []string{"hergy-dev"}, writes, noDecider(t))
+	got, err := LedgerFindings(def, fixtureNamingList([]string{"hergy-dev"}), writes, noDecider(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,7 +94,7 @@ func TestLedgerFindingsIgnoreWritersOutsideTheTeam(t *testing.T) {
 func TestLedgerFindingsSeeTheTeamNameItWasStartedAs(t *testing.T) {
 	def := ledgerDef(definition.Ledger{Write: "req approve", Members: []string{"lead"}})
 	writes := []LedgerWrite{{Actor: "hergy-dev-2-designer", Node: "r-1c42", Why: "req approve r-1c42"}}
-	got, err := LedgerFindings(def, []string{"hergy-dev", "hergy-dev-2"}, writes, noDecider(t))
+	got, err := LedgerFindings(def, fixtureNamingList([]string{"hergy-dev", "hergy-dev-2"}), writes, noDecider(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -126,7 +126,7 @@ func TestLedgerFindingsTellAQuestionApartByItsDecider(t *testing.T) {
 		{Actor: "hergy-dev-designer", Node: "q-human", Why: "question add q-human"},
 		{Actor: "hergy-dev-designer", Node: "q-empty", Why: "question add q-empty"},
 	}
-	got, err := LedgerFindings(def, []string{"hergy-dev"}, writes, decider)
+	got, err := LedgerFindings(def, fixtureNamingList([]string{"hergy-dev"}), writes, decider)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -152,7 +152,7 @@ func TestLedgerFindingsStopOnADeciderThatCannotBeRead(t *testing.T) {
 	def := ledgerDef(definition.Ledger{Write: definition.QuestionToHuman, Members: []string{"lead"}})
 	decider := func(string) (string, error) { return "", errors.New("gy is not here") }
 	writes := []LedgerWrite{{Actor: "hergy-dev-designer", Node: "q-1", Why: "question add q-1"}}
-	got, err := LedgerFindings(def, []string{"hergy-dev"}, writes, decider)
+	got, err := LedgerFindings(def, fixtureNamingList([]string{"hergy-dev"}), writes, decider)
 	if err == nil {
 		t.Fatalf("LedgerFindings = %v, nil; want the error of the decider that could not be read", got)
 	}
@@ -163,7 +163,7 @@ func TestLedgerFindingsStopOnADeciderThatCannotBeRead(t *testing.T) {
 func TestLedgerFindingsWithNoRulesReadNothing(t *testing.T) {
 	def := ledgerDef()
 	writes := []LedgerWrite{{Actor: "hergy-dev-designer", Node: "r-1", Why: "req approve r-1"}}
-	got, err := LedgerFindings(def, []string{"hergy-dev"}, writes, noDecider(t))
+	got, err := LedgerFindings(def, fixtureNamingList([]string{"hergy-dev"}), writes, noDecider(t))
 	if err != nil || len(got) != 0 {
 		t.Errorf("LedgerFindings = %v, %v; want none and no error", got, err)
 	}

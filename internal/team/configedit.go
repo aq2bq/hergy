@@ -6,7 +6,10 @@ import (
 	"path/filepath"
 	"strings"
 
+	domainplace "github.com/aq2bq/hergy/internal/domain/place"
+
 	"github.com/aq2bq/hergy/internal/i18n"
+	"github.com/aq2bq/hergy/internal/projectinput"
 	"github.com/aq2bq/hergy/internal/source"
 	"github.com/aq2bq/hergy/internal/yamledit"
 	"go.yaml.in/yaml/v3"
@@ -29,11 +32,11 @@ func (e Env) AddProject(dir string) (string, error) {
 // position outside it means the end), so a project taken out can go back where
 // it stood (d-2cce).
 func (e Env) AddProjectAt(dir string, at int) (string, error) {
-	path, err := ExpandProjectPath(dir)
+	path, err := projectinput.Read(domainplace.Input(dir))
 	if err != nil {
 		return "", err
 	}
-	if info, err := os.Stat(path); err != nil || !info.IsDir() {
+	if info, err := os.Stat(path.String()); err != nil || !info.IsDir() {
 		return "", i18n.Errorf("error.project_not_dir", dir)
 	}
 	written := e.ConfigProjectPath(path)
@@ -58,7 +61,7 @@ func (e Env) AddProjectAt(dir string, at int) (string, error) {
 // RemoveProject takes one directory out of the global config.yaml's projects:
 // list. A path that is not listed is an error naming the file.
 func (e Env) RemoveProject(dir string) (int, error) {
-	path, err := ExpandProjectPath(dir)
+	path, err := projectinput.Read(domainplace.Input(dir))
 	if err != nil {
 		return -1, err
 	}
@@ -79,7 +82,7 @@ func (e Env) RemoveProject(dir string) (int, error) {
 }
 
 // projectIndex is where one expanded path stands in the projects: list, or -1.
-func projectIndex(text []byte, path string) int {
+func projectIndex(text []byte, path domainplace.Project) int {
 	var doc yaml.Node
 	if yaml.Unmarshal(text, &doc) != nil || len(doc.Content) == 0 {
 		return -1
@@ -89,7 +92,7 @@ func projectIndex(text []byte, path string) int {
 		return -1
 	}
 	for i, item := range projects.Content {
-		expanded, err := ExpandProjectPath(item.Value)
+		expanded, err := projectinput.Read(domainplace.Input(item.Value))
 		if err == nil && expanded == path {
 			return i
 		}
@@ -99,20 +102,20 @@ func projectIndex(text []byte, path string) int {
 
 // ConfigProjectPath is how one project path is written into config.yaml: ~/…
 // when it is under the home directory, the absolute path otherwise.
-func (e Env) ConfigProjectPath(path string) string {
+func (e Env) ConfigProjectPath(path domainplace.Project) string {
 	home, err := os.UserHomeDir()
 	if err != nil || home == "" {
-		return path
+		return path.String()
 	}
-	// The path came through ExpandProjectPath, which resolves symbolic links
+	// The path came through projectinput.Read, which resolves symbolic links
 	// (macOS's /tmp beside /private/tmp); the home directory is read the same way
 	// so the two are compared as the directories they are.
 	if resolved, err := filepath.EvalSymlinks(home); err == nil {
 		home = resolved
 	}
-	rel, err := filepath.Rel(home, path)
+	rel, err := filepath.Rel(home, path.String())
 	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-		return path
+		return path.String()
 	}
 	if rel == "." {
 		return "~"
@@ -142,9 +145,9 @@ type projectEdit interface {
 }
 
 type addProject struct {
-	path    string // the expanded directory
-	written string // how the entry is written (~/… or absolute)
-	at      int    // where the entry goes; outside the list means the end
+	path    domainplace.Project // the expanded directory
+	written string              // how the entry is written (~/… or absolute)
+	at      int                 // where the entry goes; outside the list means the end
 }
 
 func (a addProject) apply(src *yamledit.Source, root, projects *yaml.Node) ([]string, error) {
@@ -153,7 +156,7 @@ func (a addProject) apply(src *yamledit.Source, root, projects *yaml.Node) ([]st
 		return nil, err
 	}
 	for _, item := range items {
-		expanded, err := ExpandProjectPath(item)
+		expanded, err := projectinput.Read(domainplace.Input(item))
 		if err != nil {
 			return nil, err
 		}
@@ -196,7 +199,7 @@ func (a addProject) apply(src *yamledit.Source, root, projects *yaml.Node) ([]st
 	return all, nil
 }
 
-type removeProject struct{ path string }
+type removeProject struct{ path domainplace.Project }
 
 func (r removeProject) apply(src *yamledit.Source, root, projects *yaml.Node) ([]string, error) {
 	if projects == nil {
@@ -207,7 +210,7 @@ func (r removeProject) apply(src *yamledit.Source, root, projects *yaml.Node) ([
 		return nil, err
 	}
 	for i, item := range projects.Content {
-		expanded, err := ExpandProjectPath(item.Value)
+		expanded, err := projectinput.Read(domainplace.Input(item.Value))
 		if err != nil {
 			return nil, err
 		}

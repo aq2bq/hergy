@@ -1,4 +1,4 @@
-package app
+package ops
 
 import (
 	"path/filepath"
@@ -10,10 +10,10 @@ import (
 	"github.com/aq2bq/hergy/internal/migrate"
 )
 
-// oldDocs uses the previous member's reading, never the current role assignment.
+// OldDocs uses the previous member's reading, never the current role assignment.
 // Old records lack this list: their generated identity identifies the role,
 // while custom templates can be matched against the historical rendered text.
-func oldDocs(log launchlog.Log, record launchlog.Record, member launchlog.Member, oldPrompt string) map[string]string {
+func OldDocs(log launchlog.Log, record launchlog.Record, member launchlog.Member, oldPrompt string) map[string]string {
 	out := make(map[string]string)
 	role := previousRole(record, member, oldPrompt)
 	for _, doc := range record.Docs {
@@ -39,7 +39,7 @@ func previousRole(record launchlog.Record, member launchlog.Member, oldPrompt st
 			continue
 		}
 		role := strings.TrimSuffix(filepath.Base(doc.Path), filepath.Ext(doc.Path))
-		line := strings.NewReplacer("%{team}", record.Team, "%{name}", member.Name, "%{role}", role).Replace(header)
+		line := strings.NewReplacer("%{team}", record.Team.String(), "%{name}", member.Name.String(), "%{role}", role).Replace(header)
 		if strings.HasPrefix(oldPrompt, line+"\n") || oldPrompt == line {
 			return role
 		}

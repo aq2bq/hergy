@@ -19,13 +19,13 @@ import (
 
 const modulePath = "github.com/aq2bq/hergy"
 
-// leaves import no package of this module.
-var leaves = []string{"browser", "i18n", "layout", "scaffold", "source", "version"}
+// leaves have no operational dependencies; source uses place, which uses name.
+var leaves = []string{"browser", "domain/name", "domain/place", "i18n", "layout", "scaffold", "source", "version"}
 
-// topLayer is imported by internal/app only. The name is the path under
+// topLayer is imported by internal/app and, during stage C, internal/ops. The name is the path under
 // internal/, so a package nested under another (internal/web/rulesview) is told
 // apart from its parent, which path.Base hid.
-var topLayer = []string{"cheat", "gycli", "herdrcli", "launcher", "spawn", "team", "web"}
+var topLayer = []string{"cheat", "gycli", "herdrcli", "launcher", "spawn", "team", "web", "ops"}
 
 // importsOf maps each non-test Go file to the module packages it imports, as
 // package names under internal/ ("app", "i18n", …); main.go is "main".
@@ -35,6 +35,9 @@ func importsOf(t *testing.T) map[string][]string {
 	walk := func(file string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
+		}
+		if d.IsDir() && d.Name() != "." && strings.HasPrefix(d.Name(), ".") {
+			return fs.SkipDir
 		}
 		if d.IsDir() || !strings.HasSuffix(file, ".go") || strings.HasSuffix(file, "_test.go") {
 			return nil
@@ -100,7 +103,24 @@ func TestImportDirection(t *testing.T) {
 				continue
 			}
 			for _, imp := range imports[f] {
+				// The model's place depends only on typed names. The source
+				// boundary uses place to give locks the same project identity.
+				if (pkg == "domain/place" && imp == "domain/name") || (pkg == "source" && imp == "domain/place") {
+					continue
+				}
 				t.Errorf("%s: %s is a leaf but imports internal/%s", f, pkg, imp)
+			}
+		}
+	})
+
+	t.Run("ops does not import boundary packages", func(t *testing.T) {
+		for _, f := range files {
+			if packageOf(f) == "ops" {
+				for _, imp := range imports[f] {
+					if imp == "app" || imp == "web" {
+						t.Errorf("%s: ops must not import %s", f, imp)
+					}
+				}
 			}
 		}
 	})
@@ -113,7 +133,7 @@ func TestImportDirection(t *testing.T) {
 		}
 	})
 
-	t.Run("only app imports the top layer", func(t *testing.T) {
+	t.Run("app and ops import operational packages", func(t *testing.T) {
 		for _, f := range files {
 			pkg := packageOf(f)
 			if pkg == "app" || pkg == "main" {
@@ -121,6 +141,10 @@ func TestImportDirection(t *testing.T) {
 			}
 			for _, imp := range imports[f] {
 				if !slices.Contains(topLayer, imp) {
+					continue
+				}
+				// Stage C moves operational dependencies into ops one by one.
+				if pkg == "ops" && slices.Contains([]string{"launcher", "team", "herdrcli", "spawn"}, imp) {
 					continue
 				}
 				// A package nested inside a top-layer package
@@ -131,7 +155,7 @@ func TestImportDirection(t *testing.T) {
 				if strings.HasPrefix(pkg, imp+"/") {
 					continue
 				}
-				t.Errorf("%s: internal/%s is imported by app only, not by %s", f, imp, pkg)
+				t.Errorf("%s: internal/%s is imported by app or ops only, not by %s", f, imp, pkg)
 			}
 		}
 	})

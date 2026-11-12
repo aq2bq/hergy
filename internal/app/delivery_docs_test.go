@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/aq2bq/hergy/internal/ops"
+
 	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/deliver"
 	"github.com/aq2bq/hergy/internal/launchlog"
@@ -36,13 +38,13 @@ func TestPreviousDocumentsBelongToTheirReader(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			record := launchlog.Record{Team: "demo", Lang: "en", Docs: []launchlog.Doc{
+			record := launchlog.Record{Team: fixtureSeen("demo"), Lang: "en", Docs: []launchlog.Doc{
 				{Path: "/roles/first" + ext, SHA256: hash}, {Path: "/roles/second" + ext, SHA256: hash},
 			}}
 			for _, role := range []string{"first", "second"} {
-				member := launchlog.Member{Name: "demo-" + role, Short: role}
-				prompt := "You are " + member.Name + " (" + role + ") on team demo.\n\n" + rendered
-				old := oldDocs(log, record, member, prompt)
+				member := launchlog.Member{Name: fixtureSeen("demo-" + role), Short: role}
+				prompt := "You are " + member.Name.String() + " (" + role + ") on team demo.\n\n" + rendered
+				old := ops.OldDocs(log, record, member, prompt)
 				if len(old) != 1 || old["/roles/"+role+ext] != text {
 					t.Fatalf("%s read %+v", role, old)
 				}
@@ -56,17 +58,17 @@ func TestPreviousDocumentsBelongToTheirReader(t *testing.T) {
 				}
 				current := definition.Start{Prompt: prompt + "new roster", Segments: []definition.PromptSegment{{Kind: "roster", Text: "new roster"}}}
 				docs := []deliver.Doc{{Path: "/roles/" + role + ".md", Display: role + ".md", Text: now}}
-				got := deliver.Compare("en", prompt, old, current, docs)
+				got := deliver.Compare(fixtureDemoTeam(), "en", prompt, old, current, docs)
 				if len(got) != 1 || got[0].Kind != "roster" {
 					t.Fatalf("unchanged documents: %+v", got)
 				}
 				docs[0].Text += "Changed.\n"
-				got = deliver.Compare("en", prompt, old, current, docs)
+				got = deliver.Compare(fixtureDemoTeam(), "en", prompt, old, current, docs)
 				if len(got) != 2 || got[0].Document != role+".md" || strings.Contains(got[0].Text, ".yaml") {
 					t.Fatalf("changed document: %+v", got)
 				}
 				// Switching roles must retain the old role as a removed reading.
-				got = deliver.Compare("en", prompt, old, current, []deliver.Doc{{Path: "/roles/third.md", Display: "third.md", Text: "New role.\n"}})
+				got = deliver.Compare(fixtureDemoTeam(), "en", prompt, old, current, []deliver.Doc{{Path: "/roles/third.md", Display: "third.md", Text: "New role.\n"}})
 				if len(got) != 3 || got[1].Document != "/roles/"+role+".md" {
 					t.Fatalf("role switch: %+v", got)
 				}
@@ -83,12 +85,12 @@ func TestRecordedMemberDocsOverridePromptText(t *testing.T) {
 	}
 	record := launchlog.Record{Docs: []launchlog.Doc{{Path: "/roles/old.md", SHA256: hash}, {Path: "/roles/peer.md", SHA256: hash}}}
 	member := launchlog.Member{Docs: []string{"/roles/old.md"}}
-	got := oldDocs(log, record, member, "same text")
+	got := ops.OldDocs(log, record, member, "same text")
 	if len(got) != 1 || got["/roles/old.md"] != "same text" {
 		t.Fatalf("member documents: %+v", got)
 	}
 	member.Docs = []string{}
-	if got := oldDocs(log, record, member, "same text"); len(got) != 0 {
+	if got := ops.OldDocs(log, record, member, "same text"); len(got) != 0 {
 		t.Fatalf("empty reading: %+v", got)
 	}
 }
@@ -103,13 +105,13 @@ func TestRosterChangeHasNoOtherMembersDocumentsOnEitherDeliveryPath(t *testing.T
 	// Changing the role title changes everyone's roster, but only its reader's document.
 	env := serveEnv(t)
 	cat := env.Catalog(source.Disk{})
-	r, err := readDefinition(cat, env.ProjectRoot, "demo", "demo")
+	r, err := ops.ReadDefinition(cat, env.ProjectRoot, "demo", "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
-	resent := promptsToResend(cat, env.ProjectRoot, r, r.starts)
+	resent := ops.PromptsToResend(cat, env.ProjectRoot, r, r.Starts)
 	for _, member := range resent {
-		if member.Short == "lead" && strings.Contains(strings.Split(member.Prompt, "You are ")[0], "builder.md") {
+		if member.Short.String() == "lead" && strings.Contains(strings.Split(member.Prompt, "You are ")[0], "builder.md") {
 			t.Fatalf("reprompt leaked peer document: %s", member.Prompt)
 		}
 	}
@@ -146,7 +148,7 @@ func TestRosterChangeHasNoOtherMembersDocumentsOnEitherDeliveryPath(t *testing.T
 			}
 		}
 		for i, member := range resent {
-			if row.Name == member.Name && member.Prompt != deliver.Preamble(row.Changes)+r.starts[i].Prompt {
+			if row.Name == member.Name.String() && member.Prompt != deliver.Preamble(row.Changes)+r.Starts[i].Prompt {
 				t.Fatalf("reprompt differs for %s", row.Name)
 			}
 		}

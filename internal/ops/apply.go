@@ -1,9 +1,10 @@
-package app
+package ops
 
 import (
 	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/deliver"
+	domainplace "github.com/aq2bq/hergy/internal/domain/place"
 	"github.com/aq2bq/hergy/internal/launchlog"
 	"github.com/aq2bq/hergy/internal/source"
 )
@@ -14,19 +15,19 @@ import (
 // that the definition moved and that the text replaces the earlier bootstrap
 // prompt without restarting its work.
 
-// promptsToResend is the prompts a resend hands to the members: each member's
+// PromptsToResend is the prompts a resend hands to the members: each member's
 // current prompt, with the preamble when the launch record shows a change. A
 // member the record does not know, or one whose prompt is the prompt it already
 // read, is sent as it is.
-func promptsToResend(cat *catalog.Catalog, project string, r *resolved, members []definition.Start) []definition.Start {
+func PromptsToResend(cat *catalog.Catalog, project domainplace.Project, r *Resolved, members []definition.Start) []definition.Start {
 	out := append([]definition.Start(nil), members...)
 	log, err := launchlog.Open()
 	if err != nil {
 		return out
 	}
-	recorded := teamsRecorded(latestMemberRecords(), project)[r.team.Name]
+	recorded := teamsRecorded(latestMemberRecords(), project)[r.Team.Name.String()]
 	for i := range out {
-		record, ok := recorded[out[i].Name]
+		record, ok := recorded[out[i].Name.String()]
 		if !ok {
 			continue
 		}
@@ -38,7 +39,7 @@ func promptsToResend(cat *catalog.Catalog, project string, r *resolved, members 
 		if err != nil {
 			continue
 		}
-		changes := deliver.Compare(record.Lang, string(old), oldDocs(log, record, recordedMember, string(old)), out[i], docsOfStart(cat, out[i]))
+		changes := deliver.Compare(r.ModelTeamName(), record.Lang, string(old), OldDocs(log, record, recordedMember, string(old)), out[i], docsOfStart(cat, out[i]))
 		if len(changes) == 0 {
 			continue
 		}

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+
 	"net/http"
 	"path/filepath"
 
@@ -75,14 +76,14 @@ func (s *Server) navOf(current string) navData {
 	globalTeams, globalRoles, globalProfiles := s.cat.Counts(source.LayerGlobal)
 	nav := navData{
 		Current:  current,
-		Project:  filepath.Base(s.cat.Base()),
+		Project:  filepath.Base(s.cat.Base().String()),
 		Teams:    teams + globalTeams,
 		Profiles: profiles + globalProfiles,
 		Roles:    roles + globalRoles,
 		Activity: list.Running,
 		Waiting:  list.Waiting,
 		Counts:   list.Herdr.OK && list.Running > 0,
-		Key:      navKey(s.cat.Base()),
+		Key:      navKey(s.cat.Base().String()),
 	}
 	// The counts of a headquarters are the listed projects' and the global
 	// layer's, not the one this serve was started in (spec 2 章). A reading that

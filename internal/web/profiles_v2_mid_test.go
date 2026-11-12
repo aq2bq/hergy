@@ -336,7 +336,10 @@ func TestPROFILES_V3_ANameThatCannotBeWritten(t *testing.T) {
 func pv2HomeServer(t *testing.T) (*Server, string, string) {
 	t.Helper()
 	src := filepath.Join("..", "..", "testdata", "profiles-v2")
-	root := t.TempDir()
+	root, rootErr := filepath.EvalSymlinks(t.TempDir())
+	if rootErr != nil {
+		t.Fatal(rootErr)
+	}
 	home := filepath.Join(root, "home")
 	config := filepath.Join(home, ".config")
 	proj := filepath.Join(root, "project")
@@ -349,7 +352,7 @@ func pv2HomeServer(t *testing.T) (*Server, string, string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if env.ProjectRoot != proj {
+	if env.ProjectRoot.String() != proj {
 		t.Fatalf("the environment's project root is %q, want the working project %q", env.ProjectRoot, proj)
 	}
 	server, err := New(env.Catalog(source.Disk{}), nil)

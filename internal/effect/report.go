@@ -110,7 +110,7 @@ func HireLines(before, after View) []string {
 	var out []string
 	said := map[string]bool{}
 	for _, worker := range after.Def.Graph.Workers {
-		if named[worker.Profile] || said[worker.Purpose] {
+		if named[worker.Profile] || said[worker.Purpose.String()] {
 			continue
 		}
 		old, had := before.Profiles[worker.Profile]
@@ -118,7 +118,7 @@ func HireLines(before, after View) []string {
 		if !had || !ok || sameProfile(old, next) {
 			continue
 		}
-		said[worker.Purpose] = true
+		said[worker.Purpose.String()] = true
 		out = append(out, i18n.Tf("effect.preview.hire", worker.Purpose))
 	}
 	return out

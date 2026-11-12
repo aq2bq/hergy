@@ -36,7 +36,7 @@ func idOf(name string) definition.NodeID {
 func graphOf(members []string, turns ...[2]string) *definition.Graph {
 	nodes := make([]definition.MemberNode, 0, len(members))
 	for _, name := range members {
-		nodes = append(nodes, definition.MemberNode{Name: name, Role: name, Profile: "claude"})
+		nodes = append(nodes, definition.MemberNode{Name: fixtureMemberName(name), Role: name, Profile: "claude"})
 	}
 	edges := make([]definition.Edge, 0, len(turns))
 	for _, turn := range turns {
@@ -77,7 +77,7 @@ func TestOfStates(t *testing.T) {
 			name: "waiting for an answer",
 			in: Input{
 				Graph:  twoWay,
-				Agents: []Agent{{Herdr: "demo-lead", Node: "lead", Status: "blocked", Seq: 7}, {Herdr: "demo-spec", Node: "spec", Status: "idle", Seq: 2}},
+				Agents: []Agent{{Herdr: fixtureSeen("demo-lead"), Node: fixtureSeen("lead"), Status: "blocked", Seq: 7}, {Herdr: fixtureSeen("demo-spec"), Node: fixtureSeen("spec"), Status: "idle", Seq: 2}},
 				Seen:   map[string]Watch{"demo-lead": ago(25 * time.Minute)},
 			},
 			state: WaitingAnswer, line: i18n.Tf("activity.line_stuck", "lead", durationText(25*time.Minute, false)),
@@ -88,7 +88,7 @@ func TestOfStates(t *testing.T) {
 			name: "waiting for the human's turn",
 			in: Input{
 				Graph:  twoWay,
-				Agents: []Agent{{Herdr: "demo-lead", Node: "lead", Status: "idle", Seq: 9}, {Herdr: "demo-spec", Node: "spec", Status: "idle", Seq: 3}},
+				Agents: []Agent{{Herdr: fixtureSeen("demo-lead"), Node: fixtureSeen("lead"), Status: "idle", Seq: 9}, {Herdr: fixtureSeen("demo-spec"), Node: fixtureSeen("spec"), Status: "idle", Seq: 3}},
 				Seen:   map[string]Watch{"demo-lead": ago(12 * time.Minute)},
 			},
 			state: WaitingTurn, line: i18n.Tf("activity.line_waiting_human", "lead", durationText(12*time.Minute, false)),
@@ -99,7 +99,7 @@ func TestOfStates(t *testing.T) {
 			name: "stalled",
 			in: Input{
 				Graph:  throughLead,
-				Agents: []Agent{{Herdr: "demo-lead", Node: "lead", Status: "idle", Seq: 3}, {Herdr: "demo-spec", Node: "spec", Status: "idle", Seq: 8}},
+				Agents: []Agent{{Herdr: fixtureSeen("demo-lead"), Node: fixtureSeen("lead"), Status: "idle", Seq: 3}, {Herdr: fixtureSeen("demo-spec"), Node: fixtureSeen("spec"), Status: "idle", Seq: 8}},
 				Seen:   map[string]Watch{"demo-spec": ago(4 * time.Minute)},
 			},
 			state: Stalled,
@@ -111,7 +111,7 @@ func TestOfStates(t *testing.T) {
 			name: "working",
 			in: Input{
 				Graph:  twoWay,
-				Agents: []Agent{{Herdr: "demo-lead", Node: "lead", Status: "working", Seq: 5}, {Herdr: "demo-spec", Node: "spec", Status: "idle", Seq: 1}},
+				Agents: []Agent{{Herdr: fixtureSeen("demo-lead"), Node: fixtureSeen("lead"), Status: "working", Seq: 5}, {Herdr: fixtureSeen("demo-spec"), Node: fixtureSeen("spec"), Status: "idle", Seq: 1}},
 				Seen:   map[string]Watch{"demo-lead": ago(time.Second)},
 			},
 			state: Working,
@@ -123,7 +123,7 @@ func TestOfStates(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			c.in.Team = "demo"
+			c.in.Team = fixtureSeen("demo")
 			c.in.Now = now
 			got := Of(c.in)
 			if got.State != c.state {
@@ -157,9 +157,9 @@ func TestOfStates(t *testing.T) {
 // stopped for hours (5.2). The node waiting for the human comes first.
 func TestOfLowerBound(t *testing.T) {
 	in := Input{
-		Team:   "demo",
+		Team:   fixtureSeen("demo"),
 		Graph:  graphOf([]string{"lead"}, [2]string{"human", "lead"}, [2]string{"lead", "human"}),
-		Agents: []Agent{{Herdr: "demo-lead", Node: "lead", Status: "idle", Seq: 4}},
+		Agents: []Agent{{Herdr: fixtureSeen("demo-lead"), Node: fixtureSeen("lead"), Status: "idle", Seq: 4}},
 		Seen:   map[string]Watch{"demo-lead": watchedAgo(9 * time.Minute)},
 		Now:    now,
 	}
@@ -181,7 +181,7 @@ func TestOfLowerBound(t *testing.T) {
 // waits for the human.
 func TestOfNoAgents(t *testing.T) {
 	got := Of(Input{
-		Team:  "demo",
+		Team:  fixtureSeen("demo"),
 		Graph: graphOf([]string{"lead"}, [2]string{"human", "lead"}, [2]string{"lead", "human"}),
 		Now:   now,
 	})
@@ -208,9 +208,9 @@ func TestOfNoAgents(t *testing.T) {
 // second. There is no lower bound either, because nothing was watched.
 func TestOfUnknownLength(t *testing.T) {
 	got := Of(Input{
-		Team:   "demo",
+		Team:   fixtureSeen("demo"),
 		Graph:  graphOf([]string{"lead"}, [2]string{"human", "lead"}, [2]string{"lead", "human"}),
-		Agents: []Agent{{Herdr: "demo-lead", Node: "lead", Status: "idle", Seq: 4}},
+		Agents: []Agent{{Herdr: fixtureSeen("demo-lead"), Node: fixtureSeen("lead"), Status: "idle", Seq: 4}},
 		Now:    now,
 	})
 	if got.State != WaitingTurn {
@@ -232,8 +232,8 @@ func TestOfUnknownLength(t *testing.T) {
 // agent that is gone is forgotten.
 func TestWatcher(t *testing.T) {
 	watcher := NewWatcher()
-	lead := Agent{Herdr: "demo-lead", Node: "lead", Status: "idle", Seq: 4}
-	spec := Agent{Herdr: "demo-spec", Node: "spec", Status: "idle", Seq: 1}
+	lead := Agent{Herdr: fixtureSeen("demo-lead"), Node: fixtureSeen("lead"), Status: "idle", Seq: 4}
+	spec := Agent{Herdr: fixtureSeen("demo-spec"), Node: fixtureSeen("spec"), Status: "idle", Seq: 1}
 
 	first := watcher.Observe([]Agent{lead, spec}, now)
 	if got, want := first["demo-lead"], (Watch{At: now, Lower: true}); got != want {
@@ -253,7 +253,7 @@ func TestWatcher(t *testing.T) {
 	// lead moved, spec went away, and a worker appeared.
 	moved := lead
 	moved.Seq = 9
-	worker := Agent{Herdr: "demo-coder", Status: "working", Seq: 1}
+	worker := Agent{Herdr: fixtureSeen("demo-coder"), Status: "working", Seq: 1}
 	next := watcher.Observe([]Agent{moved, worker}, later)
 	if got, want := next["demo-lead"], (Watch{At: later}); got != want {
 		t.Errorf("a state that moved = %+v, want %+v (not a lower bound)", got, want)
@@ -278,12 +278,12 @@ func TestWatcher(t *testing.T) {
 // out of the graph's nodes.
 func TestTeamHired(t *testing.T) {
 	got := Of(Input{
-		Team:  "demo",
+		Team:  fixtureSeen("demo"),
 		Graph: graphOf([]string{"lead"}, [2]string{"human", "lead"}, [2]string{"lead", "human"}),
 		Agents: []Agent{
-			{Herdr: "demo-lead", Node: "lead", Status: "working", Seq: 1},
-			{Herdr: "demo-zoe", Status: "idle", Seq: 2},
-			{Herdr: "demo-coder", Status: "working", Seq: 3},
+			{Herdr: fixtureSeen("demo-lead"), Node: fixtureSeen("lead"), Status: "working", Seq: 1},
+			{Herdr: fixtureSeen("demo-zoe"), Status: "idle", Seq: 2},
+			{Herdr: fixtureSeen("demo-coder"), Status: "working", Seq: 3},
 		},
 		Now: now,
 	})
@@ -293,7 +293,7 @@ func TestTeamHired(t *testing.T) {
 	if got.Hired[0].Name != "demo-coder" || got.Hired[1].Name != "demo-zoe" {
 		t.Errorf("Hired = %+v, want demo-coder then demo-zoe", got.Hired)
 	}
-	if got.Hired[0].Herdr != "demo-coder" || got.Hired[0].State != Active || got.Hired[0].Human {
+	if got.Hired[0].Herdr.String() != "demo-coder" || got.Hired[0].State != Active || got.Hired[0].Human {
 		t.Errorf("hired[0] = %+v, want the working agent by its herdr name", got.Hired[0])
 	}
 	for _, node := range got.Nodes {
@@ -308,11 +308,11 @@ func TestTeamHired(t *testing.T) {
 // so a team whose only working agent is a worker does not read as stopped.
 func TestOfWorkerAgent(t *testing.T) {
 	got := Of(Input{
-		Team:  "demo",
+		Team:  fixtureSeen("demo"),
 		Graph: graphOf([]string{"lead"}, [2]string{"human", "lead"}, [2]string{"lead", "human"}),
 		Agents: []Agent{
-			{Herdr: "demo-lead", Node: "lead", Status: "idle", Seq: 1},
-			{Herdr: "demo-coder", Status: "working", Seq: 2},
+			{Herdr: fixtureSeen("demo-lead"), Node: fixtureSeen("lead"), Status: "idle", Seq: 1},
+			{Herdr: fixtureSeen("demo-coder"), Status: "working", Seq: 2},
 		},
 		Now: now,
 	})
@@ -331,16 +331,16 @@ func TestOfWorkerAgent(t *testing.T) {
 // first, then the stopped ones, then the working ones (5.2).
 func TestSort(t *testing.T) {
 	teams := []Team{
-		{Name: "working", State: Working},
-		{Name: "stopped-short", State: Stalled, Stalled: time.Minute},
-		{Name: "answer", State: WaitingAnswer, Stalled: 2 * time.Minute},
-		{Name: "turn", State: WaitingTurn, Stalled: 30 * time.Minute},
-		{Name: "stopped-long", State: Stalled, Stalled: time.Hour},
+		{Name: fixtureSeen("working"), State: Working},
+		{Name: fixtureSeen("stopped-short"), State: Stalled, Stalled: time.Minute},
+		{Name: fixtureSeen("answer"), State: WaitingAnswer, Stalled: 2 * time.Minute},
+		{Name: fixtureSeen("turn"), State: WaitingTurn, Stalled: 30 * time.Minute},
+		{Name: fixtureSeen("stopped-long"), State: Stalled, Stalled: time.Hour},
 	}
 	Sort(teams)
 	want := []string{"turn", "answer", "stopped-long", "stopped-short", "working"}
 	for i, name := range want {
-		if teams[i].Name != name {
+		if teams[i].Name.String() != name {
 			t.Errorf("teams[%d] = %q, want %q (order: %v)", i, teams[i].Name, name, names(teams))
 		}
 	}
@@ -350,7 +350,7 @@ func TestSort(t *testing.T) {
 func names(teams []Team) []string {
 	out := make([]string, 0, len(teams))
 	for _, team := range teams {
-		out = append(out, team.Name)
+		out = append(out, team.Name.String())
 	}
 	return out
 }
@@ -376,7 +376,7 @@ func TestLinesReadInJapanese(t *testing.T) {
 			name: "waiting for an answer",
 			in: Input{
 				Graph:  twoWay,
-				Agents: []Agent{{Herdr: "demo-lead", Node: "lead", Status: "blocked", Seq: 2}},
+				Agents: []Agent{{Herdr: fixtureSeen("demo-lead"), Node: fixtureSeen("lead"), Status: "blocked", Seq: 2}},
 				Seen:   map[string]Watch{"demo-lead": ago(25 * time.Minute)},
 			},
 			want: "lead が 25 分前から止まっています",
@@ -385,7 +385,7 @@ func TestLinesReadInJapanese(t *testing.T) {
 			name: "waiting for the human's turn",
 			in: Input{
 				Graph:  twoWay,
-				Agents: []Agent{{Herdr: "demo-lead", Node: "lead", Status: "idle", Seq: 2}},
+				Agents: []Agent{{Herdr: fixtureSeen("demo-lead"), Node: fixtureSeen("lead"), Status: "idle", Seq: 2}},
 				Seen:   map[string]Watch{"demo-lead": ago(12 * time.Minute)},
 			},
 			want: "lead が 12 分前から人間を待っています",
@@ -394,7 +394,7 @@ func TestLinesReadInJapanese(t *testing.T) {
 			name: "stalled",
 			in: Input{
 				Graph:  throughLead,
-				Agents: []Agent{{Herdr: "demo-spec", Node: "spec", Status: "idle", Seq: 2}},
+				Agents: []Agent{{Herdr: fixtureSeen("demo-spec"), Node: fixtureSeen("spec"), Status: "idle", Seq: 2}},
 				Seen:   map[string]Watch{"demo-spec": ago(4 * time.Minute)},
 			},
 			want: "チームが 4 分前から止まっています。最後のターンは spec",
@@ -404,8 +404,8 @@ func TestLinesReadInJapanese(t *testing.T) {
 			in: Input{
 				Graph: twoWay,
 				Agents: []Agent{
-					{Herdr: "demo-lead", Node: "lead", Status: "working", Seq: 2},
-					{Herdr: "demo-spec", Node: "spec", Status: "idle", Seq: 1},
+					{Herdr: fixtureSeen("demo-lead"), Node: fixtureSeen("lead"), Status: "working", Seq: 2},
+					{Herdr: fixtureSeen("demo-spec"), Node: fixtureSeen("spec"), Status: "idle", Seq: 1},
 				},
 			},
 			want: "lead が仕事中・spec が止まっています",
@@ -418,10 +418,27 @@ func TestLinesReadInJapanese(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			c.in.Team, c.in.Now = "demo", now
+			c.in.Team, c.in.Now = fixtureSeen("demo"), now
 			if got := Of(c.in).Line; got != c.want {
 				t.Errorf("Line = %q, want %q", got, c.want)
 			}
 		})
+	}
+}
+
+func TestUnreadableDefinitionKeepsObservedRowsOutsideMemberPattern(t *testing.T) {
+	got := Of(Input{Team: fixtureSeen("Upper"), Graph: nil, Now: now, Agents: []Agent{
+		{Herdr: fixtureSeen("Upper-1"), Node: fixtureSeen("1"), Status: "working", Seq: 1},
+		{Herdr: fixtureSeen("Upper-Other"), Node: fixtureSeen("Other"), Status: "idle", Seq: 2},
+	}})
+	if got.State != Working || len(got.Nodes) != 2 || len(got.Hired) != 0 {
+		t.Fatalf("observed rows changed: %+v", got)
+	}
+	byName := map[string]Node{}
+	for _, node := range got.Nodes {
+		byName[node.Name] = node
+	}
+	if byName["1"].Herdr.String() != "Upper-1" || byName["Other"].Herdr.String() != "Upper-Other" {
+		t.Fatalf("lost observed names: %+v", got.Nodes)
 	}
 }

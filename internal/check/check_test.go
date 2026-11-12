@@ -42,7 +42,7 @@ func newFixture(t *testing.T) *fixture {
 	f := &fixture{t: t, proj: proj, global: filepath.Join(root, "global")}
 	f.write(filepath.Join(local, "profiles.yaml"),
 		"version: 1\nprofiles:\n  claude:\n    kind: claude\n")
-	f.cat = catalog.New(f.global, local, proj, source.Disk{},
+	f.cat = catalog.New(f.global, local, projectPath(proj), source.Disk{},
 		func(path string) string { return path })
 	return f
 }

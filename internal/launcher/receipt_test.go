@@ -61,14 +61,14 @@ func TestBootstrapReceipt(t *testing.T) {
 			{"timeout", []string{"timeout", "timeout"}, 2, true},
 		} {
 			t.Run(operation+"/"+tc.name, func(t *testing.T) {
-				base := &fakePort{agents: map[string]protocol.Agent{}, gone: map[string]bool{}, tabs: []protocol.Tab{{ID: "t1", Label: "team"}}}
+				base := &fakePort{agents: map[string]protocol.Agent{}, gone: map[string]bool{}, tabs: []protocol.Tab{{ID: "t1", Label: fixtureSeen("team")}}}
 				port := &receiptPort{fakePort: base, answers: slices.Clone(tc.answers)}
-				members := []definition.Start{{Name: "team-a", Short: "a", Kind: "claude", Cwd: t.TempDir(), Prompt: "the same request"}}
+				members := []definition.Start{{Name: fixtureHerdrName("team-a"), Short: fixtureShortName("a"), Kind: "claude", Cwd: t.TempDir(), Prompt: "the same request"}}
 				if operation == "refresh" || operation == "reprompt" {
-					base.agents["team-a"] = protocol.Agent{Name: "team-a", Kind: "claude", Status: "idle", PaneID: "p1", TabID: "t1"}
+					base.agents["team-a"] = protocol.Agent{Name: fixtureSeen("team-a"), Kind: "claude", Status: "idle", PaneID: "p1", TabID: "t1"}
 				}
 				var out bytes.Buffer
-				l := New(members, "team", t.TempDir(), herdr.New(port), 1000, &out)
+				l := New(members, fixtureSeen("team"), projectPath(t.TempDir()), herdr.New(port), 1000, &out)
 				l.kill = func(int) error { base.gone["team-a"] = true; return nil }
 				var err error
 				switch operation {
@@ -116,22 +116,22 @@ func TestBootstrapContinuesOnlyAfterMissingReceipt(t *testing.T) {
 	for _, operation := range []string{"up", "refresh", "reprompt"} {
 		for _, code := range []string{"agent_prompt_stalled", "agent_blocked", "timeout", "send_failed"} {
 			t.Run(operation+"/"+code, func(t *testing.T) {
-				base := &fakePort{agents: map[string]protocol.Agent{}, gone: map[string]bool{}, process: map[string][2]int{}, tabs: []protocol.Tab{{ID: "t1", Label: "team"}}}
+				base := &fakePort{agents: map[string]protocol.Agent{}, gone: map[string]bool{}, process: map[string][2]int{}, tabs: []protocol.Tab{{ID: "t1", Label: fixtureSeen("team")}}}
 				port := &receiptPort{fakePort: base, answers: []string{"", code, code, ""}}
 				var members []definition.Start
 				for i, short := range []string{"a", "b", "c"} {
 					name, pane := "team-"+short, fmt.Sprintf("p%d", i+1)
-					members = append(members, definition.Start{Name: name, Short: short, Kind: "claude", Cwd: t.TempDir(), Prompt: "request for " + name})
+					members = append(members, definition.Start{Name: fixtureHerdrName(name), Short: fixtureShortName(short), Kind: "claude", Cwd: t.TempDir(), Prompt: "request for " + name})
 					base.process[pane] = [2]int{100 + i, 900}
 					if operation != "up" {
-						base.agents[name] = protocol.Agent{Name: name, Kind: "claude", Status: "idle", PaneID: pane, TabID: "t1"}
+						base.agents[name] = protocol.Agent{Name: fixtureSeen(name), Kind: "claude", Status: "idle", PaneID: fixturePane(pane), TabID: "t1"}
 					}
 				}
 				var out bytes.Buffer
-				l := New(members, "team", t.TempDir(), herdr.New(port), 1000, &out)
+				l := New(members, fixtureSeen("team"), projectPath(t.TempDir()), herdr.New(port), 1000, &out)
 				l.kill = func(pgid int) error {
 					for name, agent := range base.agents {
-						if base.process[agent.PaneID][0] == pgid {
+						if base.process[agent.PaneID.String()][0] == pgid {
 							base.gone[name] = true
 						}
 					}
@@ -179,17 +179,17 @@ func TestBootstrapContinuesOnlyAfterMissingReceipt(t *testing.T) {
 // The close reply precedes name release. Down must observe that release before
 // returning, so its advertised recovery command can hire the same name again.
 func TestWorkerDownWaitsForNameBeforeRehire(t *testing.T) {
-	agent := protocol.Agent{Name: "team-worker", Kind: "claude", Status: "idle", PaneID: "old", TabID: "worker-tab"}
-	base := &fakePort{agents: map[string]protocol.Agent{agent.Name: agent}, gone: map[string]bool{}, live: []protocol.Agent{agent}, tabs: []protocol.Tab{{ID: "worker-tab", Label: "worker:team/worker"}}, panes: []protocol.Pane{{ID: "old", Label: agent.Name, TabID: "worker-tab"}}}
+	agent := protocol.Agent{Name: fixtureSeen("team-worker"), Kind: "claude", Status: "idle", PaneID: "old", TabID: "worker-tab"}
+	base := &fakePort{agents: map[string]protocol.Agent{agent.Name.String(): agent}, gone: map[string]bool{}, live: []protocol.Agent{agent}, tabs: []protocol.Tab{{ID: "worker-tab", Label: fixtureSeen("worker:team/worker")}}, panes: []protocol.Pane{{ID: "old", Label: agent.Name, TabID: "worker-tab"}}}
 	port := &receiptPort{fakePort: base}
-	l := New(nil, "team", t.TempDir(), herdr.New(port), 1000, &bytes.Buffer{})
+	l := New(nil, fixtureSeen("team"), projectPath(t.TempDir()), herdr.New(port), 1000, &bytes.Buffer{})
 	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	l.now = func() time.Time { return now }
 	pauses := 0
 	l.pause = func(d time.Duration) { pauses++; now = now.Add(d) }
 	reads := 0
 	base.onAgentGet = func(name string) {
-		if name != agent.Name {
+		if name != agent.Name.String() {
 			return
 		}
 		reads++
@@ -198,13 +198,13 @@ func TestWorkerDownWaitsForNameBeforeRehire(t *testing.T) {
 			base.live = nil
 		}
 	}
-	if _, err := l.DownWorker("worker:team/worker", "", false); err != nil {
+	if _, err := l.DownWorker(fixtureSeen("worker:team/worker"), "", false); err != nil {
 		t.Fatal(err)
 	}
 	if reads != 2 || pauses != 1 || !slices.Equal(base.closed, []string{"old"}) {
 		t.Fatalf("reads=%d pauses=%d closed=%v", reads, pauses, base.closed)
 	}
-	worker := definition.Start{Name: agent.Name, Short: "worker", Kind: "claude", Cwd: t.TempDir(), Prompt: "task", From: "lead", Purpose: "research"}
+	worker := definition.Start{Name: fixtureHerdrName(agent.Name.String()), Short: fixtureShortName("worker"), Kind: "claude", Cwd: t.TempDir(), Prompt: "task", From: fixtureMemberName("lead"), Purpose: "research"}
 	if err := l.Hire(&worker, "task"); err != nil {
 		t.Fatalf("rehire before release: %v", err)
 	}
@@ -212,14 +212,14 @@ func TestWorkerDownWaitsForNameBeforeRehire(t *testing.T) {
 
 func TestWorkerDownNameReleaseTimeout(t *testing.T) {
 	inLanguage(t, "ja")
-	agent := protocol.Agent{Name: "team-worker", Kind: "claude", Status: "idle", PaneID: "old", TabID: "worker-tab"}
-	base := &fakePort{agents: map[string]protocol.Agent{agent.Name: agent}, live: []protocol.Agent{agent}, tabs: []protocol.Tab{{ID: "worker-tab", Label: "worker:team/worker"}}}
+	agent := protocol.Agent{Name: fixtureSeen("team-worker"), Kind: "claude", Status: "idle", PaneID: "old", TabID: "worker-tab"}
+	base := &fakePort{agents: map[string]protocol.Agent{agent.Name.String(): agent}, live: []protocol.Agent{agent}, tabs: []protocol.Tab{{ID: "worker-tab", Label: fixtureSeen("worker:team/worker")}}}
 	var out bytes.Buffer
-	l := New(nil, "team", t.TempDir(), herdr.New(base), 1, &out)
+	l := New(nil, fixtureSeen("team"), projectPath(t.TempDir()), herdr.New(base), 1, &out)
 	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	l.now = func() time.Time { return now }
 	l.pause = func(d time.Duration) { now = now.Add(d) }
-	_, err := l.DownWorker("worker:team/worker", "", false)
+	_, err := l.DownWorker(fixtureSeen("worker:team/worker"), "", false)
 	if err == nil || !strings.Contains(err.Error(), "ワーカーの名前が消えません") || strings.Contains(err.Error(), "refresh") {
 		t.Fatalf("timeout=%v", err)
 	}
@@ -229,7 +229,7 @@ func TestWorkerDownNameReleaseTimeout(t *testing.T) {
 }
 
 func TestHireRetryPreservesTaskAsOneShellArgument(t *testing.T) {
-	worker := definition.Start{Name: "team-worker", Short: "worker", From: "lead", Purpose: "read 'quoted' docs"}
+	worker := definition.Start{Name: fixtureHerdrName("team-worker"), Short: fixtureShortName("worker"), From: fixtureMemberName("lead"), Purpose: "read 'quoted' docs"}
 	task := "line one\n'quote' `touch forbidden` $(touch forbidden) $VALUE \\end\r\n"
 	command := hireRetry("/project", "team", &worker, task)
 	if strings.ContainsAny(command, "\r\n") {

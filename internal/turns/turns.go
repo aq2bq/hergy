@@ -26,6 +26,8 @@ import (
 	"strings"
 	"time"
 
+	domainname "github.com/aq2bq/hergy/internal/domain/name"
+
 	"github.com/aq2bq/hergy/internal/definition"
 )
 
@@ -49,7 +51,7 @@ const (
 // has asked, and the stops hergy already acted on. hergy turns keeps it in one
 // file (Path) so hergy status and the screens read the same answer.
 type State struct {
-	Team string `json:"team"`
+	Team domainname.Seen `json:"team"`
 	// Holder is who has the turn: a member's or worker's short name, or Human.
 	Holder string    `json:"holder"`
 	Since  time.Time `json:"since"`
@@ -175,7 +177,7 @@ type Agent struct {
 type Input struct {
 	// Team is the team's name: an answer that names a member by its herdr name
 	// ("demo-spec") is read as the short name.
-	Team   string
+	Team   domainname.Naming
 	Graph  *definition.Graph
 	Before []Agent
 	Now    []Agent
@@ -715,7 +717,7 @@ func IsHuman(name string) bool {
 // the question's own list in it), its last line alone is read: the one word
 // the member was asked for. A name is a whole word among ASCII letters, so
 // "dev" is not found in "developer".
-func Answer(text, team string, cands []string) string {
+func Answer(text string, team domainname.Naming, cands []string) string {
 	if to := answerIn(text, team, cands); to != "" {
 		return to
 	}
@@ -727,11 +729,11 @@ func Answer(text, team string, cands []string) string {
 	return answerIn(last, team, cands)
 }
 
-func answerIn(text, team string, cands []string) string {
+func answerIn(text string, team domainname.Naming, cands []string) string {
 	var hits []string
 	lower := strings.ToLower(text)
 	for _, cand := range cands {
-		if namesWord(lower, strings.ToLower(cand)) || (team != "" && namesWord(lower, strings.ToLower(team+"-"+cand))) {
+		if namesWord(lower, strings.ToLower(cand)) || (team.String() != "" && namesWord(lower, strings.ToLower(team.Worker(cand)))) {
 			hits = append(hits, cand)
 		}
 	}

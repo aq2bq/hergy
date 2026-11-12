@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	domainplace "github.com/aq2bq/hergy/internal/domain/place"
+
 	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/source"
 	"go.yaml.in/yaml/v3"
@@ -19,7 +21,7 @@ type apiDangerLoss struct {
 
 // apiDanger answers the loss of one kind.
 func (s *Server) apiDanger(w http.ResponseWriter, r *http.Request) {
-	scoped, refusal := s.withProject(projectQuery(r))
+	scoped, refusal := s.withProjectInput(projectQuery(r))
 	if refusal != nil {
 		apiAnswer(w, nil, refusal)
 		return
@@ -125,7 +127,7 @@ func (s *Server) dangerLossRole(place, name string) ([]string, *apiErr) {
 // agreement.md when one stands there, whether the folder goes (nothing else in
 // it), and what stays in the folder (ac-ddb6).
 func (s *Server) teamTargets(place, name string) (files, leftovers []string, dirRemoved, found bool) {
-	layer := catalog.Layer(place)
+	layer := domainplace.Selection(place).Layer()
 	teamPath := s.cat.TeamYAML(name, layer)
 	agreePath := s.t2AgreeFile(name, layer)
 	for _, path := range []string{teamPath, agreePath} {

@@ -31,7 +31,7 @@ func newLayers(t *testing.T) layers {
 }
 
 func (l layers) catalog() *Catalog {
-	return New(l.global, l.local, l.global, source.Disk{}, func(path string) string { return path })
+	return New(l.global, l.local, projectPath(l.global), source.Disk{}, func(path string) string { return path })
 }
 
 func (l layers) writeTeam(t *testing.T, layer, name string) {
@@ -73,7 +73,7 @@ func TestDefinitionPrefersLocalOverGlobal(t *testing.T) {
 				t.Errorf("Layer = %q, want %q", def.Layer, tc.wantLayer)
 			}
 			wantPath := filepath.Join(l.dir(tc.wantLayer), "teams", "t", "team.yaml")
-			if def.TeamYAML != wantPath {
+			if def.TeamYAML.String() != wantPath {
 				t.Errorf("TeamYAML = %q, want %q", def.TeamYAML, wantPath)
 			}
 			if def.Dir != filepath.Dir(wantPath) {
@@ -193,7 +193,7 @@ func TestDefinitionWithNoNamePicksTheOneOrNamesTheCandidates(t *testing.T) {
 	l := newLayers(t)
 	l.writeTeam(t, source.LayerLocal, "one")
 	def, err := l.catalog().Definition("", "")
-	if err != nil || def.Name != "one" {
+	if err != nil || def.Name.String() != "one" {
 		t.Fatalf("Definition(\"\") = %v, %v; want the one project definition", def, err)
 	}
 

@@ -3,6 +3,8 @@ package web
 import (
 	"path/filepath"
 
+	domainplace "github.com/aq2bq/hergy/internal/domain/place"
+
 	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/prose"
 	"github.com/aq2bq/hergy/internal/source"
@@ -56,7 +58,7 @@ type r2Member struct {
 
 // r2ReadingOf reads the catalog into the screen's own reading.
 func (s *Server) r2ReadingOf() r2Reading {
-	out := r2Reading{Project: filepath.Base(s.cat.Base())}
+	out := r2Reading{Project: filepath.Base(s.cat.Base().String())}
 	// The few sentences the screen shows without asking: the same words the
 	// server would say, so a screen builds no sentence of its own.
 	out.Texts = map[string]string{
@@ -65,8 +67,8 @@ func (s *Server) r2ReadingOf() r2Reading {
 	}
 	// Where each place keeps its role documents, as a person reads a path.
 	out.Places = map[string]string{
-		catalog.PlaceProject: s.cat.Display(s.cat.LayerDir(catalog.Layer(catalog.PlaceProject))) + "/roles/",
-		catalog.PlaceGlobal:  s.cat.Display(s.cat.LayerDir(catalog.Layer(catalog.PlaceGlobal))) + "/roles/",
+		catalog.PlaceProject: s.cat.Display(s.cat.LayerDir(domainplace.Selection(catalog.PlaceProject).Layer())) + "/roles/",
+		catalog.PlaceGlobal:  s.cat.Display(s.cat.LayerDir(domainplace.Selection(catalog.PlaceGlobal).Layer())) + "/roles/",
 	}
 	uid := 0
 	rows := map[string]*r2Row{}

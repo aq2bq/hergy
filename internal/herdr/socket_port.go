@@ -248,20 +248,20 @@ func snapshotList(snapshot SessionSnapshot, group string) []any {
 	case "tab":
 		out := make([]any, 0, len(snapshot.Tabs))
 		for _, one := range snapshot.Tabs {
-			out = append(out, map[string]any{"tab_id": one.ID, "label": one.Label, "workspace_id": one.WorkspaceID})
+			out = append(out, map[string]any{"tab_id": one.ID, "label": one.Label.String(), "workspace_id": one.WorkspaceID})
 		}
 		return out
 	case "pane":
 		out := make([]any, 0, len(snapshot.Panes))
 		for _, one := range snapshot.Panes {
-			out = append(out, map[string]any{"pane_id": one.ID, "label": one.Label, "tab_id": one.TabID, "cwd": one.Cwd})
+			out = append(out, map[string]any{"pane_id": one.ID, "label": one.Label.String(), "tab_id": one.TabID, "cwd": one.Cwd})
 		}
 		return out
 	case "agent":
 		out := make([]any, 0, len(snapshot.Agents))
 		for _, one := range snapshot.Agents {
 			out = append(out, map[string]any{
-				"name": one.Name, "agent": one.Kind, "agent_status": one.Status,
+				"name": one.Name.String(), "agent": one.Kind, "agent_status": one.Status,
 				"pane_id": one.PaneID, "tab_id": one.TabID,
 				"state_change_seq": one.Seq, "terminal_title_stripped": one.Title,
 			})

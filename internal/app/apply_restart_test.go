@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/aq2bq/hergy/internal/ops"
+
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/launchlog"
 	"github.com/aq2bq/hergy/internal/source"
@@ -19,7 +21,7 @@ func applyDemo(t *testing.T) *fixture {
 	mustRun(t, "new", "demo")
 	env := serveEnv(t)
 	cat := env.Catalog(source.Disk{})
-	r, err := readDefinition(cat, env.ProjectRoot, "demo", "demo")
+	r, err := ops.ReadDefinition(cat, env.ProjectRoot, "demo", "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -27,7 +29,7 @@ func applyDemo(t *testing.T) *fixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeLaunch(log, env, r, launchlog.CommandUp, r.starts, launchlog.Workspace{}); err != nil {
+	if err := ops.WriteLaunch(log, env, r, launchlog.CommandUp, r.Starts, launchlog.Workspace{}); err != nil {
 		t.Fatalf("record demo: %v", err)
 	}
 	return f
@@ -157,7 +159,7 @@ func TestApplyNotesAChangedWorkerProfile(t *testing.T) {
 	// The launch is recorded again with the worker entry, as a real up would.
 	env := serveEnv(t)
 	cat := env.Catalog(source.Disk{})
-	r, err := readDefinition(cat, env.ProjectRoot, "demo", "demo")
+	r, err := ops.ReadDefinition(cat, env.ProjectRoot, "demo", "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -165,7 +167,7 @@ func TestApplyNotesAChangedWorkerProfile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeLaunch(log, env, r, launchlog.CommandUp, r.starts, launchlog.Workspace{}); err != nil {
+	if err := ops.WriteLaunch(log, env, r, launchlog.CommandUp, r.Starts, launchlog.Workspace{}); err != nil {
 		t.Fatal(err)
 	}
 	writeFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml"),
@@ -195,7 +197,7 @@ func TestApplyTellsAChangedWorkerProfileFromAnAddedWorker(t *testing.T) {
 	writeFile(t, teamPath, readFile(t, teamPath)+"workers:\n  - from: lead\n    purpose: 調査\n    profile: claude-default\n")
 	env := serveEnv(t)
 	cat := env.Catalog(source.Disk{})
-	r, err := readDefinition(cat, env.ProjectRoot, "demo", "demo")
+	r, err := ops.ReadDefinition(cat, env.ProjectRoot, "demo", "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -203,7 +205,7 @@ func TestApplyTellsAChangedWorkerProfileFromAnAddedWorker(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeLaunch(log, env, r, launchlog.CommandUp, r.starts, launchlog.Workspace{}); err != nil {
+	if err := ops.WriteLaunch(log, env, r, launchlog.CommandUp, r.Starts, launchlog.Workspace{}); err != nil {
 		t.Fatal(err)
 	}
 	// The profile the worker entry names changes after the launch.

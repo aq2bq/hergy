@@ -73,9 +73,9 @@ var ownerRules = []ownerRule{
 	{name: "turns.WriteSignal", where: "go", files: []string{"internal/app/turn_done.go"}},
 	{name: "turns.TakeTells", where: "go", files: []string{"internal/app/turns.go"}},
 	{name: "turns.WriteTell", where: "go", files: []string{"internal/app/tell.go"}},
-	{name: "turns.Clear(", where: "go", files: []string{"internal/app/app.go"}},
+	{name: "turns.Clear(", where: "go", files: []string{"internal/ops/stop.go"}},
 	{name: "Unanswered(", where: "go", files: []string{"internal/turns/", "internal/app/turns.go"}},
-	{name: "harness.Wire(", where: "go", files: []string{"internal/app/wire.go"}},
+	{name: "harness.Wire(", where: "go", files: []string{"internal/ops/wire.go"}},
 }
 
 // The danger section: the one table of what a dangerous action does, and the one

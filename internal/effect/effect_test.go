@@ -68,7 +68,7 @@ func newLayer(t *testing.T) layer {
 
 func (l layer) catalog(t *testing.T) *catalog.Catalog {
 	t.Helper()
-	return catalog.New(filepath.Join(l.root, "global"), l.root, l.root, source.Disk{},
+	return catalog.New(filepath.Join(l.root, "global"), l.root, projectPath(l.root), source.Disk{},
 		func(path string) string { return path })
 }
 
@@ -77,8 +77,8 @@ func (l layer) catalog(t *testing.T) *catalog.Catalog {
 func (l layer) profiles() map[string]profile.Profile {
 	path := filepath.Join(l.team, "profiles.yaml")
 	return map[string]profile.Profile{
-		"claude-default": {Name: "claude-default", Kind: "claude", Path: path},
-		"codex-default":  {Name: "codex-default", Kind: "codex", Path: path},
+		"claude-default": {Name: testProfileName("claude-default"), Kind: "claude", Path: path},
+		"codex-default":  {Name: testProfileName("codex-default"), Kind: "codex", Path: path},
 	}
 }
 
@@ -90,7 +90,7 @@ func (l layer) read(t *testing.T, text string) *definition.Definition {
 		Layer:        source.LayerLocal,
 		TeamYAMLPath: filepath.Join(l.team, "team.yaml"),
 		TeamDir:      l.team,
-		Base:         l.team,
+		Base:         projectPath(l.team),
 		Reader:       source.Disk{},
 	})
 	if err != nil {
@@ -105,9 +105,9 @@ func (l layer) view(t *testing.T, def *definition.Definition) effect.View {
 		Def:      def,
 		Profiles: l.profiles(),
 		Run: prompt.Run{
-			Team:       "demo",
+			Team:       fixtureDemoNaming(),
 			Executable: "hergy",
-			Base:       l.team,
+			Base:       projectPath(l.team),
 			Reader:     source.Disk{},
 			Sources:    l.catalog(t),
 		},
@@ -169,9 +169,9 @@ func TestOfTurnRemovalMovesOnlyTheMemberThatHandsIt(t *testing.T) {
 	run := l.run(t)
 	for i := range before.Graph.Members {
 		bm := before.Graph.Members[i]
-		am, ok := after.Graph.Member(bm.Name)
+		am, ok := after.Graph.Member(bm.Name.String())
 		if !ok {
-			t.Fatalf("%s is not in the after definition", bm.Name)
+			t.Fatalf("%s is not in the after definition", bm.Name.String())
 		}
 		bt, err := prompt.Member(before, &bm, run)
 		if err != nil {
@@ -181,14 +181,14 @@ func TestOfTurnRemovalMovesOnlyTheMemberThatHandsIt(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if bm.Name == "lead" && bt.Text == at.Text {
+		if bm.Name.String() == "lead" && bt.Text == at.Text {
 			t.Errorf("lead's prompt did not move")
 		}
-		if bm.Name != "lead" && bt.Text != at.Text {
-			t.Errorf("%s's prompt moved, but no Change says so", bm.Name)
+		if bm.Name.String() != "lead" && bt.Text != at.Text {
+			t.Errorf("%s's prompt moved, but no Change says so", bm.Name.String())
 		}
 	}
-	leadTurns := prompt.TurnsNote("", prompt.TurnsOf(after, "lead", "demo"))
+	leadTurns := prompt.TurnsNote("", prompt.TurnsOf(after, "lead", fixtureDemoNaming()))
 	if strings.Contains(leadTurns, "spec") {
 		t.Errorf("lead's turns still name spec: %q", leadTurns)
 	}
@@ -264,8 +264,8 @@ func TestOfARuleDocumentChangeMovesTheAgreements(t *testing.T) {
 	}
 
 	changes := effect.Of(
-		effect.View{Def: before, Profiles: l.profiles(), Run: prompt.Run{Team: "demo", Base: l.team, Reader: cat.Reader(), Sources: cat}},
-		effect.View{Def: after, Profiles: l.profiles(), Run: prompt.Run{Team: "demo", Base: l.team, Reader: with.Reader(), Sources: with}},
+		effect.View{Def: before, Profiles: l.profiles(), Run: prompt.Run{Team: fixtureDemoNaming(), Base: projectPath(l.team), Reader: cat.Reader(), Sources: cat}},
+		effect.View{Def: after, Profiles: l.profiles(), Run: prompt.Run{Team: fixtureDemoNaming(), Base: projectPath(l.team), Reader: with.Reader(), Sources: with}},
 	)
 	if len(changes) != 2 {
 		t.Fatalf("Of = %+v, want both members", changes)
@@ -301,8 +301,8 @@ func TestProseWhitespaceChangesBothReaders(t *testing.T) {
 	}
 
 	changes := effect.Of(
-		effect.View{Def: before, Profiles: l.profiles(), Run: prompt.Run{Team: "demo", Base: l.team, Reader: cat.Reader(), Sources: cat}},
-		effect.View{Def: after, Profiles: l.profiles(), Run: prompt.Run{Team: "demo", Base: l.team, Reader: with.Reader(), Sources: with}},
+		effect.View{Def: before, Profiles: l.profiles(), Run: prompt.Run{Team: fixtureDemoNaming(), Base: projectPath(l.team), Reader: cat.Reader(), Sources: cat}},
+		effect.View{Def: after, Profiles: l.profiles(), Run: prompt.Run{Team: fixtureDemoNaming(), Base: projectPath(l.team), Reader: with.Reader(), Sources: with}},
 	)
 	if len(changes) != 2 {
 		t.Fatalf("Of = %+v, want both readers to receive the changed prose", changes)
@@ -630,7 +630,7 @@ func launchedHashes(t *testing.T, l layer, def *definition.Definition) map[strin
 		if err != nil {
 			t.Fatal(err)
 		}
-		out[member.Name] = source.Hash(built.Text)
+		out[member.Name.String()] = source.Hash(built.Text)
 	}
 	return out
 }
@@ -740,7 +740,7 @@ func TestHireLinesSayWhatAWorkerOnlyProfileChangeDoes(t *testing.T) {
 	before := l.view(t, l.read(t, text))
 	after := before
 	after.Profiles = l.profiles()
-	after.Profiles["codex-default"] = profile.Profile{Name: "codex-default", Kind: "pi"}
+	after.Profiles["codex-default"] = profile.Profile{Name: testProfileName("codex-default"), Kind: "pi"}
 
 	want := []string{"次の hergy hire --purpose 試作 から使われます"}
 	if got := effect.HireLines(before, after); !reflect.DeepEqual(got, want) {
@@ -748,7 +748,7 @@ func TestHireLinesSayWhatAWorkerOnlyProfileChangeDoes(t *testing.T) {
 	}
 
 	// The profile every member runs is not a hire's business.
-	after.Profiles["claude-default"] = profile.Profile{Name: "claude-default", Kind: "pi"}
+	after.Profiles["claude-default"] = profile.Profile{Name: testProfileName("claude-default"), Kind: "pi"}
 	if got := effect.HireLines(before, after); !reflect.DeepEqual(got, want) {
 		t.Errorf("HireLines with a member's profile = %q, want %q", got, want)
 	}
@@ -774,8 +774,8 @@ func TestFirstLineTitleChangeUpdatesEveryRoster(t *testing.T) {
 		t.Fatal(err)
 	}
 	changes := effect.Of(
-		effect.View{Def: before, Profiles: l.profiles(), Run: prompt.Run{Team: "demo", Base: l.team, Reader: cat.Reader(), Sources: cat}},
-		effect.View{Def: after, Profiles: l.profiles(), Run: prompt.Run{Team: "demo", Base: l.team, Reader: with.Reader(), Sources: with}},
+		effect.View{Def: before, Profiles: l.profiles(), Run: prompt.Run{Team: fixtureDemoNaming(), Base: projectPath(l.team), Reader: cat.Reader(), Sources: cat}},
+		effect.View{Def: after, Profiles: l.profiles(), Run: prompt.Run{Team: fixtureDemoNaming(), Base: projectPath(l.team), Reader: with.Reader(), Sources: with}},
 	)
 	if len(changes) != 2 {
 		t.Fatalf("changes=%+v", changes)

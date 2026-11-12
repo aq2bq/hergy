@@ -5,6 +5,7 @@ package progress
 import (
 	"fmt"
 
+	domainname "github.com/aq2bq/hergy/internal/domain/name"
 	"github.com/aq2bq/hergy/internal/i18n"
 )
 
@@ -12,7 +13,7 @@ import (
 type Progress struct {
 	Stage  string
 	TabID  string
-	Panes  map[string]string
+	Panes  map[string]domainname.PaneID
 	States map[string]string
 	order  []string
 }
@@ -23,14 +24,14 @@ func Start(names []string) *Progress {
 	for _, name := range names {
 		states[name] = i18n.T("progress.mark.not_started")
 	}
-	return &Progress{Stage: i18n.T("progress.stage.preflight"), Panes: map[string]string{}, States: states, order: append([]string(nil), names...)}
+	return &Progress{Stage: i18n.T("progress.stage.preflight"), Panes: map[string]domainname.PaneID{}, States: states, order: append([]string(nil), names...)}
 }
 
 // At moves to a stage.
 func (p *Progress) At(stage string) { p.Stage = stage }
 
 // Place records the pane a member got.
-func (p *Progress) Place(name, pane string) { p.Panes[name] = pane }
+func (p *Progress) Place(name string, pane domainname.PaneID) { p.Panes[name] = pane }
 
 // Mark records a member's state.
 func (p *Progress) Mark(name, state string) { p.States[name] = state }

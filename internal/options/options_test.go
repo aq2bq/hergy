@@ -66,7 +66,7 @@ func TestParse(t *testing.T) {
 		{name: "tell to the human needs no text", argv: []string{"tell", "人間"}, kind: Tell},
 		{name: "tell takes at most a member and a text", argv: []string{"tell", "lead", "hi", "more"}, wantErr: true},
 		{name: "tell takes --from", argv: []string{"tell", "lead", "hi", "--from", "dev"}, kind: Tell},
-		{name: "--as must match the name pattern", argv: []string{"up", "--as", "Alpha"}, wantErr: true},
+		{name: "--as name is checked by the start operation", argv: []string{"up", "--as", "Alpha"}},
 		{name: "--as is not allowed on ls", argv: []string{"ls", "--as", "alpha"}, wantErr: true},
 		{name: "cheat", argv: []string{"cheat"}, kind: Cheat},
 		{name: "cheat --ai", argv: []string{"cheat", "--ai"}, kind: Cheat, ai: true},

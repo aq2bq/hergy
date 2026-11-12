@@ -8,6 +8,7 @@ import (
 
 	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/check"
+	domainplace "github.com/aq2bq/hergy/internal/domain/place"
 	"github.com/aq2bq/hergy/internal/prose"
 	"github.com/aq2bq/hergy/internal/source"
 )
@@ -58,10 +59,7 @@ func (s *Server) r2ListOf(reading r2Reading, layers []string) apiList {
 	rows := make([]r2Row, 0, len(reading.Roles))
 	rows = append(rows, reading.Roles...)
 	for _, layer := range layers {
-		place := catalog.PlaceProject
-		if layer == source.LayerGlobal {
-			place = catalog.PlaceGlobal
-		}
+		place := domainplace.Selection(layer).API()
 		marks := map[string]catalog.ListedRow{}
 		for _, one := range s.cat.ShownRows(catalog.KindRole, layer) {
 			marks[one.Name] = one
@@ -195,7 +193,7 @@ func (k apiRole) Get(name, place string) (any, *apiErr) {
 // YAML a person is typing. The answer is the report as the boundary reads it.
 func (k apiRole) Check(in apiIn) (any, *apiErr) {
 	if len(in.Doc) == 0 {
-		report := check.Role(check.RoleInput{Catalog: k.s.cat, Place: catalog.Layer(in.Place), Name: in.Name, Text: in.Text})
+		report := check.Role(check.RoleInput{Catalog: k.s.cat, Place: in.Place.Layer(), Name: in.Name, Text: in.Text})
 		return r2CheckAnswer(report, true), nil
 	}
 	var doc r2Doc
@@ -207,7 +205,7 @@ func (k apiRole) Check(in apiIn) (any, *apiErr) {
 		original = ""
 	}
 	return r2CheckAnswer(check.Role(check.RoleInput{
-		Catalog: k.s.cat, Place: catalog.Layer(in.Place), Name: doc.Name,
+		Catalog: k.s.cat, Place: in.Place.Layer(), Name: doc.Name,
 		Text: doc.Text, Original: original,
 	}), false), nil
 }
@@ -276,15 +274,15 @@ func (k apiRole) saveDoc(in apiIn) (any, *apiErr) {
 	if err := json.Unmarshal(in.Doc, &doc); err != nil {
 		return nil, refuse(http.StatusUnprocessableEntity, err.Error())
 	}
-	if err := s.r2RolesDir(in.Place); err != nil {
+	if err := s.r2RolesDir(in.Place.String()); err != nil {
 		return nil, refuse(http.StatusUnprocessableEntity, err.Error())
 	}
-	target := s.cat.RolePath(in.Place, doc.Name)
+	target := s.cat.RolePath(in.Place.String(), doc.Name)
 	savedName := in.Original
 	if savedName == "" {
 		savedName = doc.Name
 	}
-	old := s.cat.RolePath(in.Place, savedName)
+	old := s.cat.RolePath(in.Place.String(), savedName)
 	for _, one := range []string{old, target} {
 		if bad := s.docUnreadableRefusal(one); bad != nil {
 			return nil, bad
@@ -333,7 +331,7 @@ func (k apiRole) saveDoc(in apiIn) (any, *apiErr) {
 	if rename && in.RenameUsers {
 		s.r2RenameUsers(savedName, doc.Name)
 	}
-	return k.savedAnswer(in.Place, doc.Name, r2DocOf(doc.Text, target), doc.Text), nil
+	return k.savedAnswer(in.Place.String(), doc.Name, r2DocOf(doc.Text, target), doc.Text), nil
 }
 
 // saveYAML writes one file's text as the person wrote it (the old
@@ -341,10 +339,10 @@ func (k apiRole) saveDoc(in apiIn) (any, *apiErr) {
 // not have has appeared (spec-roles X3).
 func (k apiRole) saveYAML(in apiIn) (any, *apiErr) {
 	s := k.s
-	if err := s.r2RolesDir(in.Place); err != nil {
+	if err := s.r2RolesDir(in.Place.String()); err != nil {
 		return nil, refuse(http.StatusUnprocessableEntity, err.Error())
 	}
-	path := s.cat.RolePath(in.Place, in.Name)
+	path := s.cat.RolePath(in.Place.String(), in.Name)
 	display := s.cat.Display(path)
 	if bad := s.docUnreadableRefusal(path); bad != nil {
 		return nil, bad
@@ -360,7 +358,7 @@ func (k apiRole) saveYAML(in apiIn) (any, *apiErr) {
 	if err := source.WriteIfUnchanged(path, hash, in.Text); err != nil {
 		return s.r2WriteError(err, display, path, nil)
 	}
-	return k.savedAnswer(in.Place, in.Name, r2DocOf(in.Text, path), in.Text), nil
+	return k.savedAnswer(in.Place.String(), in.Name, r2DocOf(in.Text, path), in.Text), nil
 }
 
 // savedAnswer is the answer of a write: the one document as GET
@@ -377,7 +375,7 @@ func (k apiRole) savedAnswer(place, name string, doc *r2Doc, text string) apiSav
 func (k apiRole) Delete(name string, in apiIn) (any, *apiErr) {
 	s := k.s
 	place, hash := in.Place, in.Hash
-	path := s.cat.RolePath(place, name)
+	path := s.cat.RolePath(place.String(), name)
 	if bad := s.docUnreadableRefusal(path); bad != nil {
 		return nil, bad
 	}

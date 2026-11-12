@@ -2,6 +2,7 @@ package effect
 
 import (
 	"github.com/aq2bq/hergy/internal/definition"
+	domainname "github.com/aq2bq/hergy/internal/domain/name"
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/prompt"
 	"github.com/aq2bq/hergy/internal/source"
@@ -23,21 +24,21 @@ func Undelivered(launched map[string]string, now View) []Change {
 		return nil
 	}
 	team := now.Run.Team
-	if team == "" {
-		team = now.Def.Name
+	if team.String() == "" {
+		team = domainname.DefinitionNames(now.Def.Name)
 	}
 	now.Run.Team = team
 	var out []Change
 	for i := range now.Def.Graph.Members {
 		member := &now.Def.Graph.Members[i]
-		was, ok := launched[member.Name]
+		was, ok := launched[member.Name.String()]
 		if !ok {
 			continue
 		}
 		if promptHash(now.Def, member, now.Run) == was {
 			continue
 		}
-		out = append(out, Change{Member: member.Name, Definition: now.Def.Name})
+		out = append(out, Change{Member: member.Name.String(), Definition: now.Def.Name.String()})
 	}
 	return out
 }

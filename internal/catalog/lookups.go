@@ -38,9 +38,9 @@ func (c *Catalog) Readers(path string) []MemberRef {
 			}
 			switch {
 			case def.HasAgreement && def.Agreement.Path == path:
-				out = append(out, MemberRef{Definition: def.Name, Member: member.Name})
+				out = append(out, MemberRef{Definition: def.Name.String(), Member: member.Name.String()})
 			case doc != "" && doc == path:
-				out = append(out, MemberRef{Definition: def.Name, Member: member.Name})
+				out = append(out, MemberRef{Definition: def.Name.String(), Member: member.Name.String()})
 			}
 		}
 	}
@@ -55,7 +55,7 @@ func (c *Catalog) RoleUsers(role string) []MemberRef {
 	for _, def := range c.readable() {
 		for _, member := range def.Graph.Members {
 			if member.Role == role {
-				out = append(out, MemberRef{Definition: def.Name, Member: member.Name})
+				out = append(out, MemberRef{Definition: def.Name.String(), Member: member.Name.String()})
 			}
 		}
 	}
@@ -70,12 +70,12 @@ func (c *Catalog) ProfileUsers(name string) (members, workers []MemberRef) {
 	for _, def := range c.readable() {
 		for _, member := range def.Graph.Members {
 			if member.Profile == name {
-				members = append(members, MemberRef{Definition: def.Name, Member: member.Name})
+				members = append(members, MemberRef{Definition: def.Name.String(), Member: member.Name.String()})
 			}
 		}
 		for _, worker := range def.Graph.Workers {
 			if worker.Profile == name {
-				workers = append(workers, MemberRef{Definition: def.Name, Member: worker.From, Purpose: worker.Purpose})
+				workers = append(workers, MemberRef{Definition: def.Name.String(), Member: worker.From, Purpose: worker.Purpose.String()})
 			}
 		}
 	}

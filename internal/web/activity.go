@@ -1,5 +1,10 @@
 package web
 
+import (
+	domainname "github.com/aq2bq/hergy/internal/domain/name"
+	domainplace "github.com/aq2bq/hergy/internal/domain/place"
+)
+
 // The activity screen's answer (spec-activity 3). The screen draws every row,
 // every sentence in it and every count from these shapes, and it writes no time
 // and no length of its own: the reading behind them is internal/app's, which is
@@ -55,9 +60,9 @@ type ActivityItem struct {
 	// Project is the listed project the team belongs to, and ProjectName is
 	// what a person reads beside it (d-73fc). Workspace is the herdr workspace
 	// its tab stands in.
-	Project     string        `json:"project"`
-	ProjectName string        `json:"project_name"`
-	Workspace   ActivitySpace `json:"workspace"`
+	Project     domainplace.Project `json:"project"`
+	ProjectName string              `json:"project_name"`
+	Workspace   ActivitySpace       `json:"workspace"`
 }
 
 // ActivitySpace is one herdr workspace as the activity names it.
@@ -131,7 +136,7 @@ type ActivityNode struct {
 	Name string `json:"name"`
 	// Herdr is the agent's name as herdr knows it, for the row's own mark of
 	// the member the line is about.
-	Herdr string `json:"herdr"`
+	Herdr domainname.Seen `json:"herdr"`
 	// State is blocked, handed, active, idle or absent (activity.NodeState).
 	State string `json:"state"`
 	// At is when the state began, as HH:MM, and empty for a working member and

@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/aq2bq/hergy/internal/ops"
+
 	"github.com/aq2bq/hergy/internal/herdr"
 	"github.com/aq2bq/hergy/internal/launchlog"
 	"github.com/aq2bq/hergy/internal/protocol"
@@ -107,7 +109,7 @@ func TestInitialPromptReceiptOperations(t *testing.T) {
 				case "screen-start":
 					useJapanese(t)
 					env := serveEnv(t)
-					r, err := readDefinition(env.Catalog(source.Disk{}), env.ProjectRoot, "demo", "demo")
+					r, err := ops.ReadDefinition(env.Catalog(source.Disk{}), env.ProjectRoot, "demo", "demo")
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -193,7 +195,7 @@ func TestInitialPromptReceiptOperations(t *testing.T) {
 						}
 						_, records := launchLog(t, f)
 						last := records[len(records)-1]
-						if !last.IsHire() || last.Hire.Worker != target || last.Hire.From != "a" {
+						if !last.IsHire() || last.Hire.Worker.String() != target || last.Hire.From != "a" {
 							t.Fatalf("hire not recorded: %+v", last)
 						}
 						if strings.Contains(calls, "pane close") {
@@ -207,7 +209,7 @@ func TestInitialPromptReceiptOperations(t *testing.T) {
 							t.Fatalf("successful members not recorded: %+v", last)
 						}
 						for _, m := range last.Members {
-							if m.Name == target {
+							if m.Name.String() == target {
 								t.Fatalf("undelivered member recorded: %+v", m)
 							}
 						}
@@ -342,7 +344,7 @@ func TestApplyContinuesAcrossDeliveryKinds(t *testing.T) {
 					t.Fatalf("record=%+v", last)
 				}
 				for _, member := range last.Members {
-					if member.Name == "demo-b" {
+					if member.Name.String() == "demo-b" {
 						t.Fatalf("unreceived prompt recorded: %+v", member)
 					}
 				}
@@ -426,7 +428,7 @@ func TestReceiptLaunchRecords(t *testing.T) {
 					}
 				case "screen-start":
 					env := serveEnv(t)
-					r, err := readDefinition(env.Catalog(source.Disk{}), env.ProjectRoot, "demo", "demo")
+					r, err := ops.ReadDefinition(env.Catalog(source.Disk{}), env.ProjectRoot, "demo", "demo")
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -473,11 +475,11 @@ func TestReceiptLaunchRecords(t *testing.T) {
 				if allMissing {
 					wantMembers = 0
 				}
-				if last.Team != "demo" || last.Definition != "demo" || last.Project != f.proj || len(last.Members) != wantMembers {
+				if last.Team.String() != "demo" || last.Definition != "demo" || last.Project.String() != f.proj || len(last.Members) != wantMembers {
 					t.Fatalf("record=%+v", last)
 				}
 				for _, m := range last.Members {
-					if m.Name == "demo-b" {
+					if m.Name.String() == "demo-b" {
 						t.Fatalf("unreceived member recorded: %+v", last)
 					}
 				}
@@ -528,7 +530,7 @@ func TestUndeliveredAliasCanReprompt(t *testing.T) {
 				t.Fatalf("missing recovery: %s", &stderr)
 			}
 			_, records := launchLog(t, f)
-			if len(records) != 1 || records[0].Team != "alias" || records[0].Definition != "demo" {
+			if len(records) != 1 || records[0].Team.String() != "alias" || records[0].Definition != "demo" {
 				t.Fatalf("alias missing: %+v", records)
 			}
 			f.herdr(t, original) // The same fake agents now accept the recovery prompt.
@@ -539,7 +541,7 @@ func TestUndeliveredAliasCanReprompt(t *testing.T) {
 			}
 			_, records = launchLog(t, f)
 			last := records[len(records)-1]
-			if last.Command != launchlog.CommandReprompt || last.Definition != "demo" || len(last.Members) != 1 || last.Members[0].Name != "alias-b" {
+			if last.Command != launchlog.CommandReprompt || last.Definition != "demo" || len(last.Members) != 1 || last.Members[0].Name.String() != "alias-b" {
 				t.Fatalf("recovery=%+v", last)
 			}
 		})

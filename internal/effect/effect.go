@@ -8,7 +8,8 @@ package effect
 import (
 	"maps"
 	"slices"
-	"strings"
+
+	domainname "github.com/aq2bq/hergy/internal/domain/name"
 
 	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/profile"
@@ -95,8 +96,8 @@ type View struct {
 // sides has no Change.
 func Of(before, after View) []Change {
 	team := before.Run.Team
-	if team == "" {
-		team = before.Def.Name
+	if team.String() == "" {
+		team = domainname.DefinitionNames(before.Def.Name)
 	}
 	before.Run.Team = team
 	after.Run.Team = team
@@ -106,7 +107,7 @@ func Of(before, after View) []Change {
 	var changes []Change
 	for i := range before.Def.Graph.Members {
 		bm := before.Def.Graph.Members[i]
-		am, ok := after.Def.Graph.Member(bm.Name)
+		am, ok := after.Def.Graph.Member(bm.Name.String())
 		if !ok {
 			// A member added or taken away is not this round's edit (W7); the
 			// roster part still says the roster moved.
@@ -116,10 +117,10 @@ func Of(before, after View) []Change {
 		ab, aErr := prompt.Member(after.Def, &am, after.Run)
 		var parts []PartChange
 		parts = append(parts, documentParts(before, after, bb, bErr, ab, aErr, bm, am)...)
-		if p := diffTurns(prompt.TurnsOf(before.Def, bm.Name, team), prompt.TurnsOf(after.Def, am.Name, team), team); p != nil {
+		if p := diffTurns(prompt.TurnsOf(before.Def, bm.Name.String(), team), prompt.TurnsOf(after.Def, am.Name.String(), team), team); p != nil {
 			parts = append(parts, *p)
 		}
-		if p := diffWorkers(prompt.WorkersOf(before.Def, bm.Name), prompt.WorkersOf(after.Def, am.Name)); p != nil {
+		if p := diffWorkers(prompt.WorkersOf(before.Def, bm.Name.String()), prompt.WorkersOf(after.Def, am.Name.String())); p != nil {
 			parts = append(parts, *p)
 		}
 		if rosterMoves {
@@ -130,7 +131,7 @@ func Of(before, after View) []Change {
 			parts = promptPartsOnly(parts)
 		}
 		if len(parts) > 0 {
-			changes = append(changes, Change{Member: bm.Name, Definition: before.Def.Name, Parts: parts})
+			changes = append(changes, Change{Member: bm.Name.String(), Definition: before.Def.Name.String(), Parts: parts})
 		}
 	}
 	return changes
@@ -241,7 +242,7 @@ func profileParts(before, after View, bm, am definition.MemberNode) []PartChange
 // named as a member reads them (the short member name, not the herdr name). A
 // turn is its party: a role that moved under the same party is not a turn change
 // (the roster part carries that), so the party's role is only read for the line.
-func diffTurns(before, after []prompt.TurnPart, team string) *PartChange {
+func diffTurns(before, after []prompt.TurnPart, team domainname.Naming) *PartChange {
 	removed := turnsOnly(before, after, team)
 	added := turnsOnly(after, before, team)
 	if len(removed) == 0 && len(added) == 0 {
@@ -250,13 +251,13 @@ func diffTurns(before, after []prompt.TurnPart, team string) *PartChange {
 	return &PartChange{Part: Turns, Removed: removed, Added: added}
 }
 
-func turnsOnly(from, other []prompt.TurnPart, team string) []Named {
+func turnsOnly(from, other []prompt.TurnPart, team domainname.Naming) []Named {
 	var out []Named
 	for _, turn := range from {
 		if hasTurnParty(other, turn.Name) {
 			continue
 		}
-		out = append(out, Named{Name: shortName(turn.Name, team), Role: turn.Role})
+		out = append(out, Named{Name: team.Short(turn.Name), Role: turn.Role})
 	}
 	return out
 }
@@ -270,15 +271,6 @@ func hasTurnParty(list []prompt.TurnPart, name string) bool {
 		}
 	}
 	return false
-}
-
-// shortName is a member's short name, from the herdr name the prompt names it by
-// ("<team>-<member>"). The human has no herdr name (its Name is "").
-func shortName(herdr, team string) string {
-	if herdr == "" {
-		return ""
-	}
-	return strings.TrimPrefix(herdr, team+"-")
 }
 
 // diffWorkers is the workers a member may hire that left or came in, named by

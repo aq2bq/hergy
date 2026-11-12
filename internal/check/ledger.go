@@ -5,6 +5,8 @@ import (
 	"slices"
 	"strings"
 
+	domainname "github.com/aq2bq/hergy/internal/domain/name"
+
 	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/i18n"
 )
@@ -33,7 +35,7 @@ type Decider func(node string) (string, error)
 // It is a warning, not a stop: d-db1b keeps hergy from refusing a write. An
 // error is a question whose decider could not be read, which the caller reports
 // as a ledger that was not checked.
-func LedgerFindings(def *definition.Definition, teams []string, writes []LedgerWrite, decider Decider) ([]Finding, error) {
+func LedgerFindings(def *definition.Definition, teams []domainname.Naming, writes []LedgerWrite, decider Decider) ([]Finding, error) {
 	if len(def.Ledger) == 0 {
 		return nil, nil
 	}
@@ -76,17 +78,12 @@ func LedgerFindings(def *definition.Definition, teams []string, writes []LedgerW
 // actor starts with wins, so a team launched as "a-b" is not read as team "a"
 // with a member "b-lead"; a name that is no member of the definition is another
 // team's writer, or an older way of writing one, and is not this team's.
-func teamWriter(def *definition.Definition, teams []string, actor string) (string, string, bool) {
-	best := ""
-	for _, team := range teams {
-		if strings.HasPrefix(actor, team+"-") && len(team) > len(best) {
-			best = team
-		}
-	}
-	if best == "" {
+func teamWriter(def *definition.Definition, teams []domainname.Naming, actor string) (string, string, bool) {
+	owner, short, ok := domainname.NamingSet(teams).Resolve(actor)
+	if !ok {
 		return "", "", false
 	}
-	member := actor[len(best)+1:]
+	best, member := owner.String(), short
 	if !hasMember(def, member) {
 		return "", "", false
 	}
@@ -96,7 +93,7 @@ func teamWriter(def *definition.Definition, teams []string, actor string) (strin
 // asksOutsideTeam is whether a question's decider is no member of the team: the
 // human, another team, or nobody. A decider is written the way gy records a
 // writer, so a member's is its herdr name.
-func asksOutsideTeam(def *definition.Definition, teams []string, node string, decider Decider) (bool, error) {
+func asksOutsideTeam(def *definition.Definition, teams []domainname.Naming, node string, decider Decider) (bool, error) {
 	who, err := decider(node)
 	if err != nil {
 		return false, err
@@ -106,7 +103,7 @@ func asksOutsideTeam(def *definition.Definition, teams []string, node string, de
 	}
 	for _, team := range teams {
 		for i := range def.Graph.Members {
-			if who == team+"-"+def.Graph.Members[i].Name {
+			if who == team.Member(def.Graph.Members[i].Name) {
 				return false, nil
 			}
 		}
@@ -140,7 +137,7 @@ func hasLedgerRule(def *definition.Definition, write string) bool {
 // hasMember reports whether a name is one of the definition's member names.
 func hasMember(def *definition.Definition, name string) bool {
 	for i := range def.Graph.Members {
-		if def.Graph.Members[i].Name == name {
+		if def.Graph.Members[i].Name.String() == name {
 			return true
 		}
 	}

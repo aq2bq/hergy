@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"slices"
 	"syscall"
+
+	domainplace "github.com/aq2bq/hergy/internal/domain/place"
 )
 
 var errTeamLockBusy = errors.New("team definition is locked")
@@ -66,11 +68,16 @@ func teamLockFile(path string) (*os.File, error) {
 	}
 	// Resolve the teams directory, which exists for both old and new names.
 	// /var and /private/var must not produce different locks on macOS.
-	parent, err := filepath.EvalSymlinks(filepath.Dir(filepath.Dir(absolute)))
+	parentPath := filepath.Dir(filepath.Dir(absolute))
+	_, err = filepath.EvalSymlinks(parentPath)
 	if err != nil {
 		return nil, err
 	}
-	absolute = filepath.Join(parent, filepath.Base(filepath.Dir(absolute)), filepath.Base(absolute))
+	parent, err := domainplace.NewProject(parentPath)
+	if err != nil {
+		return nil, err
+	}
+	absolute = filepath.Join(parent.String(), filepath.Base(filepath.Dir(absolute)), filepath.Base(absolute))
 	state := os.Getenv("XDG_STATE_HOME")
 	if !filepath.IsAbs(state) {
 		home, err := os.UserHomeDir()

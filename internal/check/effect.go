@@ -1,7 +1,7 @@
 package check
 
 import (
-	"strings"
+	domainname "github.com/aq2bq/hergy/internal/domain/name"
 
 	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/definition"
@@ -55,7 +55,7 @@ func TeamEffect(in TeamInput, op definition.Op) EffectReport {
 	if err != nil {
 		return report
 	}
-	report.Lines = effectLines(in.Name, before, after, effect.Of(before, after))
+	report.Lines = effectLines(before.Run.Team, before, after, effect.Of(before, after))
 	return report
 }
 
@@ -87,7 +87,7 @@ func teamView(cat *catalog.Catalog, in TeamInput) (effect.View, error) {
 	return effect.View{
 		Def: def, Profiles: profiles,
 		Run: prompt.Run{
-			Team: in.Name, Base: cat.Base(),
+			Team: domainname.DefinitionNames(def.Name), Base: cat.Base(),
 			Reader: overlay.Reader(), Sources: overlay, Display: overlay.Display,
 		},
 	}, nil
@@ -95,7 +95,7 @@ func teamView(cat *catalog.Catalog, in TeamInput) (effect.View, error) {
 
 // effectLines is the changes grouped by member and part: one line per member and
 // part, holding what left and what came in.
-func effectLines(team string, before, after effect.View, changes []effect.Change) []EffectLine {
+func effectLines(team domainname.Naming, before, after effect.View, changes []effect.Change) []EffectLine {
 	var lines []EffectLine
 	index := map[[2]string]int{}
 	add := func(member, part string, removed, added []string) {
@@ -112,7 +112,8 @@ func effectLines(team string, before, after effect.View, changes []effect.Change
 		lines = append(lines, EffectLine{Member: member, Part: part, Removed: removed, Added: added})
 	}
 	for _, change := range changes {
-		member := team + "-" + change.Member
+		short, _ := domainname.ParseMemberName(change.Member)
+		member := team.Member(short)
 		for _, part := range change.Parts {
 			switch part.Part {
 			case effect.Turns:
@@ -136,25 +137,16 @@ func effectLines(team string, before, after effect.View, changes []effect.Change
 
 // turnEffectLines is the "ターンを渡す相手" lines of a change, exactly the prompt's
 // own: the human's one line, or a member's line naming its herdr name and role.
-func turnEffectLines(team string, names []effect.Named) []string {
+func turnEffectLines(team domainname.Naming, names []effect.Named) []string {
 	var out []string
 	for _, named := range names {
 		if named.Role == "" {
 			out = append(out, i18n.T("turns.human_item"))
 			continue
 		}
-		out = append(out, i18n.Tf("turns.member_item", herdrName(team, named.Name), named.Role))
+		out = append(out, i18n.Tf("turns.member_item", team.DisplayMember(named.Name), named.Role))
 	}
 	return out
-}
-
-// herdrName is a member's herdr name from the short name effect names it by. A
-// name that already carries the team's prefix stands as it is.
-func herdrName(team, member string) string {
-	if strings.HasPrefix(member, team+"-") {
-		return member
-	}
-	return team + "-" + member
 }
 
 // workerEffectLines is the "ワーカーの追加" lines of a change, exactly the prompt's
@@ -185,7 +177,7 @@ func workerProfile(view effect.View, from, purpose string) string {
 		return ""
 	}
 	for _, worker := range view.Def.Graph.Workers {
-		if worker.From == from && worker.Purpose == purpose {
+		if worker.From == from && worker.Purpose.String() == purpose {
 			return worker.Profile
 		}
 	}

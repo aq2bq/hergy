@@ -6,6 +6,7 @@ import (
 	"slices"
 
 	"github.com/aq2bq/hergy/internal/catalog"
+	domainplace "github.com/aq2bq/hergy/internal/domain/place"
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/profile"
 	"github.com/aq2bq/hergy/internal/source"
@@ -53,44 +54,42 @@ func (s *Server) p2List() apiList {
 func (s *Server) p2ListLayers(layers []string) apiList {
 	project, shared, defs := s.p2Read()
 	chips := p2Chips(defs)
-	all := []struct{ layer, place string }{
-		{source.LayerLocal, p2Project},
-		{source.LayerGlobal, p2Shared},
-	}
+	all := []string{source.LayerLocal, source.LayerGlobal}
 	out := apiList{Hashes: map[string]string{p2Project: project.hash, p2Shared: shared.hash}}
-	for _, one := range all {
-		if !slices.Contains(layers, one.layer) {
+	for _, layer := range all {
+		selected := domainplace.Selection(layer).API()
+		if !slices.Contains(layers, layer) {
 			continue
 		}
 		marks := map[string]catalog.ListedRow{}
-		for _, listed := range s.cat.ShownRows(catalog.KindProfile, one.layer) {
+		for _, listed := range s.cat.ShownRows(catalog.KindProfile, layer) {
 			marks[listed.Name] = listed
 		}
-		for _, listed := range s.cat.ShownRows(catalog.KindProfile, one.layer) {
+		for _, listed := range s.cat.ShownRows(catalog.KindProfile, layer) {
 			if listed.Problem != "" || listed.Path == "" {
 				why, state := s.unreadable(listed.Path, listed.Problem)
 				out.Items = append(out.Items, apiItem{
-					Name: listed.Name, Places: map[string]apiPlace{}, Effective: one.place,
+					Name: listed.Name, Places: map[string]apiPlace{}, Effective: selected,
 					Problems: apiCounts{Err: 1}, Summary: apiProfileSummary{},
 				})
 				item := &out.Items[len(out.Items)-1]
-				item.Places[one.place] = apiPlace{
+				item.Places[selected] = apiPlace{
 					Doc: p2Draft{Name: listed.Name}, Path: s.cat.Display(listed.Path),
 					Problems: apiCounts{Err: 1}, Problem: why, State: state,
 				}
 				continue
 			}
 			item := p2ItemOf(p2RowOf(listed.Name, project, shared, chips, false), project, shared)
-			place, ok := item.Places[one.place]
+			place, ok := item.Places[selected]
 			if !ok {
 				continue
 			}
-			item.Places = map[string]apiPlace{one.place: place}
+			item.Places = map[string]apiPlace{selected: place}
 			item.Hidden = nil
 			if mark, ok := marks[item.Name]; ok {
 				item.Mark = markWord(mark)
 			}
-			item.Effective = one.place
+			item.Effective = selected
 			item.Problems = place.Problems
 			out.Items = append(out.Items, item)
 		}
@@ -206,7 +205,7 @@ func p2DocOf(entry profile.Entry) p2Draft {
 // Check is POST /api/profile/check: what is wrong with a panel's draft or with a
 // file's YAML text.
 func (k apiProfile) Check(in apiIn) (any, *apiErr) {
-	_, display, ok := k.s.p2ProfilePath(in.Place)
+	_, display, ok := k.s.p2ProfilePath(in.Place.String())
 	if !ok {
 		return nil, refuse(http.StatusBadRequest, "unknown file")
 	}
@@ -215,7 +214,7 @@ func (k apiProfile) Check(in apiIn) (any, *apiErr) {
 		if err := json.Unmarshal(in.Doc, &draft); err != nil {
 			return nil, refuse(http.StatusUnprocessableEntity, i18n.Errorf("error.edit_yaml", "profile", err).Error())
 		}
-		text, _ := k.s.p2Text(k.pathOf(in.Place))
+		text, _ := k.s.p2Text(k.pathOf(in.Place.String()))
 		entries, _ := profile.ReadAll(text, display)
 		problems := profile.CheckDraft(draft.profileOf(), entries, in.Original)
 		return apiCheck{Problems: p2DraftProblems(problems)}, nil
@@ -261,7 +260,7 @@ func (k apiProfile) Save(_ string, in apiIn) (any, *apiErr) {
 // savePanel writes one panel of the profile tab (the old /profiles/save).
 func (k apiProfile) savePanel(in apiIn) (any, *apiErr) {
 	s := k.s
-	path, display, ok := s.p2ProfilePath(in.Place)
+	path, display, ok := s.p2ProfilePath(in.Place.String())
 	if !ok {
 		return nil, refuse(http.StatusBadRequest, "unknown file")
 	}
@@ -294,9 +293,9 @@ func (k apiProfile) savePanel(in apiIn) (any, *apiErr) {
 		return k.s.p2WriteError(err, display, path, profileDoc(draft.Name, display))
 	}
 	if in.Original != "" && in.Original != draft.Name && in.RenameUsers {
-		s.p2RenameUsers(in.Place, in.Original, draft.Name)
+		s.p2RenameUsers(in.Place.String(), in.Original, draft.Name)
 	}
-	return k.savedAnswer(in.Place, draft.Name), nil
+	return k.savedAnswer(in.Place.String(), draft.Name), nil
 }
 
 // saveYAML writes one file's text as the person wrote it (the old
@@ -304,7 +303,7 @@ func (k apiProfile) savePanel(in apiIn) (any, *apiErr) {
 // with the whole list under it.
 func (k apiProfile) saveYAML(in apiIn) (any, *apiErr) {
 	s := k.s
-	path, display, ok := s.p2ProfilePath(in.Place)
+	path, display, ok := s.p2ProfilePath(in.Place.String())
 	if !ok {
 		return nil, refuse(http.StatusBadRequest, "unknown file")
 	}
@@ -333,7 +332,7 @@ func (k apiProfile) saveYAML(in apiIn) (any, *apiErr) {
 func (k apiProfile) Delete(name string, in apiIn) (any, *apiErr) {
 	s := k.s
 	place, hash := in.Place, in.Hash
-	path, display, ok := s.p2ProfilePath(place)
+	path, display, ok := s.p2ProfilePath(place.String())
 	if !ok {
 		return nil, refuse(http.StatusBadRequest, "unknown file")
 	}
@@ -347,7 +346,7 @@ func (k apiProfile) Delete(name string, in apiIn) (any, *apiErr) {
 	if hash != pathHash {
 		return nil, s.refuseChanged(display, path, nil, true)
 	}
-	if _, _, found := s.profileTargets(place, name); !found {
+	if _, _, found := s.profileTargets(place.String(), name); !found {
 		return nil, refuse(http.StatusUnprocessableEntity, tf("error.edit_no_profile", name))
 	}
 	edited, err := profile.EditYAML([]byte(text), display, profile.Remove(name))

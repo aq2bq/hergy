@@ -14,12 +14,12 @@ import (
 // own (d-da92).
 func TestDownClosesThePanesNoAgentStandsIn(t *testing.T) {
 	port := &fakePort{
-		tabs: []protocol.Tab{{ID: "t1", Label: "team"}},
+		tabs: []protocol.Tab{{ID: "t1", Label: fixtureSeen("team")}},
 		panes: []protocol.Pane{
-			{ID: "p1", Label: "team-lead", TabID: "t1"},
-			{ID: "p2", Label: "team-builder", TabID: "t1"},
+			{ID: "p1", Label: fixtureSeen("team-lead"), TabID: "t1"},
+			{ID: "p2", Label: fixtureSeen("team-builder"), TabID: "t1"},
 			{ID: "p3", TabID: "t1"},
-			{ID: "p4", Label: "other-lead", TabID: "t9"},
+			{ID: "p4", Label: fixtureSeen("other-lead"), TabID: "t9"},
 		},
 	}
 	l, out := downLauncher(t, port, "team-lead", "team-builder")
@@ -51,21 +51,21 @@ func TestDownClosesThePanesNoAgentStandsIn(t *testing.T) {
 func TestDownStoppedClosesWhatHergyMadeForAStoppedTeam(t *testing.T) {
 	port := &fakePort{
 		tabs: []protocol.Tab{
-			{ID: "t1", Label: "team"},
-			{ID: "t2", Label: "worker:team/w1"},
-			{ID: "t3", Label: "team-x"},
+			{ID: "t1", Label: fixtureSeen("team")},
+			{ID: "t2", Label: fixtureSeen("worker:team/w1")},
+			{ID: "t3", Label: fixtureSeen("team-x")},
 		},
 		panes: []protocol.Pane{
-			{ID: "p1", Label: "team-lead", TabID: "t1"},
+			{ID: "p1", Label: fixtureSeen("team-lead"), TabID: "t1"},
 			{ID: "p2", TabID: "t1"},
-			{ID: "p5", Label: "team-w1", TabID: "t2"},
+			{ID: "p5", Label: fixtureSeen("team-w1"), TabID: "t2"},
 			{ID: "p6", TabID: "t2"},
-			{ID: "p7", Label: "team-x-lead", TabID: "t3"},
+			{ID: "p7", Label: fixtureSeen("team-x-lead"), TabID: "t3"},
 		},
 	}
 	l, out := downLauncher(t, port, "team-lead")
 
-	closed, err := l.DownStopped("team", "", false)
+	closed, err := l.DownStopped(fixtureSeen("team"), "", false)
 	if err != nil {
 		t.Fatalf("DownStopped: %v", err)
 	}
@@ -89,12 +89,12 @@ func TestDownStoppedClosesWhatHergyMadeForAStoppedTeam(t *testing.T) {
 // stopped team, and nothing is closed.
 func TestDownStoppedWithNoTabOfThatTeamClosesNothing(t *testing.T) {
 	port := &fakePort{
-		tabs:  []protocol.Tab{{ID: "t9", Label: "other"}},
-		panes: []protocol.Pane{{ID: "p1", Label: "team-lead", TabID: "t9"}},
+		tabs:  []protocol.Tab{{ID: "t9", Label: fixtureSeen("other")}},
+		panes: []protocol.Pane{{ID: "p1", Label: fixtureSeen("team-lead"), TabID: "t9"}},
 	}
 	l, out := downLauncher(t, port, "team-lead")
 
-	if _, err := l.DownStopped("team", "", false); err != nil {
+	if _, err := l.DownStopped(fixtureSeen("team"), "", false); err != nil {
 		t.Fatalf("DownStopped: %v", err)
 	}
 	if len(port.closed) != 0 {
@@ -114,24 +114,24 @@ func TestDownStoppedWithNoTabOfThatTeamClosesNothing(t *testing.T) {
 func TestDownWorkerClosesOnlyThatWorkerAndItsTab(t *testing.T) {
 	port := &fakePort{
 		tabs: []protocol.Tab{
-			{ID: "t1", Label: "team"},
-			{ID: "t2", Label: "worker:team/w1"},
-			{ID: "t3", Label: "worker:team/w2"},
+			{ID: "t1", Label: fixtureSeen("team")},
+			{ID: "t2", Label: fixtureSeen("worker:team/w1")},
+			{ID: "t3", Label: fixtureSeen("worker:team/w2")},
 		},
 		panes: []protocol.Pane{
-			{ID: "p1", Label: "team-lead", TabID: "t1"},
-			{ID: "p2", Label: "team-w1", TabID: "t2"},
-			{ID: "p3", Label: "team-w2", TabID: "t3"},
+			{ID: "p1", Label: fixtureSeen("team-lead"), TabID: "t1"},
+			{ID: "p2", Label: fixtureSeen("team-w1"), TabID: "t2"},
+			{ID: "p3", Label: fixtureSeen("team-w2"), TabID: "t3"},
 		},
 		live: []protocol.Agent{
-			{Name: "team-lead", Kind: "claude", Status: "idle", PaneID: "p1", TabID: "t1"},
-			{Name: "team-w1", Kind: "claude", Status: "idle", PaneID: "p2", TabID: "t2"},
-			{Name: "team-w2", Kind: "claude", Status: "idle", PaneID: "p3", TabID: "t3"},
+			{Name: fixtureSeen("team-lead"), Kind: "claude", Status: "idle", PaneID: "p1", TabID: "t1"},
+			{Name: fixtureSeen("team-w1"), Kind: "claude", Status: "idle", PaneID: "p2", TabID: "t2"},
+			{Name: fixtureSeen("team-w2"), Kind: "claude", Status: "idle", PaneID: "p3", TabID: "t3"},
 		},
 	}
 	l, out := downLauncher(t, port, "team-lead")
 
-	closed, err := l.DownWorker("worker:team/w1", "", false)
+	closed, err := l.DownWorker(fixtureSeen("worker:team/w1"), "", false)
 	if err != nil {
 		t.Fatalf("DownWorker: %v", err)
 	}
@@ -164,13 +164,13 @@ func TestDownWorkerClosesOnlyThatWorkerAndItsTab(t *testing.T) {
 // tab that would go with it, and closes nothing.
 func TestDownWorkerDryPlansThePaneAndItsTab(t *testing.T) {
 	port := &fakePort{
-		tabs:  []protocol.Tab{{ID: "t2", Label: "worker:team/w1"}},
-		panes: []protocol.Pane{{ID: "p2", Label: "team-w1", TabID: "t2"}},
-		live:  []protocol.Agent{{Name: "team-w1", Kind: "claude", Status: "idle", PaneID: "p2", TabID: "t2"}},
+		tabs:  []protocol.Tab{{ID: "t2", Label: fixtureSeen("worker:team/w1")}},
+		panes: []protocol.Pane{{ID: "p2", Label: fixtureSeen("team-w1"), TabID: "t2"}},
+		live:  []protocol.Agent{{Name: fixtureSeen("team-w1"), Kind: "claude", Status: "idle", PaneID: "p2", TabID: "t2"}},
 	}
 	l, out := downLauncher(t, port, "team-lead")
 
-	closed, err := l.DownWorker("worker:team/w1", "", true)
+	closed, err := l.DownWorker(fixtureSeen("worker:team/w1"), "", true)
 	if err != nil {
 		t.Fatalf("DownWorker --dry: %v", err)
 	}
@@ -195,16 +195,16 @@ func TestDownWorkerDryPlansThePaneAndItsTab(t *testing.T) {
 // tab is not hergy's to close, and the tab stays with it.
 func TestDownWorkerKeepsATabThatStillHoldsAPane(t *testing.T) {
 	port := &fakePort{
-		tabs: []protocol.Tab{{ID: "t2", Label: "worker:team/w1"}},
+		tabs: []protocol.Tab{{ID: "t2", Label: fixtureSeen("worker:team/w1")}},
 		panes: []protocol.Pane{
-			{ID: "p2", Label: "team-w1", TabID: "t2"},
+			{ID: "p2", Label: fixtureSeen("team-w1"), TabID: "t2"},
 			{ID: "p4", TabID: "t2"},
 		},
-		live: []protocol.Agent{{Name: "team-w1", Kind: "claude", Status: "idle", PaneID: "p2", TabID: "t2"}},
+		live: []protocol.Agent{{Name: fixtureSeen("team-w1"), Kind: "claude", Status: "idle", PaneID: "p2", TabID: "t2"}},
 	}
 	l, _ := downLauncher(t, port, "team-lead")
 
-	if _, err := l.DownWorker("worker:team/w1", "", false); err != nil {
+	if _, err := l.DownWorker(fixtureSeen("worker:team/w1"), "", false); err != nil {
 		t.Fatalf("DownWorker: %v", err)
 	}
 	if want := []string{"p2"}; !slices.Equal(port.closed, want) {

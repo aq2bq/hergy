@@ -11,6 +11,8 @@ import (
 	"strings"
 	"testing"
 
+	domainplace "github.com/aq2bq/hergy/internal/domain/place"
+
 	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/source"
 )
@@ -68,19 +70,19 @@ func newCopyFixture(t *testing.T) copyFixture {
 func (c copyFixture) twoProjects(t *testing.T) *Server {
 	t.Helper()
 	server := c.server(t)
-	otherCat := catalog.New(c.global, filepath.Join(c.other, ".hergy"), c.other, source.Disk{}, func(path string) string { return path }).InRepo(true)
+	otherCat := catalog.New(c.global, filepath.Join(c.other, ".hergy"), projectPath(c.other), source.Disk{}, func(path string) string { return path }).InRepo(true)
 	hq := fakeHQ{
 		projects: HQProjects{
 			Mode:    "listed",
-			Current: HQProject{Path: c.proj, Name: "proj", Listed: true},
+			Current: HQProject{Path: projectPath(c.proj), Name: "proj", Listed: true},
 			Projects: []HQProject{
-				{Path: c.proj, Name: "proj", Listed: true},
-				{Path: c.other, Name: "other", Listed: true},
+				{Path: projectPath(c.proj), Name: "proj", Listed: true},
+				{Path: projectPath(c.other), Name: "other", Listed: true},
 			},
 			Global: HQGlobal{Path: c.global, Display: "~/.config/hergy"},
 		},
-		cats:   map[string]*catalog.Catalog{c.proj: c.catalog(), c.other: otherCat},
-		global: catalog.New(c.global, filepath.Join(c.global, "no-local"), c.proj, source.Disk{}, func(p string) string { return p }),
+		cats:   map[domainplace.Project]*catalog.Catalog{projectPath(c.proj): c.catalog(), projectPath(c.other): otherCat},
+		global: catalog.New(c.global, filepath.Join(c.global, "no-local"), projectPath(c.proj), source.Disk{}, func(p string) string { return p }),
 	}
 	server.hq = hq
 	server.projects = hq

@@ -4,8 +4,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	domainname "github.com/aq2bq/hergy/internal/domain/name"
 	"github.com/aq2bq/hergy/internal/i18n"
-	"github.com/aq2bq/hergy/internal/profile"
 	"github.com/aq2bq/hergy/internal/yamledit"
 	"go.yaml.in/yaml/v3"
 )
@@ -769,9 +769,12 @@ func addMemberLines(src *yamledit.Source, root *yaml.Node, name, role, profileNa
 	if name == "" || role == "" || profileName == "" {
 		return i18n.Errorf("error.edit_member_required")
 	}
-	herdr := teamNameOf(path) + "-" + name
-	if !profile.NamePattern.MatchString(herdr) {
-		return i18n.Errorf("error.herdr_name_pattern", herdr)
+	memberName, nameErr := domainname.ParseMemberName(name)
+	if nameErr != nil {
+		return i18n.Errorf("error.name_pattern", "members")
+	}
+	if _, err := memberNaming(path).MemberTarget(memberName); err != nil {
+		return i18n.Errorf("error.herdr_name_pattern", memberNaming(path).Member(memberName))
 	}
 	if _, ok := findMember(root, name); ok {
 		return i18n.Errorf("error.edit_member_twice", name)
@@ -837,9 +840,12 @@ func renameMemberLines(src *yamledit.Source, root *yaml.Node, old, next, path st
 	if next == "" {
 		return i18n.Errorf("error.edit_member_required")
 	}
-	herdr := teamNameOf(path) + "-" + next
-	if !profile.NamePattern.MatchString(herdr) {
-		return i18n.Errorf("error.herdr_name_pattern", herdr)
+	memberName, nameErr := domainname.ParseMemberName(next)
+	if nameErr != nil {
+		return i18n.Errorf("error.name_pattern", "members")
+	}
+	if _, err := memberNaming(path).MemberTarget(memberName); err != nil {
+		return i18n.Errorf("error.herdr_name_pattern", memberNaming(path).Member(memberName))
 	}
 	if _, exists := findMember(root, next); exists {
 		return i18n.Errorf("error.edit_member_twice", next)
@@ -1171,4 +1177,9 @@ func sequenceFlow(v *yaml.Node) bool {
 		return item.Kind == yaml.MappingNode && item.Style&yaml.FlowStyle != 0
 	}
 	return false
+}
+
+func memberNaming(path string) domainname.Naming {
+	n, _ := domainname.ParseDefinitionName(teamNameOf(path))
+	return domainname.DefinitionNames(n)
 }

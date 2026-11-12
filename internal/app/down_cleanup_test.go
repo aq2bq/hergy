@@ -56,7 +56,7 @@ func TestTeamDownCleanupAfterNameWait(t *testing.T) {
 				state := turns.Path(stateDir, "wave")
 				signals := turns.SignalDir(stateDir, "wave")
 				tells := turns.TellDir(stateDir, "wave")
-				if err := turns.Save(state, &turns.State{Team: "wave", Holder: "lead"}); err != nil {
+				if err := turns.Save(state, &turns.State{Team: fixtureSeen("wave"), Holder: "lead"}); err != nil {
 					t.Fatal(err)
 				}
 				writeFile(t, filepath.Join(signals, "pending.json"), "{}")

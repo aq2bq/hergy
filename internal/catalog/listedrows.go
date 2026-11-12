@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 
+	domainplace "github.com/aq2bq/hergy/internal/domain/place"
+
 	"github.com/aq2bq/hergy/internal/profile"
 	"github.com/aq2bq/hergy/internal/source"
 )
@@ -29,10 +31,10 @@ import (
 type ListedRow struct {
 	Kind   string // "team", "role" or "profile"
 	Name   string
-	Place  string // catalog.PlaceProject or catalog.PlaceGlobal
-	Path   string // the document the row stands on, empty for a name without one
-	Legacy bool   // role: only a legacy .yaml stands behind the name
-	NoDoc  bool   // role: no layer holds a document; a member names it
+	Place  domainplace.Place // catalog.PlaceProject or catalog.PlaceGlobal
+	Path   string            // the document the row stands on, empty for a name without one
+	Legacy bool              // role: only a legacy .yaml stands behind the name
+	NoDoc  bool              // role: no layer holds a document; a member names it
 	// InEffect and Hidden are the place's answer for a name both layers hold:
 	// the project's row is in effect and the global one is hidden. A name only
 	// one layer holds carries neither (r-ea17, the same rule as before).
@@ -168,7 +170,7 @@ func (c *Catalog) teamRows(layer string) []ListedRow {
 	out := make([]ListedRow, 0, len(names))
 	for _, name := range names {
 		out = append(out, ListedRow{
-			Kind: KindTeam, Name: name, Place: placeOfLayer(layer),
+			Kind: KindTeam, Name: name, Place: domainplace.Selection(layer).At(c.base),
 			Path: filepath.Join(dir, "teams", name, "team.yaml"),
 		})
 	}
@@ -207,7 +209,7 @@ func (c *Catalog) roleRows(layer string) []ListedRow {
 		case source.LayerLocal:
 			switch {
 			case hasProject:
-				out = append(out, ListedRow{Kind: KindRole, Name: entry.Name, Place: PlaceProject, Path: entry.Path})
+				out = append(out, ListedRow{Kind: KindRole, Name: entry.Name, Place: domainplace.In(c.base), Path: entry.Path})
 			case !entry.HasDocument:
 				// No .md of its own: a legacy .yaml, or a name only a member
 				// names. The list draws one row of it on the project's side.
@@ -216,7 +218,7 @@ func (c *Catalog) roleRows(layer string) []ListedRow {
 				if doc, ok := c.LegacyRole(entry.Name); ok {
 					legacy, legacyPath = true, doc.Path
 				}
-				out = append(out, ListedRow{Kind: KindRole, Name: entry.Name, Place: PlaceProject, Path: legacyPath, Legacy: legacy, NoDoc: !legacy})
+				out = append(out, ListedRow{Kind: KindRole, Name: entry.Name, Place: domainplace.In(c.base), Path: legacyPath, Legacy: legacy, NoDoc: !legacy})
 			}
 		case source.LayerGlobal:
 			path := ""
@@ -227,7 +229,7 @@ func (c *Catalog) roleRows(layer string) []ListedRow {
 				path = entry.UnusedPath
 			}
 			if path != "" {
-				out = append(out, ListedRow{Kind: KindRole, Name: entry.Name, Place: PlaceGlobal, Path: path})
+				out = append(out, ListedRow{Kind: KindRole, Name: entry.Name, Place: domainplace.Global(), Path: path})
 			}
 		}
 	}
@@ -241,7 +243,7 @@ func (c *Catalog) roleRows(layer string) []ListedRow {
 func (c *Catalog) profileRows(layer string) []ListedRow {
 	dir := c.LayerDir(layer)
 	path := filepath.Join(dir, "profiles.yaml")
-	place := placeOfLayer(layer)
+	place := domainplace.Selection(layer).At(c.base)
 	text, ok, err := c.fileText(path)
 	if err != nil {
 		return []ListedRow{{Kind: KindProfile, Name: filepath.Base(path), Place: place, Path: path, Problem: err.Error()}}
@@ -262,11 +264,4 @@ func (c *Catalog) profileRows(layer string) []ListedRow {
 		out = append(out, ListedRow{Kind: KindProfile, Name: entry.Name, Place: place, Path: path})
 	}
 	return out
-}
-
-func placeOfLayer(layer string) string {
-	if layer == source.LayerGlobal {
-		return PlaceGlobal
-	}
-	return PlaceProject
 }

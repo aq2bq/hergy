@@ -30,7 +30,7 @@ func TestApplyAPIAnswersTheCountAndTheDrift(t *testing.T) {
 	reading := &fakeApply{answer: ApplyList{
 		Count: 2,
 		Teams: []ApplyTeam{{
-			Team: "demo", Definition: "demo", Project: "/p/demo", ProjectName: "demo",
+			Team: "demo", Definition: "demo", Project: projectPath("/p/demo"), ProjectName: "demo",
 			Notes: []string{},
 			Members: []ApplyMember{
 				{

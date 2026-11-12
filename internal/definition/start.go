@@ -3,6 +3,8 @@ package definition
 import (
 	"maps"
 
+	domainname "github.com/aq2bq/hergy/internal/domain/name"
+
 	"github.com/aq2bq/hergy/internal/source"
 )
 
@@ -12,12 +14,12 @@ import (
 // projection (prompt.Member), done where the run's facts are known.
 type Start struct {
 	// Name is the name herdr sees: "<team>-<member>".
-	Name string
+	Name domainname.HerdrName
 	// Short is the short name team.yaml writes.
-	Short string
+	Short domainname.ShortName
 	// From is the short name of the member that hires this worker, for a worker
 	// a member hired (d-b4b9). Empty for a member of the definition.
-	From string
+	From domainname.MemberName
 	// Purpose is what a hired worker is for, as the member's workers: names it
 	// (d-b4b9). Empty for a member of the definition.
 	Purpose string
@@ -110,7 +112,7 @@ type PromptSegment struct {
 // rather than null.
 func (s Start) ToPlan() map[string]any {
 	out := map[string]any{
-		"name":     s.Name,
+		"name":     s.Name.String(),
 		"role":     s.Role,
 		"kind":     s.Kind,
 		"args":     orEmpty(s.Args),
@@ -130,7 +132,7 @@ func (s Start) ToPlan() map[string]any {
 	if len(s.Workers) > 0 {
 		workers := make([]map[string]any, len(s.Workers))
 		for i, worker := range s.Workers {
-			workers[i] = map[string]any{"from": worker.From, "purpose": worker.Purpose, "profile": worker.Profile}
+			workers[i] = map[string]any{"from": worker.From, "purpose": worker.Purpose.String(), "profile": worker.Profile}
 		}
 		out["workers"] = workers
 	}

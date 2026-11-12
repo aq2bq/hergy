@@ -10,6 +10,8 @@ import (
 	"os"
 	"path/filepath"
 
+	domainplace "github.com/aq2bq/hergy/internal/domain/place"
+
 	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/i18n"
@@ -35,7 +37,7 @@ type r2PageData struct {
 // the client script draws the tabs, the rows and the three tab bodies from the
 // data island.
 func (s *Server) r2Page(w http.ResponseWriter, r *http.Request, tab string) {
-	scoped, refusal := s.withProject(projectQuery(r))
+	scoped, refusal := s.withProjectInput(projectQuery(r))
 	if refusal != nil {
 		writeJSON(w, refusal.status, refusal)
 		return
@@ -65,7 +67,7 @@ func (s *Server) r2Page(w http.ResponseWriter, r *http.Request, tab string) {
 // gets its roles/ here (n-86c7, d-4cba). The place is the screen's word; the
 // catalog says which directory it is.
 func (s *Server) r2RolesDir(place string) error {
-	dir := s.cat.LayerDir(catalog.Layer(place))
+	dir := s.cat.LayerDir(domainplace.Selection(place).Layer())
 	if _, err := os.Stat(dir); err != nil {
 		return i18n.Errorf("error.roles_no_layer", s.cat.Display(dir))
 	}

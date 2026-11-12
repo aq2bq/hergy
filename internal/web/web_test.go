@@ -46,7 +46,10 @@ type fixture struct {
 
 func newFixture(t *testing.T) *fixture {
 	t.Helper()
-	root := t.TempDir()
+	root, rootErr := filepath.EvalSymlinks(t.TempDir())
+	if rootErr != nil {
+		t.Fatal(rootErr)
+	}
 	f := &fixture{
 		root:   root,
 		proj:   filepath.Join(root, "proj"),
@@ -101,7 +104,7 @@ func readFile(t *testing.T, path string) string {
 
 // catalog is the catalog the screens read through.
 func (f *fixture) catalog() *catalog.Catalog {
-	return catalog.New(f.global, filepath.Join(f.proj, ".hergy"), f.proj, source.Disk{}, func(path string) string { return path }).InRepo(true)
+	return catalog.New(f.global, filepath.Join(f.proj, ".hergy"), projectPath(f.proj), source.Disk{}, func(path string) string { return path }).InRepo(true)
 }
 
 // server builds the server over the fixture, with no activity reading: the

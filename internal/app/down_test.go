@@ -77,7 +77,7 @@ func TestDownClosesATeamThatStoppedBeforeAnyAgentRan(t *testing.T) {
 
 			// The team's turn, as the watcher left it, goes with the team (r-103d).
 			stateDir := filepath.Join(f.state, "hergy")
-			if err := turns.Save(turns.Path(stateDir, "turnwalk"), &turns.State{Team: "turnwalk", Holder: "lead"}); err != nil {
+			if err := turns.Save(turns.Path(stateDir, "turnwalk"), &turns.State{Team: fixtureSeen("turnwalk"), Holder: "lead"}); err != nil {
 				t.Fatal(err)
 			}
 			if err := turns.WriteTell(turns.TellDir(stateDir, "turnwalk"), turns.Tell{From: "lead", To: "builder", At: time.Now()}); err != nil {
@@ -444,5 +444,28 @@ func TestDownSaysNothingAboutLeftoversInTheProjectRoot(t *testing.T) {
 	got := mustRun(t, "down", "draft", "--lang", "ja")
 	if strings.Contains(got, "残っているもの") || strings.Contains(got, "git worktree remove") {
 		t.Errorf("down says something is left when the project holds nothing:\n%s", got)
+	}
+}
+
+func TestDownDryFindsASlashTeamThroughItsRemainingWorkerTab(t *testing.T) {
+	f := newFixture(t)
+	f.herdr(t, `#!/bin/sh
+case "$1 $2" in
+ "agent list") echo '{"result":{"agents":[]}}' ;;
+ "tab list") echo '{"result":{"tabs":[{"tab_id":"w1","label":"worker:Upper/a/1"}]}}' ;;
+ "pane list") echo '{"result":{"panes":[{"pane_id":"p1","label":"Upper/a-1","tab_id":"w1"}]}}' ;;
+ *) echo '{"result":{}}' ;;
+esac
+`)
+	got := mustRun(t, "down", "Upper/a", "--dry", "--json")
+	var plan struct {
+		Team    string   `json:"team"`
+		Workers []string `json:"workers"`
+	}
+	if err := json.Unmarshal([]byte(got), &plan); err != nil {
+		t.Fatal(err)
+	}
+	if plan.Team != "Upper/a" || len(plan.Workers) != 1 || plan.Workers[0] != "Upper/a-1" {
+		t.Fatalf("plan=%+v", plan)
 	}
 }

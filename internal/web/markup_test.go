@@ -52,6 +52,9 @@ func TestTheDomIsWrittenOnlyByRender(t *testing.T) {
 		}
 		path = filepath.ToSlash(path)
 		if d.IsDir() {
+			if d.Name() != "." && strings.HasPrefix(d.Name(), ".") {
+				return fs.SkipDir
+			}
 			return nil
 		}
 		if !strings.HasSuffix(path, ".js") && !strings.HasSuffix(path, ".ts") && !strings.HasSuffix(path, ".tsx") {

@@ -18,8 +18,8 @@ func humanID() NodeID { return Human{}.ID() }
 func TestNewGraphMakesTheWorkerEdges(t *testing.T) {
 	turns := []Edge{turn(memberID("lead"), humanID())}
 	g := NewGraph(
-		[]MemberNode{{Name: "lead", Role: "lead", Profile: "claude-main"}, {Name: "impl", Role: "impl", Profile: "claude-main"}},
-		[]WorkerNode{{From: "lead", Purpose: "調査", Profile: "seeker"}},
+		[]MemberNode{{Name: fixtureMemberName("lead"), Role: "lead", Profile: "claude-main"}, {Name: fixtureMemberName("impl"), Role: "impl", Profile: "claude-main"}},
+		[]WorkerNode{{From: "lead", Purpose: testPurpose("調査"), Profile: "seeker"}},
 		turns,
 	)
 	want := []Edge{
@@ -45,7 +45,7 @@ func TestNewGraphMakesTheWorkerEdges(t *testing.T) {
 }
 
 func TestGraphFindsItsNodes(t *testing.T) {
-	g := NewGraph([]MemberNode{{Name: "lead", Role: "lead"}}, nil, nil)
+	g := NewGraph([]MemberNode{{Name: fixtureMemberName("lead"), Role: "lead"}}, nil, nil)
 	if member, ok := g.Member("lead"); !ok || member.Role != "lead" {
 		t.Errorf("Member(lead) = %+v, %v", member, ok)
 	}
@@ -63,8 +63,8 @@ func TestGraphFindsItsNodes(t *testing.T) {
 func TestGraphCheck(t *testing.T) {
 	t.Run("a sound graph has no problem", func(t *testing.T) {
 		g := NewGraph(
-			[]MemberNode{{Name: "lead"}, {Name: "impl"}},
-			[]WorkerNode{{From: "lead", Purpose: "調査", Profile: "seeker"}},
+			[]MemberNode{{Name: fixtureMemberName("lead")}, {Name: fixtureMemberName("impl")}},
+			[]WorkerNode{{From: "lead", Purpose: testPurpose("調査"), Profile: "seeker"}},
 			[]Edge{turn(humanID(), memberID("lead")), turn(memberID("lead"), memberID("impl")), turn(memberID("impl"), humanID())},
 		)
 		if problems := g.Check(); len(problems) != 0 {
@@ -72,7 +72,7 @@ func TestGraphCheck(t *testing.T) {
 		}
 	})
 	t.Run("a worker whose member is not there", func(t *testing.T) {
-		g := NewGraph(nil, []WorkerNode{{From: "lead", Purpose: "調査"}}, []Edge{turn(humanID(), humanID())})
+		g := NewGraph(nil, []WorkerNode{{From: "lead", Purpose: testPurpose("調査")}}, []Edge{turn(humanID(), humanID())})
 		problems := g.Check()
 		var found *Problem
 		for i := range problems {
@@ -88,7 +88,7 @@ func TestGraphCheck(t *testing.T) {
 		}
 	})
 	t.Run("a turn whose ends are not nodes", func(t *testing.T) {
-		g := NewGraph([]MemberNode{{Name: "lead"}}, nil, []Edge{
+		g := NewGraph([]MemberNode{{Name: fixtureMemberName("lead")}}, nil, []Edge{
 			turn(humanID(), memberID("lead")), turn(memberID("lead"), memberID("impl")), turn(memberID("lead"), humanID()),
 		})
 		problems := g.Check()
@@ -100,7 +100,7 @@ func TestGraphCheck(t *testing.T) {
 		}
 	})
 	t.Run("the same turn twice", func(t *testing.T) {
-		g := NewGraph([]MemberNode{{Name: "lead"}}, nil, []Edge{
+		g := NewGraph([]MemberNode{{Name: fixtureMemberName("lead")}}, nil, []Edge{
 			turn(humanID(), memberID("lead")), turn(memberID("lead"), humanID()), turn(memberID("lead"), humanID()),
 		})
 		problems := g.Check()
@@ -109,7 +109,7 @@ func TestGraphCheck(t *testing.T) {
 		}
 	})
 	t.Run("a turn to itself", func(t *testing.T) {
-		g := NewGraph([]MemberNode{{Name: "lead"}}, nil, []Edge{turn(humanID(), memberID("lead")), turn(memberID("lead"), humanID()), turn(memberID("lead"), memberID("lead"))})
+		g := NewGraph([]MemberNode{{Name: fixtureMemberName("lead")}}, nil, []Edge{turn(humanID(), memberID("lead")), turn(memberID("lead"), humanID()), turn(memberID("lead"), memberID("lead"))})
 		problems := g.Check()
 		if len(problems) != 1 || problems[0].Key != "error.graph_self_loop" {
 			t.Fatalf("Check = %+v, want the turn to itself", problems)
@@ -117,7 +117,7 @@ func TestGraphCheck(t *testing.T) {
 	})
 	// I12a: every node hands the turn on.
 	t.Run("a member who hands the turn to nobody", func(t *testing.T) {
-		g := NewGraph([]MemberNode{{Name: "lead"}, {Name: "impl"}}, nil, []Edge{turn(humanID(), memberID("lead")), turn(memberID("lead"), humanID())})
+		g := NewGraph([]MemberNode{{Name: fixtureMemberName("lead")}, {Name: fixtureMemberName("impl")}}, nil, []Edge{turn(humanID(), memberID("lead")), turn(memberID("lead"), humanID())})
 		problems := g.Check()
 		if len(problems) != 1 || problems[0].Key != "error.graph_member_no_turn" {
 			t.Fatalf("Check = %+v, want the member with no turn", problems)
@@ -127,7 +127,7 @@ func TestGraphCheck(t *testing.T) {
 		}
 	})
 	t.Run("a human who hands the turn to nobody", func(t *testing.T) {
-		g := NewGraph([]MemberNode{{Name: "lead"}}, nil, []Edge{turn(memberID("lead"), humanID())})
+		g := NewGraph([]MemberNode{{Name: fixtureMemberName("lead")}}, nil, []Edge{turn(memberID("lead"), humanID())})
 		problems := g.Check()
 		if len(problems) != 1 || problems[0].Key != "error.graph_human_no_turn" {
 			t.Fatalf("Check = %+v, want the human with no turn", problems)
@@ -140,8 +140,8 @@ func TestGraphCheck(t *testing.T) {
 	// member is not a turn to the human.
 	t.Run("no turn reaches the human", func(t *testing.T) {
 		g := NewGraph(
-			[]MemberNode{{Name: "lead"}, {Name: "impl"}},
-			[]WorkerNode{{From: "lead", Purpose: "調査", Profile: "seeker"}},
+			[]MemberNode{{Name: fixtureMemberName("lead")}, {Name: fixtureMemberName("impl")}},
+			[]WorkerNode{{From: "lead", Purpose: testPurpose("調査"), Profile: "seeker"}},
 			[]Edge{turn(humanID(), memberID("lead")), turn(memberID("lead"), memberID("impl")), turn(memberID("impl"), memberID("lead"))},
 		)
 		problems := g.Check()
@@ -179,7 +179,7 @@ func TestNodeIDsAreWrittenTheWaySettingsWriteThem(t *testing.T) {
 
 // workerID is a worker node's identity, so a test does not spell out the kind.
 func workerID(from, purpose string) NodeID {
-	return WorkerNode{From: from, Purpose: purpose}.ID()
+	return WorkerNode{From: from, Purpose: testPurpose(purpose)}.ID()
 }
 
 // TestGraphCheckRefusesACutOffTurn: I13a (every member is reached from the
@@ -195,7 +195,7 @@ func TestGraphCheckRefusesACutOffTurn(t *testing.T) {
 		return out
 	}
 	t.Run("an island: two members the turn never reaches and never comes back from", func(t *testing.T) {
-		g := NewGraph([]MemberNode{{Name: "a"}, {Name: "b"}, {Name: "c"}}, nil, []Edge{
+		g := NewGraph([]MemberNode{{Name: fixtureMemberName("a")}, {Name: fixtureMemberName("b")}, {Name: fixtureMemberName("c")}}, nil, []Edge{
 			turn(humanID(), memberID("a")), turn(memberID("a"), humanID()),
 			turn(memberID("b"), memberID("c")), turn(memberID("c"), memberID("b")),
 		})
@@ -215,7 +215,7 @@ func TestGraphCheckRefusesACutOffTurn(t *testing.T) {
 		}
 	})
 	t.Run("no way back: a ring the turn enters and never leaves", func(t *testing.T) {
-		g := NewGraph([]MemberNode{{Name: "a"}, {Name: "b"}, {Name: "c"}}, nil, []Edge{
+		g := NewGraph([]MemberNode{{Name: fixtureMemberName("a")}, {Name: fixtureMemberName("b")}, {Name: fixtureMemberName("c")}}, nil, []Edge{
 			turn(humanID(), memberID("a")), turn(memberID("a"), memberID("b")), turn(memberID("b"), memberID("c")),
 			turn(memberID("c"), memberID("b")), turn(memberID("a"), humanID()),
 		})
@@ -225,7 +225,7 @@ func TestGraphCheckRefusesACutOffTurn(t *testing.T) {
 		}
 	})
 	t.Run("unreached: a member nobody hands the turn to", func(t *testing.T) {
-		g := NewGraph([]MemberNode{{Name: "a"}, {Name: "b"}}, nil, []Edge{
+		g := NewGraph([]MemberNode{{Name: fixtureMemberName("a")}, {Name: fixtureMemberName("b")}}, nil, []Edge{
 			turn(humanID(), memberID("a")), turn(memberID("a"), humanID()), turn(memberID("b"), memberID("a")),
 		})
 		want := []string{"node:b error.graph_member_unreached"}
@@ -234,15 +234,15 @@ func TestGraphCheckRefusesACutOffTurn(t *testing.T) {
 		}
 	})
 	t.Run("a member with no turn is I12a's alone", func(t *testing.T) {
-		g := NewGraph([]MemberNode{{Name: "a"}, {Name: "b"}}, nil, []Edge{turn(humanID(), memberID("a")), turn(memberID("a"), humanID())})
+		g := NewGraph([]MemberNode{{Name: fixtureMemberName("a")}, {Name: fixtureMemberName("b")}}, nil, []Edge{turn(humanID(), memberID("a")), turn(memberID("a"), humanID())})
 		want := []string{"node:b error.graph_member_no_turn"}
 		if got := keys(g.Check()); strings.Join(got, ",") != strings.Join(want, ",") {
 			t.Fatalf("Check = %v, want %v", got, want)
 		}
 	})
 	t.Run("the 2026-11-05 team: dev reached through spec and back through spec and lead", func(t *testing.T) {
-		g := NewGraph([]MemberNode{{Name: "lead"}, {Name: "spec"}, {Name: "dev"}},
-			[]WorkerNode{{From: "spec", Purpose: "開発", Profile: "ds4f"}},
+		g := NewGraph([]MemberNode{{Name: fixtureMemberName("lead")}, {Name: fixtureMemberName("spec")}, {Name: fixtureMemberName("dev")}},
+			[]WorkerNode{{From: "spec", Purpose: testPurpose("開発"), Profile: "ds4f"}},
 			[]Edge{
 				turn(humanID(), memberID("lead")), turn(memberID("lead"), humanID()), turn(memberID("lead"), memberID("spec")),
 				turn(memberID("spec"), memberID("lead")), turn(memberID("dev"), memberID("spec")), turn(memberID("spec"), memberID("dev")),

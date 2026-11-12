@@ -3,8 +3,11 @@ package app
 import (
 	"fmt"
 	"io"
-	"os"
 	"time"
+
+	"github.com/aq2bq/hergy/internal/ops"
+
+	domainname "github.com/aq2bq/hergy/internal/domain/name"
 
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/options"
@@ -21,9 +24,9 @@ import (
 // pane as the person's, so the watcher does not ask who it is for (d-e601).
 // --dry prints the message and sends and records nothing.
 func runTell(env team.Env, opts *options.Options, stdout io.Writer) error {
-	resolve := resolveTeam
+	resolve := ops.ResolveTeam
 	if opts.Dry {
-		resolve = resolveTeamDry
+		resolve = ops.ResolveTeamDry
 	}
 	r, err := resolve(env.Catalog(source.Disk{}), env.ProjectRoot, opts)
 	if err != nil {
@@ -35,53 +38,53 @@ func runTell(env team.Env, opts *options.Options, stdout io.Writer) error {
 	if opts.Body == "" {
 		return i18n.Errorf("error.tell_needs_body")
 	}
-	member, err := r.member(opts.Member)
+	member, err := r.Member(opts.Member)
 	if err != nil {
 		return err
 	}
-	from := ""
+	from := domainname.Seen{}
 	if opts.From != "" {
-		found, err := r.member(opts.From)
+		found, err := r.Member(opts.From)
 		if err != nil {
 			return i18n.Errorf("error.tell_from_unknown", opts.From)
 		}
-		from = found.Name
+		from = found.Name.Observation()
 	} else if !opts.Dry {
-		from = senderName(r, os.Getenv("HERDR_PANE_ID"))
+		from = senderName(r, ops.CurrentPane())
 	}
-	text := sendText(from, opts.Body)
+	text := sendText(from.String(), opts.Body)
 	if opts.Dry {
-		fmt.Fprintf(stdout, i18n.T("send.dry"), member.Name, text)
+		fmt.Fprintf(stdout, i18n.T("send.dry"), member.Name.String(), text)
 		return nil
 	}
-	if err := newLauncher(r, opts.Timeout, stdout).Tell(member, text); err != nil {
+	if err := launcherFor(r, opts.Timeout, stdout).Tell(member, text); err != nil {
 		return err
 	}
-	return recordTell(r.team.Name, from, shortMember(member.Name, r.team.Name))
+	return recordTell(r.Team.Name.Observation(), from, domainname.ShortIn(member.Name.Observation(), r.Team.Name.Observation()).String())
 }
 
 // tellHuman records that the member whose pane hergy runs in (or --from) marked
 // its text as the person's. Nothing is sent: the person reads the pane. From
 // a pane that is no member's there is nothing to mark, and it is refused.
-func tellHuman(r *resolved, opts *options.Options, stdout io.Writer) error {
-	from := ""
+func tellHuman(r *ops.Resolved, opts *options.Options, stdout io.Writer) error {
+	from := domainname.Seen{}
 	if opts.From != "" {
-		found, err := r.member(opts.From)
+		found, err := r.Member(opts.From)
 		if err != nil {
 			return i18n.Errorf("error.tell_from_unknown", opts.From)
 		}
-		from = found.Name
+		from = found.Name.Observation()
 	} else if !opts.Dry {
-		from = senderName(r, os.Getenv("HERDR_PANE_ID"))
+		from = senderName(r, ops.CurrentPane())
 	}
 	if opts.Dry {
 		fmt.Fprint(stdout, i18n.T("send.dry_human"))
 		return nil
 	}
-	if from == "" {
+	if from.String() == "" {
 		return i18n.Errorf("error.tell_human_from_person")
 	}
-	if err := recordTell(r.team.Name, from, turns.Human); err != nil {
+	if err := recordTell(r.Team.Name.Observation(), from, turns.Human); err != nil {
 		return err
 	}
 	fmt.Fprint(stdout, i18n.T("send.told_human"))
@@ -92,14 +95,14 @@ func tellHuman(r *resolved, opts *options.Options, stdout io.Writer) error {
 // turn to whom, the sender by herdr name (the person as ""), the recipient by
 // short name or turns.Human. A tell nobody watches for is still recorded; the
 // watcher drops what waited before it started.
-func recordTell(teamName, fromHerdr, to string) error {
+func recordTell(teamName, fromHerdr domainname.Seen, to string) error {
 	dir, err := screenlog.DefaultDir()
 	if err != nil {
 		return err
 	}
 	from := ""
-	if fromHerdr != "" {
-		from = shortMember(fromHerdr, teamName)
+	if fromHerdr.String() != "" {
+		from = domainname.ShortIn(fromHerdr, teamName).String()
 	}
-	return turns.WriteTell(turns.TellDir(dir, teamName), turns.Tell{From: from, To: to, At: time.Now()})
+	return turns.WriteTell(turns.TellDir(dir, teamName.String()), turns.Tell{From: from, To: to, At: time.Now()})
 }

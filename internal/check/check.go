@@ -12,6 +12,8 @@ import (
 	"slices"
 	"strings"
 
+	domainname "github.com/aq2bq/hergy/internal/domain/name"
+
 	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/i18n"
@@ -226,7 +228,7 @@ func BreakLine(display func(string) string, path string, err error) string {
 // than the file on disk.
 func promptFindings(in Input, def *definition.Definition) []Finding {
 	run := prompt.Run{
-		Team: def.Name, Reader: in.Catalog.Reader(), Sources: in.Catalog,
+		Team: domainname.DefinitionNames(def.Name), Reader: in.Catalog.Reader(), Sources: in.Catalog,
 		Display: in.Catalog.Display, Base: in.Catalog.Base(),
 	}
 	var out []Finding
@@ -239,7 +241,7 @@ func promptFindings(in Input, def *definition.Definition) []Finding {
 		}
 		finding := Finding{
 			Field: key,
-			Text:  BreakLine(in.Catalog.Display, def.TeamYAML, err),
+			Text:  BreakLine(in.Catalog.Display, def.TeamYAML.String(), err),
 			Kind:  KindPrompt,
 			Stops: true,
 		}
@@ -281,7 +283,7 @@ func roleNameFindings(in Input, def *definition.Definition) []Finding {
 		label := fmt.Sprintf("members[%d]", i)
 		out = append(out, Finding{
 			Field: label + ".role",
-			Text:  BreakLine(in.Catalog.Display, def.TeamYAML, err),
+			Text:  BreakLine(in.Catalog.Display, def.TeamYAML.String(), err),
 			Kind:  KindRead,
 			Stops: true,
 		})
@@ -306,7 +308,7 @@ func profileFindings(in Input, def *definition.Definition) []Finding {
 		label := fmt.Sprintf("members[%d]", i)
 		out = append(out, Finding{
 			Field: label + ".profile",
-			Text:  BreakLine(in.Catalog.Display, def.TeamYAML, i18n.Errorf("error.no_profile", label, node.Profile)),
+			Text:  BreakLine(in.Catalog.Display, def.TeamYAML.String(), i18n.Errorf("error.no_profile", label, node.Profile)),
 			Kind:  KindRead,
 			Stops: true,
 		})
@@ -319,7 +321,7 @@ func profileFindings(in Input, def *definition.Definition) []Finding {
 		label := fmt.Sprintf("workers[%d]", i)
 		out = append(out, Finding{
 			Field: label,
-			Text:  BreakLine(in.Catalog.Display, def.TeamYAML, i18n.Errorf("error.workers_no_profile", label, worker.Profile)),
+			Text:  BreakLine(in.Catalog.Display, def.TeamYAML.String(), i18n.Errorf("error.workers_no_profile", label, worker.Profile)),
 			Kind:  KindRead,
 			Stops: true,
 		})
@@ -330,8 +332,8 @@ func profileFindings(in Input, def *definition.Definition) []Finding {
 // memberPromptError is what stops one member's prompt from being built, and the
 // field it is about.
 func memberPromptError(def *definition.Definition, node *definition.MemberNode, run prompt.Run, i int) (string, error) {
-	if _, err := prompt.MemberName(run.Team, node); err != nil {
-		return fmt.Sprintf("members[%d].name", i), err
+	if _, err := run.Team.MemberTarget(node.Name); err != nil {
+		return fmt.Sprintf("members[%d].name", i), i18n.Errorf("error.herdr_name_pattern", run.Team.Member(node.Name))
 	}
 	if _, err := prompt.Member(def, node, run); err != nil {
 		return promptField(err, node, i), err

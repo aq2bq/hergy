@@ -53,7 +53,7 @@ func t2ChosenOf(in apiIn) t2Chosen {
 // stands on may name a role document and a profile only its project holds
 // (r-7e4a, d-dc81).
 func t2IsCopyToGlobal(in apiIn, row t2DraftRow) bool {
-	return in.Base != nil && row.Layer == source.LayerGlobal && catalog.Layer(in.Base.Place) == source.LayerLocal
+	return in.Base != nil && row.Layer == source.LayerGlobal && in.Base.Place.Layer() == source.LayerLocal
 }
 
 // t2CarryOf settles what one copy brings with it: the role documents and
@@ -69,7 +69,7 @@ func (s *Server) t2CarryOf(in apiIn, row t2DraftRow, def *definition.Definition)
 	if def == nil || def.Graph == nil {
 		return nil
 	}
-	from, refusal := s.withProject(in.Base.Project)
+	from, refusal := s.withProjectInput(in.Base.Project)
 	if refusal != nil {
 		return nil
 	}
@@ -157,10 +157,10 @@ func (s *Server) carryIn(in apiIn) *newteam.Carry {
 	if in.Base == nil || len(chosen.Roles)+len(chosen.Profiles) == 0 {
 		return nil
 	}
-	if catalog.Layer(in.Base.Place) != source.LayerLocal || catalog.Layer(in.Place) != source.LayerGlobal {
+	if in.Base.Place.Layer() != source.LayerLocal || in.Place.Layer() != source.LayerGlobal {
 		return nil
 	}
-	from, refusal := s.withProject(in.Base.Project)
+	from, refusal := s.withProjectInput(in.Base.Project)
 	if refusal != nil {
 		return nil
 	}
@@ -188,13 +188,13 @@ func (s *Server) carryFindings(carry *t2Carry, chosen t2Chosen, def *definition.
 				if chosen.Roles[member.Role] {
 					continue
 				}
-				finding.Text = tf("error.role_to_carry", member.Name, member.Role, place, dir, place)
+				finding.Text = tf("error.role_to_carry", member.Name.String(), member.Role, place, dir, place)
 			}
 			if strings.HasSuffix(finding.Field, ".profile") && carry.holdsProfile(member.Profile) {
 				if chosen.Profiles[member.Profile] {
 					continue
 				}
-				finding.Text = tf("error.profile_to_carry", member.Name, member.Profile, place, dir, place)
+				finding.Text = tf("error.profile_to_carry", member.Name.String(), member.Profile, place, dir, place)
 			}
 		}
 		if i, ok := t2WorkerIndex(finding.Field); ok && i < len(def.Graph.Workers) {

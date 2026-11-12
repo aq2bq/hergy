@@ -3,6 +3,8 @@ package web
 import (
 	"net/http"
 
+	domainplace "github.com/aq2bq/hergy/internal/domain/place"
+
 	"github.com/aq2bq/hergy/internal/deliver"
 )
 
@@ -55,10 +57,10 @@ type ApplyList struct {
 // rather than a member's (a worker profile change takes effect from the next
 // worker, so it is not applied to anyone).
 type ApplyTeam struct {
-	Team        string `json:"team"`
-	Definition  string `json:"definition"`
-	Project     string `json:"project"`
-	ProjectName string `json:"project_name"`
+	Team        string              `json:"team"`
+	Definition  string              `json:"definition"`
+	Project     domainplace.Project `json:"project"`
+	ProjectName string              `json:"project_name"`
 	// Error is why the definition cannot be built, in the words hergy status
 	// uses. Such a team has no member to apply.
 	Error   string        `json:"error,omitempty"`

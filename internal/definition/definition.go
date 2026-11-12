@@ -11,6 +11,8 @@
 package definition
 
 import (
+	domainname "github.com/aq2bq/hergy/internal/domain/name"
+	domainplace "github.com/aq2bq/hergy/internal/domain/place"
 	"github.com/aq2bq/hergy/internal/source"
 )
 
@@ -18,7 +20,7 @@ import (
 // files in it.
 type Definition struct {
 	// Name is the directory name under teams/.
-	Name string
+	Name domainname.DefinitionName
 	// Description is one line: which case the team is meant for (d-5f55). It is
 	// required, and the team's behaviour does not read it.
 	Description string
@@ -29,7 +31,7 @@ type Definition struct {
 	// Dir is the definition's own directory, and TeamYAML the file it was read
 	// from.
 	Dir      string
-	TeamYAML string
+	TeamYAML domainplace.Seen
 	// Layer is where it was found (local or global). The layer stays inside
 	// hergy: it is not a word a person reads (I11).
 	Layer string
@@ -54,7 +56,7 @@ type Definition struct {
 // engine it runs (its profile) and the prompt it is handed are projections of
 // the definition and the catalog, not fields of the frame.
 type MemberNode struct {
-	Name    string // the short name team.yaml writes
+	Name    domainname.MemberName // the short name team.yaml writes
 	Role    string
 	Profile string
 	Cwd     string
@@ -65,19 +67,21 @@ type MemberNode struct {
 }
 
 // ID is the node's identity in the graph: a member is its name.
-func (m MemberNode) ID() NodeID { return NodeID{Kind: KindMember, Name: m.Name} }
+func (m MemberNode) ID() NodeID { return NodeID{Kind: KindMember, Name: m.Name.String()} }
 
 // WorkerNode is one worker a member may hire: the purpose it is hired for and
 // the profile it runs. Its identity is the member that hires it and the purpose
 // (I12c).
 type WorkerNode struct {
 	From    string // the member that hires it
-	Purpose string
+	Purpose domainname.Purpose
 	Profile string
 }
 
 // ID is the node's identity: the hiring member and the purpose.
-func (w WorkerNode) ID() NodeID { return NodeID{Kind: KindWorker, Name: w.From + "/" + w.Purpose} }
+func (w WorkerNode) ID() NodeID {
+	return NodeID{Kind: KindWorker, Name: w.From + "/" + w.Purpose.String()}
+}
 
 // Human is the human: one person, outside every team, who decides. In the graph
 // it is the team's boundary (I12b, d-11f8). Its name in a settings file is
