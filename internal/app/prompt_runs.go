@@ -3,13 +3,13 @@ package app
 import (
 	"encoding/hex"
 	"fmt"
+	"github.com/aq2bq/hergy/internal/ops"
 	"sync"
 	"time"
 
 	domainplace "github.com/aq2bq/hergy/internal/domain/place"
 
 	"github.com/aq2bq/hergy/internal/catalog"
-	"github.com/aq2bq/hergy/internal/launchlog"
 	"github.com/aq2bq/hergy/internal/web"
 )
 
@@ -113,11 +113,7 @@ func (a *activityRead) PromptHistory(_ domainplace.Project, definition, place, m
 		return out, err
 	}
 	path := cat.TeamPath(definition, domainplace.Selection(place).Layer())
-	log, err := launchlog.Open()
-	if err != nil {
-		return out, err
-	}
-	records, err := log.Read()
+	records, err := ops.ReadLaunchRecords()
 	if err != nil {
 		return out, err
 	}
@@ -131,7 +127,7 @@ func (a *activityRead) PromptHistory(_ domainplace.Project, definition, place, m
 	if err != nil || len(hash) != 32 {
 		return out, fmt.Errorf("記録の本文ハッシュが壊れています")
 	}
-	text, err := log.Text(entry.Prompt)
+	text, err := ops.RecordedPromptText(entry.Prompt)
 	if err != nil {
 		return out, fmt.Errorf("記録の本文を読めません: %w", err)
 	}

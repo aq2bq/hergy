@@ -1,16 +1,13 @@
-package app
+package ops
 
 import (
 	"fmt"
 	"io"
 	"maps"
-	"os"
 	"slices"
 	"strings"
 	"time"
 	"unicode"
-
-	"golang.org/x/sys/unix"
 
 	"github.com/aq2bq/hergy/internal/turns"
 )
@@ -237,13 +234,7 @@ func clip(s string, width int) string {
 }
 
 // terminalWidth is the width of the terminal the watcher runs in, or the default.
-func terminalWidth() int {
-	ws, err := unix.IoctlGetWinsize(int(os.Stdout.Fd()), unix.TIOCGWINSZ)
-	if err != nil || ws.Col == 0 {
-		return bandDefaultWidth
-	}
-	return int(ws.Col)
-}
+func terminalWidth() int { return bandDefaultWidth }
 
 // screen draws the band in place: it clears the pane once, then rewrites the
 // same lines from the top on every draw, and never ends the last line, so the

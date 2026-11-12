@@ -373,11 +373,7 @@ func (h *hqRead) runningIn(path domainplace.Project) int {
 
 // launchRecords is this machine's launch record, oldest first.
 func (h *hqRead) launchRecords() []launchlog.Record {
-	log, err := launchlog.Open()
-	if err != nil {
-		return nil
-	}
-	records, err := log.Read()
+	records, err := ops.ReadLaunchRecords()
 	if err != nil {
 		return nil
 	}

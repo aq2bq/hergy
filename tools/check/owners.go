@@ -66,15 +66,15 @@ var ownerRules = []ownerRule{
 	// The turn's holder (r-bc26): the step that moves the turn and the write of
 	// its state are called by the watcher alone; status and the screens only
 	// read it (turns.Load).
-	{name: "turns.Step", where: "go", files: []string{"internal/app/turns.go"}},
-	{name: "turns.Save", where: "go", files: []string{"internal/app/turns.go"}},
-	{name: "Undelivered(", where: "go", files: []string{"internal/turns/", "internal/app/turns.go"}},
-	{name: "turns.TakeSignals", where: "go", files: []string{"internal/app/turns.go"}},
-	{name: "turns.WriteSignal", where: "go", files: []string{"internal/app/turn_done.go"}},
-	{name: "turns.TakeTells", where: "go", files: []string{"internal/app/turns.go"}},
-	{name: "turns.WriteTell", where: "go", files: []string{"internal/app/tell.go"}},
+	{name: "turns.Step", where: "go", files: []string{"internal/ops/turns.go"}},
+	{name: "turns.Save", where: "go", files: []string{"internal/ops/turns.go"}},
+	{name: "Undelivered(", where: "go", files: []string{"internal/turns/", "internal/ops/turns.go"}},
+	{name: "turns.TakeSignals", where: "go", files: []string{"internal/ops/turns.go"}},
+	{name: "turns.WriteSignal", where: "go", files: []string{"internal/ops/turn_done.go"}},
+	{name: "turns.TakeTells", where: "go", files: []string{"internal/ops/turns.go"}},
+	{name: "turns.WriteTell", where: "go", files: []string{"internal/ops/tell.go"}},
 	{name: "turns.Clear(", where: "go", files: []string{"internal/ops/stop.go"}},
-	{name: "Unanswered(", where: "go", files: []string{"internal/turns/", "internal/app/turns.go"}},
+	{name: "Unanswered(", where: "go", files: []string{"internal/turns/", "internal/ops/turns.go"}},
 	{name: "harness.Wire(", where: "go", files: []string{"internal/ops/wire.go"}},
 }
 

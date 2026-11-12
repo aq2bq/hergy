@@ -1,6 +1,7 @@
 package app
 
 import (
+	"github.com/aq2bq/hergy/internal/ops"
 	"path/filepath"
 	"time"
 
@@ -11,7 +12,6 @@ import (
 	"github.com/aq2bq/hergy/internal/activity"
 	"github.com/aq2bq/hergy/internal/herdr"
 	"github.com/aq2bq/hergy/internal/i18n"
-	"github.com/aq2bq/hergy/internal/launchlog"
 
 	"github.com/aq2bq/hergy/internal/team"
 	"github.com/aq2bq/hergy/internal/web"
@@ -136,11 +136,7 @@ func (h *hqRead) lastTeamsByWorkspace() map[string]string {
 // team.yaml its launch read, so two projects' same-named definitions do not take
 // each other's launch (M1).
 func (h *hqRead) lastWorkspaceOf(read herdrNow, teamYAML domainplace.Project) *web.HQWorkspace {
-	log, err := launchlog.Open()
-	if err != nil {
-		return nil
-	}
-	record, ok, err := log.Latest(teamYAML)
+	record, ok, err := ops.LatestLaunch(teamYAML)
 	if err != nil || !ok || record.WorkspaceID == "" {
 		return nil
 	}

@@ -20,7 +20,6 @@ import (
 	"github.com/aq2bq/hergy/internal/herdr"
 	"github.com/aq2bq/hergy/internal/herdrcli"
 	"github.com/aq2bq/hergy/internal/i18n"
-	"github.com/aq2bq/hergy/internal/launchlog"
 	"github.com/aq2bq/hergy/internal/protocol"
 	"github.com/aq2bq/hergy/internal/source"
 	"github.com/aq2bq/hergy/internal/team"
@@ -620,11 +619,7 @@ func docHired(t activity.Team, teamName domainname.Seen, now time.Time, titles, 
 // says no "が追加" for it.
 func hireSources(project domainplace.Project, teamName string) map[string]string {
 	out := map[string]string{}
-	log, err := launchlog.Open()
-	if err != nil {
-		return out
-	}
-	records, err := log.Read()
+	records, err := ops.ReadLaunchRecords()
 	if err != nil {
 		return out
 	}

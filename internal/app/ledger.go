@@ -1,6 +1,7 @@
 package app
 
 import (
+	"github.com/aq2bq/hergy/internal/ops"
 	"io"
 	"strings"
 
@@ -12,7 +13,6 @@ import (
 	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/gycli"
 	"github.com/aq2bq/hergy/internal/i18n"
-	"github.com/aq2bq/hergy/internal/launchlog"
 	"github.com/aq2bq/hergy/internal/team"
 )
 
@@ -74,11 +74,7 @@ func (c *ledgerCheck) load() {
 func teamNames(def *definition.Definition) []domainname.Naming {
 	names := []domainname.Naming{domainname.DefinitionNames(def.Name)}
 	seen := map[string]bool{def.Name.String(): true}
-	log, err := launchlog.Open()
-	if err != nil {
-		return names
-	}
-	records, err := log.Read()
+	records, err := ops.ReadLaunchRecords()
 	if err != nil {
 		return names
 	}

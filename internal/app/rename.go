@@ -23,11 +23,7 @@ func (a *activityRead) CheckDefinitionRename(target domainplace.Project) error {
 	if read.err != nil {
 		return hqRefuse(http.StatusServiceUnavailable, i18n.T("web.rename.unavailable"))
 	}
-	log, err := launchlog.Open()
-	if err != nil {
-		return hqRefuse(http.StatusServiceUnavailable, i18n.T("web.rename.unavailable"))
-	}
-	records, err := log.Read()
+	records, err := ops.ReadLaunchRecords()
 	if err != nil {
 		return hqRefuse(http.StatusServiceUnavailable, i18n.T("web.rename.unavailable"))
 	}
