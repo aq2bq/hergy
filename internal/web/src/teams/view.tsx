@@ -1,5 +1,4 @@
 import { runDanger } from '../lib/danger.js';
-import { TEAM as CHANGED_TEAM, TEAM_AGREEMENT as CHANGED_AGREEMENT, lost as changedLost } from '../lib/changed.js';
 import { ProjectView } from '../lib/project-view';
 // teams/view.tsx — チーム定義の画面の一覧とパネル（webui-preact-design 4 章）。
 //
@@ -18,7 +17,7 @@ import { transferKeys } from '../lib/prose-transfer-view.js';
 import { teamTransfer } from './prose-transfer.js';
 import { selectedRules, ruleSelection, selectRule } from './rule-selection.js';
 import { RoleColumn, roleSummary } from './role-modal.js';
-import { RuleDoc, Counts, Vm, Sev, clone } from '../lib/ruledoc.js';
+import { RuleDoc, Counts, Vm, Sev } from '../lib/ruledoc.js';
 import { chars } from '../lib/prose-editor.js';
 import { Field } from '../lib/field.js';
 import { ConflictNotice } from '../lib/conflict.js';
@@ -29,18 +28,17 @@ import { movePage } from '../lib/page-position.js';
 import {
   PLACES, PLACE, DIR, HQ, GROUPED, GROUPS, CURRENT, state, allRecs, groupRecs, rowsInGroup, placeGroups,
   dkey, currentProjectName, teamLabel, dtabOf, isOpenRow, missingOpen,
-  rowIssues, dirtyDef, writtenTeam, teamIssues, agreeIssues, agreementChanged, teamChanges, vlistParts,
+  rowIssues, dirtyDef, agreeIssues, agreementChanged, teamChanges, vlistParts,
   rowOfPanel, okOf, refusalOf, pmodeOf, yfiles, fileOf, yamlChanged, yIssues,
   chosenFile, scheduleAgree, syncURL, focusAsk, groupOfRecord,
   pressTab, pressToggle, pressNew, pressDup, pressCopy, pressDiscard,
   pressStarterRoles, pressStarterProfile, pressCarry,
   pressDelYes, pressName, pressDtab, pressPmode, bornTouched,
   pressTSave, pressTRevert, pressSave, pressRevert, pressVpick,
-  pressToastUndo, pressYfile, yamlState, yamlProblems, yamlRevert, yamlSaved, fileText,
+  pressToastUndo, pressYfile, fileText,
   conflictAt, pressOverwrite, pressRevertConflict, pressUndoConflict,
 } from './state.js';
 import type { Rec, TeamGroup, YFile } from './state.js';
-import type { Schemas } from '../lib/api';
 
 // messagesOf is the sentences a part draws its count from: the server's
 // findings carry `text`, the rules panel's own messages carry `msg`, and the
@@ -291,11 +289,7 @@ function Dacts({ r }: { r: Rec }) {
   const touched = () => bornTouched(r);
   const discard = () => {
     if (!touched()) { pressDiscard(r); return; }
-    const born = r.born.value;
-    runDanger('discardRow', { run: () => pressDiscard(r), lost: [
-      ...changedLost(CHANGED_TEAM, born ? born.team : null, writtenTeam(r)),
-      ...changedLost(CHANGED_AGREEMENT, born ? { text: born.agreement } : null, { text: r.agreeDraft.value.text }),
-    ], confirm: { title: '入力した内容を捨てますか', label: '破棄する' } });
+    runDanger('discardRow', { run: () => pressDiscard(r), lost: r.editing.bornLost.value, confirm: { title: '入力した内容を捨てますか', label: '破棄する' } });
   };
   if (r.draftRow) return <button class="btn danger" data-act="discard" data-danger data-danger-act="discardRow" onClick={discard}>取り消し</button>;
   const o = other(r.place.value);
@@ -454,13 +448,7 @@ function Foot({ r, agree }: { r: Rec; agree?: boolean }) {
   const ok = okOf(okKey) ? <span class="ok">保存しました</span> : null;
   // The gate is the saved team.yaml's own errors (spec-teams 1.3, X3): a save
   // stops only when an error the file did not hold has appeared.
-  const issues = teamIssues(r);
-  const before = new Set((r.baseFindings.value || []).filter((m) => m.sev === 'err').map((m) => m.text));
-  // A member with no turn and a definition no turn reaches the human from
-  // still save (r-df77, d-9abb): they stay as the definition's problem and
-  // stop up, but a save is where work in progress is kept. Those findings
-  // stand on a node (field 'node'); every other new error stops the save.
-  const grown = issues.filter((m) => m.sev === 'err' && m.field !== 'node' && !before.has(m.text));
+  const grown = r.editing.grew.value;
   const grew = grown.length > 0;
   const refusal = refusalOf(r, agree ? 'a' : 't');
   if (r.draftRow) {
@@ -487,10 +475,8 @@ function Foot({ r, agree }: { r: Rec; agree?: boolean }) {
   }
   if (agree) {
     const s = r.agreeSaved.value, d = agreementChanged(r);
-    const errs = agreeIssues(r);
-    const was = new Set((s && r.agreeSavedIssues.value ? r.agreeSavedIssues.value : errs).filter((m) => m.sev === 'err').map((m) => m.text));
     const empty = !s && !r.agreeDraft.value.text.length;
-    const blocked = empty || (!s ? errs.some((m) => m.sev === 'err') : (errs.some((m) => m.sev === 'err' && !was.has(m.text)) || !d));
+    const blocked = r.editing.agreementBlocked.value;
     return (
       <>{notice}<footer class="pf">
         <button class="btn primary" data-act="save" disabled={blocked} onClick={() => pressSave(r)}>保存</button><span class="errline doc" hidden={!refusal}>{refusal}</span><span class="dirty">{s && d ? `${d} か所` : ''}</span>{ok}
@@ -509,10 +495,6 @@ function Foot({ r, agree }: { r: Rec; agree?: boolean }) {
 // ---- 規則のパネル（ロールの画面と同じ共有の部品） --------------------
 // onChange is the shared part saying the document it was handed changed: the row
 // gets a new draft (a copy) and the check rides on it.
-function onChangeDraft(r: Rec): void {
-  r.agreeDraft.value = clone(r.agreeDraft.value);
-  scheduleAgree(r);
-}
 
 function AgreePanel({ r }: { r: Rec }) {
   const [scanned, setScanned] = useState<Record<string, string[]>>({});
@@ -566,7 +548,7 @@ function AgreePanel({ r }: { r: Rec }) {
         <RuleDoc transfer={r.draftRow ? undefined : teamTransfer(r)} row={rowOfPanel(r)} issues={agreeIssues(r)} hasName={false} heading={{ id: `team-prose-${r.uid}`, kind: 'チーム定義', name: r.name.value, title: r.agreeDraft.value.title,
             path: `${placeName(r.place.value)} · teams/${r.name.value}/agreement.md`, members: r.draft.value.members.map((m) => m.name).join('、'),
             template: r.check.value?.templateSize || 0, state: (agreementChanged(r) ? '未保存' : '保存済み') + (shadowed ? '（無効）' : '') }}
-          onChange={() => onChangeDraft(r)}
+          onDraft={(draft) => { r.editing.agreement.change(draft); scheduleAgree(r); }}
           onMode={(v: string) => pressPmode(r, v)}
           onURL={() => syncURL()} />
       </div>
@@ -628,12 +610,9 @@ function YamlFile({ f }: { f: YFile }) {
     <section class="yed" data-key={keyOfFile(f)} data-hash={f.hash}>
       <YamlTab label={f.label} path={f.path}
         badge={both ? { cls: 'state ' + (mark === 'hidden' ? 'off' : 'on'), text: mark === 'hidden' ? '無効' : '優先' } : null}
-        text={f.text} carried={state.value.ydraft[f.file] ?? null} hash={f.hash} kind="team" place={f.place} name={f.name} extra={{ part: f.kind }}
+        editing={f.editing} text={f.text} hash={f.hash} kind="team" place={f.place} name={f.name} extra={{ part: f.kind }}
         problems={yIssues(f.file)} problem={f.problem || ''}
-        onProblems={(probs: Schemas['Problem'][]) => yamlProblems(f.file, probs)}
-        onRevert={() => yamlRevert(f.file)}
-        onState={({ text }: { text: string }) => yamlState(f.file, { text })}
-        onSaved={(answer) => yamlSaved(f.file, answer)} />
+ />
     </section>
   );
 }

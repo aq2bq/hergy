@@ -134,7 +134,7 @@ export const currentGroupName = (): string => {
   return found ? found.name : ((p.current && p.current.name) || '');
 };
 
-function entryOf(l: Place, group: string, data: { saved: EditableDocument | null; draft: EditableDocument; hash: string; text: string; problem?: string; base?: ResourceIdentity<'role'> }): RoleEntry {
+function entryOf(l: Place, group: string, data: { saved: EditableDocument | null; draft: EditableDocument; hash: string; text: string; path?: string; problem?: string; base?: ResourceIdentity<'role'> }): RoleEntry {
   const identity = resourceIdentity('role', { place: l, project: projectOfGroup(group), name: data.saved?.name });
   const editing = editRole(identity, { ...data, saved: data.saved && identity.name ? { ...data.saved, name: identity.name } : null, readable: !data.problem });
   return entryView(editing, data.problem);
@@ -169,7 +169,7 @@ function rowsOf(model: RoleModel, group: string): RoleRow[] {
         // 1.2.10), and a file that cannot be read keeps its row with the reason
         // (r-ea17, d-17ab): neither stands on a saved document.
         const saved = r.noDoc || r[l].problem ? null : draft;
-        row[l] = entryOf(l, row.group, { saved, draft, hash: r[l].hash || '', text: r[l].text || '', problem: r[l].problem });
+        row[l] = entryOf(l, row.group, { saved, draft, hash: r[l].hash || '', text: r[l].text || '', path: r[l].path, problem: r[l].problem });
         if (r[l].path) row.paths[l] = r[l].path;
       } else { row[l] = null; }
     }
@@ -313,7 +313,7 @@ export const projectNameOf = (key: string): string => {
 export const pathOf = (l: Place, d: Pick<EditableDocument, 'name'>): string => DIR[l] + (d.name || '…') + '.md';
 // pathOfRow is the file one panel stands behind: the answer's own path when the
 // row is another project's, and the one this project's places build.
-export const pathOfRow = (r: RoleRow, l: Place, d: Pick<EditableDocument, 'name'>): string => (r.paths && r.paths[l]) || pathOf(l, d);
+export const pathOfRow = (r: RoleRow, l: Place, d: Pick<EditableDocument, 'name'>): string => r[l]?.editing.read.value.path || (r.paths && r.paths[l]) || pathOf(l, d);
 
 // ---- the rows, changed ----------------------------------------------
 // withRow puts a new row in place of one: the array is new, so every part that

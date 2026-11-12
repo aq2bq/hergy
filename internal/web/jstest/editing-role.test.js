@@ -218,3 +218,8 @@ test('a rename with identical file bytes rechecks the new original name while la
   expect(editing.read.value.baseProblems).toEqual([]);
   editing.dispose();
 });
+test('the accepted save owns the displayed file path after a rename', async () => {
+ serve(() => ({ doc: doc('renamed', 'next'), hash: 'h2', text: 'renamed', path: 'roles/next.md' }));
+ const e = open(); e.change(doc('renamed', 'next')); await e.save();
+ expect(e.read.value.path).toBe('roles/next.md'); e.dispose();
+});

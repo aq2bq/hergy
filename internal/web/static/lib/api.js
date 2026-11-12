@@ -11,7 +11,6 @@ import {
   token3,
   Refusal2,
   call2,
-  sendLegacy2,
   read2,
   list2,
   get2,
@@ -28,7 +27,7 @@ import {
   profileModel2,
   roleModel2,
   teamModel2
-} from "../chunk/nav-ghcq2kwy.js";
+} from "../chunk/nav-hz0pc9aj.js";
 export {
   Refusal2 as Refusal,
   applyCount2 as applyCount,
@@ -47,7 +46,6 @@ export {
   roleModel2 as roleModel,
   save2 as save,
   saved2 as saved,
-  sendLegacy2 as sendLegacy,
   teamModel2 as teamModel,
   token3 as token
 };

@@ -124,4 +124,4 @@ function profileFlags(saved, draft, readable = true) {
   return out;
 }
 
-export { snapshot, dirty, diff, lost, ROLE_DOC, TEAM, TEAM_AGREEMENT, PROFILE, PROFILE_ASSIGN, YAML_TEXT, roleDirty, assignDirty, profileFlags };
+export { same, snapshot, dirty, diff, lost, ROLE_DOC, TEAM, TEAM_AGREEMENT, PROFILE, PROFILE_ASSIGN, YAML_TEXT, roleDirty, assignDirty, profileFlags };

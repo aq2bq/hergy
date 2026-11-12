@@ -53,10 +53,10 @@ test('a team with no agreement goes back to the document it opened with', async 
   expect(r.agreeDraft.value.text.length).toBe(0);
 
   // A rule is added to the draft, and 元に戻す is pressed.
-  r.agreeDraft.value = {
+  r.editing.agreement.change({
     ...r.agreeDraft.value,
     text: '# 仕事\n足した。\n',
-  };
+  });
   state.pressRevert(r);
   await settle();
 

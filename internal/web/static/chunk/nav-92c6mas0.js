@@ -18,7 +18,7 @@ import {
 } from "./nav-zn7g81kr.js";
 import {
   runDanger
-} from "./nav-me9ek2sz.js";
+} from "./nav-n44pqppw.js";
 import {
   Refusal2,
   check2,
@@ -26,19 +26,22 @@ import {
   del2,
   saved2,
   problemText2
-} from "./nav-ghcq2kwy.js";
+} from "./nav-hz0pc9aj.js";
 import {
+  same,
   snapshot,
   dirty,
   diff,
   lost,
   ROLE_DOC,
+  TEAM,
+  TEAM_AGREEMENT,
   PROFILE,
   PROFILE_ASSIGN,
   YAML_TEXT,
   assignDirty,
   profileFlags
-} from "./nav-w5ecmbs1.js";
+} from "./nav-5jk1wdkd.js";
 import {
   resource
 } from "./nav-74jj0fve.js";
@@ -309,6 +312,9 @@ function checkedProblems(answer) {
 function savedHash(answer) {
   return answer?.hash || "";
 }
+function savedPath(answer, fallback) {
+  return typeof answer === "object" && answer !== null && "path" in answer && typeof answer.path === "string" ? answer.path : fallback;
+}
 function savedText(answer, fallback) {
   return typeof answer?.text === "string" ? answer.text : fallback;
 }
@@ -324,6 +330,7 @@ function editing(definition, initial) {
     draft: snapshot(initial.draft),
     hash: initial.hash,
     text: initial.text || "",
+    path: initial.path || "",
     born: snapshot(initial.born ?? initial.draft),
     problems: snapshot(initial.problems || []),
     baseProblems: snapshot(initial.problems || []),
@@ -332,21 +339,21 @@ function editing(definition, initial) {
     rename: true,
     savedLine: !!initial.savedLine
   });
-  const draftId = initial.saved === null ? newDraftId(initial.draftId) : "";
+  const draftId = (definition.origin ? definition.origin(state.value) === null : initial.saved === null) ? newDraftId(initial.draftId) : "";
   const target = () => {
     const name = definition.origin ? definition.origin(state.value) : definition.identity.name;
-    return { kind: definition.identity.kind, place: definition.identity.place, project: definition.identity.project, name, ...name === null ? { draftId } : {} };
+    return { kind: definition.identity.kind, place: definition.identity.place, project: definition.identity.project, name, ...definition.part ? { part: definition.part } : {}, ...name === null ? { draftId } : {} };
   };
   const matches = (carry) => {
     if (!carry.target)
       return true;
     const expected = target(), got = carry.target;
-    return expected.kind === got.kind && expected.place === got.place && expected.project === got.project && expected.name === got.name && (expected.name !== null || expected.draftId === got.draftId);
+    return expected.kind === got.kind && expected.place === got.place && expected.project === got.project && expected.name === got.name && expected.part === got.part && (expected.name !== null || expected.draftId === got.draftId);
   };
   let alive = true;
   let revision = 0;
   let saving = 0;
-  let pendingSaves = 0;
+  const pendingSaves = y(0);
   const patch = (next) => {
     state.value = { ...state.value, ...next };
   };
@@ -420,11 +427,11 @@ function editing(definition, initial) {
     patch({ checked: snapshot(answer.json), refusal: state.value.refusalAt === "name" && !problems.some((p) => p.sev === "err" && p.field === "name") ? "" : state.value.refusal, problems: snapshot(problems), ...dirty(definition.shape, original(), written()) ? {} : { baseProblems: snapshot(problems) } });
   }
   async function save(over) {
-    if (definition.busySave && pendingSaves > 0) {
+    if (definition.busySave && pendingSaves.value > 0) {
       patch({ refusal: definition.busySave, refusalAt: "doc" });
       return;
     }
-    pendingSaves++;
+    pendingSaves.value++;
     const mine = ++saving;
     const sent = snapshot(state.value);
     const current = revision;
@@ -445,6 +452,7 @@ function editing(definition, initial) {
         refusalAt: undefined,
         text: savedText(answer.json, sent.text || ""),
         hash: savedHash(answer.json) || sent.hash,
+        path: savedPath(answer.json, sent.path),
         baseProblems: snapshot(sent.problems),
         conflict: null,
         savedLine: current === revision
@@ -457,7 +465,7 @@ function editing(definition, initial) {
       patch(c ? { conflict: { c } } : { refusal: problemText2(error, "保存できませんでした"), refusalAt: refusalAt(error) });
       return;
     } finally {
-      pendingSaves--;
+      pendingSaves.value--;
     }
   }
   function readConflict() {
@@ -467,27 +475,34 @@ function editing(definition, initial) {
     const draft = definition.recovered(c);
     if (draft === null)
       return;
-    const before = snapshot({ saved: state.value.saved, draft: state.value.draft, hash: state.value.hash, text: state.value.text });
+    const before = snapshot({ saved: state.value.saved, draft: state.value.draft, hash: state.value.hash, text: state.value.text, path: state.value.path });
     forgetOriginal();
     change(draft);
-    patch({ saved: snapshot(draft), hash: c.file.hash || "", text: c.file.text || "", refusal: "", conflict: { c, undone: true, before } });
+    patch({ saved: snapshot(draft), hash: c.file.hash || "", text: c.file.text || "", path: c.file.path || state.value.path, refusal: "", conflict: { c, undone: true, before } });
   }
   return {
+    invalidateOriginal: forgetOriginal,
+    notice: () => patch({ savedLine: true }),
+    initialize: (saved, draft, hash, born) => {
+      forgetOriginal();
+      patch({ saved: snapshot(saved), draft: snapshot(draft), hash, born: snapshot(born) });
+    },
     version: () => revision,
     checkOriginal,
-    accept: (saved, hash, text, version) => {
+    accept: (saved, hash, text, version, path) => {
       saving++;
       reading.abort();
       forgetOriginal();
-      patch({ saved: snapshot(saved), draft: revision === version ? snapshot(saved) : state.value.draft, hash, text, conflict: null });
+      patch({ saved: snapshot(saved), draft: revision === version ? snapshot(saved) : state.value.draft, hash, text, path: path ?? state.value.path, conflict: null });
     },
     read: O(() => snapshot(state.value)),
     changes: O(() => diff(definition.shape, original(), written(), readable)),
     dirty: O(() => dirty(definition.shape, original(), written(), readable)),
     lost: O(() => lost(definition.shape, original(), written(), readable)),
     bornLost: O(() => lost(definition.shape, definition.written(state.value.born), written(), readable)),
-    loading: reading.loading,
-    checkingError: reading.error,
+    loading: O(() => reading.loading.value || baseReading.loading.value),
+    saving: O(() => pendingSaves.value > 0),
+    checkingError: O(() => reading.error.value || baseReading.error.value),
     remove: async () => {
       if (!definition.remove)
         return;
@@ -519,7 +534,7 @@ function editing(definition, initial) {
         return;
       forgetOriginal();
       change(before.draft);
-      patch({ saved: before.saved, hash: before.hash, text: before.text, conflict: null });
+      patch({ saved: before.saved, hash: before.hash, text: before.text, path: before.path, conflict: null });
     },
     matches,
     take: () => snapshot({ hash: state.value.hash, draft: state.value.draft, saved: state.value.saved, born: state.value.born, rename: state.value.rename, target: target() }),
@@ -570,7 +585,7 @@ function editProfileAssignments(identity, picks, hash) {
   const doc = (s) => ({ ops: s.draft.filter((row) => {
     const saved = s.saved?.find((one) => one.key === row.key);
     return !saved || assignDirty({ name: row.key, saved: saved.profile, draft: row.profile });
-  }).map((row) => row.key.startsWith("m") ? { kind: "memberProfile", member: row.name, profile: row.profile } : { kind: "workerProfile", from: row.role, purpose: row.name, profile: row.profile }) });
+  }).map((row) => row.key.startsWith("m") ? assignmentAction("memberProfile", row.name, row.profile) : assignmentAction("workerProfile", row.role, row.profile, row.name)) });
   return editing({
     identity,
     shape: PROFILE_ASSIGN,
@@ -593,6 +608,7 @@ function textEditing(kind, input, nameOf = () => input.name) {
   });
   return editing({
     identity,
+    part: input.part,
     origin: () => nameOf(),
     shape: YAML_TEXT,
     written: (text) => ({ text }),
@@ -636,7 +652,8 @@ function editRole(identity, initial) {
       doc: roleDoc(s.draft),
       rename_users: s.rename,
       hash: s.hash,
-      ...base ? { base: { place: base.place, name: base.name || "", project: base.project } } : {}
+      ...base ? { base: { place: base.place, name: base.name || "", project: base.project } } : {},
+      ...initial.roleContext ? { role_context: initial.roleContext } : {}
     }),
     remove: (s) => del2("role", s.saved?.name || "", identity.place, s.hash, undefined, identity.project),
     recovered: (c) => c.file.doc ? readRole(c.file.doc) : null,
@@ -657,7 +674,7 @@ function editRole(identity, initial) {
     const version = yaml.version();
     const answer = await (overwrite ? doc.overwrite() : doc.save());
     if (answer?.json)
-      yaml.accept(answer.json.text ?? "", answer.json.hash || doc.read.value.hash, answer.json.text ?? "", version);
+      yaml.accept(answer.json.text ?? "", answer.json.hash || doc.read.value.hash, answer.json.text ?? "", version, answer.json.path);
     return answer;
   }
   async function saveText(overwrite = false) {
@@ -666,7 +683,7 @@ function editRole(identity, initial) {
     const json = answer?.json;
     if (json && "doc" in json && json.doc && "text" in json.doc) {
       base = undefined;
-      doc.accept(readRole(json.doc), json.hash || yaml.read.value.hash, json.text || "", version);
+      doc.accept(readRole(json.doc), json.hash || yaml.read.value.hash, json.text || "", version, json.path);
     }
     return answer;
   }
@@ -698,13 +715,13 @@ function editRole(identity, initial) {
       const version = yaml.dirty.value ? -1 : yaml.version();
       doc.readConflict();
       const s = doc.read.value;
-      yaml.accept(s.text || "", s.hash, s.text || "", version);
+      yaml.accept(s.text || "", s.hash, s.text || "", version, s.path);
     },
     undoConflict: () => {
       const version = yaml.dirty.value ? -1 : yaml.version();
       doc.undoConflict();
       const s = doc.read.value;
-      yaml.accept(s.text || "", s.hash, s.text || "", version);
+      yaml.accept(s.text || "", s.hash, s.text || "", version, s.path);
     },
     rebase: (hash) => {
       doc.rebase(hash);
@@ -735,7 +752,7 @@ function editRoleAssignments(identity, picks, hash) {
   const doc = (s) => ({ ops: s.draft.filter((row) => {
     const saved = s.saved?.find((one) => one.name === row.name);
     return !saved || assignDirty({ name: row.name, saved: saved.role, draft: row.role });
-  }).map((row) => ({ kind: "memberRole", member: row.name, role: row.role })) });
+  }).map((row) => assignmentAction("memberRole", row.name, row.role)) });
   const one = editing({
     identity,
     shape: PROFILE_ASSIGN,
@@ -753,6 +770,442 @@ function editRoleAssignments(identity, picks, hash) {
       one.accept(map(state.saved), state.hash, "", -1);
     one.change(map(state.draft));
   } };
+}
+function teamAction(kind, fields) {
+  return { kind, ...fields };
+}
+var teamActions = {
+  description: (text) => teamAction("description", { text }),
+  addTurn: (from, to) => teamAction("addTurn", { from, to }),
+  removeTurn: (from, to) => teamAction("removeTurn", { from, to }),
+  addMember: (member, role, profile) => teamAction("addMember", { member, role, profile }),
+  removeMember: (member) => teamAction("removeMember", { member }),
+  renameMember: (member, next) => teamAction("renameMember", { member, new: next }),
+  memberRole: (member, role) => teamAction("memberRole", { member, role }),
+  memberProfile: (member, profile) => teamAction("memberProfile", { member, profile }),
+  addWorker: (from, purpose, profile) => teamAction("addWorker", { from, purpose, profile }),
+  removeWorker: (from, purpose) => teamAction("removeWorker", { from, purpose }),
+  workerProfile: (from, purpose, profile) => teamAction("workerProfile", { from, purpose, profile }),
+  workerPurpose: (from, old, next) => teamAction("workerPurpose", { from, old, new: next }),
+  moveWorker: (from, purpose, to) => teamAction("moveWorker", { from, purpose, to })
+};
+function teamDocument(t) {
+  return {
+    description: t?.description || "",
+    members: (t?.members || []).map((m) => ({ ...m })),
+    workers: (t?.workers || []).map((w) => ({ ...w })),
+    turns: (t?.turns || []).map((x) => ("from" in x) ? [x.from, x.to] : [x[0], x[1]])
+  };
+}
+function applyTeamActions(saved, actions) {
+  const t = teamDocument(saved);
+  const hasTurn = (from, to) => t.turns.some(([a, b]) => a === from && b === to);
+  for (const op of actions)
+    switch (op.kind) {
+      case "description":
+        t.description = op.text;
+        break;
+      case "addTurn":
+        if (!hasTurn(op.from, op.to))
+          t.turns.push([op.from, op.to]);
+        break;
+      case "removeTurn":
+        t.turns = t.turns.filter(([a, b]) => a !== op.from || b !== op.to);
+        break;
+      case "addWorker":
+        t.workers.push({ from: op.from, purpose: op.purpose, profile: op.profile });
+        break;
+      case "removeWorker":
+        t.workers = t.workers.filter((w) => w.from !== op.from || w.purpose !== op.purpose);
+        break;
+      case "workerProfile": {
+        const w = t.workers.find((w) => w.from === op.from && w.purpose === op.purpose);
+        if (w)
+          w.profile = op.profile;
+        break;
+      }
+      case "workerPurpose": {
+        const w = t.workers.find((w) => w.from === op.from && w.purpose === op.old);
+        if (w)
+          w.purpose = op.new;
+        break;
+      }
+      case "memberRole": {
+        const m = t.members.find((m) => m.name === op.member);
+        if (m)
+          m.role = op.role;
+        break;
+      }
+      case "memberProfile": {
+        const m = t.members.find((m) => m.name === op.member);
+        if (m)
+          m.profile = op.profile;
+        break;
+      }
+      case "addMember":
+        if (!t.members.some((m) => m.name === op.member))
+          t.members.push({ name: op.member, role: op.role, profile: op.profile });
+        break;
+      case "removeMember":
+        t.members = t.members.filter((m) => m.name !== op.member);
+        t.turns = t.turns.filter(([a, b]) => a !== op.member && b !== op.member);
+        t.workers = t.workers.filter((w) => w.from !== op.member);
+        break;
+      case "renameMember": {
+        const m = t.members.find((m) => m.name === op.member);
+        if (m)
+          m.name = op.new;
+        t.turns = t.turns.map(([a, b]) => [a === op.member ? op.new : a, b === op.member ? op.new : b]);
+        t.workers.forEach((w) => {
+          if (w.from === op.member)
+            w.from = op.new;
+        });
+        break;
+      }
+      case "moveWorker": {
+        const w = t.workers.find((w) => w.from === op.from && w.purpose === op.purpose);
+        if (w)
+          w.from = op.to;
+        break;
+      }
+    }
+  return t;
+}
+function assignmentAction(kind, target, value, purpose = "") {
+  if (kind === "memberRole")
+    return teamActions.memberRole(target, value);
+  if (kind === "memberProfile")
+    return teamActions.memberProfile(target, value);
+  return teamActions.workerProfile(target, purpose, value);
+}
+function teamOperations(before, after) {
+  const out = [];
+  if (before.description !== after.description)
+    out.push(teamActions.description(after.description));
+  const rebuild = !same(before.members.map((m) => m.name), after.members.map((m) => m.name));
+  if (rebuild) {
+    before.turns.forEach(([from, to]) => out.push(teamActions.removeTurn(from, to)));
+    before.workers.forEach((w) => out.push(teamActions.removeWorker(w.from, w.purpose)));
+    before.members.forEach((m) => out.push(teamActions.removeMember(m.name)));
+    after.members.forEach((m) => out.push(teamActions.addMember(m.name, m.role, m.profile)));
+    after.workers.forEach((w) => out.push(teamActions.addWorker(w.from, w.purpose, w.profile)));
+    after.turns.forEach(([from, to]) => out.push(teamActions.addTurn(from, to)));
+    return out;
+  }
+  after.members.forEach((m, i) => {
+    if (before.members[i].role !== m.role)
+      out.push(assignmentAction("memberRole", m.name, m.role));
+    if (before.members[i].profile !== m.profile)
+      out.push(assignmentAction("memberProfile", m.name, m.profile));
+  });
+  const sameWorkers = same(before.workers.map((w) => [w.from, w.purpose]), after.workers.map((w) => [w.from, w.purpose]));
+  if (sameWorkers)
+    after.workers.forEach((w, i) => {
+      if (before.workers[i].profile !== w.profile)
+        out.push(assignmentAction("workerProfile", w.from, w.profile, w.purpose));
+    });
+  else {
+    before.workers.forEach((w) => out.push(teamActions.removeWorker(w.from, w.purpose)));
+    after.workers.forEach((w) => out.push(teamActions.addWorker(w.from, w.purpose, w.profile)));
+  }
+  if (!same(before.turns, after.turns)) {
+    before.turns.forEach(([from, to]) => out.push(teamActions.removeTurn(from, to)));
+    after.turns.forEach(([from, to]) => out.push(teamActions.addTurn(from, to)));
+  }
+  return out;
+}
+function editTeam(identity, input) {
+  const meta = y({
+    name: input.name,
+    fresh: !!input.how,
+    how: input.how || "",
+    base: input.base || null,
+    seeded: input.seeded ?? !input.how,
+    starterRoles: false,
+    starterProfile: false,
+    carry: null,
+    writes: [],
+    hasRoles: false,
+    hasProfiles: false,
+    teamPath: input.teamPath || "",
+    agreementPath: input.agreementPath || "",
+    renameDraft: null,
+    born: null
+  });
+  const set = (next) => {
+    meta.value = { ...meta.value, ...next };
+  };
+  const scope = () => ({ place: identity.place, project: identity.project, name: meta.value.name });
+  const creation = () => {
+    const s = meta.value;
+    if (!s.fresh)
+      return {};
+    if (s.how === "new")
+      return { new: true, starter_roles: s.starterRoles, starter_profile: s.starterProfile };
+    return {
+      base: s.base ? { place: s.base.place, name: s.base.name || "", project: s.base.project } : null,
+      ...s.carry ? { carry_roles: s.carry.chosenRoles, carry_profiles: s.carry.chosenProfiles } : {}
+    };
+  };
+  const origin = () => meta.value.fresh ? null : meta.value.name;
+  const initialTeam = teamDocument(input.team);
+  const actions = y([]);
+  const operations = (s) => same(applyTeamActions(s.saved || initialTeam, actions.value), s.draft) ? snapshot(actions.value) : teamOperations(s.saved || initialTeam, s.draft);
+  let agreement;
+  const body = (s) => ({
+    ...scope(),
+    ...creation(),
+    part: meta.value.fresh ? "folder" : "team",
+    hash: s.hash,
+    ...meta.value.fresh ? { agreement_hash: agreement.read.value.hash } : {},
+    doc: { ops: operations(s), ...meta.value.fresh ? { doc: roleDoc(agreement.read.value.draft) } : {} }
+  });
+  const team = editing({
+    identity,
+    part: "team",
+    origin,
+    shape: TEAM,
+    written: snapshot,
+    name: () => meta.value.name,
+    check: (s) => ({ ...scope(), ...creation(), part: "team", doc: { ops: operations(s) } }),
+    save: body,
+    remove: (s) => del2("team", meta.value.name, identity.place, s.hash, agreement.read.value.hash, identity.project),
+    recovered: (c) => c.file.doc ? teamDocument(c.file.doc) : null,
+    saved: (_answer, sent) => sent
+  }, { saved: initialTeam, draft: initialTeam, hash: input.hash, text: input.teamText, path: input.teamPath, readable: input.readable, draftId: input.draftId });
+  const empty = { name: "", title: input.name, text: "" };
+  agreement = editing({
+    identity,
+    part: "agreement",
+    origin,
+    shape: TEAM_AGREEMENT,
+    written: (d) => ({ text: d.text }),
+    name: () => meta.value.name,
+    check: (s) => ({ ...scope(), ...creation(), part: "agreement", doc: { ops: operations(team.read.value), doc: roleDoc(s.draft) } }),
+    save: (s) => ({ ...scope(), part: "agreement", hash: s.hash, doc: { ops: operations(team.read.value), doc: roleDoc(s.draft) } }),
+    recovered: (c) => c.file.doc ? readRole(c.file.doc) : null,
+    saved: (answer, sent) => answer?.doc && ("text" in answer.doc) ? readRole(answer.doc) : sent
+  }, { saved: input.agreement, draft: input.agreement || empty, born: input.agreement || empty, hash: input.agreementHash, text: input.agreementText, path: input.agreementPath, draftId: input.agreementDraftId });
+  const teamYaml = textEditing("team", { ...scope(), text: input.teamText || "", hash: input.hash, part: "team", problem: input.readable === false ? "unreadable" : "" }, () => meta.value.name);
+  const agreementYaml = textEditing("team", { ...scope(), text: input.agreementText ?? input.agreement?.text ?? "", hash: input.agreementHash, part: "agreement" }, () => meta.value.name);
+  const bornValue = () => ({ name: meta.value.name, team: teamDocument(team.read.value.draft), agreement: agreement.read.value.draft.text });
+  const bornShape = { fields: [{ key: "name", label: "名前（保存先のファイルも変わる）", get: (v) => v.name }, { key: "team", label: "チーム定義", get: (v) => v.team }, { key: "agreement", label: "チームの規則", get: (v) => v.agreement }] };
+  if (meta.value.seeded)
+    set({ born: bornValue() });
+  function changedOptions(next) {
+    set(next);
+    team.change(teamDocument(team.read.value.draft));
+  }
+  async function checkTeam() {
+    const version = team.version(), name = meta.value.name;
+    await Promise.all([team.checkOriginal(), team.check()]);
+    const json = team.read.value.checked;
+    if (!json || version !== team.version() || name !== meta.value.name || team.checkingError.value)
+      return;
+    if (meta.value.fresh && !meta.value.seeded && json.draft && json.doc) {
+      const seed = teamDocument(json.doc), ag = json.doc.agreement;
+      team.initialize(seed, applyTeamActions(seed, teamOperations(initialTeam, team.read.value.draft)), json.draft.hash || "", seed);
+      if (ag?.doc) {
+        const d = readRole(ag.doc);
+        d.__path = ag.path;
+        agreement.initialize(d, agreement.version() > 0 ? snapshot(agreement.read.value.draft) : d, ag.hash || "", d);
+      }
+      set({ seeded: true, born: meta.value.born || { name: meta.value.name, team: seed, agreement: ag?.doc?.text || "" } });
+    }
+    if (meta.value.fresh && json.draft) {
+      const d = json.draft, previous = meta.value.carry, carry = d.carry;
+      set({
+        writes: d.writes || [],
+        hasRoles: !!d.has_roles,
+        hasProfiles: !!d.has_profiles,
+        teamPath: d.path || meta.value.teamPath,
+        agreementPath: json.doc?.agreement?.path || meta.value.agreementPath,
+        carry: carry ? { roles: carry.roles || [], profiles: carry.profiles || [], chosenRoles: (previous?.chosenRoles || []).filter((n) => carry.roles?.includes(n)), chosenProfiles: (previous?.chosenProfiles || []).filter((n) => carry.profiles?.includes(n)) } : null
+      });
+    }
+  }
+  async function save(part, overwrite = false) {
+    const sentActions = operations(team.read.value);
+    const fresh = meta.value.fresh, sentName = meta.value.name, sentAgreement = snapshot(agreement.read.value.draft);
+    const agVersion = agreement.version(), rawVersion = teamYaml.version(), agRawVersion = agreementYaml.version();
+    const one = fresh || part === "team" ? team : agreement;
+    const answer = await (overwrite ? one.overwrite() : one.save());
+    if (!answer?.json)
+      return answer;
+    const json = answer.json;
+    if (fresh || part === "team")
+      actions.value = same(actions.value.slice(0, sentActions.length), sentActions) ? actions.value.slice(sentActions.length) : teamOperations(team.read.value.saved || initialTeam, team.read.value.draft);
+    if (fresh) {
+      const name = json.name || sentName;
+      const place = json.items?.find((item) => item.name === name)?.places?.[identity.place];
+      const ag = place?.doc?.agreement;
+      agreement.accept(ag?.doc ? readRole(ag.doc) : sentAgreement, ag?.hash || "", ag?.doc?.text || sentAgreement.text, agVersion);
+      agreementYaml.accept(ag?.doc?.text || sentAgreement.text, ag?.hash || "", ag?.doc?.text || sentAgreement.text, agRawVersion);
+      if (part === "agreement") {
+        team.dismissSaved();
+        if (agreement.version() === agVersion)
+          agreement.notice();
+      }
+      set({ fresh: false, name, renameDraft: meta.value.name !== sentName ? meta.value.name : null, base: null, how: "", teamPath: place?.path || json.path || meta.value.teamPath, agreementPath: ag?.path || meta.value.agreementPath });
+    } else
+      set(part === "team" ? { teamPath: json.path || meta.value.teamPath } : { agreementPath: json.path || meta.value.agreementPath });
+    if (fresh || part === "team")
+      teamYaml.accept(json.text || "", team.read.value.hash, json.text || "", rawVersion);
+    else
+      agreementYaml.accept(json.text || "", agreement.read.value.hash, json.text || "", agRawVersion);
+    return answer;
+  }
+  function rawEditor(raw, part) {
+    const one = part === "team" ? team : agreement;
+    const save = async (overwrite = false) => {
+      const version = one.version();
+      const answer = await (overwrite ? raw.overwrite() : raw.save());
+      const json = answer?.json;
+      if (json && "doc" in json) {
+        if (part === "team" && json.doc && "members" in json.doc)
+          team.accept(teamDocument(json.doc), json.hash || "", json.text || "", version, json.path);
+        if (part === "agreement" && json.doc && "text" in json.doc)
+          agreement.accept(readRole(json.doc), json.hash || "", json.text || "", version, json.path);
+      }
+      return answer;
+    };
+    return { ...raw, save: () => save(), overwrite: () => save(true) };
+  }
+  function recover(part, undo = false) {
+    const one = part === "team" ? team : agreement, raw = part === "team" ? teamYaml : agreementYaml;
+    if (!one.read.value.conflict)
+      return;
+    const version = raw.dirty.value ? -1 : raw.version();
+    if (undo)
+      one.undoConflict();
+    else
+      one.readConflict();
+    const s = one.read.value;
+    raw.accept(s.text || "", s.hash, s.text || "", version, s.path);
+    if (s.path)
+      set(part === "team" ? { teamPath: s.path } : { agreementPath: s.path });
+  }
+  const grew = O(() => {
+    const before = new Set(team.read.value.baseProblems.filter((p) => p.sev === "err").map((p) => p.text));
+    return team.read.value.problems.filter((p) => p.sev === "err" && !(p.at || p.field || "").startsWith("node:") && !before.has(p.text));
+  });
+  const take = () => snapshot({ actions: operations(team.read.value), folder: meta.value, team: team.take(), agreement: agreement.take(), teamYaml: teamYaml.take(), agreementYaml: agreementYaml.take() });
+  return {
+    read: O(() => snapshot(meta.value)),
+    team: { ...team, save: () => save("team"), overwrite: () => save("team", true), readConflict: () => recover("team"), undoConflict: () => recover("team", true) },
+    agreement: { ...agreement, save: () => save("agreement"), overwrite: () => save("agreement", true), readConflict: () => recover("agreement"), undoConflict: () => recover("agreement", true) },
+    teamYaml: rawEditor(teamYaml, "team"),
+    agreementYaml: rawEditor(agreementYaml, "agreement"),
+    operations: O(() => operations(team.read.value)),
+    validation: O(() => team.read.value.checked || {}),
+    agreementValidation: O(() => agreement.read.value.checked || {}),
+    grew,
+    agreementBlocked: O(() => {
+      const s = agreement.read.value;
+      const before = new Set(s.baseProblems.filter((p) => p.sev === "err").map((p) => p.text));
+      return !s.saved && !s.draft.text || !agreement.dirty.value || s.problems.some((p) => p.sev === "err" && (!s.saved || !before.has(p.text)));
+    }),
+    bornTouched: O(() => meta.value.seeded ? !meta.value.born || dirty(bornShape, meta.value.born, bornValue()) : meta.value.name !== input.name || team.dirty.value || agreement.version() > 0),
+    bornLost: O(() => lost(bornShape, meta.value.born, bornValue())),
+    act: (next) => {
+      actions.value = [...operations(team.read.value), ...snapshot(next)];
+      team.change(applyTeamActions(team.read.value.draft, next));
+    },
+    replaceOperations: (next) => {
+      actions.value = snapshot([...next]);
+      team.change(applyTeamActions(team.read.value.saved || initialTeam, next));
+    },
+    moveTo: (target) => {
+      if (!meta.value.fresh || target.name !== null)
+        throw new Error("保存前のチーム定義だけ置き場所を変えられます");
+      const next = editTeam(target, { name: meta.value.name, team: teamDocument(null), hash: "", agreement: null, agreementHash: "", how: meta.value.how, base: meta.value.base, seeded: false });
+      const carry = next.take();
+      carry.folder = { ...snapshot(meta.value), seeded: false, teamPath: "", agreementPath: "" };
+      carry.actions = operations(team.read.value);
+      carry.team.draft = applyTeamActions(teamDocument(null), carry.actions);
+      carry.agreement.draft = snapshot(agreement.read.value.draft);
+      next.restore(carry);
+      return next;
+    },
+    changeName: (name) => changedOptions({ name }),
+    renameInput: (renameDraft) => set({ renameDraft }),
+    starter: (kind) => changedOptions(kind === "role" ? { starterRoles: !meta.value.starterRoles } : { starterProfile: !meta.value.starterProfile }),
+    chooseCarry: (kind, name) => {
+      const carry = meta.value.carry;
+      if (!carry)
+        return;
+      const key = kind === "role" ? "chosenRoles" : "chosenProfiles";
+      changedOptions({ carry: { ...carry, [key]: carry[key].includes(name) ? carry[key].filter((n) => n !== name) : [...carry[key], name] } });
+    },
+    refresh: async () => {
+      team.invalidateOriginal();
+      agreement.invalidateOriginal();
+      await checkTeam();
+      await Promise.all([agreement.checkOriginal(), agreement.check()]);
+    },
+    checkTeam,
+    checkAgreement: async () => {
+      if (!agreement.read.value.saved && !agreement.read.value.draft.text)
+        return;
+      await Promise.all([agreement.checkOriginal(), agreement.check()]);
+    },
+    save,
+    checkRename: async (name, signal) => (await check2("team", request("team", meta.value.name, { ...scope(), rename_to: name }), { signal })).json?.rename || null,
+    workerPreview: async (worker, signal) => (await check2("team", request("team", meta.value.name, {
+      ...scope(),
+      ...creation(),
+      part: "worker",
+      hash: team.read.value.hash,
+      running_team: worker.runningTeam,
+      doc: { name: worker.name, purpose: worker.purpose, task: worker.task, from: worker.from, preview: true, ops: operations(team.read.value) }
+    }), { signal })).json,
+    promptInput: () => ({ ...scope(), ...creation(), part: "team", hash: team.read.value.hash, doc: { ops: operations(team.read.value) } }),
+    take,
+    matches: (carry) => team.matches(carry.team),
+    restore: (carry) => {
+      if (!team.matches(carry.team))
+        return false;
+      actions.value = snapshot(carry.actions || []);
+      const restored = team.restore(carry.team), rules = agreement.restore(carry.agreement);
+      teamYaml.restore(carry.teamYaml);
+      agreementYaml.restore(carry.agreementYaml);
+      if (restored) {
+        if (meta.value.fresh) {
+          const folder = snapshot(carry.folder);
+          folder.base = folder.base ? resourceIdentity("team", { name: folder.base.name || undefined, place: folder.base.place, project: folder.base.project }) : null;
+          set(folder);
+        } else
+          set({ renameDraft: carry.folder.renameDraft });
+      }
+      return restored || rules;
+    },
+    dispose: () => {
+      team.dispose();
+      agreement.dispose();
+      teamYaml.dispose();
+      agreementYaml.dispose();
+    }
+  };
+}
+function restoreTeam(identity, carry) {
+  if (!carry.folder.fresh || identity.name !== null || carry.team.target.kind !== "team" || carry.team.target.place !== identity.place || carry.team.target.project !== identity.project || carry.team.target.name !== null)
+    return;
+  const e = editTeam(identity, {
+    name: carry.folder.name,
+    team: carry.team.saved || carry.team.born,
+    hash: carry.team.hash,
+    agreement: carry.agreement.saved,
+    agreementHash: carry.agreement.hash,
+    how: carry.folder.how,
+    seeded: carry.folder.seeded,
+    draftId: carry.team.target.draftId,
+    agreementDraftId: carry.agreement.target.draftId
+  });
+  if (!e.restore(carry)) {
+    e.dispose();
+    return;
+  }
+  return e;
 }
 
 // lib/yamltab.tsx
@@ -1120,4 +1573,4 @@ function YamlTab2(props) {
   });
 }
 
-export { conflictOf, ConflictNotice, roleCheckData, roleProblems, resourceIdentity, editProfile, editProfileAssignments, editYaml, profileFiles, editRole, restoreRole, editRoleAssignments, tellDirty2, autosize2, insertTab2, YamlTab2 };
+export { ConflictNotice, roleProblems, resourceIdentity, editProfile, editProfileAssignments, editYaml, profileFiles, editRole, restoreRole, editRoleAssignments, teamActions, teamDocument, editTeam, restoreTeam, tellDirty2, autosize2, insertTab2, YamlTab2 };

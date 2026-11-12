@@ -145,14 +145,15 @@ var promptWords = []struct {
 }
 
 // promptStrings are the addresses only the reader may name: a screen that calls
-// them itself is the second reading the section exists for.
+// them itself is the second reading the section exists for. The worker check
+// body is constructed only by editing; prompt-source asks its semantic operation.
 var promptStrings = []struct {
 	text  string
 	files []string
 }{
 	{"/api/team/prompt-comparison", []string{promptReader}},
-	{"part: 'worker'", []string{promptReader}},
-	{`part: "worker"`, []string{promptReader}},
+	{"part: 'worker'", []string{"internal/web/src/lib/editing.ts"}},
+	{`part: "worker"`, []string{"internal/web/src/lib/editing.ts"}},
 }
 
 // The selection section (⑥ r-3d54): the pick and the right column are written

@@ -67,7 +67,6 @@ function sentenceOf(json) {
   return typeof json.text === "string" ? json.text : "";
 }
 var call2 = (method, url, payload, opts) => send(method, url, payload, opts);
-var sendLegacy2 = (input, opts) => send(input.action === "check" ? "POST" : "PUT", input.action === "check" ? `/api/${input.kind}/check` : `/api/${input.kind}/${enc(input.name)}`, input.body, opts);
 var urls = {
   list: (kind) => `/api/${kind}`,
   get: (kind, name, place, project) => `/api/${kind}/${enc(name)}?${place ? `place=${enc(place)}&` : ""}${project ? `project=${enc(project)}` : ""}`,
@@ -235,4 +234,4 @@ function teamModel2(list) {
   };
 }
 
-export { token3, Refusal2, call2, sendLegacy2, read2, list2, get2, check2, save2, del2, applyList2, applyCount2, applyMembers2, hqList2, saved2, bases2, problemText2, profileModel2, roleModel2, teamModel2 };
+export { token3, Refusal2, call2, read2, list2, get2, check2, save2, del2, applyList2, applyCount2, applyMembers2, hqList2, saved2, bases2, problemText2, profileModel2, roleModel2, teamModel2 };
