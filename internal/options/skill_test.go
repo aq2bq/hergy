@@ -39,9 +39,9 @@ func withoutOtherTools(line string) string {
 	return b.String()
 }
 
-// TestHandwrittenSkillNamesExist walks the names the bundled skill and the
-// people's cheat put in front of a person or an agent. A name hergy does not
-// have is a promise it cannot keep, so the test prints the name and fails.
+// TestHandwrittenSkillNamesExist checks command names and flags in the skill
+// advice. The factual regions and people cheat are generated from Spec, and
+// wordsGate checks that their committed output matches that projection.
 func TestHandwrittenSkillNamesExist(t *testing.T) {
 	sources := map[string]string{}
 

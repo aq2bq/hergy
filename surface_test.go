@@ -28,7 +28,7 @@ type surface struct {
 
 // surfaces are the pages that show a command and its flags: the cheatsheet for
 // an agent, the short cheatsheet and the full list in both languages, the two
-// READMEs and the bundled skill.
+// READMEs and the bundled skill, excluding their generated regions.
 func surfaces(t *testing.T) []surface {
 	t.Helper()
 	out := []surface{{"hergy cheat --ai", cheat.Machine}}
@@ -186,9 +186,8 @@ func flagsSection(t *testing.T) []string {
 var flagsLabel = regexp.MustCompile(`^  (?:-[A-Za-z], )?--([a-z][a-z0-9-]*)`)
 
 // TestCheatAIFlagsSectionNamesTheRightCommands: the Flags: section says, flag by
-// flag, which commands take it ("up only", "hire.", "up/refresh/hire."). A line
-// that names a command names one that takes the line's flag, and every flag has a
-// line.
+// flag, which commands take it in the generated Commands: suffix. Prose may
+// also use words such as "stop" without naming a command. Every flag has a line.
 func TestCheatAIFlagsSectionNamesTheRightCommands(t *testing.T) {
 	token := regexp.MustCompile(`[A-Za-z_-]+`)
 	described := map[string]bool{}

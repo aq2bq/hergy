@@ -26,7 +26,7 @@ func Generated() (map[string][]byte, error) {
 
 func termName(id TermID) string {
 	var b strings.Builder
-	for _, part := range strings.Split(string(id), "-") {
+	for part := range strings.SplitSeq(string(id), "-") {
 		b.WriteString(strings.ToUpper(part[:1]) + part[1:])
 	}
 	return b.String()

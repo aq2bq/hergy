@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"sort"
@@ -21,9 +22,7 @@ func (r *runner) wordsGate() error {
 	if err != nil {
 		return err
 	}
-	for path, output := range docs {
-		outputs[path] = output
-	}
+	maps.Copy(outputs, docs)
 	paths := make([]string, 0, len(outputs))
 	for path := range outputs {
 		paths = append(paths, path)

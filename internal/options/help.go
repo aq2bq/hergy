@@ -209,7 +209,7 @@ func has(s Spec, f *Flag) bool {
 // once in words; only the help renderer introduces presentation line breaks.
 func wrapDetail(text string, width int) string {
 	var lines []string
-	for _, paragraph := range strings.Split(text, "\n") {
+	for paragraph := range strings.SplitSeq(text, "\n") {
 		rest := []rune(strings.TrimSpace(paragraph))
 		for len(rest) > 0 {
 			end, space := 0, -1
@@ -277,7 +277,14 @@ func FlagDescriptions(name, lang string) string {
 	for _, g := range groups {
 		lines = append(lines, strings.Join(g.commands, ", ")+": "+strings.ReplaceAll(g.text, "\n", " "))
 	}
-	return strings.Join(lines, "; ")
+	var description strings.Builder
+	description.WriteString(strings.Join(lines, "; "))
+	for _, flag := range allFlags {
+		if flag.Name == name && len(flag.Alias) > 0 {
+			description.WriteString(" " + fmt.Sprintf(words.Label("flag.aliases")[lang], "--"+strings.Join(flag.Alias, ", --")))
+		}
+	}
+	return description.String()
 }
 
 // BuildUsage uses the same syntax and summary records as each command's page.

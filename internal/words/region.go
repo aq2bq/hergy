@@ -24,7 +24,7 @@ func Region(document, name, content string) (string, error) {
 func Handwritten(document string) string {
 	var out []string
 	generated := false
-	for _, line := range strings.Split(document, "\n") {
+	for line := range strings.SplitSeq(document, "\n") {
 		if strings.HasPrefix(line, "<!-- words:") && strings.HasSuffix(line, ":start -->") {
 			generated = true
 		}
