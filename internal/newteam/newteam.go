@@ -15,6 +15,7 @@ import (
 	"strings"
 
 	"github.com/aq2bq/hergy/internal/catalog"
+	domainname "github.com/aq2bq/hergy/internal/domain/name"
 	"github.com/aq2bq/hergy/internal/profile"
 	"github.com/aq2bq/hergy/internal/scaffold"
 	"github.com/aq2bq/hergy/internal/source"
@@ -416,12 +417,12 @@ func addProfiles(path string, add []profile.Profile) error {
 			}
 			text = []byte("version: 1\n")
 		}
-		edited, err := profile.EditYAML(text, path, profile.Add(one.Name, one.Kind))
+		edited, err := profile.EditYAML(text, path, profile.Add(one.Name.String(), one.Kind))
 		if err != nil {
 			return err
 		}
 		if len(one.Args) > 0 {
-			if edited, err = profile.EditYAML(edited, path, profile.SetArgs(one.Name, one.Args)); err != nil {
+			if edited, err = profile.EditYAML(edited, path, profile.SetArgs(one.Name.String(), one.Args)); err != nil {
 				return err
 			}
 		}
@@ -430,7 +431,7 @@ func addProfiles(path string, add []profile.Profile) error {
 			for _, key := range slices.Sorted(maps.Keys(one.Env)) {
 				pairs = append(pairs, profile.EnvPair{Key: key, Value: one.Env[key]})
 			}
-			if edited, err = profile.EditYAML(edited, path, profile.SetEnvInOrder(one.Name, pairs)); err != nil {
+			if edited, err = profile.EditYAML(edited, path, profile.SetEnvInOrder(one.Name.String(), pairs)); err != nil {
 				return err
 			}
 		}
@@ -462,9 +463,13 @@ func addStarterProfile(path string) error {
 	default:
 		return err
 	}
+	profileName, err := domainname.ParseProfileName(scaffold.ProfileName)
+	if err != nil {
+		return err
+	}
 	text, err := profile.EmitProfiles(map[string]profile.Profile{
 		scaffold.ProfileName: {
-			Name: scaffold.ProfileName,
+			Name: profileName,
 			Kind: scaffold.ProfileKind,
 			Path: path,
 		},

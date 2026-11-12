@@ -49,7 +49,7 @@ func write(t *testing.T, path, text string) {
 // team.yaml body names it rather than writing the kind itself (I7).
 func testProfiles(dir string) map[string]profile.Profile {
 	return map[string]profile.Profile{
-		"claude-default": {Name: "claude-default", Kind: "claude", Path: filepath.Join(dir, "profiles.yaml")},
+		"claude-default": {Name: testProfileName("claude-default"), Kind: "claude", Path: filepath.Join(dir, "profiles.yaml")},
 	}
 }
 
@@ -210,7 +210,7 @@ func (b *built) usesProfiles() bool {
 // workerProfile is what one member's workers pair with a purpose.
 func workerProfile(def *definition.Definition, member, purpose string) (string, bool) {
 	for _, worker := range def.Graph.Workers {
-		if worker.From == member && worker.Purpose == purpose {
+		if worker.From == member && worker.Purpose.String() == purpose {
 			return worker.Profile, true
 		}
 	}
@@ -378,7 +378,7 @@ func TestParseStopsOnBrokenYAML(t *testing.T) {
 func TestParseReadsProfilesIntoMembers(t *testing.T) {
 	l := newLayer(t, "")
 	profiles := map[string]profile.Profile{
-		"lead": {Name: "lead", Kind: "claude", Args: []string{"--model", "opus"}, Path: "profiles.yaml"},
+		"lead": {Name: testProfileName("lead"), Kind: "claude", Args: []string{"--model", "opus"}, Path: "profiles.yaml"},
 	}
 	got, err := parse("version: 1\ndescription: a description for the test\nteam: t\nprompt: \"%{role_doc}%{docs}%{name}\"\nmembers:\n  - name: a\n    role: r\n    profile: lead\nturns:\n  - human -> a\n  - a -> human\n", "t", "", l, profiles)
 	if err != nil {
@@ -402,8 +402,8 @@ func parseWorkersTeam(t *testing.T, workers string) (*built, error) {
 	t.Helper()
 	l := newLayer(t, "")
 	profiles := map[string]profile.Profile{
-		"seeker":    {Name: "seeker", Kind: "claude"},
-		"developer": {Name: "developer", Kind: "codex"},
+		"seeker":    {Name: testProfileName("seeker"), Kind: "claude"},
+		"developer": {Name: testProfileName("developer"), Kind: "codex"},
 	}
 	return parse("version: 1\ndescription: a description for the test\nteam: t\nprompt: \"%{role_doc}%{docs}%{workers}\"\nmembers:\n"+
 		"  - name: lead\n    role: r\n    profile: seeker\n"+
@@ -418,7 +418,7 @@ func parseWorkersTeam(t *testing.T, workers string) (*built, error) {
 func TestWorkerNoteNamesTheHerdrName(t *testing.T) {
 	l := newLayer(t, "")
 	profiles := map[string]profile.Profile{
-		"seeker": {Name: "seeker", Kind: "claude"},
+		"seeker": {Name: testProfileName("seeker"), Kind: "claude"},
 	}
 	got, err := parse("version: 1\ndescription: a description for the test\nteam: t\nprompt: \"%{role_doc}%{docs}%{workers}\"\nmembers:\n"+
 		"  - name: lead\n    role: r\n    profile: seeker\n"+
@@ -489,7 +489,7 @@ func TestWorkersStopsOnBrokenEntries(t *testing.T) {
 // rather than being read as an unknown key.
 func TestMaySpawnIsGone(t *testing.T) {
 	l := newLayer(t, "")
-	profiles := map[string]profile.Profile{"seeker": {Name: "seeker", Kind: "claude"}}
+	profiles := map[string]profile.Profile{"seeker": {Name: testProfileName("seeker"), Kind: "claude"}}
 	_, err := parse("version: 1\ndescription: a description for the test\nteam: t\nmembers:\n"+
 		"  - name: lead\n    role: r\n    profile: seeker\n"+
 		"    may_spawn:\n      workers:\n        - purpose: research\n          profile: seeker\n",
@@ -509,7 +509,7 @@ func TestMaySpawnIsGone(t *testing.T) {
 // with the name of the part that replaced it (段 5).
 func TestSpawnPlaceholderIsGone(t *testing.T) {
 	l := newLayer(t, "")
-	profiles := map[string]profile.Profile{"seeker": {Name: "seeker", Kind: "claude"}}
+	profiles := map[string]profile.Profile{"seeker": {Name: testProfileName("seeker"), Kind: "claude"}}
 	cases := []struct{ name, text string }{
 		{"the team's own template", "version: 1\ndescription: a description for the test\nteam: t\nprompt: \"%{spawn}\"\nmembers:\n  - name: lead\n    role: r\n    profile: seeker\n"},
 		{"one member's template", "version: 1\ndescription: a description for the test\nteam: t\nmembers:\n  - name: lead\n    role: r\n    profile: seeker\n    prompt: \"%{spawn}\"\n"},
@@ -531,7 +531,7 @@ func TestSpawnPlaceholderIsGone(t *testing.T) {
 // order they are written, with the human and the member names as the ends.
 func TestTurnsReadsTheGraph(t *testing.T) {
 	l := newLayer(t, "")
-	profiles := map[string]profile.Profile{"seeker": {Name: "seeker", Kind: "claude"}}
+	profiles := map[string]profile.Profile{"seeker": {Name: testProfileName("seeker"), Kind: "claude"}}
 	got, err := parse("version: 1\ndescription: a description for the test\nteam: t\nprompt: \"%{role_doc}%{docs}%{turns}\"\nmembers:\n"+
 		"  - name: lead\n    role: r\n    profile: seeker\n"+
 		"  - name: impl\n    role: r\n    profile: seeker\n"+
@@ -562,7 +562,7 @@ func TestTurnsStopsOnBrokenLines(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			l := newLayer(t, "")
-			profiles := map[string]profile.Profile{"seeker": {Name: "seeker", Kind: "claude"}}
+			profiles := map[string]profile.Profile{"seeker": {Name: testProfileName("seeker"), Kind: "claude"}}
 			_, err := parse("version: 1\ndescription: a description for the test\nteam: t\nprompt: \"%{role_doc}%{docs}%{turns}\"\nmembers:\n"+
 				"  - name: lead\n    role: r\n    profile: seeker\n"+
 				"turns:\n"+tc.line, "t", "", l, profiles)
@@ -581,7 +581,7 @@ func TestTurnsStopsOnBrokenLines(t *testing.T) {
 // twice (spec/33, 段 7).
 func TestTurnsBrokenLineNamesTheLine(t *testing.T) {
 	l := newLayer(t, "")
-	profiles := map[string]profile.Profile{"seeker": {Name: "seeker", Kind: "claude"}}
+	profiles := map[string]profile.Profile{"seeker": {Name: testProfileName("seeker"), Kind: "claude"}}
 	// The broken line is the second one, so a person calls it line 2.
 	_, err := parse("version: 1\ndescription: a description for the test\nteam: t\nprompt: \"%{role_doc}%{docs}%{turns}\"\nmembers:\n"+
 		"  - name: lead\n    role: r\n    profile: seeker\n"+
@@ -600,7 +600,7 @@ func TestTurnsBrokenLineNamesTheLine(t *testing.T) {
 // exactly that party out of the prompt and leaves every other line as it was.
 func TestTurnLeavesThePromptWithItsEdge(t *testing.T) {
 	l := newLayer(t, "")
-	profiles := map[string]profile.Profile{"seeker": {Name: "seeker", Kind: "claude"}}
+	profiles := map[string]profile.Profile{"seeker": {Name: testProfileName("seeker"), Kind: "claude"}}
 	head := "version: 1\ndescription: a description for the test\nteam: t\nprompt: \"%{role_doc}%{docs}%{name}\\n%{turns}\"\nmembers:\n" +
 		"  - name: lead\n    role: r\n    profile: seeker\n" +
 		"  - name: spec\n    role: r\n    profile: seeker\n"
@@ -830,8 +830,8 @@ func FuzzRead(f *testing.F) {
 	f.Fuzz(func(t *testing.T, text string) {
 		l := newLayer(t, "")
 		profiles := map[string]profile.Profile{
-			"claude-default": {Name: "claude-default", Kind: "claude"},
-			"seeker":         {Name: "seeker", Kind: "claude"},
+			"claude-default": {Name: testProfileName("claude-default"), Kind: "claude"},
+			"seeker":         {Name: testProfileName("seeker"), Kind: "claude"},
 		}
 		got, err := parse(text, "t", "", l, profiles)
 		if (got == nil) == (err == nil) {

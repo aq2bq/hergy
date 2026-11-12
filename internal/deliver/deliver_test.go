@@ -32,7 +32,7 @@ func TestCompareReadsRulesTurnsAndWorkers(t *testing.T) {
 			{Kind: "workers", Text: "\n## ワーカーの追加\n必要なときは、次の「目的 → プロファイル」の組でワーカーを追加してよい: 校正 → cheap\n"},
 		},
 		Turns:   []string{"demo-builder"},
-		Workers: []definition.WorkerNode{{From: "lead", Purpose: "校正", Profile: "cheap"}},
+		Workers: []definition.WorkerNode{{From: "lead", Purpose: testPurpose("校正"), Profile: "cheap"}},
 	}
 	changes := Compare("ja", oldPrompt, map[string]string{
 		".hergy/teams/demo/agreement.md": oldDoc,
@@ -122,7 +122,7 @@ func TestCompareReadsOnlyTheTurnItemsOfTheOldNote(t *testing.T) {
 func TestAChangedWorkerProfileIsNotAnAddedWorker(t *testing.T) {
 	segment := "\n## ワーカーの追加\n必要なときは、次の「目的 → プロファイル」の組でワーカーを追加してよい: 校正 → cheap\n"
 	old := "## ワーカーの追加\n必要なときは、次の「目的 → プロファイル」の組でワーカーを追加してよい: 校正 → cheap\n"
-	current := definition.Start{Workers: []definition.WorkerNode{{Purpose: "校正", Profile: "good"}}}
+	current := definition.Start{Workers: []definition.WorkerNode{{Purpose: testPurpose("校正"), Profile: "good"}}}
 	changes := workerChanges(current, segment, old)
 	if len(changes) != 1 || changes[0].Kind != "worker_profile" {
 		t.Fatalf("changes = %+v, want one worker_profile change", changes)

@@ -12,6 +12,7 @@ import (
 	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/check"
 	"github.com/aq2bq/hergy/internal/definition"
+	domainname "github.com/aq2bq/hergy/internal/domain/name"
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/newteam"
 	"github.com/aq2bq/hergy/internal/scaffold"
@@ -116,7 +117,7 @@ func (s *Server) t2NameProblems(in apiIn) []apiProblem {
 	if name == "" {
 		return []apiProblem{{Sev: "err", At: "name", Field: "name", Text: t("error.team_name_needed")}}
 	}
-	if !scaffold.NamePattern.MatchString(name) {
+	if _, err := domainname.NewDefinitionName(name); err != nil {
 		return []apiProblem{{Sev: "err", At: "name", Field: "name", Text: tf("error.new_name_pattern", name)}}
 	}
 	dir := filepath.Join(s.cat.LayerDir(catalog.Layer(in.Place)), "teams", name)

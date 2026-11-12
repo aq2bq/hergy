@@ -20,7 +20,7 @@ func edge(from, to definition.NodeID) definition.Edge { return definition.Edge{F
 func ring() *definition.Graph {
 	return definition.NewGraph(
 		[]definition.MemberNode{{Name: "lead"}, {Name: "spec"}, {Name: "dev"}},
-		[]definition.WorkerNode{{From: "spec", Purpose: "開発", Profile: "ds4f"}},
+		[]definition.WorkerNode{{From: "spec", Purpose: testPurpose("開発"), Profile: "ds4f"}},
 		[]definition.Edge{
 			edge(humanID(), member("lead")), edge(member("lead"), humanID()), edge(member("lead"), member("spec")),
 			edge(member("spec"), member("lead")), edge(member("dev"), member("spec")), edge(member("spec"), member("dev")),

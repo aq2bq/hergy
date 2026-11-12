@@ -75,7 +75,7 @@ func (c *Catalog) ProfileUsers(name string) (members, workers []MemberRef) {
 		}
 		for _, worker := range def.Graph.Workers {
 			if worker.Profile == name {
-				workers = append(workers, MemberRef{Definition: def.Name, Member: worker.From, Purpose: worker.Purpose})
+				workers = append(workers, MemberRef{Definition: def.Name, Member: worker.From, Purpose: worker.Purpose.String()})
 			}
 		}
 	}

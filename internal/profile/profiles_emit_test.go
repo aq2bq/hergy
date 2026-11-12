@@ -14,9 +14,9 @@ import (
 // the profile does not hold left out (d-cbac).
 func TestEmitProfilesWritesTheOneFormat(t *testing.T) {
 	profiles := map[string]Profile{
-		"solo": {Name: "solo", Kind: "opencode"},
+		"solo": {Name: testProfileName("solo"), Kind: "opencode"},
 		"impl": {
-			Name: "impl",
+			Name: testProfileName("impl"),
 			Kind: "claude",
 			Args: []string{"--model", "opus"},
 			Env:  map[string]string{"OPENAI_API_KEY": "sk-test", "HOME_HINT": "here"},
@@ -120,7 +120,7 @@ func TestEmitProfilesRoundTripsEnvValues(t *testing.T) {
 	}
 	for _, value := range values {
 		t.Run(strconv.Quote(value), func(t *testing.T) {
-			profiles := map[string]Profile{"impl": {Name: "impl", Kind: "claude", Env: map[string]string{"CFG": value}}}
+			profiles := map[string]Profile{"impl": {Name: testProfileName("impl"), Kind: "claude", Env: map[string]string{"CFG": value}}}
 			text, err := EmitProfiles(profiles)
 			if err != nil {
 				t.Fatalf("EmitProfiles: %v", err)

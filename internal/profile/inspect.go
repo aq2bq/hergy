@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	domainname "github.com/aq2bq/hergy/internal/domain/name"
 	"github.com/aq2bq/hergy/internal/i18n"
 	"go.yaml.in/yaml/v3"
 )
@@ -160,7 +161,7 @@ func readEntry(name string, key, value *yaml.Node, path string) (Entry, []Proble
 	add := func(sev Severity, field string, line int, text string) {
 		problems = append(problems, Problem{Sev: sev, Field: field, Line: line, Text: text})
 	}
-	if !NamePattern.MatchString(name) {
+	if _, err := domainname.ParseProfileName(name); err != nil {
 		add(Err, "name", key.Line, i18n.Tf("error.profile_name_pattern", label))
 	}
 	if value.Kind != yaml.MappingNode {
@@ -268,7 +269,7 @@ func CheckDraft(draft Draft, saved []Entry, original string) []Problem {
 	add := func(sev Severity, field, text string) {
 		out = append(out, Problem{Sev: sev, Field: field, Text: text})
 	}
-	if !NamePattern.MatchString(draft.Name) {
+	if _, err := domainname.ParseProfileName(draft.Name); err != nil {
 		add(Err, "name", i18n.Tf("error.profile_name_pattern", label))
 	} else {
 		for _, entry := range saved {

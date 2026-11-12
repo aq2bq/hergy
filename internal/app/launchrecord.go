@@ -119,7 +119,7 @@ func writeLaunch(log launchlog.Log, env team.Env, r *resolved, command string, m
 			continue
 		}
 		rec.Workers = append(rec.Workers, launchlog.Worker{
-			From: worker.From, Purpose: worker.Purpose, Profile: worker.Profile,
+			From: worker.From, Purpose: worker.Purpose.String(), Profile: worker.Profile,
 			Start: launchlog.StartFingerprint(p.Kind, p.Args),
 			Env:   launchlog.EnvFingerprint(p.Env),
 		})

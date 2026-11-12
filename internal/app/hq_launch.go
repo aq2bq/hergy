@@ -12,12 +12,12 @@ import (
 	"time"
 
 	"github.com/aq2bq/hergy/internal/definition"
+	domainname "github.com/aq2bq/hergy/internal/domain/name"
 	"github.com/aq2bq/hergy/internal/herdr"
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/launcher"
 	"github.com/aq2bq/hergy/internal/launchlog"
 	"github.com/aq2bq/hergy/internal/protocol"
-	"github.com/aq2bq/hergy/internal/scaffold"
 	"github.com/aq2bq/hergy/internal/source"
 	"github.com/aq2bq/hergy/internal/team"
 	"github.com/aq2bq/hergy/internal/web"
@@ -333,7 +333,7 @@ func (h *hqRead) startName(in web.HQLaunchIn, env team.Env) (string, error) {
 	if name == "" {
 		name = in.Definition
 	}
-	if strings.TrimSpace(in.Name) != "" && !scaffold.NamePattern.MatchString(name) {
+	if _, err := domainname.NewTeamName(name); strings.TrimSpace(in.Name) != "" && err != nil {
 		return "", &web.HQError{
 			Status: http.StatusUnprocessableEntity,
 			At:     "name",

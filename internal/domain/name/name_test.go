@@ -79,7 +79,7 @@ func TestHerdrCompositionAndResolution(t *testing.T) {
 			t.Errorf("resolved: %v %q %v", team, short, ok)
 		}
 	}
-	for _, value := range []string{"a", "a-", "other-lead", "A-lead", strings.Repeat("a", 33)} {
+	for _, value := range []string{"a", "other-lead", "A-lead"} {
 		if _, _, ok := name.ResolveHerdr(value, []name.TeamName{a, ab}); ok {
 			t.Errorf("resolved %q", value)
 		}
@@ -125,9 +125,12 @@ func TestSavedStrings(t *testing.T) {
 	herdr, _ := team.Member(member)
 	purpose, _ := name.ParsePurpose("two words")
 	for _, pair := range []struct {
-		value encoding.TextMarshaler
-		into  encoding.TextUnmarshaler
-		want  string
+		value interface {
+			encoding.TextMarshaler
+			String() string
+		}
+		into encoding.TextUnmarshaler
+		want string
 	}{
 		{team, new(name.TeamName), "demo"},
 		{member, new(name.MemberName), "lead"},
@@ -138,6 +141,9 @@ func TestSavedStrings(t *testing.T) {
 		{name.RoleName{}, new(name.RoleName), ""},
 		{name.ProfileName{}, new(name.ProfileName), ""},
 	} {
+		if got := pair.value.String(); got != pair.want {
+			t.Fatalf("String() = %q, want %q", got, pair.want)
+		}
 		text, err := pair.value.MarshalText()
 		if err != nil || string(text) != pair.want {
 			t.Fatalf("text %q: %v", text, err)
@@ -153,6 +159,24 @@ func TestSavedStrings(t *testing.T) {
 		again, err := json.Marshal(pair.into)
 		if err != nil || string(again) != string(data) {
 			t.Fatalf("round trip: %s %v", again, err)
+		}
+	}
+}
+
+func TestResolveHerdrKeepsUnmatchedObservation(t *testing.T) {
+	team, _ := name.ParseTeamName("demo")
+	for _, raw := range []string{"other-lead", "human", ""} {
+		owner, short, ok := name.ResolveHerdr(raw, []name.TeamName{team})
+		if ok || owner.String() != "" || short != raw {
+			t.Errorf("%q: %v %q %v", raw, owner, short, ok)
+		}
+	}
+	// Observed labels retain the old permissive reading; validation happens when
+	// assigning names, not when deciding which team's existing pane to display.
+	for _, raw := range []string{"demo-", "demo-1", "demo-" + strings.Repeat("a", 32)} {
+		owner, short, ok := name.ResolveHerdr(raw, []name.TeamName{team})
+		if !ok || owner != team || short != strings.TrimPrefix(raw, "demo-") {
+			t.Errorf("%q: %v %q %v", raw, owner, short, ok)
 		}
 	}
 }

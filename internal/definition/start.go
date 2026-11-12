@@ -130,7 +130,7 @@ func (s Start) ToPlan() map[string]any {
 	if len(s.Workers) > 0 {
 		workers := make([]map[string]any, len(s.Workers))
 		for i, worker := range s.Workers {
-			workers[i] = map[string]any{"from": worker.From, "purpose": worker.Purpose, "profile": worker.Profile}
+			workers[i] = map[string]any{"from": worker.From, "purpose": worker.Purpose.String(), "profile": worker.Profile}
 		}
 		out["workers"] = workers
 	}

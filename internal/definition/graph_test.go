@@ -19,7 +19,7 @@ func TestNewGraphMakesTheWorkerEdges(t *testing.T) {
 	turns := []Edge{turn(memberID("lead"), humanID())}
 	g := NewGraph(
 		[]MemberNode{{Name: "lead", Role: "lead", Profile: "claude-main"}, {Name: "impl", Role: "impl", Profile: "claude-main"}},
-		[]WorkerNode{{From: "lead", Purpose: "調査", Profile: "seeker"}},
+		[]WorkerNode{{From: "lead", Purpose: testPurpose("調査"), Profile: "seeker"}},
 		turns,
 	)
 	want := []Edge{
@@ -64,7 +64,7 @@ func TestGraphCheck(t *testing.T) {
 	t.Run("a sound graph has no problem", func(t *testing.T) {
 		g := NewGraph(
 			[]MemberNode{{Name: "lead"}, {Name: "impl"}},
-			[]WorkerNode{{From: "lead", Purpose: "調査", Profile: "seeker"}},
+			[]WorkerNode{{From: "lead", Purpose: testPurpose("調査"), Profile: "seeker"}},
 			[]Edge{turn(humanID(), memberID("lead")), turn(memberID("lead"), memberID("impl")), turn(memberID("impl"), humanID())},
 		)
 		if problems := g.Check(); len(problems) != 0 {
@@ -72,7 +72,7 @@ func TestGraphCheck(t *testing.T) {
 		}
 	})
 	t.Run("a worker whose member is not there", func(t *testing.T) {
-		g := NewGraph(nil, []WorkerNode{{From: "lead", Purpose: "調査"}}, []Edge{turn(humanID(), humanID())})
+		g := NewGraph(nil, []WorkerNode{{From: "lead", Purpose: testPurpose("調査")}}, []Edge{turn(humanID(), humanID())})
 		problems := g.Check()
 		var found *Problem
 		for i := range problems {
@@ -141,7 +141,7 @@ func TestGraphCheck(t *testing.T) {
 	t.Run("no turn reaches the human", func(t *testing.T) {
 		g := NewGraph(
 			[]MemberNode{{Name: "lead"}, {Name: "impl"}},
-			[]WorkerNode{{From: "lead", Purpose: "調査", Profile: "seeker"}},
+			[]WorkerNode{{From: "lead", Purpose: testPurpose("調査"), Profile: "seeker"}},
 			[]Edge{turn(humanID(), memberID("lead")), turn(memberID("lead"), memberID("impl")), turn(memberID("impl"), memberID("lead"))},
 		)
 		problems := g.Check()
@@ -179,7 +179,7 @@ func TestNodeIDsAreWrittenTheWaySettingsWriteThem(t *testing.T) {
 
 // workerID is a worker node's identity, so a test does not spell out the kind.
 func workerID(from, purpose string) NodeID {
-	return WorkerNode{From: from, Purpose: purpose}.ID()
+	return WorkerNode{From: from, Purpose: testPurpose(purpose)}.ID()
 }
 
 // TestGraphCheckRefusesACutOffTurn: I13a (every member is reached from the
@@ -242,7 +242,7 @@ func TestGraphCheckRefusesACutOffTurn(t *testing.T) {
 	})
 	t.Run("the 2026-11-05 team: dev reached through spec and back through spec and lead", func(t *testing.T) {
 		g := NewGraph([]MemberNode{{Name: "lead"}, {Name: "spec"}, {Name: "dev"}},
-			[]WorkerNode{{From: "spec", Purpose: "開発", Profile: "ds4f"}},
+			[]WorkerNode{{From: "spec", Purpose: testPurpose("開発"), Profile: "ds4f"}},
 			[]Edge{
 				turn(humanID(), memberID("lead")), turn(memberID("lead"), humanID()), turn(memberID("lead"), memberID("spec")),
 				turn(memberID("spec"), memberID("lead")), turn(memberID("dev"), memberID("spec")), turn(memberID("spec"), memberID("dev")),

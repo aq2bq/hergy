@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/aq2bq/hergy/internal/definition"
+	domainname "github.com/aq2bq/hergy/internal/domain/name"
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/profile"
 	"github.com/aq2bq/hergy/internal/prompt"
@@ -19,7 +20,7 @@ import (
 // names the hiring member; empty means the one member whose workers: name this
 // purpose (d-6f03).
 func Plan(team string, starts []definition.Start, profiles map[string]profile.Profile, name, purpose, task, from string) (*definition.Start, error) {
-	if !profile.NamePattern.MatchString(name) {
+	if _, err := domainname.ParseWorkerName(name); err != nil {
 		return nil, i18n.Errorf("error.worker_name_pattern")
 	}
 	herdrName := team + "-" + name
@@ -67,7 +68,7 @@ func Plan(team string, starts []definition.Start, profiles map[string]profile.Pr
 		Cwd:      lead.Cwd,
 		Prompt:   built.Text,
 		Segments: built.Segments,
-		Profile:  profileValue.Name,
+		Profile:  profileValue.Name.String(),
 	}
 	return worker, nil
 }
@@ -147,7 +148,7 @@ func hirersFor(starts []definition.Start, purpose string) []*definition.Start {
 // profileFor is the profile a member's workers pair with a purpose.
 func profileFor(workers []definition.WorkerNode, purpose string) (string, bool) {
 	for _, worker := range workers {
-		if worker.Purpose == purpose {
+		if worker.Purpose.String() == purpose {
 			return worker.Profile, true
 		}
 	}
@@ -162,7 +163,7 @@ func availablePurposes(workers []definition.WorkerNode) string {
 	}
 	purposes := make([]string, len(workers))
 	for i, worker := range workers {
-		purposes[i] = worker.Purpose
+		purposes[i] = worker.Purpose.String()
 	}
 	return strings.Join(purposes, i18n.T("list.separator"))
 }

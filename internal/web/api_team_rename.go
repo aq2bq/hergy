@@ -5,13 +5,12 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"regexp"
 
 	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/definition"
+	domainname "github.com/aq2bq/hergy/internal/domain/name"
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/prompt"
-	"github.com/aq2bq/hergy/internal/scaffold"
 	"github.com/aq2bq/hergy/internal/source"
 )
 
@@ -22,7 +21,9 @@ type apiRenamePreview struct {
 }
 
 func (s *Server) renamePreview(old, next, place string) (*apiRenamePreview, *apiErr) {
-	if !regexp.MustCompile(`^[a-z][a-z0-9_-]{0,31}$`).MatchString(old) || !scaffold.NamePattern.MatchString(next) || old == next {
+	_, oldErr := domainname.ParseDefinitionName(old)
+	_, nextErr := domainname.NewDefinitionName(next)
+	if oldErr != nil || nextErr != nil || old == next {
 		return nil, refuseAt("name", i18n.T("web.rename.name"))
 	}
 	if place != "project" && place != "global" {

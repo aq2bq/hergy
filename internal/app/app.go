@@ -21,6 +21,7 @@ import (
 	"github.com/aq2bq/hergy/internal/cheat"
 	"github.com/aq2bq/hergy/internal/check"
 	"github.com/aq2bq/hergy/internal/definition"
+	domainname "github.com/aq2bq/hergy/internal/domain/name"
 	"github.com/aq2bq/hergy/internal/herdr"
 	"github.com/aq2bq/hergy/internal/herdrcli"
 	"github.com/aq2bq/hergy/internal/i18n"
@@ -814,7 +815,7 @@ func agreementDocs(r *resolved) []source.Doc {
 // embedded scaffold for the language in use.
 func runNew(env team.Env, opts *options.Options, stdout io.Writer) error {
 	name := opts.Team
-	if !scaffold.NamePattern.MatchString(name) {
+	if _, err := domainname.NewDefinitionName(name); err != nil {
 		return i18n.Errorf("error.new_name_pattern", name)
 	}
 	// hergy new writes where the person is (K2): inside a git repository that

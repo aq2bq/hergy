@@ -11,6 +11,7 @@
 package definition
 
 import (
+	domainname "github.com/aq2bq/hergy/internal/domain/name"
 	"github.com/aq2bq/hergy/internal/source"
 )
 
@@ -72,12 +73,14 @@ func (m MemberNode) ID() NodeID { return NodeID{Kind: KindMember, Name: m.Name} 
 // (I12c).
 type WorkerNode struct {
 	From    string // the member that hires it
-	Purpose string
+	Purpose domainname.Purpose
 	Profile string
 }
 
 // ID is the node's identity: the hiring member and the purpose.
-func (w WorkerNode) ID() NodeID { return NodeID{Kind: KindWorker, Name: w.From + "/" + w.Purpose} }
+func (w WorkerNode) ID() NodeID {
+	return NodeID{Kind: KindWorker, Name: w.From + "/" + w.Purpose.String()}
+}
 
 // Human is the human: one person, outside every team, who decides. In the graph
 // it is the team's boundary (I12b, d-11f8). Its name in a settings file is

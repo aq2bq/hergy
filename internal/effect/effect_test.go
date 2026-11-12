@@ -77,8 +77,8 @@ func (l layer) catalog(t *testing.T) *catalog.Catalog {
 func (l layer) profiles() map[string]profile.Profile {
 	path := filepath.Join(l.team, "profiles.yaml")
 	return map[string]profile.Profile{
-		"claude-default": {Name: "claude-default", Kind: "claude", Path: path},
-		"codex-default":  {Name: "codex-default", Kind: "codex", Path: path},
+		"claude-default": {Name: testProfileName("claude-default"), Kind: "claude", Path: path},
+		"codex-default":  {Name: testProfileName("codex-default"), Kind: "codex", Path: path},
 	}
 }
 
@@ -740,7 +740,7 @@ func TestHireLinesSayWhatAWorkerOnlyProfileChangeDoes(t *testing.T) {
 	before := l.view(t, l.read(t, text))
 	after := before
 	after.Profiles = l.profiles()
-	after.Profiles["codex-default"] = profile.Profile{Name: "codex-default", Kind: "pi"}
+	after.Profiles["codex-default"] = profile.Profile{Name: testProfileName("codex-default"), Kind: "pi"}
 
 	want := []string{"次の hergy hire --purpose 試作 から使われます"}
 	if got := effect.HireLines(before, after); !reflect.DeepEqual(got, want) {
@@ -748,7 +748,7 @@ func TestHireLinesSayWhatAWorkerOnlyProfileChangeDoes(t *testing.T) {
 	}
 
 	// The profile every member runs is not a hire's business.
-	after.Profiles["claude-default"] = profile.Profile{Name: "claude-default", Kind: "pi"}
+	after.Profiles["claude-default"] = profile.Profile{Name: testProfileName("claude-default"), Kind: "pi"}
 	if got := effect.HireLines(before, after); !reflect.DeepEqual(got, want) {
 		t.Errorf("HireLines with a member's profile = %q, want %q", got, want)
 	}

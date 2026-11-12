@@ -10,6 +10,7 @@ import (
 // Kind identifies which naming rule refused a value.
 type Kind string
 
+// The kinds of name whose validation can fail.
 const (
 	Team        Kind = "team"
 	Definition  Kind = "definition"
@@ -21,22 +22,32 @@ const (
 	Herdr       Kind = "herdr"
 )
 
+// Rule identifies a purpose error without embedding a translated sentence.
+type Rule string
+
+// The reasons a purpose can be refused.
+const (
+	EmptyPurpose     Rule = "empty-purpose"
+	MultiplePurposes Rule = "multiple-purposes"
+)
+
 // Problem reports a refused value without choosing a language or a message.
 type Problem struct {
 	Kind  Kind
 	Value string
 	Max   int
+	Rule  Rule
 }
 
 func (p *Problem) Error() string { return fmt.Sprintf("invalid %s name %q", p.Kind, p.Value) }
 
-func plain(s string, max int, kind Kind) error {
-	if len(s) == 0 || len(s) > max || s[0] < 'a' || s[0] > 'z' {
-		return &Problem{Kind: kind, Value: s, Max: max}
+func plain(s string, limit int, kind Kind) error {
+	if len(s) == 0 || len(s) > limit || s[0] < 'a' || s[0] > 'z' {
+		return &Problem{Kind: kind, Value: s, Max: limit}
 	}
 	for _, c := range s[1:] {
 		if (c < 'a' || c > 'z') && (c < '0' || c > '9') && c != '_' && c != '-' {
-			return &Problem{Kind: kind, Value: s, Max: max}
+			return &Problem{Kind: kind, Value: s, Max: limit}
 		}
 	}
 	return nil
@@ -305,9 +316,14 @@ func (n *HerdrName) UnmarshalText(text []byte) error {
 	return nil
 }
 
+// A purpose keeps its spelling, including spaces. Commas mean more than one
+// purpose (d-37ac, n-b7de); the definition reader has always refused those.
 func purposeProblem(s string) error {
-	if strings.TrimSpace(s) == "" || strings.ContainsAny(s, ",、") {
-		return &Problem{Kind: PurposeKind, Value: s}
+	if strings.TrimSpace(s) == "" {
+		return &Problem{Kind: PurposeKind, Value: s, Rule: EmptyPurpose}
+	}
+	if strings.ContainsAny(s, ",、") {
+		return &Problem{Kind: PurposeKind, Value: s, Rule: MultiplePurposes}
 	}
 	return nil
 }
@@ -362,19 +378,18 @@ func ParseWorkerTab(label string) (TeamName, WorkerName, bool) {
 
 // ResolveHerdr resolves an observed herdr name against the running teams. The
 // longest matching team wins: a-b-lead belongs to a-b rather than a. Both
-// components may contain dashes, so there is no context-free inverse.
+// components may contain dashes, so there is no context-free inverse. This reads
+// observations without constructing a validated HerdrName. If no team matches,
+// the second result keeps raw unchanged for callers that display observations.
 func ResolveHerdr(raw string, teams []TeamName) (TeamName, string, bool) {
-	if plain(raw, 32, Herdr) != nil {
-		return TeamName{}, "", false
-	}
 	var best TeamName
 	for _, team := range teams {
-		if team.s != "" && len(team.s) > len(best.s) && strings.HasPrefix(raw, team.s+"-") && len(raw) > len(team.s)+1 {
+		if team.s != "" && len(team.s) > len(best.s) && strings.HasPrefix(raw, team.s+"-") {
 			best = team
 		}
 	}
 	if best.s == "" {
-		return TeamName{}, "", false
+		return TeamName{}, raw, false
 	}
 	return best, raw[len(best.s)+1:], true
 }

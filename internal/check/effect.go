@@ -185,7 +185,7 @@ func workerProfile(view effect.View, from, purpose string) string {
 		return ""
 	}
 	for _, worker := range view.Def.Graph.Workers {
-		if worker.From == from && worker.Purpose == purpose {
+		if worker.From == from && worker.Purpose.String() == purpose {
 			return worker.Profile
 		}
 	}

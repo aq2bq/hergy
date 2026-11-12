@@ -257,8 +257,8 @@ func turnPair(from, to string) string { return from + " → " + to }
 func workerChanges(current definition.Start, segment, oldPrompt string) []Change {
 	var nowPairs, nowPurposes []string
 	for _, worker := range current.Workers {
-		nowPairs = append(nowPairs, worker.Purpose+" → "+worker.Profile)
-		nowPurposes = append(nowPurposes, worker.Purpose)
+		nowPairs = append(nowPairs, worker.Purpose.String()+" → "+worker.Profile)
+		nowPurposes = append(nowPurposes, worker.Purpose.String())
 	}
 	heading := firstHeading(segment)
 	old := section(oldPrompt, heading)

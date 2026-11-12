@@ -375,7 +375,7 @@ func WorkersOf(def *definition.Definition, member string) []WorkerPair {
 		if !ok {
 			continue
 		}
-		out = append(out, WorkerPair{Purpose: worker.Purpose, Profile: worker.Profile})
+		out = append(out, WorkerPair{Purpose: worker.Purpose.String(), Profile: worker.Profile})
 	}
 	return out
 }

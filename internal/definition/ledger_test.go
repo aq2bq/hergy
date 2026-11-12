@@ -96,7 +96,7 @@ func TestLedgerBrokenLineNamesTheLine(t *testing.T) {
 // check reports the name, and the ledger is read.
 func TestLedgerReadsTheUnknownProfile(t *testing.T) {
 	l := newLayer(t, "")
-	profiles := map[string]profile.Profile{"claude-default": {Name: "claude-default", Kind: "claude"}}
+	profiles := map[string]profile.Profile{"claude-default": {Name: testProfileName("claude-default"), Kind: "claude"}}
 	got, err := parse("version: 1\ndescription: a description for the test\nteam: t\nprompt: \"%{role_doc}%{docs}\"\nmembers:\n  - name: a\n    role: r\n    profile: absent\n"+
 		"turns:\n  - human -> a\n  - a -> human\nledger:\n  - req approve by a\n", "t", "", l, profiles)
 	if err != nil {

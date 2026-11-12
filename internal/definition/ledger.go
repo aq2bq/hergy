@@ -136,7 +136,7 @@ func isMemberName(members []MemberNode, name string) bool {
 // write.
 func isWorkerName(workers []WorkerNode, name string) bool {
 	for _, worker := range workers {
-		if name == worker.From+"/"+worker.Purpose || name == worker.Purpose {
+		if name == worker.From+"/"+worker.Purpose.String() || name == worker.Purpose.String() {
 			return true
 		}
 	}

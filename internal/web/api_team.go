@@ -268,7 +268,7 @@ func (s *Server) t2DocWithAgree(def *definition.Definition, agree *apiTeamAgree)
 		out.Members = append(out.Members, apiTeamMember{Name: member.Name, Role: member.Role, Profile: member.Profile})
 	}
 	for _, w := range def.Graph.Workers {
-		out.Workers = append(out.Workers, apiTeamWorker{From: w.From, Purpose: w.Purpose, Profile: w.Profile})
+		out.Workers = append(out.Workers, apiTeamWorker{From: w.From, Purpose: w.Purpose.String(), Profile: w.Profile})
 	}
 	out.Turns = t2TurnsOf(def)
 	return out
@@ -601,7 +601,7 @@ func t2HiringMember(def *definition.Definition, purpose, from string) (*definiti
 	for i := range def.Graph.Members {
 		member := &def.Graph.Members[i]
 		for _, worker := range def.Graph.Workers {
-			if worker.From == member.Name && worker.Purpose == purpose {
+			if worker.From == member.Name && worker.Purpose.String() == purpose {
 				names = append(names, member.Name)
 				break
 			}

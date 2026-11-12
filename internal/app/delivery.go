@@ -248,7 +248,7 @@ func workerNotes(record launchlog.Record, r *resolved) []string {
 	}
 	var out []string
 	for _, worker := range r.team.Definition.Graph.Workers {
-		was, ok := before[worker.From+"/"+worker.Purpose]
+		was, ok := before[worker.From+"/"+worker.Purpose.String()]
 		if !ok {
 			continue
 		}
