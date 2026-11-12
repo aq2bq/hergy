@@ -65,34 +65,6 @@ var ownerRules = []ownerRule{
 	{name: "navRoles", where: "go", files: []string{"internal/catalog/"}},
 }
 
-// The danger section: the one table of what a dangerous action does, and the one
-// place the confirmation and the undo notice stand (r-ccf8, d-2cce, d-aeeb). A
-// screen calls runDanger and marks its button; it keeps no confirmation state of
-// its own and builds no notice of its own.
-const (
-	dangerOwner   = "internal/web/src/lib/danger.ts"
-	dangerDialog  = "internal/web/src/lib/confirm.tsx" // askConfirm's definition
-	dangerNotice  = "internal/web/src/lib/undo.tsx"    // offerUndo's definition
-	dangerMounted = "internal/web/src/lib/dialogs.tsx" // the one <ConfirmDialog
-)
-
-// dangerNameRules are the old confirmation names and the two calls only the
-// owner makes. confirm is the browser's window.confirm when it stands in a
-// screen, which is not the state this section replaced: owners.yml allows those
-// two places, with why.
-var dangerNameRules = []ownerRule{
-	{name: "confirm", where: "ts", files: []string{dangerOwner}},
-	{name: "setConfirm", where: "ts", files: []string{dangerOwner}},
-	{name: "pressDel", where: "ts", files: []string{dangerOwner}},
-	{name: "pressDelNo", where: "ts", files: []string{dangerOwner}},
-	{name: "confirming", where: "ts", files: []string{dangerOwner}},
-	{name: "askConfirm", where: "ts", files: []string{dangerOwner, dangerDialog}},
-	{name: "offerUndo", where: "ts", files: []string{dangerOwner, dangerNotice}},
-	// The browser's own confirmation is the same concept: it asks too, and it
-	// is asked for by the owner alone (d-021e).
-	{name: "window.confirm", where: "ts", files: []string{dangerOwner}},
-}
-
 // The prompt section (⑤ r-ba9b): the text handed to a member or a worker is
 // built by promptsFor (internal/web/api_prompt.go) and read by prompt-source.ts,
 // and nowhere else. The check and the two panels ask the owners; they build no
@@ -155,7 +127,6 @@ type ownerAllow struct {
 // ownersFile is tools/check/owners.yml.
 type ownersFile struct {
 	Enforce       bool         `yaml:"enforce"`
-	DangerEnforce bool         `yaml:"danger_enforce"`
 	PromptEnforce bool         `yaml:"prompt_enforce"`
 	Allow         []ownerAllow `yaml:"allow"`
 }
@@ -178,29 +149,24 @@ func (r *runner) ownersGate() error {
 	if err != nil {
 		return err
 	}
-	danger, err := r.dangerFindings(conf)
-	if err != nil {
-		return err
-	}
 	prompt, err := r.promptFindings(conf)
 	if err != nil {
 		return err
 	}
 
-	return ownersVerdict(conf, findings, danger, prompt)
+	return ownersVerdict(conf, findings, prompt)
 }
 
 // ownersVerdict prints what the sections found and fails the enforced ones.
 // Each section turns Hard on its own: a section still reporting prints its
 // findings and passes, and an enforced one fails (owners.yml).
-func ownersVerdict(conf ownersFile, findings, danger, prompt []string) error {
+func ownersVerdict(conf ownersFile, findings, prompt []string) error {
 	sections := []struct {
 		findings []string
 		enforce  bool
 		name     string
 	}{
 		{findings, conf.Enforce, "enforce"},
-		{danger, conf.DangerEnforce, "danger_enforce"},
 		{prompt, conf.PromptEnforce, "prompt_enforce"},
 	}
 	var all []string
@@ -477,239 +443,4 @@ func stringLines(text, want string) []int {
 		out = append(out, lineOf(text, i+j))
 		i += j + len(want)
 	}
-}
-
-// dangerFindings is the danger section's four rules: the old confirmation names
-// and the owner's two calls outside their files, a confirmation dialog mounted
-// anywhere but the one place, and a danger button without an act the table
-// knows.
-func (r *runner) dangerFindings(conf ownersFile) ([]string, error) {
-	files, err := r.sourceFiles()
-	if err != nil {
-		return nil, err
-	}
-	acts, err := r.dangerActs()
-	if err != nil {
-		return nil, err
-	}
-	var out []string
-	for _, path := range files {
-		rel, err := filepath.Rel(r.root, path)
-		if err != nil {
-			return nil, err
-		}
-		rel = filepath.ToSlash(rel)
-		if !strings.HasSuffix(rel, ".ts") && !strings.HasSuffix(rel, ".tsx") {
-			continue
-		}
-		raw, err := os.ReadFile(path)
-		if err != nil {
-			return nil, err
-		}
-		code := maskSpec(string(raw))
-		out = append(out, dangerFileFindings(rel, code, conf)...)
-		out = append(out, dangerClosingWarning(rel, string(raw), conf)...)
-		out = append(out, dangerAttrFindings(rel, string(raw), acts)...)
-	}
-	sort.Strings(out)
-	return out, nil
-}
-
-// dangerFileFindings is one file's names and dialog mounts: the old confirmation
-// names, the owner's two calls, and <ConfirmDialog standing only in its one
-// place.
-func dangerFileFindings(rel, code string, conf ownersFile) []string {
-	var out []string
-	for _, rule := range dangerNameRules {
-		if allowed(rel, rule.files) || allowedBy(rel, conf.Allow, rule.name) {
-			continue
-		}
-		for _, line := range plainCallLines(code, rule.name) {
-			out = append(out, fmt.Sprintf("%s:%d: %s は持ち主（%s）に置いてください。寄せられない場合は %s の allow に理由と決定を添えてください",
-				rel, line, rule.name, dangerOwner, ownersPath))
-		}
-	}
-	if rel == dangerMounted {
-		return out
-	}
-	for i, line := range strings.Split(code, "\n") {
-		if strings.Contains(line, "<ConfirmDialog") {
-			out = append(out, fmt.Sprintf("%s:%d: <ConfirmDialog は %s の 1 か所だけに置いてください", rel, i+1, dangerMounted))
-		}
-	}
-	return out
-}
-
-// dangerClosingWarning is the browser's beforeunload. It stands in a string,
-// which maskSpec blanks, so it is read from the text; only the owner or an
-// allowlist entry may hold it (d-3a42).
-func dangerClosingWarning(rel, raw string, conf ownersFile) []string {
-	if allowed(rel, []string{dangerOwner}) || allowedBy(rel, conf.Allow, "beforeunload") {
-		return nil
-	}
-	var out []string
-	for i, line := range strings.Split(raw, "\n") {
-		if strings.Contains(line, "beforeunload") && strings.Contains(line, "EventListener(") {
-			out = append(out, fmt.Sprintf("%s:%d: ブラウザの確認（beforeunload）は持ち主（%s）の外に置かず、%s の allow に理由と決定を添えてください", rel, i+1, dangerOwner, ownersPath))
-		}
-	}
-	return out
-}
-
-// dangerActs is the actions lib/danger.ts's DANGER table names: the only values
-// a danger button may carry.
-func (r *runner) dangerActs() (map[string]bool, error) {
-	raw, err := os.ReadFile(filepath.Join(r.root, dangerOwner))
-	if os.IsNotExist(err) {
-		// A tree without the owner has no table to hold a button to.
-		return map[string]bool{}, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	s := string(raw)
-	at := strings.Index(s, "const DANGER")
-	if at < 0 {
-		return nil, fmt.Errorf("%s: DANGER の表がありません", dangerOwner)
-	}
-	open := strings.IndexByte(s[at:], '{')
-	if open < 0 {
-		return nil, fmt.Errorf("%s: DANGER の表がありません", dangerOwner)
-	}
-	open += at
-	depth := 0
-	for i := open; i < len(s); i++ {
-		switch s[i] {
-		case '{':
-			depth++
-		case '}':
-			depth--
-			if depth == 0 {
-				out := map[string]bool{}
-				for _, one := range regexp.MustCompile(`([A-Za-z_][A-Za-z0-9_]*)\s*:`).FindAllStringSubmatch(s[open+1:i], -1) {
-					out[one[1]] = true
-				}
-				if len(out) == 0 {
-					return nil, fmt.Errorf("%s: DANGER の表に操作がありません", dangerOwner)
-				}
-				return out, nil
-			}
-		}
-	}
-	return nil, fmt.Errorf("%s: DANGER の表が閉じていません", dangerOwner)
-}
-
-// dangerAttrFindings is the danger buttons' own rule: a button carrying
-// data-danger says which action it runs (data-danger-act), and the name is one
-// the table knows. The attribute is read from the tag it stands in, braces and
-// strings skipped, so a button's onClick does not end the tag early.
-func dangerAttrFindings(rel, raw string, acts map[string]bool) []string {
-	var out []string
-	for i := 0; ; {
-		j := strings.Index(raw[i:], "data-danger")
-		if j < 0 {
-			break
-		}
-		at := i + j
-		end := at + len("data-danger")
-		// data-danger-act is the act itself, not a button without one.
-		if end < len(raw) && raw[end] == '-' {
-			i = end
-			continue
-		}
-		start := strings.LastIndexByte(raw[:at], '<')
-		stop := jsxTagEnd(raw, at)
-		if start < 0 || stop < 0 {
-			i = end
-			continue
-		}
-		line := lineOf(raw, at)
-		if value, ok := jsxAttr(raw[start:stop], "data-danger-act"); !ok {
-			out = append(out, fmt.Sprintf("%s:%d: data-danger のボタンに data-danger-act がありません。%s の DANGER にある操作の名前を書いてください", rel, line, dangerOwner))
-		} else if !acts[value] {
-			out = append(out, fmt.Sprintf("%s:%d: data-danger-act の %q は %s の DANGER にありません", rel, line, value, dangerOwner))
-		}
-		i = stop
-	}
-	return out
-}
-
-// jsxTagEnd is where the tag holding at ends: the > outside braces and strings.
-func jsxTagEnd(raw string, at int) int {
-	depth := 0
-	for i := at; i < len(raw); i++ {
-		switch raw[i] {
-		case '{':
-			depth++
-		case '}':
-			if depth > 0 {
-				depth--
-			}
-		case '\'', '"', '`':
-			quote := raw[i]
-			for i++; i < len(raw); i++ {
-				if raw[i] == '\\' {
-					i++
-					continue
-				}
-				if raw[i] == quote {
-					break
-				}
-			}
-		case '>':
-			if depth == 0 {
-				return i + 1
-			}
-		}
-	}
-	return -1
-}
-
-// jsxAttr is one attribute's string value in a tag, as data-danger-act writes it.
-func jsxAttr(tag, name string) (string, bool) {
-	_, after, ok := strings.Cut(tag, name)
-	if !ok {
-		return "", false
-	}
-	rest := after
-	eq := strings.IndexByte(rest, '=')
-	if eq < 0 {
-		return "", false
-	}
-	rest = strings.TrimLeft(rest[eq+1:], " \t")
-	if rest == "" || rest[0] != '"' && rest[0] != '\'' {
-		return "", false
-	}
-	quote := rest[0]
-	if end := strings.IndexByte(rest[1:], quote); end >= 0 {
-		return rest[1 : 1+end], true
-	}
-	return "", false
-}
-
-// plainCallLines is callLines for a name a screen owns itself: a member of
-// something else (window.confirm) is not that name (d-021e).
-func plainCallLines(code, name string) []int {
-	var out []int
-	for i := 0; i < len(code); {
-		j := strings.Index(code[i:], name)
-		if j < 0 {
-			break
-		}
-		at := i + j
-		before := byte(' ')
-		if at > 0 {
-			before = code[at-1]
-		}
-		after := byte(' ')
-		end := at + len(name)
-		if end < len(code) {
-			after = code[end]
-		}
-		if !isIdentByte(before) && before != '.' && (after == '(' || after == '=') {
-			out = append(out, lineOf(code, at))
-		}
-		i = at + len(name)
-	}
-	return out
 }

@@ -23,7 +23,7 @@ import {
 } from './actions.js';
 import type { ChangeSet, Panel as PanelState, Problem, ProfileChip, Row } from './types.js';
 import type { PlaceGroup } from './state.js';
-import { runDanger } from '../lib/danger.js';
+import { runDanger, dangerAttrs } from '../lib/danger.js';
 
 // inputValue is what a field holds after a person typed in it. A field is an
 // input, a textarea or a select; anything else has no value to read.
@@ -197,7 +197,7 @@ function Panel({ panel }: { panel: PanelState }) {
     <>
       {saved ? <button class="btn" data-act="dup" onClick={() => pressDup(panel.key)}>複製</button> : ''}
       {saved && canCopy(panel) ? <button class="btn" data-act="copy" onClick={() => pressCopy(panel.key)}>{panel.otherLabel}にコピー</button> : ''}
-      {saved ? <button class="btn danger" data-act="del" data-danger data-danger-act="deleteProfile" onClick={() => runDanger('deleteProfile', { run: () => pressDelYes(panel.key), loss: { kind: 'profile', name: panel.draft.name || panel.saved?.name || '', place: panel.file, project: panel.group }, confirm: { title: `プロファイル ${panel.draft.name || panel.saved?.name || ''} を削除しますか`, label: `削除する${panel.users ? `（${panel.users} 人が使っている）` : ''}` } })}>削除</button> : <button class="btn danger" data-act="discard" data-danger data-danger-act="discardRow" onClick={() => {
+      {saved ? <button class="btn danger" data-act="del" {...dangerAttrs('deleteProfile')} onClick={() => runDanger('deleteProfile', { run: () => pressDelYes(panel.key), loss: { kind: 'profile', name: panel.draft.name || panel.saved?.name || '', place: panel.file, project: panel.group }, confirm: { title: `プロファイル ${panel.draft.name || panel.saved?.name || ''} を削除しますか`, label: `削除する${panel.users ? `（${panel.users} 人が使っている）` : ''}` } })}>削除</button> : <button class="btn danger" data-act="discard" {...dangerAttrs('discardRow')} onClick={() => {
         // A panel nobody touched since it was made goes at once (r-d480).
         if (!panel.saved && !panel.editing.bornLost.value.length) { pressDiscard(panel.key); return; }
         runDanger('discardRow', { run: () => pressDiscard(panel.key), lost: panel.editing.bornLost.value, confirm: { title: '入力した内容を捨てますか', label: '破棄する' } });

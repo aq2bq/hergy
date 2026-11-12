@@ -21,3 +21,8 @@ test('resource comparisons stay in editing and transferred prose retains its com
   expect(await errors('lib/editing.ts', text)).toEqual([]);
   expect(await errors('lib/prose-transfer.ts', text)).toEqual([]);
 });
+
+test('confirmations and raw danger marks cannot bypass their typed owner', async () => {
+  expect(await errors('roles/proof.tsx', "window.confirm('go'); window.addEventListener('beforeunload', f); const x = <button data-danger data-danger-act='erase' />;")).toEqual(['no-restricted-properties', 'no-restricted-syntax', 'no-restricted-syntax', 'no-restricted-syntax']);
+  expect(await errors('lib/prose-transfer-view.tsx', "window.addEventListener('beforeunload', f); window.removeEventListener('beforeunload', f);")).toEqual([]);
+});

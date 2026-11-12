@@ -1,3 +1,4 @@
+import { dangerAttrs } from '../../lib/danger.js';
 // teams/canvas/figure.tsx — 構成図の図（点と線）を描く（spec-teams B7、n-6be7）。
 //
 // 図は vnode で描くので、描き直しで点や線の要素が入れ替わらない（Tab で当てた
@@ -71,7 +72,7 @@ export function Figure({ r }: { r: Rec }) {
       <>
         <path class="cv-hit" d={dd} data-cv-e={k} tabindex={0} role="button" aria-label={`${nodeName(a)} と ${nodeName(b)} のターン`}></path>
         <path class={'cv-e' + (isNew ? ' new' : '') + (selE === k ? ' sel' : '') + (r.flash.value === k ? ' cv-flash' : '')} d={dd} marker-end={fwd ? `url(#cv-ar-${mi}-${mk})` : undefined} marker-start={back ? `url(#cv-ar-${mi}-${mk})` : undefined}></path>
-        {selE === k ? <g class="cv-ex" data-cv-act="edge-del" data-danger data-danger-act="removeTurn" data-k={k} transform={`translate(${mx.toFixed(1)},${my.toFixed(1)})`} role="button" tabindex={0} aria-label="この線を外す（両方の向き）"><title>この線を外す（両方の向き）</title><circle r={11}></circle><text x={0} y={4.5} text-anchor="middle">×</text></g> : ''}
+        {selE === k ? <g class="cv-ex" data-cv-act="edge-del" {...dangerAttrs('removeTurn')} data-k={k} transform={`translate(${mx.toFixed(1)},${my.toFixed(1)})`} role="button" tabindex={0} aria-label="この線を外す（両方の向き）"><title>この線を外す（両方の向き）</title><circle r={11}></circle><text x={0} y={4.5} text-anchor="middle">×</text></g> : ''}
       </>
     );
   });

@@ -1,3 +1,4 @@
+import { dangerAttrs } from '../../lib/danger.js';
 // lib/hq/sheets.tsx — 本部の欄と、帯の探す欄（n-7f3c、spec 2・3・5 章）。
 //
 // 欄は 3 つ: 並べるプロジェクト、起動、終了する（と、起動の途中を見せる欄）。
@@ -136,7 +137,7 @@ function ProjectsSheet(): JSX.Element {
   };
   const row = (project: HQProject): JSX.Element => <div class="hq-li" key={project.path} data-path={project.path}><span class="hq-pn">{project.name}</span><span class="hq-pp">{project.display}</span>
       <span class="hq-pc">チーム定義 {project.definitions || 0} · 動いているチーム {project.running || 0}</span>
-      <span class="hq-act"><button type="button" class="hq-btn sm" data-hq="unlist" data-path={project.path} onClick={async (e: Event) => { const host = (e.currentTarget as HTMLElement).closest('.hq-li') as HTMLElement | null; const no = await unlistProject(project.path, host); if (no) setError(no); }} data-danger data-danger-act="unlistProject">外す</button></span></div>;
+      <span class="hq-act"><button type="button" class="hq-btn sm" data-hq="unlist" data-path={project.path} onClick={async (e: Event) => { const host = (e.currentTarget as HTMLElement).closest('.hq-li') as HTMLElement | null; const no = await unlistProject(project.path, host); if (no) setError(no); }} {...dangerAttrs('unlistProject')}>外す</button></span></div>;
   const cand = (project: HQProject): JSX.Element => <div class="hq-li cand" key={project.path} data-path={project.path}><span class="hq-pn">{project.name}</span><span class="hq-pp">{project.display}</span>
       <span class="hq-pc">最後の起動 {mmdd(project.last_launch)} · チーム定義 {project.definitions || 0}</span>
       <span class="hq-act"><button type="button" class="hq-btn sm" data-hq="list" data-path={project.path} onClick={rewrite(listProject, project.path)}>並べる</button></span></div>;
@@ -440,7 +441,7 @@ function RunSheet({ id, launch: first }: { id: string; launch: HQLaunch }): JSX.
         <a class="hq-btn primary" href={`/activity?open=${encodeURIComponent(token(launch.team, launch.project))}`}>アクティビティで見る</a><button type="button" class="hq-btn" data-hqx="close" onClick={closeSheet}>閉じる</button></>
         : launch.phase === 'failed'
           ? <><p class="hq-err" data-role="launch-error">{launch.error || verb + 'できませんでした'}</p>
-            {launch.tab.id ? <button type="button" class="hq-btn danger" data-danger data-danger-act="stopTeam" data-hq="stop" data-team={launch.team} onClick={() => stopSheet(launch.team)}>チームを終了する…</button> : ''}
+            {launch.tab.id ? <button type="button" class="hq-btn danger" {...dangerAttrs('stopTeam')} data-hq="stop" data-team={launch.team} onClick={() => stopSheet(launch.team)}>チームを終了する…</button> : ''}
             <button type="button" class="hq-btn" data-hqx="close" onClick={closeSheet}>閉じる</button></>
           : launch.phase === 'cancelled'
             ? <><p class="hq-sub">{`${verb}をやめました。`}{raised || applied ? 'ペインは残っています（チームを終了する欄から操作できます）。' : '作ったタブとペインは残っています（チームを終了する欄から操作できます）。'}</p><button type="button" class="hq-btn" data-hqx="close" onClick={closeSheet}>閉じる</button></>

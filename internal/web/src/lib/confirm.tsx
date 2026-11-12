@@ -1,6 +1,8 @@
+import type { DangerDecision } from './danger.js';
+import type { DialogHost } from './dialogs.js';
 import type { ComponentChildren, JSX } from 'preact';
 import { useEffect, useRef } from './preact.js';
-import { signal } from './preact.js';
+import { signal, computed, h } from './preact.js';
 
 // The one confirmation every screen uses before something that cannot be taken
 // back (r-d480, d-021e): a modal dialog away from the button that asked, with
@@ -17,15 +19,19 @@ export type ConfirmAsk = {
   cancel?: () => void;
 };
 
-export const confirmAsk = signal<ConfirmAsk | null>(null);
-export const askConfirm = (ask: ConfirmAsk): void => { confirmAsk.value = ask; };
-export const closeConfirm = (): void => { confirmAsk.value = null; };
+const currentAsk = signal<ConfirmAsk | null>(null);
+export const confirmAsk = computed(() => {
+  const ask = currentAsk.value;
+  return ask ? Object.freeze({ title: ask.title, body: ask.body, label: ask.label }) : null;
+});
+export const askConfirm = (_decision: DangerDecision, ask: ConfirmAsk): void => { currentAsk.value = ask; };
+export const closeConfirm = (): void => { currentAsk.value = null; };
 // takeBack closes the dialog; the cancel hook runs once the dialog is gone, so
 // a focus it puts back is not taken away by the dialog's own removal.
-const takeBack = (): void => { confirmAsk.value = null; };
+const takeBack = (): void => { currentAsk.value = null; };
 
-export function ConfirmDialog(): JSX.Element | null {
-  const ask = confirmAsk.value;
+function ConfirmDialog(): JSX.Element | null {
+  const ask = currentAsk.value;
   const dialog = useRef<HTMLDialogElement>(null);
   const cancel = useRef<HTMLButtonElement>(null);
   // last is the ask the dialog showed; ran says it was run, so closing it is
@@ -59,3 +65,5 @@ export function ConfirmDialog(): JSX.Element | null {
     </footer>
   </dialog>;
 }
+
+export function confirmView(_host: DialogHost): JSX.Element { return h(ConfirmDialog, {}); }
