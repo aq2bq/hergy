@@ -104,7 +104,36 @@ async function listen(page: Page): Promise<string[]> {
 
 // test is the walk every spec file builds on: its own fixture and its own serve,
 // closed after the test, and the page held to logging nothing.
-export const test = base.extend<{ reads: Screen; app: App }>({
+export const test = base.extend<{ reads: Screen; app: App; observations: void }>({
+  // Keep observations only for a failed walk. The trace also records the DOM
+  // before an action, so an unresponsive renderer does not erase that evidence.
+  observations: [async ({ page }, use, testInfo) => {
+    const events: unknown[] = [];
+    const consoleMessage = (message: import('@playwright/test').ConsoleMessage) => {
+      events.push({ type: message.type(), text: message.text(), location: message.location() });
+    };
+    const pageError = (error: Error) => { events.push({ type: 'pageerror', text: error.stack || error.message }); };
+    page.on('console', consoleMessage); page.on('pageerror', pageError);
+    try { await use(); }
+    finally {
+      if (testInfo.status !== testInfo.expectedStatus) {
+        await testInfo.attach('page-console', { body: JSON.stringify(events, null, 2), contentType: 'application/json' });
+        // A hung page may not answer content(). Bound this diagnostic by the
+        // existing action timeout; this does not extend or retry any action.
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        try {
+          const deadline = new Promise<never>((_, reject) => {
+            timer = setTimeout(() => reject(new Error('the failed page did not answer the DOM snapshot')), testInfo.project.use.actionTimeout);
+          });
+          const body = await Promise.race([page.content(), deadline]);
+          await testInfo.attach('page-dom', { body, contentType: 'text/html' });
+        } catch (error) {
+          await testInfo.attach('page-dom-error', { body: String(error), contentType: 'text/plain' });
+        } finally { clearTimeout(timer); }
+      }
+      page.off('console', consoleMessage); page.off('pageerror', pageError);
+    }
+  }, { auto: true }],
   // The screen a file's walks read; a file says which one it stands on.
   reads: ['teams', { option: true }],
   app: async ({ reads, page }, use) => {

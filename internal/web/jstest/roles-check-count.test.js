@@ -1,0 +1,42 @@
+import { expect, test } from 'bun:test';
+import { act } from 'preact/test-utils';
+import { layout, later, serve } from './page.js';
+import { h, render } from '../src/lib/preact';
+import { editRole, editRoleAssignments } from '../src/lib/editing';
+import { resourceIdentity } from '../src/lib/resource-identity';
+
+test('opening roles and restoring drafts finishes with bounded checks in both original/draft response orders', async () => {
+ history.replaceState({}, '', '/roles?open=builder');
+ const document = (name, text = 'saved') => ({ name, title: name, text });
+ const identity = (name) => resourceIdentity('role', { place: 'project', name });
+ const builder = editRole(identity('builder'), { saved: { ...document('builder'), name: identity('builder').name }, draft: document('builder'), hash: 'r1', text: 'saved' });
+ builder.change(document('builder', 'carried prose'));
+ const fresh = editRole(identity(), { saved: null, draft: document('new-role', 'new prose'), hash: '', text: '' });
+ const assignments = editRoleAssignments(resourceIdentity('team', { place: 'project', name: 'core' }), [{ name: 'lead', saved: 'builder', draft: 'helper' }], 'old-team');
+ const carry = { entries: [builder.take(), fresh.take()], assignments: [assignments.take()] };
+ builder.dispose(); fresh.dispose(); assignments.dispose();
+ layout('roles-data', { role: { items: ['builder', 'helper'].map((name) => ({ name, places: { project: { doc: document(name), hash: name === 'builder' ? 'r1' : 'r2', text: 'saved' } }, summary: {} })) },
+  team: { items: [{ name: 'core', effective: 'project', places: { project: { hash: 'new-team', doc: { members: [{ name: 'lead', role: 'builder', profile: 'fast' }], workers: [], turns: [] } } }, summary: { members: [{ name: 'lead', role: 'builder', profile: 'fast' }] } }] } });
+ window.sessionStorage.setItem('hergy..carry.roles', '1'); window.sessionStorage.setItem('hergy..draft.roles', JSON.stringify(carry));
+ const pending = [];
+ serve((method, url, body) => { if (method === 'POST' && url.startsWith('/api/role/check')) { const one = later(); pending.push({ ...one, body }); return one.promise; } });
+ const state = await import('../src/roles/state'); const { App } = await import('../src/roles/view');
+ let boot;
+ await act(() => { render(h(App), window.document.getElementById('view')); boot = state.boot(); });
+ expect(pending).toHaveLength(4);
+ const original = state.roles.value.find((r) => r.project?.saved?.name === 'builder').project.editing;
+ for (const i of [0, 1, 3, 2]) await act(() => { pending[i].resolve({ problems: [] }); });
+ await boot;
+ expect(pending).toHaveLength(6);
+ for (const one of pending.slice(4)) await act(() => { one.resolve({ problems: [] }); });
+ await act(() => {});
+ expect(pending).toHaveLength(6);
+ const row = state.roles.value.find((r) => r.project?.saved?.name === 'builder');
+ expect(row.project.editing).toBe(original); expect(row.project.draft.text).toBe('carried prose');
+ expect(state.roles.value.filter((r) => !r.project?.saved && r.project?.draft.name === 'new-role')).toHaveLength(1);
+ expect(state.teams.value[0].members[0].draft).toBe('builder');
+ const prose = window.document.querySelector('.role.open .panel[data-l="project"] textarea');
+ expect(prose.disabled).toBe(false); expect(prose.readOnly).toBe(false); expect(prose.isConnected).toBe(true);
+ state.roles.value.forEach((r) => { r.project?.editing.dispose(); r.global?.editing.dispose(); });
+ render(null, window.document.getElementById('view'));
+});
