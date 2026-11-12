@@ -195,12 +195,16 @@ func Read(in Input) (*Definition, error) {
 	}
 	graph := NewGraph(members, workers, turns)
 	definitionName, _ := domainname.ParseDefinitionName(in.Name)
+	teamPath, err := domainplace.NewProject(in.TeamYAMLPath)
+	if err != nil {
+		return nil, err
+	}
 	def := &Definition{
 		Name:         definitionName,
 		Description:  description,
 		Graph:        graph,
 		Dir:          in.TeamDir,
-		TeamYAML:     domainplace.Observe(in.TeamYAMLPath),
+		TeamYAML:     teamPath.Seen(),
 		Layer:        in.Layer,
 		Version:      version,
 		Agreement:    agreement,

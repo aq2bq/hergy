@@ -1,6 +1,6 @@
 // Package definition is a team's type: what a team booted from it is made of,
 // and who hands the turn to whom (I1, I2). A Definition is a set of files; a
-// team is a run of one definition (internal/team).
+// team is a run of one definition (internal/ops/internal/team).
 //
 // The nodes and the edges are the one graph the whole of hergy projects from
 // (d-11f8, refactor-design.md の 1a 節): the figure, the activity, the two

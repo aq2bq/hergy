@@ -8,8 +8,8 @@ import (
 	"testing"
 	"unicode/utf8"
 
+	"github.com/aq2bq/hergy/internal/ops"
 	"github.com/aq2bq/hergy/internal/source"
-	"github.com/aq2bq/hergy/internal/team"
 )
 
 // This file holds the profile screen's 中 items whose promise stands at the
@@ -348,7 +348,7 @@ func pv2HomeServer(t *testing.T) (*Server, string, string) {
 	t.Setenv("HOME", home)
 	t.Setenv("XDG_CONFIG_HOME", config)
 	t.Chdir(proj)
-	env, err := team.NewEnv()
+	env, err := ops.NewEnvironment()
 	if err != nil {
 		t.Fatal(err)
 	}

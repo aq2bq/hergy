@@ -154,7 +154,7 @@ func sharedAgreementFindings(cat *catalog.Catalog) []Finding {
 // more sentence per fixing (N1). A definition that does not read reports what
 // stopped it and the warnings about old files, as it always has. The command
 // line prints a part of what a reading definition gets, so its own output does
-// not change (see internal/app).
+// not change (see internal/cli).
 func Definition(in Input) []Finding {
 	def, err := in.Catalog.Definition(in.Name, in.Layer)
 	// The places hergy no longer reads a team's files from are the filesystem's,

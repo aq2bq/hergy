@@ -312,7 +312,7 @@ func TestPromptFindingsLetsTheOwnersThrough(t *testing.T) {
 		"const p = signal({});\nconst runOf = (k) => '';\nconst setRun = (k, t) => {};\n"+
 			"const one = () => call('POST', '/api/team/prompt-comparison');\n")
 	writeTree(t, root, "internal/web/src/lib/editing.ts", "const checkWorker = () => check('team', { part: 'worker' });\n")
-	writeTree(t, root, "internal/app/hire.go", "func plan() { prompt.Worker(prompt.WorkerInput{}) }\n")
+	writeTree(t, root, "internal/cli/hire.go", "func plan() { prompt.Worker(prompt.WorkerInput{}) }\n")
 	r := &runner{root: root}
 	findings, err := r.promptFindings(ownersFile{})
 	if err != nil {

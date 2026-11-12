@@ -7,7 +7,7 @@ import (
 	"io"
 
 	"github.com/aq2bq/hergy/internal/definition"
-	"github.com/aq2bq/hergy/internal/launcher"
+	"github.com/aq2bq/hergy/internal/ops/internal/launcher"
 )
 
 // Plan is the resolved input shown before an operation starts, or as a dry plan.
@@ -67,8 +67,8 @@ func (w eventWriter) Write(p []byte) (int, error) {
 }
 
 func operationLauncher(ctx context.Context, r *Resolved, timeout int, port Port, observe func(Event)) *launcher.Launcher {
-	emit(observe, Event{Text: PluginNote()})
-	l := NewLauncherWithPort(r, timeout, eventWriter{observe}, stopPort{Port: portOrDefault(port), ctx: ctx}).WithContext(ctx)
+	emit(observe, Event{Text: pluginNote()})
+	l := newLauncherWithPort(r, timeout, eventWriter{observe}, stopPort{Port: portOrDefault(port), ctx: ctx}).WithContext(ctx)
 	l.Observe(func(e launcher.Event) { emit(observe, Event{Progress: progressOf(e)}) })
 	return l
 }

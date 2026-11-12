@@ -26,14 +26,6 @@ address_enforce: true
 # d-c5ce, d-b608).
 page_position_enforce: true
 enforce: true
-# Confirmed sending has one retry owner and one low-level argv builder.
-# ask remains a single-attempt question outside r-990d; deliver is no exception.
-# tell/nudge's unconfirmed Prompt is not constrained by these rules.
-confirmed_send:
-  owner: internal/herdr/receipt.go#Herdr.ConfirmPrompt
-  wait_builder: internal/herdr/herdr.go#Herdr.PromptWait
-  single_attempt:
-    - internal/app/turns.go#turnWatcher.ask
 #
 # Every entry needs the path, the name, why the owner is not the place for it,
 # and the decision that allowed it (gy's d-…). An entry without all four fails
@@ -43,7 +35,7 @@ allow:
     name: Counts
     why: 動いているチームの人数と作業者を数える、一覧の行とは別の数え上げ（status.Counts）
     decision: d-4d88
-  - path: internal/status/status.go
+  - path: internal/ops/internal/status/status.go
     name: Counts
     why: 動いているチームの人数と作業者を数える、一覧の行とは別の数え上げ（上の呼び出しの定義）
     decision: d-4d88

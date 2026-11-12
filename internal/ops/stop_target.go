@@ -2,9 +2,9 @@ package ops
 
 import (
 	domainname "github.com/aq2bq/hergy/internal/domain/name"
+	"github.com/aq2bq/hergy/internal/ops/internal/protocol"
+	"github.com/aq2bq/hergy/internal/ops/internal/team"
 	"github.com/aq2bq/hergy/internal/options"
-	"github.com/aq2bq/hergy/internal/protocol"
-	"github.com/aq2bq/hergy/internal/team"
 )
 
 // downWorker is one worker hergy down closes on its own: the team it belongs to,
@@ -82,33 +82,33 @@ func (s StopTarget) IsWorker() bool { return s.worker != nil }
 // ResolveStop resolves the CLI word against one reading of herdr, including a
 // tab left by a start that stopped before a member ran.
 func ResolveStop(input options.Input) (StopTarget, error) {
-	tabs, agentsRead, err := HerdrTabs()
+	tabs, agentsRead, err := herdrTabs()
 	if err != nil {
 		return StopTarget{}, err
 	}
-	running := team.RunningTeams(tabs, LaunchTeams(), agentsRead)
+	running := team.RunningTeams(tabs, launchTeams(), agentsRead)
 	chosen, worker, err := pickDown(running, tabs, input)
 	if err == nil {
 		if worker != nil {
 			owner, _ := team.FindRunning(running, worker.Team.String())
 			return StopTarget{team: owner, worker: worker, tabs: tabs}, nil
 		}
-		return TeamStopTarget(chosen, tabs), nil
+		return teamStopTarget(chosen, tabs), nil
 	}
 	if _, exists := team.FindRunning(running, input.String()); exists {
 		return StopTarget{}, err
 	}
-	if one, found := StoppedTeam(tabs, input.String()); found {
+	if one, found := stoppedTeam(tabs, input.String()); found {
 		return StopTarget{team: one, tabs: tabs, stopped: true}, nil
 	}
 
 	return StopTarget{}, err
 }
 
-// TeamStopTarget selects a team already read by a screen. It uses the same
+// teamStopTarget selects a team already read by a screen. It uses the same
 // stopped-pane route as the CLI when no member agent remains.
-func TeamStopTarget(one team.Running, tabs []team.Tab) StopTarget {
-	_, running := team.FindRunning(team.RunningTeams(tabs, LaunchTeams(), true), one.Team.String())
+func teamStopTarget(one team.Running, tabs []team.Tab) StopTarget {
+	_, running := team.FindRunning(team.RunningTeams(tabs, launchTeams(), true), one.Team.String())
 	return StopTarget{team: one, tabs: tabs, stopped: !hasLiveAgent(tabs, one.Team.Observation()) && (!running || len(team.MemberPanes(tabs, one.Team.Observation())) > 0)}
 }
 
@@ -122,9 +122,9 @@ func hasTeamTab(tabs []team.Tab, name domainname.Seen) bool {
 	return false
 }
 
-// StoppedTeam finds an empty team tab omitted from the running-team reading.
+// stoppedTeam finds an empty team tab omitted from the running-team reading.
 // Launch records supply the project and definition, never the existence.
-func StoppedTeam(tabs []team.Tab, input string) (team.Running, bool) {
+func stoppedTeam(tabs []team.Tab, input string) (team.Running, bool) {
 	if input == "" {
 		return team.Running{}, false
 	}
@@ -144,7 +144,7 @@ func StoppedTeam(tabs []team.Tab, input string) (team.Running, bool) {
 			definition = seen.String()
 		}
 		one := team.Running{Team: domainname.TeamFromObservation(seen), Definition: definition}
-		for _, launch := range LaunchTeams() {
+		for _, launch := range launchTeams() {
 			if launch.Team == seen {
 				one.Definition, one.Project = launch.Definition, launch.Project
 			}
@@ -155,10 +155,10 @@ func StoppedTeam(tabs []team.Tab, input string) (team.Running, bool) {
 }
 
 func hasLiveAgent(tabs []team.Tab, name domainname.Seen) bool {
-	running := team.RunningTeams(tabs, LaunchTeams(), true)
+	running := team.RunningTeams(tabs, launchTeams(), true)
 	for _, tab := range tabs {
 		for _, agent := range tab.Agents {
-			if TeamOfAgent(running, agent) == name {
+			if teamOfAgent(running, agent) == name {
 				return true
 			}
 		}

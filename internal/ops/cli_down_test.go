@@ -1,0 +1,349 @@
+package ops
+
+import (
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/aq2bq/hergy/internal/ops/internal/turns" // TestDownClosesATeamThatStoppedBeforeAnyAgentRan: a boot cut short at a startup
+	// question leaves hergy's tab and panes with no agent in them, so the team is not
+	// a running team. hergy down <team> still puts it away, by the names hergy gave:
+	// the panes named after the team are closed, and the pane a person opened is not
+	// (d-da92, ac-1b17). A pane that stands with no agent in it is told apart from a
+	// member that has no pane at all, in both languages.
+)
+
+func TestDownClosesATeamThatStoppedBeforeAnyAgentRan(t *testing.T) {
+	tests := []struct {
+		lang string
+		want string
+	}{{lang: "ja", want: "チーム: turnwalk\n" + "turnwalk-lead: 閉じます（ペイン p1、エージェントは動いていない）\n" + "turnwalk-builder: 閉じます（ペイン p2、エージェントは動いていない）\n" + "閉じた数: 2\n" + "ペインが無かった数: 0\n"}, {lang: "en", want: "team: turnwalk\n" + "turnwalk-lead: closing (pane p1, no agent running)\n" + "turnwalk-builder: closing (pane p2, no agent running)\n" + "closed: 2\n" + "absent: 0\n"}}
+	for _, tc := range tests {
+		t.Run(tc.lang, func(t *testing.T) {
+			f := newFixture(t)
+			mustRun(t, "new", "turnwalk")
+			log := f.stoppedTeamHerdr(t)
+			t.Setenv("HERDR_ENV", "1")
+			t.Setenv("HERDR_PANE_ID", "p9")
+			stateDir := filepath.Join(f.state, "hergy")
+			if err := turns.Save(turns.Path(stateDir, "turnwalk"), &turns.State{Team: fixtureSeen("turnwalk"), Holder: "lead"}); err != nil {
+				t.Fatal(err)
+			}
+			if err := turns.WriteTell(turns.TellDir(stateDir, "turnwalk"), turns.Tell{From: "lead", To: "builder", At: time.Now()}); err != nil {
+				t.Fatal(err)
+			}
+
+			if got := mustRun(t, "down", "turnwalk", "--lang", tc.lang); got != tc.want {
+				t.Fatalf("down turnwalk (--lang %s) printed:\n%s\nwant:\n%s", tc.lang, got, tc.want)
+			}
+			closes := calls(t, log)
+			if !strings.Contains(closes, "pane close p1") || !strings.Contains(closes, "pane close p2") {
+				t.Fatalf("down did not close the panes hergy named:\n%s", closes)
+			}
+			for _, gone := range []string{turns.Path(stateDir, "turnwalk"), turns.TellDir(stateDir, "turnwalk")} {
+				if _, err := os.Stat(gone); err == nil {
+					t.Errorf("down left the team's turn behind: %s", gone)
+				}
+			}
+			if strings.Contains(closes, "pane close p3") {
+				t.Fatalf("down closed a pane hergy did not name:\n%s", closes)
+			}
+			if strings.Contains(closes, "pane close p9") {
+				t.Fatalf("down closed another team's pane:\n%s", closes)
+			}
+		})
+	}
+}
+
+// TestDownDryOfAStoppedTeamPlansTheSame: --dry names the panes it would close,
+// says which of them have no agent in them, and closes nothing.
+func TestDownDryOfAStoppedTeamPlansTheSame(t *testing.T) {
+	f := newFixture(t)
+	mustRun(t, "new", "turnwalk")
+	log := f.stoppedTeamHerdr(t)
+
+	want := "チーム: turnwalk\n" +
+		"turnwalk-lead: 閉じる予定（ペイン p1、エージェントは動いていない）\n" +
+		"turnwalk-builder: 閉じる予定（ペイン p2、エージェントは動いていない）\n" +
+		"閉じる予定の数: 2\n" +
+		"閉じない数: 0\n" +
+		"next: down turnwalk\n"
+	if got := mustRun(t, "down", "turnwalk", "--dry", "--lang", "ja"); got != want {
+		t.Fatalf("down turnwalk --dry printed:\n%s\nwant:\n%s", got, want)
+	}
+	if closes := calls(t, log); strings.Contains(closes, "pane close") {
+		t.Fatalf("a dry run closed panes:\n%s", closes)
+	}
+}
+
+// TestDownOfATeamWithNoTabKeepsTheStop: a name no tab carries is not a stopped
+// team: down keeps the stop that says there is no running team of that name.
+func TestDownOfATeamWithNoTabKeepsTheStop(t *testing.T) {
+	f := newFixture(t)
+	mustRun(t, "new", "turnwalk")
+	f.stoppedTeamHerdr(t)
+	t.Setenv("HERDR_ENV", "1")
+	t.Setenv("HERDR_PANE_ID", "p9")
+
+	stdout, stderr, code := run("down", "nowhere")
+	if code == 0 {
+		t.Fatalf("down nowhere succeeded:\n%s", stdout)
+	}
+	for _, want := range []string{`neither a running team nor a worker`, "next: status"} {
+		if !strings.Contains(stderr, want) {
+			t.Fatalf("down nowhere does not say %q:\n%s", want, stderr)
+		}
+	}
+}
+
+// TestDownClosesOneWorkerAndLeavesTheTeamAndTheOtherWorker: hergy down <worker>
+// closes the worker's pane (and its empty tab) and nothing else; the member and
+// the other worker stay (r-27ca, d-fa05). The worker is found by its short name
+// and by its herdr name.
+func TestDownClosesOneWorkerAndLeavesTheTeamAndTheOtherWorker(t *testing.T) {
+	f := newFixture(t)
+	mustRun(t, "new", "draft")
+	log := f.workerHerdr(t, false)
+	t.Setenv("HERDR_ENV", "1")
+	t.Setenv("HERDR_PANE_ID", "p9")
+
+	want := "ワーカー: draft-bench\n" +
+		"  チーム: draft\n" +
+		"draft-bench: 閉じます（ペイン p2、ワーカー）\n" +
+		"draft-bench: タブを閉じます（ほかにペインが無いため）\n" +
+		"閉じた数: 1\n" +
+		"ペインが無かった数: 0\n"
+	if got := mustRun(t, "down", "bench", "--lang", "ja"); got != want {
+		t.Fatalf("down bench printed:\n%s\nwant:\n%s", got, want)
+	}
+	closes := calls(t, log)
+	if !strings.Contains(closes, "pane close p2") || !strings.Contains(closes, "tab close t2") {
+		t.Fatalf("down bench did not close the worker's pane and tab:\n%s", closes)
+	}
+	for _, untouched := range []string{"pane close p1", "pane close p3", "tab close t1", "tab close t3"} {
+		if strings.Contains(closes, untouched) {
+			t.Fatalf("down bench ran %q, but it must close only bench:\n%s", untouched, closes)
+		}
+	}
+
+	if got := mustRun(t, "down", "draft-scout", "--lang", "ja"); !strings.Contains(got, "draft-scout: 閉じます（ペイン p3、ワーカー）") {
+		t.Fatalf("down draft-scout printed:\n%s", got)
+	}
+	closes = calls(t, log)
+	if !strings.Contains(closes, "pane close p3") || strings.Contains(closes, "pane close p1") {
+		t.Fatalf("down draft-scout closed the wrong pane:\n%s", closes)
+	}
+}
+
+// TestDownRefusesANameThatIsBothATeamAndAWorker: one name that is a running team
+// and a worker of another is refused, naming both; the worker's herdr name still
+// picks the worker (d-fa05).
+func TestDownRefusesANameThatIsBothATeamAndAWorker(t *testing.T) {
+	f := newFixture(t)
+	mustRun(t, "new", "draft")
+	mustRun(t, "new", "bench")
+	log := f.workerHerdr(t, true)
+	t.Setenv("HERDR_ENV", "1")
+	t.Setenv("HERDR_PANE_ID", "p9")
+
+	_, stderr, code := run("down", "bench", "--lang", "ja")
+	if code == 0 {
+		t.Fatalf("down bench accepted a name that is a team and a worker")
+	}
+	for _, want := range []string{"チーム名にもワーカー名にも当たります", "チーム bench", "ワーカー draft-bench"} {
+		if !strings.Contains(stderr, want) {
+			t.Errorf("the refusal does not say %q:\n%s", want, stderr)
+		}
+	}
+	if closes := calls(t, log); strings.Contains(closes, "pane close") {
+		t.Fatalf("the refusal closed something:\n%s", closes)
+	}
+
+	mustRun(t, "down", "draft-bench", "--lang", "ja")
+	closes := calls(t, log)
+	if !strings.Contains(closes, "pane close p2") || strings.Contains(closes, "pane close p4") {
+		t.Fatalf("down draft-bench did not close only the worker:\n%s", closes)
+	}
+}
+
+// TestDownDryOfAWorkerPlansTheWorkerAndItsTab: --dry names the worker's pane and
+// the tab that would go with it, closes nothing, and names the command that would
+// carry it out (r-27ca).
+func TestDownDryOfAWorkerPlansTheWorkerAndItsTab(t *testing.T) {
+	f := newFixture(t)
+	mustRun(t, "new", "draft")
+	log := f.workerHerdr(t, false)
+
+	want := "ワーカー: draft-bench\n" +
+		"  チーム: draft\n" +
+		"draft-bench: 閉じる予定（ペイン p2、ワーカー）\n" +
+		"draft-bench: 閉じる予定のタブ（ほかにペインが無いため）\n" +
+		"閉じる予定の数: 1\n" +
+		"閉じない数: 0\n" +
+		"next: down draft-bench\n"
+	if got := mustRun(t, "down", "bench", "--dry", "--lang", "ja"); got != want {
+		t.Fatalf("down bench --dry printed:\n%s\nwant:\n%s", got, want)
+	}
+	if closes := calls(t, log); strings.Contains(closes, "pane close") || strings.Contains(closes, "tab close") {
+		t.Fatalf("a dry run closed something:\n%s", closes)
+	}
+}
+
+// TestDownRefusesAWorkerNameTwoTeamsHave: a worker short name two running teams
+// carry is not guessed at; the refusal names the herdr names that pick one
+// (r-27ca, d-fa05).
+func TestDownRefusesAWorkerNameTwoTeamsHave(t *testing.T) {
+	f := newFixture(t)
+	mustRun(t, "new", "draft")
+	mustRun(t, "new", "ops")
+	f.herdr(t, `#!/bin/sh
+g="$1"; s="$2"
+if [ -z "$s" ]; then
+  echo "herdr $g"
+  for x in get prompt start list read focus send-keys current split rename close create process-info; do echo "  herdr $g $x"; done
+  exit 0
+fi
+case "$g $s" in
+  "tab list") echo '{"result":{"tabs":[{"tab_id":"t1","label":"draft"},{"tab_id":"t2","label":"worker:draft/bench"},{"tab_id":"t3","label":"ops"},{"tab_id":"t4","label":"worker:ops/bench"}]}}' ;;
+  "agent list") echo '{"result":{"agents":[{"name":"draft-lead","agent":"claude","agent_status":"idle","pane_id":"p1","tab_id":"t1"},{"name":"draft-bench","agent":"claude","agent_status":"idle","pane_id":"p2","tab_id":"t2"},{"name":"ops-lead","agent":"claude","agent_status":"idle","pane_id":"p3","tab_id":"t3"},{"name":"ops-bench","agent":"claude","agent_status":"idle","pane_id":"p4","tab_id":"t4"}]}}' ;;
+  "pane list") echo '{"result":{"panes":[{"pane_id":"p1","label":"draft-lead","tab_id":"t1"},{"pane_id":"p2","label":"draft-bench","tab_id":"t2"},{"pane_id":"p3","label":"ops-lead","tab_id":"t3"},{"pane_id":"p4","label":"ops-bench","tab_id":"t4"}]}}' ;;
+  *) echo '{"result":{}}' ;;
+esac
+`)
+	t.Setenv("HERDR_ENV", "1")
+	t.Setenv("HERDR_PANE_ID", "p9")
+
+	_, stderr, code := run("down", "bench", "--lang", "ja")
+	if code == 0 {
+		t.Fatalf("down bench guessed between two teams' workers")
+	}
+	for _, want := range []string{"複数のチームにいます", "draft-bench", "ops-bench"} {
+		if !strings.Contains(stderr, want) {
+			t.Errorf("the refusal does not say %q:\n%s", want, stderr)
+		}
+	}
+}
+
+// TestDownListsWhatTheTeamLeftInGit: hergy down reads when the team was started
+// and where the panes stood before closing them, and afterwards lists the
+// worktrees of the project that came while it ran, the project's stashes, and the
+// commands that remove them. hergy removes nothing (r-b65e, d-778e, d-970c).
+func TestDownListsWhatTheTeamLeftInGit(t *testing.T) {
+	f := newFixture(t)
+	mustRun(t, "new", "draft")
+	gitIn(t, f.proj, "config", "user.email", "test@example.com")
+	gitIn(t, f.proj, "config", "user.name", "test")
+	writeFile(t, filepath.Join(f.proj, "base.txt"), "base\n")
+	gitIn(t, f.proj, "add", "base.txt")
+	gitIn(t, f.proj, "commit", "-q", "-m", "base")
+	gitIn(t, f.proj, "branch", "-M", "main")
+	recordStart(t, f, "draft", time.Now().Add(-time.Hour))
+
+	worktree := filepath.Join(t.TempDir(), "lane-1")
+	gitIn(t, f.proj, "worktree", "add", "-q", "-b", "lane-1", worktree, "main")
+	writeFile(t, filepath.Join(worktree, "lane.txt"), "lane\n")
+	gitIn(t, worktree, "add", "lane.txt")
+	gitIn(t, worktree, "commit", "-q", "-m", "lane")
+	writeFile(t, filepath.Join(worktree, "dirty.txt"), "dirty\n")
+	if resolved, err := filepath.EvalSymlinks(worktree); err == nil {
+		worktree = resolved
+	}
+	writeFile(t, filepath.Join(f.proj, "stashed.txt"), "stash\n")
+	gitIn(t, f.proj, "add", "stashed.txt")
+	gitIn(t, f.proj, "stash", "push", "-q", "-m", "later")
+	f.leftoversHerdr(t, worktree)
+	t.Setenv("HERDR_ENV", "1")
+	t.Setenv("HERDR_PANE_ID", "p9")
+
+	got := mustRun(t, "down", "draft", "--lang", "ja")
+	for _, want := range []string{
+		"draft が動いている間にできたワークツリー（git）:",
+		"ワークツリー: " + worktree + "（枝 lane-1、保存していない変更あり、main に入っていないコミット 1 件）（ペインの作業ディレクトリがここにあった）",
+		"消すには: git worktree remove " + worktree,
+		"保存していない変更か、入っていないコミットがあります。消す前に中身を確かめてください",
+		"このプロジェクトの stash: 1 件（git stash list で見る）",
+		"hergy は消しません。",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("down does not say %q:\n%s", want, got)
+		}
+	}
+	if closes := calls(t, filepath.Join(f.cfg, "herdr.log")); !strings.Contains(closes, "pane close p1") {
+		t.Fatalf("down did not close the pane:\n%s", closes)
+	}
+
+	got = mustRun(t, "down", "draft", "--dry", "--lang", "ja")
+	if !strings.Contains(got, "draft が動いている間にできたワークツリー（git、閉じたあとに残る予定）:") || !strings.Contains(got, "git worktree remove "+worktree) {
+		t.Errorf("down --dry does not plan the leftovers:\n%s", got)
+	}
+
+	got = mustRun(t, "down", "draft", "--dry", "--json")
+	var plan struct {
+		Team      string `json:"team"`
+		Leftovers struct {
+			Worktrees []struct {
+				Path  string `json:"path"`
+				Basis string `json:"base"`
+				Ahead int    `json:"ahead"`
+				Dirty bool   `json:"dirty"`
+				Pane  bool   `json:"pane_cwd"`
+			} `json:"worktrees"`
+			Stashes int `json:"stashes"`
+		} `json:"leftovers"`
+	}
+	if err := json.Unmarshal([]byte(got), &plan); err != nil {
+		t.Fatalf("down --dry --json is not JSON: %v\n%s", err, got)
+	}
+	if plan.Team != "draft" || plan.Leftovers.Stashes != 1 || len(plan.Leftovers.Worktrees) != 1 {
+		t.Fatalf("the plan = %+v, want draft with the one worktree and stash", plan)
+	}
+	if one := plan.Leftovers.Worktrees[0]; one.Basis != "main" || one.Ahead != 1 || !one.Dirty || !one.Pane {
+		t.Errorf("the plan's worktree = %+v, want main, 1 ahead, dirty, the pane's directory", one)
+	}
+}
+
+// TestDownSaysNothingAboutLeftoversInTheProjectRoot: a team that worked in the
+// project itself leaves no worktree, and a project with no stash leaves nothing
+// to say (r-b65e).
+func TestDownSaysNothingAboutLeftoversInTheProjectRoot(t *testing.T) {
+	f := newFixture(t)
+	mustRun(t, "new", "draft")
+	gitIn(t, f.proj, "config", "user.email", "test@example.com")
+	gitIn(t, f.proj, "config", "user.name", "test")
+	writeFile(t, filepath.Join(f.proj, "base.txt"), "base\n")
+	gitIn(t, f.proj, "add", "base.txt")
+	gitIn(t, f.proj, "commit", "-q", "-m", "base")
+	f.leftoversHerdr(t, f.proj)
+	t.Setenv("HERDR_ENV", "1")
+	t.Setenv("HERDR_PANE_ID", "p9")
+
+	got := mustRun(t, "down", "draft", "--lang", "ja")
+	if strings.Contains(got, "残っているもの") || strings.Contains(got, "git worktree remove") {
+		t.Errorf("down says something is left when the project holds nothing:\n%s", got)
+	}
+}
+func TestDownDryFindsASlashTeamThroughItsRemainingWorkerTab(t *testing.T) {
+	f := newFixture(t)
+	f.herdr(t, `#!/bin/sh
+case "$1 $2" in
+ "agent list") echo '{"result":{"agents":[]}}' ;;
+ "tab list") echo '{"result":{"tabs":[{"tab_id":"w1","label":"worker:Upper/a/1"}]}}' ;;
+ "pane list") echo '{"result":{"panes":[{"pane_id":"p1","label":"Upper/a-1","tab_id":"w1"}]}}' ;;
+ *) echo '{"result":{}}' ;;
+esac
+`)
+	got := mustRun(t, "down", "Upper/a", "--dry", "--json")
+	var plan struct {
+		Team    string   `json:"team"`
+		Workers []string `json:"workers"`
+	}
+	if err := json.Unmarshal([]byte(got), &plan); err != nil {
+		t.Fatal(err)
+	}
+	if plan.Team != "Upper/a" || len(plan.Workers) != 1 || plan.Workers[0] != "Upper/a-1" {
+		t.Fatalf("plan=%+v", plan)
+	}
+}

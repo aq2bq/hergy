@@ -7,17 +7,17 @@ import (
 	"strings"
 
 	"github.com/aq2bq/hergy/internal/catalog"
-	"github.com/aq2bq/hergy/internal/protocol"
+	"github.com/aq2bq/hergy/internal/ops/internal/protocol"
 
 	"github.com/aq2bq/hergy/internal/check"
 	domainname "github.com/aq2bq/hergy/internal/domain/name"
 	domainplace "github.com/aq2bq/hergy/internal/domain/place"
-	"github.com/aq2bq/hergy/internal/herdr"
 	"github.com/aq2bq/hergy/internal/i18n"
-	"github.com/aq2bq/hergy/internal/launcher"
-	"github.com/aq2bq/hergy/internal/launchlog"
+	"github.com/aq2bq/hergy/internal/ops/internal/herdr"
+	"github.com/aq2bq/hergy/internal/ops/internal/launcher"
+	"github.com/aq2bq/hergy/internal/ops/internal/launchlog"
+	"github.com/aq2bq/hergy/internal/ops/internal/team"
 	"github.com/aq2bq/hergy/internal/source"
-	"github.com/aq2bq/hergy/internal/team"
 )
 
 // Refusal identifies a precondition for an adapter's error presentation.
@@ -41,7 +41,7 @@ type WorkspaceInput struct {
 // StartInput is a team start, shared by CLI and screens.
 type StartInput struct {
 	Locks                         *OperationLocks
-	Env                           team.Env
+	Env                           Environment
 	Definition                    domainname.DefinitionName
 	Name                          string
 	Place                         domainplace.Selection
@@ -58,7 +58,7 @@ type StartInput struct {
 // lock is owned. The operation retains that lock until boot and recording end.
 type StartPlan struct {
 	Resolved  *Resolved
-	Workspace herdr.Workspace
+	Workspace WorkspaceInfo
 	Command   string
 }
 
@@ -101,18 +101,18 @@ func StartTeam(ctx context.Context, in StartInput) (*Plan, error) {
 	ctx = child
 	workspace := herdr.Workspace{}
 	if !in.Workspace.Current {
-		workspace, err = ChooseWorkspace(in.Env, in.Workspace, in.Port)
+		workspace, err = chooseWorkspace(in.Env, in.Workspace, in.Port)
 		if err != nil {
 			return nil, err
 		}
 	}
 	command := in.Command
 	if command == "" {
-		command = StartCommand(in.Definition.String(), r.Team.Name.String())
+		command = startCommand(in.Definition.String(), r.Team.Name.String())
 	}
-	emit(in.Observe, Event{Start: &StartPlan{Resolved: r, Workspace: workspace, Command: command}})
+	emit(in.Observe, Event{Start: &StartPlan{Resolved: r, Workspace: WorkspaceInfo(workspace), Command: command}})
 	emit(in.Observe, Event{Plan: plan})
-	for _, note := range SignalNotes(r.Starts) {
+	for _, note := range signalNotes(r.Starts) {
 		emit(in.Observe, Event{Text: note})
 	}
 	l := operationLauncher(ctx, r, in.Timeout, in.Port, in.Observe).WithWatcher(watcherCommand(r.Team.Name.String(), in.Env.ProjectRoot))
@@ -120,12 +120,12 @@ func StartTeam(ctx context.Context, in StartInput) (*Plan, error) {
 		if launcher.IsUndelivered(err) {
 			return err
 		}
-		f := l.Failure(err)
+		f := StartFailure(l.Failure(err))
 		project := in.ProjectName
 		if project == "" {
 			project = filepath.Base(in.Env.ProjectRoot.String())
 		}
-		return &LaunchFailure{Failed: f, Project: project, Command: FailedStartCommand(f, r.Team.Name.String(), command)}
+		return &LaunchFailure{Failed: f, Project: project, Command: failedStartCommand(f, r.Team.Name.String(), command)}
 	}
 	err = execute(ctx, l, in.Observe, transform, func() error {
 		if in.Workspace.Current {
@@ -138,7 +138,7 @@ func StartTeam(ctx context.Context, in StartInput) (*Plan, error) {
 		if label == "" {
 			label = l.WorkspaceLabel()
 		}
-		warning(in.Observe, RecordReceivedLaunch(in.Env, r, launchlog.CommandUp, r.Starts, l, launchlog.Workspace{Label: label, ID: l.WorkspaceID()}))
+		warning(in.Observe, recordReceivedLaunch(in.Env, r, launchlog.CommandUp, r.Starts, l, launchlog.Workspace{Label: label, ID: l.WorkspaceID()}))
 	}
 	return plan, err
 }
@@ -192,8 +192,8 @@ func sharedAgreementStops(cat *catalog.Catalog) error {
 	return errors.New(check.SharedAgreementText(cat, docs))
 }
 
-// CheckStartName is a read-only form of the operation's name precondition.
-func CheckStartName(in StartInput) (string, error) { return startName(in, true) }
+// checkStartName is a read-only form of the operation's name precondition.
+func checkStartName(in StartInput) (string, error) { return startName(in, true) }
 func startName(in StartInput, checkRunning bool) (string, error) {
 	name := strings.TrimSpace(in.Name)
 	if name == "" {
@@ -202,17 +202,17 @@ func startName(in StartInput, checkRunning bool) (string, error) {
 	if _, err := domainname.NewTeamName(name); strings.TrimSpace(in.Name) != "" && err != nil {
 		return "", &Refusal{Kind: "invalid", At: "name", Err: i18n.Errorf("error.team_name_pattern", name)}
 	}
-	if checkRunning && nameRunning(name, ReadSession(in.Port)) {
+	if checkRunning && nameRunning(name, readSession(in.Port)) {
 		return "", &Refusal{Kind: "conflict", At: "name", SuggestedName: in.Definition.String() + "-" + in.ProjectName, Err: i18n.Errorf("error.team_name_taken", name)}
 	}
 	return name, nil
 }
 
-func nameRunning(name string, read Session) bool {
+func nameRunning(name string, read session) bool {
 	if read.Err != nil {
 		return false
 	}
-	running := team.RunningTeams(read.Tabs, LaunchTeams(), read.AgentsRead)
+	running := team.RunningTeams(read.Tabs, launchTeams(), read.AgentsRead)
 	prospective, _ := domainname.ParseDefinitionName(name)
 	candidate := domainname.DefinitionNames(prospective)
 	var known []domainname.Seen
@@ -234,8 +234,8 @@ func nameRunning(name string, read Session) bool {
 	return false
 }
 
-// ChooseWorkspace resolves the screen's explicit choice, rejecting occupied workspaces.
-func ChooseWorkspace(env team.Env, in WorkspaceInput, port Port) (herdr.Workspace, error) {
+// chooseWorkspace resolves the screen's explicit choice, rejecting occupied workspaces.
+func chooseWorkspace(env Environment, in WorkspaceInput, port Port) (herdr.Workspace, error) {
 	h := herdr.New(portOrDefault(port))
 	spaces, err := h.Workspaces()
 	if err != nil {
@@ -257,8 +257,8 @@ func ChooseWorkspace(env team.Env, in WorkspaceInput, port Port) (herdr.Workspac
 		if space.ID != in.ID {
 			continue
 		}
-		read := ReadSession(port)
-		for _, one := range team.RunningTeams(read.Tabs, LaunchTeams(), read.AgentsRead) {
+		read := readSession(port)
+		for _, one := range team.RunningTeams(read.Tabs, launchTeams(), read.AgentsRead) {
 			for _, tab := range read.Tabs {
 				if tab.WorkspaceID == space.ID && protocol.NamesTeam(tab.Label.String(), one.Team.String()) {
 					return herdr.Workspace{}, refuse("conflict", i18n.Errorf("web.hq.workspace_busy", space.Label, one.Team))
@@ -270,8 +270,8 @@ func ChooseWorkspace(env team.Env, in WorkspaceInput, port Port) (herdr.Workspac
 	return herdr.Workspace{}, refuse("invalid", i18n.Errorf("web.hq.workspace_missing", in.ID))
 }
 
-// StartCommand is the recovery command shared by startup progress and errors.
-func StartCommand(definition, name string) string {
+// startCommand is the recovery command shared by startup progress and errors.
+func startCommand(definition, name string) string {
 	command := "hergy up " + definition
 	if name != definition {
 		command += " --as " + name
@@ -279,5 +279,8 @@ func StartCommand(definition, name string) string {
 	return command
 }
 func watcherCommand(name string, project domainplace.Project) []string {
-	return []string{Executable(), "turns", name, "-C", project.String(), "--lang", i18n.Language()}
+	return []string{executable(), "turns", name, "-C", project.String(), "--lang", i18n.Language()}
 }
+
+// WorkspaceInfo is the selected workspace as an operation result.
+type WorkspaceInfo herdr.Workspace

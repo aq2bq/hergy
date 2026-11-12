@@ -2,26 +2,26 @@ package ops
 
 import (
 	"github.com/aq2bq/hergy/internal/definition"
-	"github.com/aq2bq/hergy/internal/harness"
 	"github.com/aq2bq/hergy/internal/i18n"
-	"github.com/aq2bq/hergy/internal/screenlog"
+	"github.com/aq2bq/hergy/internal/ops/internal/harness"
+	"github.com/aq2bq/hergy/internal/ops/internal/screenlog"
 )
 
-// WireStart gives one start its harness's turn-end signal (r-378e): the one
+// wireStart gives one start its harness's turn-end signal (r-378e): the one
 // place a start is wired, so every way a member is built (up, hire, refresh,
 // apply, the screens) starts it the same.
-func WireStart(start *definition.Start, teamName string) {
+func wireStart(start *definition.Start, teamName string) {
 	dir, err := screenlog.DefaultDir()
 	if err != nil {
 		dir = ""
 	}
-	harness.Wire(start, teamName, harness.Here{Bin: Executable(), StateDir: dir, CodexHome: harness.CodexHome()})
+	harness.Wire(start, teamName, harness.Here{Bin: executable(), StateDir: dir, CodexHome: harness.CodexHome()})
 }
 
-// PluginNote writes hergy's opencode plugin into the state directory, so a
+// pluginNote writes hergy's opencode plugin into the state directory, so a
 // wired opencode member finds it. A failure is said once and the member's
 // stops are seen through herdr instead.
-func PluginNote() string {
+func pluginNote() string {
 	dir, err := screenlog.DefaultDir()
 	if err == nil {
 		err = harness.WritePlugin(dir)
@@ -32,10 +32,10 @@ func PluginNote() string {
 	return ""
 }
 
-// SignalNotes says which members got no signal although their harness
+// signalNotes says which members got no signal although their harness
 // has one, and why: the profile passes the same argument or environment, or
 // opencode runs without --standalone (d-e511).
-func SignalNotes(starts []definition.Start) []string {
+func signalNotes(starts []definition.Start) []string {
 	var notes []string
 	for _, s := range starts {
 		switch s.Signal.Skipped {

@@ -8,7 +8,7 @@ import "net/http"
 // guard, and a caller that asks what the URL takes is answered honestly rather
 // than with a complaint about a token it could not have.
 //
-// The reading itself is not here: internal/app reads herdr, gy and the launch
+// The reading itself is not here: internal/ops reads herdr, gy and the launch
 // record and hands the answer over (6 A1). This kind only puts it in the
 // boundary's shape.
 

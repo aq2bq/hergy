@@ -262,32 +262,32 @@ var specs = []Spec{
 	},
 	{
 		Kind: Tell, Name: "tell",
-		Summary: text("Send a member a message from you or another member", "メンバーに伝える（誰からかを付けられる）"),
+		Summary: text("Send a message to a member or worker", "メンバーかワーカーに伝える（誰からかを付けられる）"),
 		Detail: text(
-			"Send a member a message, headed by who it is from. It does not check the\nmember's state: the message reaches an agent in any state.\nhergy tell human, from a member's pane, sends nothing: it marks what the member\nwrote in its pane as the person's, so hergy turns does not ask who it is for.",
-			"誰からかを頭に付けて、メンバーに本文を送る。\n相手の状態は見ない。どの状態のエージェントにも届く。\nメンバーのペインから打つ hergy tell 人間 は何も送らない。ペインに書いた文を人間向けと記し、\nhergy turns が渡し先を聞かなくなる。"),
+			"Members and workers can send and receive messages, headed by who they are from.\nIt does not check the recipient's state: the message reaches an agent in any state.\nhergy tell human, from a member's or worker's pane, sends nothing: it marks what they\nwrote in their pane as the person's, so hergy turns does not ask who it is for.",
+			"メンバーとワーカーが、誰からかを頭に付けて本文を送る。\n相手の状態は見ない。どの状態のエージェントにも届く。\nメンバーかワーカーのペインから打つ hergy tell 人間 は何も送らない。\nペインに書いた文を人間向けと記し、hergy turns が渡し先を聞かなくなる。"),
 		Args: []Arg{
 			{
-				Name: text("member", "メンバー"),
+				Name: text("name", "名前"),
 				Desc: text(
-					"The member to send to, by short member name or herdr name",
-					"送る相手のメンバー（短いメンバー名か herdr 名）"),
+					"The member or worker to send to, by short name or herdr name",
+					"送る相手のメンバーかワーカー（短い名前か herdr 名）"),
 			},
 			{
 				Name: text("text", "本文"), Optional: true,
 				Desc: text(
-					"What to send. Required for a member; not for the human (nothing is sent)",
-					"送る本文。メンバーへは必須。人間へは何も送らないので要らない"),
+					"What to send. Required for a member or worker.\nThe human receives nothing and needs no text",
+					"送る本文。メンバーとワーカーへは必須。\n人間へは何も送らないので要らない"),
 			},
 		},
 		Flags: []Use{
 			use(flagFrom, text(
-				"Who the message is from (short member name or herdr name)\nLeft out: the member whose pane you type in, else the human",
-				"誰からの本文か（短いメンバー名か herdr 名）\n省くと、打ったペインのメンバー。ペインがメンバーでなければ人間")),
+				"The member or worker the message is from (short name or herdr name)\nLeft out: whoever owns the pane you type in, else the human",
+				"誰からの本文か（メンバーかワーカーの短い名前か herdr 名）\n省くと、打ったペインのメンバーかワーカー。それ以外のペインでは人間")),
 			use(flagTeam, descTeam),
 			use(flagDry, text(
-				"Print what would be sent and send nothing\nIt never reads herdr; without --from the sender is the human",
-				"送る予定だけを表示し、何も送らない\nherdr は読まない。--from が無ければ送り主は人間")),
+				"Print what would be sent and send nothing\nRead definition members only; never read herdr or resolve workers\nWithout --from the sender is the human",
+				"送る予定だけを表示し、何も送らない\n定義のメンバーだけを使い、herdr は読まず、ワーカーは解決しない\n--from が無ければ送り主は人間")),
 			use(flagDir, descDir),
 		},
 	},

@@ -6,20 +6,20 @@
 # 5 ポイント下に置いた（変異の数が少ないパッケージで 1 件のぶれに落ちないため）。
 # gremlins はテストの所要時間からタイムアウトを決めるので、同じコードでも回ごとに
 # TIMED OUT になる変異が変わり、efficacy が数ポイント動く。
-# internal/app は入れていない: テストに 11 秒かかり、変異ごとに走ると長すぎる。
+# internal/cli は入れていない: テストに 11 秒かかり、変異ごとに走ると長すぎる。
 mutation:
   timeout_coefficient: 10
   packages:
     internal/cheat: 70      # 実測 75.0
     internal/definition: 85 # 実測 90.1（段 3 で config から移した読み）
-    internal/herdr: 95      # 実測 100
-    internal/herdrcli: 70   # 実測 75.0
+    internal/ops/internal/herdr: 95      # 実測 100
+    internal/ops/internal/herdrcli: 70   # 実測 75.0
     internal/i18n: 90       # 実測 93.3
-    internal/launcher: 85   # 実測 89.8
+    internal/ops/internal/launcher: 85   # 実測 89.8
     internal/options: 85    # 実測 89.5
-    internal/protocol: 80   # 実測 86.7
+    internal/ops/internal/protocol: 80   # 実測 86.7
     internal/source: 75     # 実測 80.0
-    internal/team: 45       # 実測 50.0
+    internal/ops/internal/team: 45       # 実測 50.0
     internal/version: 85    # 実測 100 と 91.7（タイムアウトする変異が回ごとに変わる。2 回目は 11 killed / 1 lived）
 
 # fuzz: go test -fuzz を 1 対象あたり fuzztime だけ回す。seed は普段の go test で走る。
@@ -32,7 +32,7 @@ fuzz:
       name: FuzzRead
     - package: internal/profile
       name: FuzzParseProfiles
-    - package: internal/team
+    - package: internal/ops/internal/team
       name: FuzzParseConfig
     # 旧形式の変換: 成功時も入力を変更せず、同じ散文になること。
     - package: internal/migrate

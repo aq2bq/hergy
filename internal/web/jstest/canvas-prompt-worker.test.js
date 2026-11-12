@@ -1,7 +1,7 @@
 // CANVAS-PROMPT, the worker: a worker's name and task are chosen at hire, so
 // the column asks the check with two values of its own and draws slots where
 // they stand. Putting the values back gives the prompt the server answered,
-// the same one `hire --dry` builds with those values (internal/app's
+// the same one `hire --dry` builds with those values (internal/cli's
 // TestCANVAS_PROMPT_TheCheckSegmentsAreThePlans).
 import { expect, test } from 'bun:test';
 import { layout, serve, settle } from './page.js';
