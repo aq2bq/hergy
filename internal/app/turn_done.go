@@ -1,9 +1,10 @@
 package app
 
 import (
+	"io"
+
 	"github.com/aq2bq/hergy/internal/ops"
 	"github.com/aq2bq/hergy/internal/options"
-	"io"
 )
 
 func runTurnDone(opts *options.Options, stdin io.Reader) error {

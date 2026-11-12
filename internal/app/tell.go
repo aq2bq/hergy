@@ -2,10 +2,11 @@ package app
 
 import (
 	"context"
+	"io"
+
 	"github.com/aq2bq/hergy/internal/ops"
 	"github.com/aq2bq/hergy/internal/options"
 	"github.com/aq2bq/hergy/internal/team"
-	"io"
 )
 
 func runTell(env team.Env, opts *options.Options, stdout io.Writer) error {

@@ -1,12 +1,10 @@
-package app
+package ops
 
 import (
 	"net/http"
 	"path/filepath"
 	"slices"
 	"time"
-
-	"github.com/aq2bq/hergy/internal/ops"
 
 	domainplace "github.com/aq2bq/hergy/internal/domain/place"
 
@@ -17,17 +15,17 @@ import (
 
 // CheckDefinitionRename reads the entire connected session, before the screen's
 // project filter. It is called under the same file locks that protect up.
-func (a *activityRead) CheckDefinitionRename(target domainplace.Project) error {
+func (a *Reader) CheckDefinitionRename(target domainplace.Project) error {
 
 	read := a.readHerdr(time.Now())
 	if read.err != nil {
 		return hqRefuse(http.StatusServiceUnavailable, i18n.T("web.rename.unavailable"))
 	}
-	records, err := ops.ReadLaunchRecords()
+	records, err := ReadLaunchRecords()
 	if err != nil {
 		return hqRefuse(http.StatusServiceUnavailable, i18n.T("web.rename.unavailable"))
 	}
-	for _, running := range team.RunningTeams(read.tabs, ops.LaunchTeams(), read.agentsRead) {
+	for _, running := range team.RunningTeams(read.tabs, LaunchTeams(), read.agentsRead) {
 		record, known := renameLaunch(records, running)
 		if !known || record.TeamYAML.String() == "" {
 			if running.Definition == filepath.Base(filepath.Dir(target.String())) {

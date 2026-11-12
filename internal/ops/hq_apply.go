@@ -1,41 +1,38 @@
-package app
+package ops
 
 import (
 	"context"
 	"errors"
 
-	"github.com/aq2bq/hergy/internal/ops"
-
 	"github.com/aq2bq/hergy/internal/i18n"
-	"github.com/aq2bq/hergy/internal/web"
 )
 
 // This file applies the drift between the saved definitions and the running
 // teams (d-36ef): the screens' POST /api/apply. The operation is the one sheet a
 // person works with; what hergy does for each member follows from the drift the
-// reading found (web.ApplyMember.How). The work goes on after the answer, so the
+// reading found (ApplyMember.How). The work goes on after the answer, so the
 // sheet reads its progress and any startup question the way it reads a start's.
 
 // ApplyMembers is POST /api/apply: apply the drift to the named members, by
 // herdr name. Nothing is applied when one named member has nothing to apply or
 // cannot be applied now: the sheet sends what it read, and a refusal names the
 // members to look at.
-func (h *hqRead) ApplyMembers(names []string) (web.HQLaunch, error) {
+func (h *hqRead) ApplyMembers(names []string) (HQLaunch, error) {
 	ctx, cancel := context.WithCancel(h.context())
 	type answer struct {
-		launch web.HQLaunch
+		launch HQLaunch
 		err    error
 	}
 	ready := make(chan answer, 1)
 	go func() {
 		defer cancel()
 		var op *launchOp
-		input := h.applyInput(names, func(event ops.Event) {
+		input := h.applyInput(names, func(event Event) {
 			if op != nil {
 				h.observeApply(op, event)
 			}
 		})
-		input.Accepted = func(selection ops.ApplySelection) {
+		input.Accepted = func(selection ApplySelection) {
 			op = h.newOp(applyLaunch(selection.Selected))
 			op.mu.Lock()
 			op.cancel = cancel
@@ -43,7 +40,7 @@ func (h *hqRead) ApplyMembers(names []string) (web.HQLaunch, error) {
 			op.mu.Unlock()
 			ready <- answer{launch: op.snapshot()}
 		}
-		_, err := ops.Apply(ctx, input)
+		_, err := Apply(ctx, input)
 		if op == nil {
 			ready <- answer{err: hqOperationError(err)}
 			return
@@ -54,11 +51,11 @@ func (h *hqRead) ApplyMembers(names []string) (web.HQLaunch, error) {
 	return result.launch, result.err
 }
 
-func (h *hqRead) applyInput(names []string, observe func(ops.Event)) ops.ApplyInput {
-	return ops.ApplyInput{Now: h.act.clock, Env: h.act.env, Views: h.act.projectViews(), Read: func() ops.Session { return sessionOf(h.act.readHerdr(h.act.clock())) },
-		Selection: ops.ApplySelectionInput{Names: names, Policy: ops.RequireWholeSelection}, Timeout: 30000, Port: h.act.herdrPort(), Observe: observe, Locks: h.locks}
+func (h *hqRead) applyInput(names []string, observe func(Event)) ApplyInput {
+	return ApplyInput{Now: h.act.clock, Env: h.act.env, Views: h.act.projectViews(), Read: func() Session { return sessionOf(h.act.readHerdr(h.act.clock())) },
+		Selection: ApplySelectionInput{Names: names, Policy: RequireWholeSelection}, Timeout: 30000, Port: h.act.herdrPort(), Observe: observe, Locks: h.locks}
 }
-func (h *hqRead) observeApply(op *launchOp, event ops.Event) {
+func (h *hqRead) observeApply(op *launchOp, event Event) {
 	if event.Progress != nil {
 		h.observe(op, *event.Progress)
 	}
@@ -67,7 +64,7 @@ func (h *hqRead) observeApply(op *launchOp, event ops.Event) {
 	}
 }
 func applySelection(plan deliveryPlan, names []string) ([]plannedMember, []string) {
-	selection, err := ops.SelectApply(plan, ops.ApplySelectionInput{Names: names, Policy: ops.RequireWholeSelection})
+	selection, err := SelectApply(plan, ApplySelectionInput{Names: names, Policy: RequireWholeSelection})
 	if err != nil {
 		return nil, []string{err.Error()}
 	}
@@ -78,9 +75,9 @@ func applySelection(plan deliveryPlan, names []string) ([]plannedMember, []strin
 // and nothing else. A request of one team names it; one that spans teams leaves
 // the team and its project empty, because naming one would be a lie about the
 // other.
-func applyLaunch(selected []plannedMember) web.HQLaunch {
-	launch := web.HQLaunch{
-		Action: web.ActionApply, Phase: "starting", Steps: []web.HQLaunchStep{},
+func applyLaunch(selected []plannedMember) HQLaunch {
+	launch := HQLaunch{
+		Action: ActionApply, Phase: "starting", Steps: []HQLaunchStep{},
 		Members: shortsOfStarts(selected),
 	}
 	first := selected[0].Team
@@ -97,8 +94,8 @@ func applyLaunch(selected []plannedMember) web.HQLaunch {
 		launch.Project = first.Project
 		launch.ProjectName = first.ProjectName
 		launch.Place = first.Place.API()
-		launch.Workspace = web.HQWorkspace{ID: first.WorkspaceID, Label: first.WorkspaceLabel}
-		launch.Tab = web.HQTab{ID: first.TabID, Label: first.Name.String()}
+		launch.Workspace = HQWorkspace{ID: first.WorkspaceID, Label: first.WorkspaceLabel}
+		launch.Tab = HQTab{ID: first.TabID, Label: first.Name.String()}
 	}
 	return launch
 }
@@ -121,9 +118,9 @@ func (h *hqRead) runApply(ctx context.Context, op *launchOp, selected []plannedM
 	for _, member := range selected {
 		names = append(names, member.Start.Name.String())
 	}
-	input := h.applyInput(names, func(event ops.Event) { h.observeApply(op, event) })
-	input.Accepted = func(selection ops.ApplySelection) { op.mu.Lock(); op.teams = selection.Teams(); op.mu.Unlock() }
-	_, err := ops.Apply(ctx, input)
+	input := h.applyInput(names, func(event Event) { h.observeApply(op, event) })
+	input.Accepted = func(selection ApplySelection) { op.mu.Lock(); op.teams = selection.Teams(); op.mu.Unlock() }
+	_, err := Apply(ctx, input)
 	h.finishOperation(ctx, op, err)
 }
 
@@ -131,10 +128,10 @@ func (h *hqRead) runApply(ctx context.Context, op *launchOp, selected []plannedM
 func (h *hqRead) stepApplied(op *launchOp, member plannedMember) {
 	key := "apply.progress_resend"
 	switch member.How {
-	case ops.ApplyResend, ops.ApplyCannot:
-	case ops.ApplyStart:
+	case ApplyResend, ApplyCannot:
+	case ApplyStart:
 		key = "apply.progress_start"
-	case ops.ApplyRestart:
+	case ApplyRestart:
 		key = "apply.progress_restart"
 	}
 	op.mu.Lock()
@@ -144,9 +141,9 @@ func (h *hqRead) stepApplied(op *launchOp, member plannedMember) {
 
 // ApplyMembers is POST /api/apply on the activity reading: the headquarters
 // keeps the progress, as it does for a start.
-func (a *activityRead) ApplyMembers(names []string) (web.HQLaunch, error) {
+func (a *Reader) ApplyMembers(names []string) (HQLaunch, error) {
 	if a.hq == nil {
-		return web.HQLaunch{}, errors.New(i18n.T("web.error.no_hq"))
+		return HQLaunch{}, errors.New(i18n.T("web.error.no_hq"))
 	}
 	return a.hq.ApplyMembers(names)
 }

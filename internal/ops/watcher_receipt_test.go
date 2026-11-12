@@ -1,12 +1,13 @@
 package ops
 
 import (
-	"github.com/aq2bq/hergy/internal/herdr"
-	"github.com/aq2bq/hergy/internal/protocol"
-	"github.com/aq2bq/hergy/internal/turns"
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/aq2bq/hergy/internal/herdr"
+	"github.com/aq2bq/hergy/internal/protocol"
+	"github.com/aq2bq/hergy/internal/turns"
 )
 
 // The watcher uses the same confirmed sending, but still escalates every final

@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"io"
 
+	domainplace "github.com/aq2bq/hergy/internal/domain/place"
 	"github.com/aq2bq/hergy/internal/ops"
 
 	domainname "github.com/aq2bq/hergy/internal/domain/name"
 
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/team"
-	"github.com/aq2bq/hergy/internal/web"
 )
 
 // downPlan is hergy down --dry --json's answer: the names it would close, and
@@ -20,7 +20,7 @@ type downPlan struct {
 	Team      string            `json:"team"`
 	Members   []domainname.Seen `json:"members"`
 	Workers   []domainname.Seen `json:"workers"`
-	Leftovers web.HQLeftovers   `json:"leftovers"`
+	Leftovers jsonLeftovers     `json:"leftovers"`
 }
 
 // writeDownPlan writes the plan as JSON, with empty lists rather than null.
@@ -91,4 +91,30 @@ func printLeftovers(w io.Writer, left team.Leftovers, owner ops.LeftoverOwner, d
 		fmt.Fprintf(w, i18n.T("leftovers.stashes"), left.Stashes)
 	}
 	fmt.Fprint(w, i18n.T("leftovers.note"))
+}
+
+type jsonLeftovers struct {
+	Worktrees []jsonWorktree `json:"worktrees"`
+	Stashes   int            `json:"stashes"`
+}
+
+type jsonWorktree struct {
+	Path   domainplace.Project `json:"path"`
+	Branch string              `json:"branch"`
+	Dirty  bool                `json:"dirty"`
+	Ahead  int                 `json:"ahead"`
+	Base   string              `json:"base"`
+	// PaneCwd says a closed pane's working directory was this worktree (d-970c).
+	PaneCwd bool `json:"pane_cwd"`
+}
+
+func hqLeftoversOf(left team.Leftovers) jsonLeftovers {
+	out := jsonLeftovers{Worktrees: []jsonWorktree{}, Stashes: left.Stashes}
+	for _, one := range left.Worktrees {
+		out.Worktrees = append(out.Worktrees, jsonWorktree{
+			Path: one.Path, Branch: one.Branch, Dirty: one.Dirty, Ahead: one.Ahead, Base: one.Base,
+			PaneCwd: one.PaneCwd,
+		})
+	}
+	return out
 }

@@ -16,7 +16,7 @@ import (
 // owner (promptsFor); this file only finds that team's record. The live half
 // (which teams run, and whether the member is up) is in prompt_runs.go.
 
-// lastPromptRecord is the newest recorded body of one member of one team. The
+// LastPromptRecord is the newest recorded body of one member of one team. The
 // definition, the team's project and the exact team.yaml path are compared, so a
 // project-less old record is not borrowed for another project's or another
 // definition's same-named member.

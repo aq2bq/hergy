@@ -6,6 +6,8 @@ import (
 	"io"
 	"time"
 
+	"github.com/aq2bq/hergy/internal/ops"
+
 	"github.com/aq2bq/hergy/internal/browser"
 	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/check"
@@ -53,9 +55,7 @@ func runServe(ctx context.Context, env team.Env, opts *options.Options, stdout, 
 	// file's version moved (d-e00b).
 	memo := source.NewMemo()
 	cat := env.Catalog(memo)
-	read := newActivityReadWith(env, memo)
-	read.port = serveHerdrPort()
-	read.ctx = ctx
+	read := ops.NewReader(ops.ReaderInput{UseSocket: true, Env: env, Source: memo, Context: ctx, Now: serveClock})
 	// The screens are written in one language, and the server makes their pages
 	// and the sentences it answers them with in that language; --lang is the
 	// command line's language, so the lines serve prints keep it (d-aacf's
@@ -65,7 +65,7 @@ func runServe(ctx context.Context, env team.Env, opts *options.Options, stdout, 
 		return err
 	}
 	defer func() { _ = i18n.Use(cliLang) }()
-	server, err := web.New(cat, read)
+	server, err := web.New(cat, web.FromOps(read))
 	if err != nil {
 		return err
 	}

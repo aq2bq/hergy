@@ -11,12 +11,13 @@ import (
 	"github.com/aq2bq/hergy/internal/turns"
 )
 
-// hergy turn-done <team> <member> [payload]: the harness says a turn ended
+// TurnDoneInput carries hergy turn-done <team> <member> [payload]: the harness says a turn ended
 // (r-378e). The payload is Codex's one JSON argument or, for Claude Code's Stop
 // hook and the opencode plugin, stdin. The signal goes to the team's signal
 // directory for hergy turns to take on its next tick. A Codex member's own
 // notify, which hergy's replaced for that process, is called afterwards with
 // the same argument (d-a70c).
+// TurnDoneInput carries the harness payload and its observed turn identity.
 type TurnDoneInput struct {
 	Team, Member, Payload string
 	Raw                   []byte

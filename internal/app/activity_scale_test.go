@@ -379,8 +379,7 @@ func TestACTIVITY_C4_judgesATeamFromTheAgents(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	r := newActivityRead(env)
-	r.port = serveHerdrPort()
+	r := newSocketActivityRead(env)
 	r.now = func() time.Time { return at }
 
 	doc, ok := r.One("core")
@@ -443,8 +442,7 @@ func TestACTIVITY_C5_saysHowLongFromTheFixedClock(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	r := newActivityRead(env)
-	r.port = serveHerdrPort()
+	r := newSocketActivityRead(env)
 	r.now = func() time.Time { return at }
 
 	// core: the lead handed the turn over 2 時間 40 分 ago, and the moment it

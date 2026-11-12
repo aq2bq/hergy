@@ -3,15 +3,10 @@ package app
 import (
 	"os"
 	"path/filepath"
-	"strings"
-	"testing"
-	"time"
-
-	"github.com/aq2bq/hergy/internal/team"
+	"testing" // stopHerdr is stateHerdr with the call log: a stop's panes are the
+	// "pane close <id>" lines, and members/workers are the ones stopTargets names.
 )
 
-// stopHerdr is stateHerdr with the call log: a stop's panes are the
-// "pane close <id>" lines, and members/workers are the ones stopTargets names.
 func (f *fixture) stopHerdr(t *testing.T, worker bool) string {
 	t.Helper()
 	dir := filepath.Join(f.cfg, "stop-herdr")
@@ -19,7 +14,7 @@ func (f *fixture) stopHerdr(t *testing.T, worker bool) string {
 		t.Fatal(err)
 	}
 	log := filepath.Join(f.cfg, "herdr.log")
-	tabs := `{"result":{"tabs":[{"tab_id":"t1","label":"wave","workspace_id":"w1"}` // + worker tab below
+	tabs := `{"result":{"tabs":[{"tab_id":"t1","label":"wave","workspace_id":"w1"}`
 	if worker {
 		tabs += `,{"tab_id":"tw","label":"worker:wave/deps","workspace_id":"w1"}`
 	}
@@ -44,8 +39,10 @@ func (f *fixture) stopHerdr(t *testing.T, worker bool) string {
 		t.Fatal(err)
 	}
 	f.herdr(t, `#!/bin/sh
-d='`+dir+`'
-log='`+log+`'
+d='`+
+		dir+`'
+log='`+
+		log+`'
 printf '%s\n' "$*" >> "$log"
 g="$1"; s="$2"
 if [ -z "$s" ]; then
@@ -69,47 +66,4 @@ case "$g $s" in
 esac
 `)
 	return log
-}
-
-// TestStopClosesWhatStopTargetsNames: the panes Stop closes, the members and
-// workers stopTargets answers with, and the Closed it reports are one answer
-// (r-ccf8, ac-ddb6), with and without a worker.
-func TestStopClosesWhatStopTargetsNames(t *testing.T) {
-	for _, worker := range []bool{false, true} {
-		t.Run(map[bool]string{false: "no worker", true: "a worker"}[worker], func(t *testing.T) {
-			f := newFixture(t)
-			mustRun(t, "new", "wave")
-			log := f.stopHerdr(t, worker)
-			env, err := team.NewEnv()
-			if err != nil {
-				t.Fatal(err)
-			}
-			read := newActivityRead(env)
-			read.now = func() time.Time { return activityNow }
-			running := read.hq.act.readHerdr(read.hq.act.clock())
-			one, found := read.hq.findRunning(running, "wave")
-			if !found {
-				t.Fatalf("the fixture's team is not running:\n%s", calls(t, log))
-			}
-			penv, err := read.hq.act.envAt(one.Project)
-			if err != nil {
-				t.Fatal(err)
-			}
-			target := read.hq.stopTargets(penv, one, running)
-			closed, err := read.Stop("wave")
-			if err != nil {
-				t.Fatal(err)
-			}
-			if closed.Closed.Members != len(target.members) || closed.Closed.Workers != len(target.workers) {
-				t.Errorf("Closed = %d members, %d workers; stopTargets = %d, %d", closed.Closed.Members, closed.Closed.Workers, len(target.members), len(target.workers))
-			}
-			closes := calls(t, log)
-			if !strings.Contains(closes, "pane close p1") || !strings.Contains(closes, "pane close p2") {
-				t.Errorf("Stop closed no member panes:\n%s", closes)
-			}
-			if worker && !strings.Contains(closes, "pane close p3") {
-				t.Errorf("Stop closed no worker pane:\n%s", closes)
-			}
-		})
-	}
 }

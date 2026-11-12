@@ -1,7 +1,6 @@
-package app
+package ops
 
 import (
-	"github.com/aq2bq/hergy/internal/ops"
 	"path/filepath"
 	"time"
 
@@ -14,7 +13,6 @@ import (
 	"github.com/aq2bq/hergy/internal/i18n"
 
 	"github.com/aq2bq/hergy/internal/team"
-	"github.com/aq2bq/hergy/internal/web"
 )
 
 // This file is the running teams and the workspaces as the headquarters reads
@@ -23,12 +21,12 @@ import (
 // screen and the headquarters cannot disagree about a team (lead's addition 1).
 
 // Running is GET /api/hq/running.
-func (h *hqRead) Running() web.HQRunning {
+func (h *hqRead) Running() HQRunning {
 	now := h.act.clock()
 	read := h.act.readHerdr(now)
-	out := web.HQRunning{Herdr: web.ActivityNote{OK: true}, Teams: []web.HQRunningTeam{}}
+	out := HQRunning{Herdr: ActivityNote{OK: true}, Teams: []HQRunningTeam{}}
 	if read.err != nil {
-		out.Herdr = web.ActivityNote{OK: false, Text: i18n.T("web.activity.herdr_unavailable")}
+		out.Herdr = ActivityNote{OK: false, Text: i18n.T("web.activity.herdr_unavailable")}
 		return out
 	}
 	for _, one := range h.act.teamsOf(read) {
@@ -38,20 +36,20 @@ func (h *hqRead) Running() web.HQRunning {
 }
 
 // runningOf is one running team as the headquarters names it.
-func (h *hqRead) runningOf(one runningTeam, read herdrNow, now time.Time) web.HQRunningTeam {
+func (h *hqRead) runningOf(one runningTeam, read herdrNow, now time.Time) HQRunningTeam {
 	judged := judgeOf(one, read, now)
 	teamName := one.Name
-	out := web.HQRunningTeam{
+	out := HQRunningTeam{
 		Team:        domainname.TeamFromObservation(teamName),
 		Definition:  one.Definition,
 		Place:       one.Place.API(),
 		Project:     one.Project,
 		ProjectName: one.ProjectName,
-		Workspace:   web.HQWorkspace{ID: one.WorkspaceID, Label: one.WorkspaceLabel},
-		Tab:         web.HQTab{ID: one.TabID, Label: teamName.String()},
+		Workspace:   HQWorkspace{ID: one.WorkspaceID, Label: one.WorkspaceLabel},
+		Tab:         HQTab{ID: one.TabID, Label: teamName.String()},
 		Error:       one.Broken,
-		Members:     []web.HQMember{},
-		Workers:     []web.HQWorker{},
+		Members:     []HQMember{},
+		Workers:     []HQWorker{},
 		Waiting:     []string{},
 		NotUp:       []string{},
 	}
@@ -60,7 +58,7 @@ func (h *hqRead) runningOf(one runningTeam, read herdrNow, now time.Time) web.HQ
 		out.Launch = id
 	}
 	for _, node := range judged.Nodes {
-		out.Members = append(out.Members, web.HQMember{
+		out.Members = append(out.Members, HQMember{
 			Name: node.Name, Herdr: node.Herdr.String(), Live: node.Herdr.String() != "",
 			State: node.State.Slug(),
 		})
@@ -74,7 +72,7 @@ func (h *hqRead) runningOf(one runningTeam, read herdrNow, now time.Time) web.HQ
 		}
 	}
 	for _, hired := range judged.Hired {
-		out.Workers = append(out.Workers, web.HQWorker{
+		out.Workers = append(out.Workers, HQWorker{
 			Name: domainname.ShortIn(hired.Herdr, teamName).String(),
 			Tab:  protocolWorkerTab(teamName, domainname.ShortIn(hired.Herdr, teamName)),
 			Live: hired.Herdr.String() != "",
@@ -90,10 +88,10 @@ func protocolWorkerTab(teamName, worker domainname.Seen) string {
 
 // Workspaces is GET /api/hq/workspaces: herdr's workspaces, the team in each, and
 // the team that last ran there.
-func (h *hqRead) Workspaces() web.HQWorkspaces {
+func (h *hqRead) Workspaces() HQWorkspaces {
 	now := h.act.clock()
 	read := h.act.readHerdr(now)
-	out := web.HQWorkspaces{Workspaces: []web.HQWorkspace{}}
+	out := HQWorkspaces{Workspaces: []HQWorkspace{}}
 	if read.err != nil {
 		return out
 	}
@@ -110,8 +108,8 @@ func (h *hqRead) Workspaces() web.HQWorkspaces {
 
 // workspaceOf is one workspace with the team in it and the team that last ran
 // there.
-func (h *hqRead) workspaceOf(space herdr.Workspace, running runningTeam, last string) web.HQWorkspace {
-	one := web.HQWorkspace{ID: space.ID, Label: space.Label, Focused: space.Focused, LastTeam: last}
+func (h *hqRead) workspaceOf(space herdr.Workspace, running runningTeam, last string) HQWorkspace {
+	one := HQWorkspace{ID: space.ID, Label: space.Label, Focused: space.Focused, LastTeam: last}
 	if running.Name.String() != "" {
 		one.Team = running.Name.String()
 		one.TeamProject = running.Project
@@ -135,8 +133,8 @@ func (h *hqRead) lastTeamsByWorkspace() map[string]string {
 // free: the start sheet offers it first (spec 5 章). A definition is told by the
 // team.yaml its launch read, so two projects' same-named definitions do not take
 // each other's launch (M1).
-func (h *hqRead) lastWorkspaceOf(read herdrNow, teamYAML domainplace.Project) *web.HQWorkspace {
-	record, ok, err := ops.LatestLaunch(teamYAML)
+func (h *hqRead) lastWorkspaceOf(read herdrNow, teamYAML domainplace.Project) *HQWorkspace {
+	record, ok, err := LatestLaunch(teamYAML)
 	if err != nil || !ok || record.WorkspaceID == "" {
 		return nil
 	}
@@ -150,7 +148,7 @@ func (h *hqRead) lastWorkspaceOf(read herdrNow, teamYAML domainplace.Project) *w
 	if squatter != "" {
 		return nil
 	}
-	return &web.HQWorkspace{ID: record.WorkspaceID, Label: record.Workspace}
+	return &HQWorkspace{ID: record.WorkspaceID, Label: record.Workspace}
 }
 
 // projectNameIn is one project's name among the projects this serve shows.

@@ -12,7 +12,6 @@ import (
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/options"
 	"github.com/aq2bq/hergy/internal/team"
-	"github.com/aq2bq/hergy/internal/web"
 )
 
 // This file is hergy apply: the one operation that puts a saved definition's
@@ -110,7 +109,7 @@ func teamNotes(teams []ops.ApplyTeam) map[string][]string {
 func printApplyPlan(stdout io.Writer, plan deliveryPlan, selected []plannedMember, remaining []chosen, asJSON bool) error {
 	notes := teamNotes(plan.Apply.Teams)
 	if asJSON {
-		list := web.ApplyList{Herdr: web.ActivityNote{OK: true}, Teams: []web.ApplyTeam{}}
+		list := jsonApplyList{Herdr: jsonReadNote{OK: true}, Teams: []jsonApplyTeam{}}
 		byTeam := map[string]int{}
 		add := func(member plannedMember) {
 			index, ok := byTeam[member.Team.Name.String()]
@@ -119,15 +118,15 @@ func printApplyPlan(stdout io.Writer, plan deliveryPlan, selected []plannedMembe
 				if own == nil {
 					own = []string{}
 				}
-				list.Teams = append(list.Teams, web.ApplyTeam{
+				list.Teams = append(list.Teams, jsonApplyTeam{
 					Team: member.Team.Name.String(), Definition: member.Team.Definition,
 					Project: member.Team.Project, ProjectName: member.Team.ProjectName,
-					Notes: own, Members: []web.ApplyMember{},
+					Notes: own, Members: []jsonApplyMember{},
 				})
 				index = len(list.Teams) - 1
 				byTeam[member.Team.Name.String()] = index
 			}
-			shown := web.ApplyMember{
+			shown := jsonApplyMember{
 				Name: member.Start.Name.String(), Short: member.Start.Short.String(), Role: member.Start.Role,
 				State: member.State, How: string(member.How), Changes: member.Changes,
 				CanApply: member.CanApply(), WhyNot: member.WhyNot,

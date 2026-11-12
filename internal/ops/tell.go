@@ -22,6 +22,7 @@ type TellInput struct {
 	Now        func() time.Time
 }
 
+// TellResult names the observed parties of a completed tell.
 type TellResult struct {
 	From, To domainname.Seen
 	Human    bool

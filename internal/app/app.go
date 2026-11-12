@@ -1075,10 +1075,6 @@ func runStop(env team.Env, opts *options.Options, stdout io.Writer) error {
 	}
 	return err
 }
-func sendText(from, body string) string { return ops.SendText(from, body) }
-func senderName(r *ops.Resolved, pane domainname.PaneID) domainname.Seen {
-	return ops.SenderName(r, pane, nil)
-}
 
 func memberInput(env team.Env, opts *options.Options, stdout, stderr io.Writer) ops.MemberInput {
 	return ops.MemberInput{Env: env, Team: opts.Team, Member: opts.Member, All: opts.All, Dry: opts.Dry, Timeout: opts.Timeout, RequirePane: true, ManagedPane: os.Getenv("HERDR_ENV") == "1", Observe: cliEvents(stdout, stderr, env)}
@@ -1316,12 +1312,4 @@ func reportLegacyProse(env team.Env, cat *catalog.Catalog, report func(string, e
 			}
 		}
 	}
-}
-
-func seenStrings(names []domainname.Seen) []string {
-	out := make([]string, len(names))
-	for i, n := range names {
-		out[i] = n.String()
-	}
-	return out
 }

@@ -57,7 +57,7 @@ var ownerRules = []ownerRule{
 	// The rows and the counts are decided in internal/catalog; the lists and the
 	// band's first value ask it. The row rules of r-929e are gone: a name that
 	// decided rows anywhere else fails here.
-	{name: "Counts", where: "go", files: []string{"internal/catalog/", "internal/app/hq.go", "internal/web/nav.go"}},
+	{name: "Counts", where: "go", files: []string{"internal/catalog/", "internal/ops/hq.go", "internal/web/nav.go"}},
 	{name: "ListedRows", where: "go", files: []string{"internal/catalog/", "internal/web/"}},
 	{name: "ShownRows", where: "go", files: []string{"internal/catalog/", "internal/web/"}},
 	{name: "ReadableOf", where: "go", files: []string{"internal/catalog/", "internal/web/"}},

@@ -9,10 +9,3 @@ func projectPath(raw string) domainplace.Project {
 	}
 	return p
 }
-func seenPaths(raw []string) []domainplace.Seen {
-	out := make([]domainplace.Seen, len(raw))
-	for i, path := range raw {
-		out[i] = domainplace.Observe(path)
-	}
-	return out
-}

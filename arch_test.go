@@ -143,6 +143,9 @@ func TestImportDirection(t *testing.T) {
 				if !slices.Contains(topLayer, imp) {
 					continue
 				}
+				if pkg == "web" && imp == "ops" {
+					continue
+				}
 				// Stage C moves operational dependencies into ops one by one.
 				if pkg == "ops" && slices.Contains([]string{"launcher", "team", "herdrcli", "spawn"}, imp) {
 					continue

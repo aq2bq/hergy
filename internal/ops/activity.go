@@ -1,4 +1,4 @@
-package app
+package ops
 
 import (
 	"context"
@@ -8,8 +8,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/aq2bq/hergy/internal/ops"
 
 	domainplace "github.com/aq2bq/hergy/internal/domain/place"
 
@@ -24,7 +22,6 @@ import (
 	"github.com/aq2bq/hergy/internal/source"
 	"github.com/aq2bq/hergy/internal/team"
 	"github.com/aq2bq/hergy/internal/turns"
-	"github.com/aq2bq/hergy/internal/web"
 )
 
 // This file is the reading behind the activity screen (spec-activity, r-8a67):
@@ -47,9 +44,9 @@ type herdrNow struct {
 	err    error
 }
 
-// activityRead is the reading behind the activity screen. Herdr is read for each
+// Reader is the shared reading behind a headquarters and activity screen. Herdr is read for each
 // request; the watcher remembers when each agent's state was first seen (6 A2).
-type activityRead struct {
+type Reader struct {
 	env team.Env
 	// port is the serve's socket-backed Herdr port. Tests and CLI readers without
 	// one keep the command port.
@@ -58,7 +55,7 @@ type activityRead struct {
 	// one reads the serve's own clock (serveClock).
 	now func() time.Time
 	// ctx is the serve's own lifetime: a start from the screens stops waiting
-	// when the serve stops. hq is the headquarters reading built on this one, so
+	// when the serve st hq is the headquarters reading built on this one, so
 	// the screens' running teams and the activity are one reading (r-b7e1).
 	ctx context.Context
 	hq  *hqRead
@@ -84,15 +81,15 @@ type activityRead struct {
 // newActivityRead is the reading behind one hergy serve. The watcher's memory is
 // kept in this machine's state directory, so a serve that is started again reads
 // a stop from when it was first seen rather than from its own start (6 A2).
-func newActivityRead(env team.Env) *activityRead {
+func newActivityRead(env team.Env) *Reader {
 	return newActivityReadWith(env, source.Disk{})
 }
 
 // newActivityReadWith is this reading over one reader: a serve hands every
 // project the same version-keyed reader, so a file is opened once and read
 // again only when it changed (d-e00b).
-func newActivityReadWith(env team.Env, reader source.Reader) *activityRead {
-	read := &activityRead{env: env, reader: reader, watcher: activity.NewWatcherAt(activityStatePath()), envs: map[domainplace.Project]team.Env{}}
+func newActivityReadWith(env team.Env, reader source.Reader) *Reader {
+	read := &Reader{env: env, reader: reader, watcher: activity.NewWatcherAt(activityStatePath()), envs: map[domainplace.Project]team.Env{}}
 	read.hq = newHQRead(read)
 	return read
 }
@@ -100,7 +97,7 @@ func newActivityReadWith(env team.Env, reader source.Reader) *activityRead {
 // envAt is one project's environment, placed once: the git command that finds
 // the root is not run again for every answer (d-e00b). A project whose path is
 // new is placed on its first use.
-func (a *activityRead) envAt(want domainplace.Project) (team.Env, error) {
+func (a *Reader) envAt(want domainplace.Project) (team.Env, error) {
 	a.envMu.Lock()
 	if env, ok := a.envs[want]; ok {
 		a.envMu.Unlock()
@@ -122,7 +119,7 @@ func (a *activityRead) envAt(want domainplace.Project) (team.Env, error) {
 
 // fileReader is how this reading opens files: the reader it was built with, or
 // the disk when a test built one without it.
-func (a *activityRead) fileReader() source.Reader {
+func (a *Reader) fileReader() source.Reader {
 	if a.reader == nil {
 		return source.Disk{}
 	}
@@ -144,14 +141,14 @@ func activityStatePath() string {
 }
 
 // clock is now, or the test's own clock.
-func (a *activityRead) clock() time.Time {
+func (a *Reader) clock() time.Time {
 	if a.now == nil {
-		return serveClock()
+		return time.Now()
 	}
 	return a.now()
 }
 
-func (a *activityRead) herdrPort() herdr.Port {
+func (a *Reader) herdrPort() herdr.Port {
 	if a.port != nil {
 		return a.port
 	}
@@ -160,7 +157,7 @@ func (a *activityRead) herdrPort() herdr.Port {
 
 // readHerdr reads the current Herdr state. The serve's socket port reads all four
 // lists with one session.snapshot; the command-backed path remains for CLI reads.
-func (a *activityRead) readHerdr(now time.Time) herdrNow {
+func (a *Reader) readHerdr(now time.Time) herdrNow {
 	read := herdrNow{}
 	if snapshotReader, ok := a.herdrPort().(herdr.SnapshotReader); ok {
 		snapshot, err := snapshotReader.SessionSnapshot()
@@ -168,17 +165,17 @@ func (a *activityRead) readHerdr(now time.Time) herdrNow {
 			read.err = err
 			return read
 		}
-		read.tabs = ops.TeamTabs(snapshot.Tabs, snapshot.Agents, snapshot.Panes)
+		read.tabs = TeamTabs(snapshot.Tabs, snapshot.Agents, snapshot.Panes)
 		read.agents = snapshot.Agents
 		read.agentsRead = true
 		read.spaces = snapshot.Workspaces
 	} else {
-		tabs, agents, agentsRead, err := ops.HerdrRead()
+		tabs, agents, agentsRead, err := HerdrRead()
 		read = herdrNow{tabs: tabs, agents: agents, agentsRead: agentsRead, err: err}
 		if err != nil {
 			return read
 		}
-		read.spaces, _ = ops.HerdrSpaceList()
+		read.spaces, _ = HerdrSpaceList()
 	}
 	a.watcherMu.Lock()
 	read.seen = a.watcher.Observe(watchedAgents(read.agents), now)
@@ -205,28 +202,28 @@ func watchedAgents(agents []protocol.Agent) []activity.Agent {
 // order, with their definitions built, from one read of herdr. The projects are
 // the ones config.yaml lists; a serve whose config names none shows the project
 // it was started in, as it always has (d-73fc).
-func (a *activityRead) teamsOf(read herdrNow) []runningTeam {
+func (a *Reader) teamsOf(read herdrNow) []runningTeam {
 	return readRunningTeamsIn(a.projectViews(), read, false)
 }
 
 // projectViews is the projects this serve reads, with their names, layers and
 // catalogs: the listed ones in the config's order, or the project serve was
 // started in when the config names none.
-func (a *activityRead) projectViews() []projectView {
-	return ops.ProjectViews(a.env, a.fileReader(), a.envAt)
+func (a *Reader) projectViews() []projectView {
+	return ProjectViews(a.env, a.fileReader(), a.envAt)
 }
 
 // List is GET /api/activity: the running teams of this project, in the order of
 // activity.Sort, and the band's two numbers. It reads herdr and the launch record
 // and the team definitions, and neither gy nor a pane (spec-activity 3).
-func (a *activityRead) List() web.ActivityList {
+func (a *Reader) List() ActivityList {
 	now := a.clock()
-	list := web.ActivityList{Items: []web.ActivityItem{}, Herdr: web.ActivityNote{OK: true}}
+	list := ActivityList{Items: []ActivityItem{}, Herdr: ActivityNote{OK: true}}
 	read := a.readHerdr(now)
 	if read.err != nil {
 		// herdr is not there: the screen says so in herdr's own words and the
 		// band writes no number (2.7).
-		list.Herdr = web.ActivityNote{OK: false, Text: i18n.T("web.activity.herdr_unavailable")}
+		list.Herdr = ActivityNote{OK: false, Text: i18n.T("web.activity.herdr_unavailable")}
 		return list
 	}
 	teams := a.teamsOf(read)
@@ -239,7 +236,7 @@ func (a *activityRead) List() web.ActivityList {
 			project:     one.Project,
 			projectName: one.ProjectName,
 			place:       one.Place,
-			workspace:   web.ActivitySpace{ID: one.WorkspaceID, Label: one.WorkspaceLabel},
+			workspace:   ActivitySpace{ID: one.WorkspaceID, Label: one.WorkspaceLabel},
 		})
 	}
 	list.Items, list.Running, list.Waiting = orderedRows(rows, now)
@@ -255,14 +252,14 @@ type activityRow struct {
 	project     domainplace.Project
 	projectName string
 	place       domainplace.Place
-	workspace   web.ActivitySpace
+	workspace   ActivitySpace
 }
 
 // orderedRows sorts the rows the way the screen lists them (2.2: the teams
 // waiting for a human first, then the stopped ones, then the working ones) and
 // turns them into the list's items, counting the band's two numbers on the way:
 // the running teams, and the members that are waiting for the human.
-func orderedRows(rows []activityRow, now time.Time) ([]web.ActivityItem, int, int) {
+func orderedRows(rows []activityRow, now time.Time) ([]ActivityItem, int, int) {
 	judged := make([]activity.Team, len(rows))
 	byName := make(map[string]activityRow, len(rows))
 	for i, row := range rows {
@@ -270,7 +267,7 @@ func orderedRows(rows []activityRow, now time.Time) ([]web.ActivityItem, int, in
 		byName[row.team.Name.String()] = row
 	}
 	activity.Sort(judged)
-	items := make([]web.ActivityItem, 0, len(judged))
+	items := make([]ActivityItem, 0, len(judged))
 	waiting := 0
 	for _, judged := range judged {
 		row := byName[judged.Name.String()]
@@ -298,11 +295,11 @@ func waitingMembers(t activity.Team) int {
 // agents as the only members known, so what the row says comes from herdr alone,
 // as 2.2 says.
 // itemOf is one row of the list as the boundary writes it (spec-activity 3).
-func itemOf(row activityRow, now time.Time) web.ActivityItem {
+func itemOf(row activityRow, now time.Time) ActivityItem {
 	t := row.team
-	item := web.ActivityItem{
+	item := ActivityItem{
 		Name: t.Name.String(),
-		Summary: web.ActivitySummary{
+		Summary: ActivitySummary{
 			Definition: row.definition,
 			State:      t.State.Slug(),
 		},
@@ -323,7 +320,7 @@ func itemOf(row activityRow, now time.Time) web.ActivityItem {
 
 // turnOf is the tile's turn: the holder hergy's watcher keeps for this team
 // (r-bc26), or nil for a team the watcher has not seen.
-func turnOf(teamName domainname.Seen) *web.ActivityTurn {
+func turnOf(teamName domainname.Seen) *ActivityTurn {
 	path := activityStatePath()
 	if path == "" {
 		return nil
@@ -332,7 +329,7 @@ func turnOf(teamName domainname.Seen) *web.ActivityTurn {
 	if err != nil || st.Since.IsZero() {
 		return nil
 	}
-	return &web.ActivityTurn{Holder: st.Holder, From: st.From, Why: st.Why, Text: turnText(st)}
+	return &ActivityTurn{Holder: st.Holder, From: st.From, Why: st.Why, Text: turnText(st)}
 }
 
 // turnText is the turn line in the server's words: the holder and who handed it
@@ -365,7 +362,7 @@ func turnText(st *turns.State) string {
 // sinceOf is the row's いつから: how long the state has lasted and when it began,
 // in the server's own words (6 A4). It is nil for a working team and for one with
 // no live agent.
-func sinceOf(t activity.Team, now time.Time) *web.ActivitySince {
+func sinceOf(t activity.Team, now time.Time) *ActivitySince {
 	if t.Last == "" || t.State == activity.Working {
 		return nil
 	}
@@ -373,14 +370,15 @@ func sinceOf(t activity.Team, now time.Time) *web.ActivitySince {
 	if at == "" {
 		return nil
 	}
-	return &web.ActivitySince{Len: activity.Length(t.Stalled, t.Lower), At: at, Lower: t.Lower}
+	return &ActivitySince{Len: activity.Length(t.Stalled, t.Lower), At: at, Lower: t.Lower}
 }
 
+// StopTargets describes the panes the stop operation would close.
 // One is GET /api/activity/{team}: one team's opened part. ok is false for a team
 // that is not running in this project, which the handler answers as a 404.
 // StopTargets is the stop's own answer, read without closing anything: the
 // members and worker panes Stop would close (r-ccf8).
-func (a *activityRead) StopTargets(name string) ([]string, int, bool) {
+func (a *Reader) StopTargets(name string) ([]string, int, bool) {
 	if a.hq == nil {
 		return nil, 0, false
 	}
@@ -397,14 +395,15 @@ func (a *activityRead) StopTargets(name string) ([]string, int, bool) {
 	return target.members, len(target.workers), true
 }
 
-func (a *activityRead) One(name string) (web.ActivityDoc, bool) {
+// One reads one team's members, workers and current question.
+func (a *Reader) One(name string) (ActivityDoc, bool) {
 	now := a.clock()
 	read := a.readHerdr(now)
 	if read.err != nil {
 		// A herdr that cannot be read cannot say which teams are running, so
 		// there is no such team to open. The list is the answer that carries the
 		// sentence (2.7).
-		return web.ActivityDoc{}, false
+		return ActivityDoc{}, false
 	}
 	teams := a.teamsOf(read)
 	var one runningTeam
@@ -416,7 +415,7 @@ func (a *activityRead) One(name string) (web.ActivityDoc, bool) {
 		}
 	}
 	if !found {
-		return web.ActivityDoc{}, false
+		return ActivityDoc{}, false
 	}
 
 	var graph *definition.Graph
@@ -459,7 +458,7 @@ func (a *activityRead) One(name string) (web.ActivityDoc, bool) {
 			titles[agent.Name.String()] = agent.Title
 		}
 	}
-	doc := web.ActivityDoc{
+	doc := ActivityDoc{
 		Nodes:    docNodes(t, now, titles),
 		Hired:    docHired(t, one.Name, now, titles, hireSources(one.Project, one.Name.String())),
 		Question: question,
@@ -583,11 +582,11 @@ func mainAgent(t activity.Team, agents []activity.Agent) domainname.Seen {
 
 // docNodes is a team's members as the opened part shows them (2.5): the state,
 // when it began, and what the agent's terminal says it is doing (d-b4b9).
-func docNodes(t activity.Team, now time.Time, titles map[string]string) []web.ActivityNode {
-	out := make([]web.ActivityNode, 0, len(t.Nodes))
+func docNodes(t activity.Team, now time.Time, titles map[string]string) []ActivityNode {
+	out := make([]ActivityNode, 0, len(t.Nodes))
 	for _, node := range t.Nodes {
 		at := activity.Clock(now, node.At)
-		out = append(out, web.ActivityNode{
+		out = append(out, ActivityNode{
 			Name: node.Name, Herdr: node.Herdr, State: node.State.Slug(), At: at,
 			SinceAt: activity.SinceAt(now, node.At, node.Lower),
 			Doing:   titles[node.Herdr.String()],
@@ -598,10 +597,10 @@ func docNodes(t activity.Team, now time.Time, titles map[string]string) []web.Ac
 
 // docHired is a team's workers as the opened part shows them: the name without
 // the team's own prefix (X1, 2.5), the member that added it, and its title.
-func docHired(t activity.Team, teamName domainname.Seen, now time.Time, titles, from map[string]string) []web.ActivityNode {
-	out := make([]web.ActivityNode, 0, len(t.Hired))
+func docHired(t activity.Team, teamName domainname.Seen, now time.Time, titles, from map[string]string) []ActivityNode {
+	out := make([]ActivityNode, 0, len(t.Hired))
 	for _, hired := range t.Hired {
-		out = append(out, web.ActivityNode{
+		out = append(out, ActivityNode{
 			Name:  domainname.ShortIn(hired.Herdr, teamName).String(),
 			Herdr: hired.Herdr,
 			State: hired.State.Slug(),
@@ -619,7 +618,7 @@ func docHired(t activity.Team, teamName domainname.Seen, now time.Time, titles, 
 // says no "が追加" for it.
 func hireSources(project domainplace.Project, teamName string) map[string]string {
 	out := map[string]string{}
-	records, err := ops.ReadLaunchRecords()
+	records, err := ReadLaunchRecords()
 	if err != nil {
 		return out
 	}
@@ -640,11 +639,11 @@ func hireSources(project domainplace.Project, teamName string) map[string]string
 // herdrPane reads what one member's terminal shows so the waiting row can keep
 // its one-line question (herdr agent read --source detection). An error leaves
 // that line empty.
-func (a *activityRead) herdrPane(name domainname.Seen) (string, error) {
+func (a *Reader) herdrPane(name domainname.Seen) (string, error) {
 	return herdr.New(a.herdrPort()).Read(name)
 }
 
 // FocusMember rechecks membership before moving focus; it never answers a prompt.
-func (a *activityRead) FocusMember(teamName, member string) error {
-	return hqOperationError(ops.Focus(context.Background(), ops.FocusInput{MemberInput: ops.MemberInput{Env: a.env, Member: member, Port: a.herdrPort()}, Policy: ops.FocusLive, TeamName: teamName, Views: a.projectViews()}))
+func (a *Reader) FocusMember(teamName, member string) error {
+	return hqOperationError(Focus(context.Background(), FocusInput{MemberInput: MemberInput{Env: a.env, Member: member, Port: a.herdrPort()}, Policy: FocusLive, TeamName: teamName, Views: a.projectViews()}))
 }

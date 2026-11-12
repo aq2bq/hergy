@@ -1,4 +1,4 @@
-package app
+package ops
 
 import (
 	"errors"
@@ -10,16 +10,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aq2bq/hergy/internal/ops"
-
 	domainplace "github.com/aq2bq/hergy/internal/domain/place"
 
 	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/launchlog"
 	"github.com/aq2bq/hergy/internal/source"
-
-	"github.com/aq2bq/hergy/internal/web"
 )
 
 // This file is the headquarters reading (d-73fc, r-b7e1): the projects a global
@@ -33,8 +29,8 @@ import (
 
 // hqRead is one serve's headquarters reading.
 type hqRead struct {
-	act   *activityRead
-	locks *ops.OperationLocks
+	act   *Reader
+	locks *OperationLocks
 	// mu guards the starts: an HTTP request reads one while its goroutine
 	// writes it.
 	mu sync.Mutex
@@ -54,44 +50,61 @@ type hqRead struct {
 type launchOp struct {
 	mu       sync.Mutex
 	teams    []string
-	launch   web.HQLaunch
+	launch   HQLaunch
 	cancel   func()
 	finished time.Time
 }
 
 // newHQRead builds the headquarters reading on one activity reading.
-func newHQRead(act *activityRead) *hqRead {
-	return &hqRead{act: act, locks: &ops.OperationLocks{}, ops: map[string]*launchOp{}, started: time.Now()}
+func newHQRead(act *Reader) *hqRead {
+	return &hqRead{act: act, locks: &OperationLocks{}, ops: map[string]*launchOp{}, started: time.Now()}
 }
 
-// The activityRead answers the headquarters interface itself, so the server that
-// was handed the activity reading finds the headquarters too (web.New).
-func (a *activityRead) Projects() (web.HQProjects, error) { return a.hq.Projects() }
-func (a *activityRead) AddProject(path string, at int) (web.HQProjects, error) {
+// Projects reads the listed projects and their current state.
+func (a *Reader) Projects() (HQProjects, error) { return a.hq.Projects() }
+
+// AddProject lists a project and returns the updated reading.
+func (a *Reader) AddProject(path string, at int) (HQProjects, error) {
 	return a.hq.AddProject(path, at)
 }
-func (a *activityRead) RemoveProject(path string) (web.HQProjects, int, error) {
+
+// RemoveProject unlists a project and remembers the removed lines for undo.
+func (a *Reader) RemoveProject(path string) (HQProjects, int, error) {
 	return a.hq.RemoveProject(path)
 }
-func (a *activityRead) Running() web.HQRunning       { return a.hq.Running() }
-func (a *activityRead) Workspaces() web.HQWorkspaces { return a.hq.Workspaces() }
-func (a *activityRead) LaunchOptions(project domainplace.Input, definition, place string) (web.HQLaunchOptions, error) {
+
+// Running reads all visible running teams.
+func (a *Reader) Running() HQRunning { return a.hq.Running() }
+
+// Workspaces reads current workspace occupancy.
+func (a *Reader) Workspaces() HQWorkspaces { return a.hq.Workspaces() }
+
+// LaunchOptions reads the choices for starting a definition.
+func (a *Reader) LaunchOptions(project domainplace.Input, definition, place string) (HQLaunchOptions, error) {
 	return a.hq.LaunchOptions(project, definition, place)
 }
-func (a *activityRead) StartLaunch(in web.HQLaunchIn) (web.HQLaunch, error) {
+
+// StartLaunch accepts a start and retains its progress.
+func (a *Reader) StartLaunch(in HQLaunchIn) (HQLaunch, error) {
 	return a.hq.StartLaunch(in)
 }
-func (a *activityRead) LaunchState(id string) (web.HQLaunch, bool) { return a.hq.LaunchState(id) }
-func (a *activityRead) CancelLaunch(id string) (web.HQLaunch, bool) {
+
+// LaunchState reads one operation by its identifier.
+func (a *Reader) LaunchState(id string) (HQLaunch, bool) { return a.hq.LaunchState(id) }
+
+// CancelLaunch cancels an operation through its context.
+func (a *Reader) CancelLaunch(id string) (HQLaunch, bool) {
 	return a.hq.CancelLaunch(id)
 }
-func (a *activityRead) Stop(teamName string) (web.HQStopped, error) { return a.hq.Stop(teamName) }
+
+// Stop closes one team with the shared stop operation.
+func (a *Reader) Stop(teamName string) (HQStopped, error) { return a.hq.Stop(teamName) }
 
 // ProjectCatalog is one listed project's layer, for a screen that names a
 // project beside a team, role or profile. Only the listed projects (or, when the
 // config names none, the project serve was started in) are reachable; a write
 // that names any other directory is refused (api.md, r-b7e1).
-func (a *activityRead) ProjectCatalog(path domainplace.Project) (*catalog.Catalog, error) {
+func (a *Reader) ProjectCatalog(path domainplace.Project) (*catalog.Catalog, error) {
 	allowed, err := a.hq.allowedProjects()
 	if err != nil {
 		return nil, err
@@ -105,7 +118,7 @@ func (a *activityRead) ProjectCatalog(path domainplace.Project) (*catalog.Catalo
 
 // GlobalCatalog is the global layer read once for the headquarters, with the
 // paths a person reads wherever serve was started.
-func (a *activityRead) GlobalCatalog() *catalog.Catalog {
+func (a *Reader) GlobalCatalog() *catalog.Catalog {
 	return a.hq.globalCatalog()
 }
 
@@ -127,8 +140,8 @@ func (h *hqRead) globalCatalog() *catalog.Catalog {
 }
 
 // hqRefuse is a refusal the boundary answers with this status and sentence.
-func hqRefuse(status int, text string) *web.HQError {
-	return &web.HQError{Status: status, Text: text}
+func hqRefuse(status int, text string) *HQError {
+	return &HQError{Status: status, Text: text}
 }
 
 // listedProjects is the projects config.yaml lists, in its order, and whether it
@@ -172,14 +185,14 @@ func (h *hqRead) allowedProjects() ([]domainplace.Project, error) {
 }
 
 // Projects is GET /api/hq/projects.
-func (h *hqRead) Projects() (web.HQProjects, error) {
+func (h *hqRead) Projects() (HQProjects, error) {
 	paths, present, err := h.listedProjects()
 	if err != nil {
-		return web.HQProjects{}, hqRefuse(http.StatusInternalServerError, err.Error())
+		return HQProjects{}, hqRefuse(http.StatusInternalServerError, err.Error())
 	}
 	current, err := h.projectOf(h.act.env.ProjectRoot, true, "")
 	if err != nil {
-		return web.HQProjects{}, err
+		return HQProjects{}, err
 	}
 	current.Current = true
 	current.Listed = false
@@ -188,11 +201,11 @@ func (h *hqRead) Projects() (web.HQProjects, error) {
 			current.Listed = true
 		}
 	}
-	out := web.HQProjects{
+	out := HQProjects{
 		Config:   h.act.env.DisplayPath(h.act.env.ConfigPath()),
 		Mode:     "current",
 		Current:  current,
-		Projects: []web.HQProject{},
+		Projects: []HQProject{},
 		Global:   h.globalCounts(),
 	}
 	if present {
@@ -203,7 +216,7 @@ func (h *hqRead) Projects() (web.HQProjects, error) {
 	for _, path := range paths {
 		one, err := h.projectOf(path, true, "projects")
 		if err != nil {
-			return web.HQProjects{}, err
+			return HQProjects{}, err
 		}
 		one.Current = path.Compare(h.act.env.ProjectRoot) == domainplace.Same
 		seen[one.Path] = true
@@ -229,9 +242,9 @@ func (h *hqRead) Projects() (web.HQProjects, error) {
 
 // AddProject is POST /api/hq/projects: list one directory. The written entry is
 // ~/… when it is under the home directory (lead's addition 3).
-func (h *hqRead) AddProject(path string, at int) (web.HQProjects, error) {
+func (h *hqRead) AddProject(path string, at int) (HQProjects, error) {
 	if err := screenPath(path); err != nil {
-		return web.HQProjects{}, err
+		return HQProjects{}, err
 	}
 	var err error
 	if took, ok := h.takeRemoved(path, at); ok {
@@ -240,7 +253,7 @@ func (h *hqRead) AddProject(path string, at int) (web.HQProjects, error) {
 		_, err = h.act.env.AddProjectAt(path, at)
 	}
 	if err != nil {
-		return web.HQProjects{}, hqRefuse(http.StatusUnprocessableEntity, err.Error())
+		return HQProjects{}, hqRefuse(http.StatusUnprocessableEntity, err.Error())
 	}
 	return h.Projects()
 }
@@ -259,13 +272,13 @@ func (h *hqRead) takeRemoved(path string, at int) ([]string, bool) {
 
 // RemoveProject is DELETE /api/hq/projects: unlist one directory, leaving its
 // files as they are.
-func (h *hqRead) RemoveProject(path string) (web.HQProjects, int, error) {
+func (h *hqRead) RemoveProject(path string) (HQProjects, int, error) {
 	if err := screenPath(path); err != nil {
-		return web.HQProjects{}, -1, err
+		return HQProjects{}, -1, err
 	}
 	at, block, err := h.act.env.RemoveProjectBlock(path)
 	if err != nil {
-		return web.HQProjects{}, -1, hqRefuse(http.StatusNotFound, err.Error())
+		return HQProjects{}, -1, hqRefuse(http.StatusNotFound, err.Error())
 	}
 	h.mu.Lock()
 	if h.removed == nil {
@@ -292,16 +305,16 @@ func screenPath(path string) error {
 }
 
 // projectOf is one project as the headquarters reads it.
-func (h *hqRead) projectOf(path domainplace.Project, listed bool, sourceName string) (web.HQProject, error) {
+func (h *hqRead) projectOf(path domainplace.Project, listed bool, sourceName string) (HQProject, error) {
 	env, err := h.act.envAt(path)
 	if err != nil {
-		return web.HQProject{}, hqRefuse(http.StatusUnprocessableEntity, err.Error())
+		return HQProject{}, hqRefuse(http.StatusUnprocessableEntity, err.Error())
 	}
 	cat := env.Catalog(h.act.fileReader())
 	defs, roles, profiles := cat.Counts(source.LayerLocal)
 	_, statErr := os.Stat(env.ProjectRoot.String())
 	_, hergyErr := os.Stat(env.LocalDir)
-	one := web.HQProject{
+	one := HQProject{
 		Path: env.ProjectRoot, Name: filepath.Base(env.ProjectRoot.String()),
 		Display: h.act.env.DisplayPath(env.ProjectRoot.String()),
 		Listed:  listed, Exists: statErr == nil, HasHergy: hergyErr == nil,
@@ -312,7 +325,7 @@ func (h *hqRead) projectOf(path domainplace.Project, listed bool, sourceName str
 	if record, ok := h.latestProjectLaunch(env.ProjectRoot); ok {
 		one.LastLaunch = record.Time
 		if record.Workspace != "" {
-			one.LastWorkspace = &web.HQWorkspace{ID: record.WorkspaceID, Label: record.Workspace}
+			one.LastWorkspace = &HQWorkspace{ID: record.WorkspaceID, Label: record.Workspace}
 		}
 	}
 	return one, nil
@@ -321,7 +334,7 @@ func (h *hqRead) projectOf(path domainplace.Project, listed bool, sourceName str
 // currentName is the current project's name among the projects the sheet lists:
 // the directory's name, or the parent's and the directory's when another project
 // has the same name (d-73fc).
-func currentName(current web.HQProject, projects []web.HQProject) string {
+func currentName(current HQProject, projects []HQProject) string {
 	base := filepath.Base(current.Path.String())
 	for _, one := range projects {
 		if one.Path != current.Path && filepath.Base(one.Path.String()) == base {
@@ -333,7 +346,7 @@ func currentName(current web.HQProject, projects []web.HQProject) string {
 
 // nameProjectsOf adds the parent directory to the names two projects share, so a
 // person tells them apart (d-73fc).
-func nameProjectsOf(projects []web.HQProject) {
+func nameProjectsOf(projects []HQProject) {
 	count := map[string]int{}
 	for _, one := range projects {
 		count[one.Name]++
@@ -346,10 +359,10 @@ func nameProjectsOf(projects []web.HQProject) {
 }
 
 // globalCounts is the global layer's own counts.
-func (h *hqRead) globalCounts() web.HQGlobal {
+func (h *hqRead) globalCounts() HQGlobal {
 	cat := h.act.env.Catalog(h.act.fileReader())
 	defs, roles, profiles := cat.Counts(source.LayerGlobal)
-	return web.HQGlobal{
+	return HQGlobal{
 		Path: h.act.env.GlobalDir, Display: h.act.env.DisplayPath(h.act.env.GlobalDir),
 		Defs: defs, Roles: roles, Profiles: profiles,
 	}
@@ -373,7 +386,7 @@ func (h *hqRead) runningIn(path domainplace.Project) int {
 
 // launchRecords is this machine's launch record, oldest first.
 func (h *hqRead) launchRecords() []launchlog.Record {
-	records, err := ops.ReadLaunchRecords()
+	records, err := ReadLaunchRecords()
 	if err != nil {
 		return nil
 	}
@@ -414,7 +427,7 @@ func (h *hqRead) latestProjectLaunch(path domainplace.Project) (launchlog.Record
 
 // hqError is an error that is already a refusal, with its status.
 func hqError(err error) error {
-	if refusal, ok := errors.AsType[*web.HQError](err); ok {
+	if refusal, ok := errors.AsType[*HQError](err); ok {
 		return refusal
 	}
 	return hqRefuse(http.StatusInternalServerError, err.Error())
@@ -433,7 +446,7 @@ func hqOperationError(err error) error {
 	if err == nil {
 		return nil
 	}
-	if refusal, ok := errors.AsType[*ops.Refusal](err); ok {
+	if refusal, ok := errors.AsType[*Refusal](err); ok {
 		status := http.StatusUnprocessableEntity
 		switch refusal.Kind {
 		case "conflict":
@@ -445,7 +458,7 @@ func hqOperationError(err error) error {
 		case "internal":
 			status = http.StatusInternalServerError
 		}
-		return &web.HQError{Status: status, At: refusal.At, Text: refusal.Error(), SuggestedName: refusal.SuggestedName}
+		return &HQError{Status: status, At: refusal.At, Text: refusal.Error(), SuggestedName: refusal.SuggestedName}
 	}
 	return hqError(err)
 }

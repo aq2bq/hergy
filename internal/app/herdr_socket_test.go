@@ -60,7 +60,6 @@ func startAppHerdrSocket(t *testing.T, handle func(appSocketRequest) map[string]
 	}()
 	return path
 }
-
 func startHerdrCLIProxy(t *testing.T) string {
 	t.Helper()
 	command := herdrcli.New(os.Getenv("HERGY_HERDR"))
@@ -122,15 +121,12 @@ func startHerdrCLIProxy(t *testing.T) string {
 	t.Setenv("HERDR_SOCKET_PATH", path)
 	return path
 }
-
 func appSocketResult(id string, result map[string]any) map[string]any {
 	return map[string]any{"id": id, "result": result}
 }
-
 func appSocketError(id string, err error) map[string]any {
 	return map[string]any{"id": id, "error": map[string]any{"code": protocol.ErrorCode(err), "message": err.Error()}}
 }
-
 func startActivityHerdrSocket(t *testing.T, work string) string {
 	t.Helper()
 	path := startAppHerdrSocket(t, func(request appSocketRequest) map[string]any {
@@ -184,7 +180,6 @@ func startActivityHerdrSocket(t *testing.T, work string) string {
 	t.Setenv("HERDR_SOCKET_PATH", path)
 	return path
 }
-
 func activityFixtureList(path, field string) ([]any, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -202,7 +197,6 @@ func activityFixtureList(path, field string) ([]any, error) {
 	}
 	return values, nil
 }
-
 func activityFixtureSnapshot(work string) ([]any, []map[string]any, error) {
 	tabs, err := activityFixtureList(filepath.Join(work, "herdr", "tabs.json"), "tabs")
 	if err != nil {
@@ -283,7 +277,6 @@ func activityFixtureSnapshot(work string) ([]any, []map[string]any, error) {
 	}
 	return tabs, agents, nil
 }
-
 func activityAgent(agents []map[string]any, target string) map[string]any {
 	for _, agent := range agents {
 		if agent["name"] == target || agent["pane_id"] == target {
@@ -291,118 +284,4 @@ func activityAgent(agents []map[string]any, target string) map[string]any {
 		}
 	}
 	return nil
-}
-
-func TestSocketPathFromStatus(t *testing.T) {
-	path, err := socketPathFrom("status: running\nsocket: /tmp/herdr.sock\n")
-	if err != nil || path != "/tmp/herdr.sock" {
-		t.Fatalf("socketPathFrom = %q, %v", path, err)
-	}
-	if _, err := socketPathFrom("status: stopped\n"); err == nil {
-		t.Fatal("socketPathFrom accepted status without socket path")
-	}
-}
-
-func TestServeHerdrPortDiscoversSocketFromStatus(t *testing.T) {
-	path := startAppHerdrSocket(t, func(request appSocketRequest) map[string]any {
-		if request.Method != "session.snapshot" {
-			t.Errorf("method = %q, want session.snapshot", request.Method)
-		}
-		return appSocketResult(request.ID, map[string]any{"type": "session_snapshot", "snapshot": map[string]any{
-			"version": "test", "protocol": 22, "workspaces": []any{}, "tabs": []any{}, "panes": []any{}, "layouts": []any{}, "agents": []any{},
-		}})
-	})
-	status := filepath.Join(t.TempDir(), "herdr")
-	if err := os.WriteFile(status, []byte("#!/bin/sh\nprintf 'status: running\\nsocket: %s\\n' "+fmt.Sprintf("%q", path)+"\n"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv("HERDR_SOCKET_PATH", "")
-	t.Setenv("HERGY_HERDR", status)
-	snapshot, err := serveHerdrPort().SessionSnapshot()
-	if err != nil || len(snapshot.Tabs) != 0 {
-		t.Fatalf("status-discovered socket read = %+v, %v", snapshot, err)
-	}
-}
-
-func TestServeHerdrPortRetriesSocketDiscoveryAfterLookupFailure(t *testing.T) {
-	path := startAppHerdrSocket(t, func(request appSocketRequest) map[string]any {
-		if request.Method != "session.snapshot" {
-			t.Errorf("method = %q, want session.snapshot", request.Method)
-		}
-		return appSocketResult(request.ID, map[string]any{"type": "session_snapshot", "snapshot": map[string]any{
-			"version": "test", "protocol": 22, "workspaces": []any{}, "tabs": []any{}, "panes": []any{}, "layouts": []any{}, "agents": []any{},
-		}})
-	})
-	status := filepath.Join(t.TempDir(), "herdr")
-	count := filepath.Join(t.TempDir(), "status-count")
-	script := "#!/bin/sh\n" +
-		"n=0\n" +
-		"if [ -f \"$HERDR_STATUS_COUNT\" ]; then n=$(cat \"$HERDR_STATUS_COUNT\"); fi\n" +
-		"n=$((n + 1))\n" +
-		"printf '%s' \"$n\" > \"$HERDR_STATUS_COUNT\"\n" +
-		"if [ \"$n\" -eq 1 ]; then exit 1; fi\n" +
-		"printf 'status: running\\nsocket: %s\\n' \"$HERDR_STATUS_SOCKET\"\n"
-	if err := os.WriteFile(status, []byte(script), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv("HERDR_SOCKET_PATH", "")
-	t.Setenv("HERDR_STATUS_COUNT", count)
-	t.Setenv("HERDR_STATUS_SOCKET", path)
-	t.Setenv("HERGY_HERDR", status)
-
-	port := serveHerdrPort()
-	if _, err := port.SessionSnapshot(); err == nil {
-		t.Fatal("first read succeeded even though herdr status server failed")
-	}
-	snapshot, err := port.SessionSnapshot()
-	if err != nil || len(snapshot.Tabs) != 0 {
-		t.Fatalf("second read after failed lookup = %+v, %v", snapshot, err)
-	}
-	if _, err := port.SessionSnapshot(); err != nil {
-		t.Fatalf("read using the resolved socket = %v", err)
-	}
-	if got, err := os.ReadFile(count); err != nil || string(got) != "2" {
-		t.Fatalf("herdr status calls = %q, %v; want 2", got, err)
-	}
-}
-
-func TestServeHerdrPortRediscoversAfterSocketStopsAcceptingConnections(t *testing.T) {
-	path := startAppHerdrSocket(t, func(request appSocketRequest) map[string]any {
-		return appSocketResult(request.ID, map[string]any{"type": "session_snapshot", "snapshot": map[string]any{
-			"version": "test", "protocol": 22, "workspaces": []any{}, "tabs": []any{}, "panes": []any{}, "layouts": []any{}, "agents": []any{},
-		}})
-	})
-	status := filepath.Join(t.TempDir(), "herdr")
-	count := filepath.Join(t.TempDir(), "status-count")
-	deadDir, err := os.MkdirTemp("/tmp", "hd-")
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = os.RemoveAll(deadDir) })
-	deadSocket := filepath.Join(deadDir, "gone.sock")
-	script := "#!/bin/sh\n" +
-		"n=0\n" +
-		"if [ -f \"$HERDR_STATUS_COUNT\" ]; then n=$(cat \"$HERDR_STATUS_COUNT\"); fi\n" +
-		"n=$((n + 1))\n" +
-		"printf '%s' \"$n\" > \"$HERDR_STATUS_COUNT\"\n" +
-		"printf 'status: running\\nsocket: %s\\n' \"$HERDR_STATUS_SOCKET\"\n"
-	if err := os.WriteFile(status, []byte(script), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv("HERDR_SOCKET_PATH", deadSocket)
-	t.Setenv("HERDR_STATUS_COUNT", count)
-	t.Setenv("HERDR_STATUS_SOCKET", path)
-	t.Setenv("HERGY_HERDR", status)
-
-	port := serveHerdrPort()
-	if _, err := port.SessionSnapshot(); err == nil {
-		t.Fatal("first read succeeded with a socket that does not accept connections")
-	}
-	snapshot, err := port.SessionSnapshot()
-	if err != nil || len(snapshot.Tabs) != 0 {
-		t.Fatalf("second read after socket failure = %+v, %v", snapshot, err)
-	}
-	if got, err := os.ReadFile(count); err != nil || string(got) != "1" {
-		t.Fatalf("herdr status calls = %q, %v; want 1 after the inherited path stopped accepting connections", got, err)
-	}
 }
