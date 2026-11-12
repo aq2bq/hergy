@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/aq2bq/hergy/internal/ops"
+
 	domainplace "github.com/aq2bq/hergy/internal/domain/place"
 
 	"github.com/aq2bq/hergy/internal/catalog"
@@ -425,7 +427,7 @@ func TestAProjectGroupDoesNotGrowAGlobalRoleRow(t *testing.T) {
 			t.Errorf("the project's group draws the global layer's role as a row")
 		}
 	}
-	_, want, _ := server.cat.Counts(source.LayerLocal)
+	_, want, _ := ops.ResourceCounts(server.cat, source.LayerLocal)
 	if len(group.List.Items) != want {
 		t.Errorf("the group draws %d role rows, the project's own count is %d", len(group.List.Items), want)
 	}

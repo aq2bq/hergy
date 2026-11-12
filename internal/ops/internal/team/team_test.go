@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/aq2bq/hergy/internal/catalog"
 	domainplace "github.com/aq2bq/hergy/internal/domain/place"
+	"github.com/aq2bq/hergy/internal/ops/internal/catalog"
 	"github.com/aq2bq/hergy/internal/source"
 )
 

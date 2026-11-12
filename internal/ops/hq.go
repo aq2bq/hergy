@@ -12,8 +12,8 @@ import (
 
 	domainplace "github.com/aq2bq/hergy/internal/domain/place"
 
-	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/i18n"
+	"github.com/aq2bq/hergy/internal/ops/internal/catalog"
 	"github.com/aq2bq/hergy/internal/ops/internal/launchlog"
 	"github.com/aq2bq/hergy/internal/source"
 )
@@ -311,7 +311,7 @@ func (h *hqRead) projectOf(path domainplace.Project, listed bool, sourceName str
 		return HQProject{}, hqRefuse(http.StatusUnprocessableEntity, err.Error())
 	}
 	cat := env.Catalog(h.act.fileReader())
-	defs, roles, profiles := cat.Counts(source.LayerLocal)
+	defs, roles, profiles := ResourceCounts(cat, source.LayerLocal)
 	_, statErr := os.Stat(env.ProjectRoot.String())
 	_, hergyErr := os.Stat(env.LocalDir)
 	one := HQProject{
@@ -361,7 +361,7 @@ func nameProjectsOf(projects []HQProject) {
 // globalCounts is the global layer's own counts.
 func (h *hqRead) globalCounts() HQGlobal {
 	cat := h.act.env.Catalog(h.act.fileReader())
-	defs, roles, profiles := cat.Counts(source.LayerGlobal)
+	defs, roles, profiles := ResourceCounts(cat, source.LayerGlobal)
 	return HQGlobal{
 		Path: h.act.env.GlobalDir, Display: h.act.env.DisplayPath(h.act.env.GlobalDir),
 		Defs: defs, Roles: roles, Profiles: profiles,

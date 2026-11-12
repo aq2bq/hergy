@@ -6,8 +6,8 @@ import (
 	"strings"
 
 	"github.com/aq2bq/hergy/internal/i18n"
-	"github.com/aq2bq/hergy/internal/migrate"
 	"github.com/aq2bq/hergy/internal/ops/internal/launchlog"
+	"github.com/aq2bq/hergy/internal/ops/internal/migrate"
 )
 
 // oldDocs uses the previous member's reading, never the current role assignment.

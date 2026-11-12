@@ -3,12 +3,13 @@ package web
 import (
 	"path/filepath"
 
+	"github.com/aq2bq/hergy/internal/ops"
+
 	domainplace "github.com/aq2bq/hergy/internal/domain/place"
 
 	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/prose"
 	"github.com/aq2bq/hergy/internal/source"
-	"go.yaml.in/yaml/v3"
 )
 
 // This file gathers what the role screen's data island carries (r-778c): the
@@ -50,12 +51,6 @@ type r2Doc struct {
 	Text  string `json:"text"`
 }
 
-type r2Member struct {
-	Name  string `json:"name"`
-	Saved string `json:"saved"`
-	Draft string `json:"draft"`
-}
-
 // r2ReadingOf reads the catalog into the screen's own reading.
 func (s *Server) r2ReadingOf() r2Reading {
 	out := r2Reading{Project: filepath.Base(s.cat.Base().String())}
@@ -82,9 +77,9 @@ func (s *Server) r2ReadingOf() r2Reading {
 		order = append(order, name)
 		return row
 	}
-	for _, listed := range s.cat.ShownRows(catalog.KindRole, source.LayerLocal) {
+	for _, listed := range ops.ListResourceRows(s.cat, catalog.KindRole, source.LayerLocal) {
 		row := get(listed.Name)
-		if ok, why := s.cat.ReadableOf(listed); !ok {
+		if ok, why := ops.ResourceRowReadable(s.cat, listed); !ok {
 			// The row keeps its name and its reason: the list draws it and
 			// counts it (r-ea17, d-17ab).
 			row.Name = listed.Name
@@ -103,9 +98,9 @@ func (s *Server) r2ReadingOf() r2Reading {
 			row.Project = s.r2Read(listed.Path)
 		}
 	}
-	for _, listed := range s.cat.ShownRows(catalog.KindRole, source.LayerGlobal) {
+	for _, listed := range ops.ListResourceRows(s.cat, catalog.KindRole, source.LayerGlobal) {
 		row := get(listed.Name)
-		if ok, why := s.cat.ReadableOf(listed); !ok {
+		if ok, why := ops.ResourceRowReadable(s.cat, listed); !ok {
 			row.Name = listed.Name
 			row.GlobalProblem = why
 			continue
@@ -170,23 +165,4 @@ func roleNameOf(path string) string {
 		base = base[:len(base)-len(ext)]
 	}
 	return base
-}
-
-// r2MembersOf is the people one team definition names, with the role each one
-// plays. A file that does not read names none.
-func r2MembersOf(text string) []r2Member {
-	var raw struct {
-		Members []struct {
-			Name string `yaml:"name"`
-			Role string `yaml:"role"`
-		} `yaml:"members"`
-	}
-	if err := yaml.Unmarshal([]byte(text), &raw); err != nil {
-		return nil
-	}
-	out := make([]r2Member, 0, len(raw.Members))
-	for _, member := range raw.Members {
-		out = append(out, r2Member{Name: member.Name, Saved: member.Role, Draft: member.Role})
-	}
-	return out
 }

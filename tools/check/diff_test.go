@@ -89,7 +89,7 @@ func TestACommittedBranchWithNoUpstreamStillSelectsItsChange(t *testing.T) {
 // cost is the change's and leaves e2e, coverage and vuln to CI, in the table's order.
 func TestLocalGatesLeaveTheRepositorysCostToCI(t *testing.T) {
 	here, later := localGates(gatesFor([]string{"internal/cli/serve.go"}))
-	if got := gateNames(here); got != "fmt tidy fix lint arch test owners deadcode" {
+	if got := gateNames(here); got != "fmt tidy fix lint arch test deadcode" {
 		t.Errorf("here = %q", got)
 	}
 	if got := gateNames(later); got != "e2e coverage" {
@@ -125,5 +125,19 @@ func TestTestPackagesForTestsWhatChanged(t *testing.T) {
 		if got := testPackagesFor(c.paths); !slices.Equal(got, c.want) {
 			t.Errorf("testPackagesFor(%v) = %v, want %v", c.paths, got, c.want)
 		}
+	}
+}
+
+func TestExistingTestPackagesExcludesTheOldSideOfAMove(t *testing.T) {
+	root := t.TempDir()
+	writeTree(t, root, "internal/current/current.go", "package current\n")
+	writeTree(t, root, "internal/assets/template.html", "<p>no Go package remains</p>")
+	got, err := existingTestPackages(root, []string{"./internal/removed", "./internal/assets", "./internal/current", "./..."})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"./internal/current", "./..."}
+	if !slices.Equal(got, want) {
+		t.Fatalf("packages=%v want=%v", got, want)
 	}
 }

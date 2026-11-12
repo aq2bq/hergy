@@ -1,9 +1,9 @@
 package ops
 
 import (
-	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/definition"
 	domainplace "github.com/aq2bq/hergy/internal/domain/place"
+	"github.com/aq2bq/hergy/internal/ops/internal/catalog"
 	"github.com/aq2bq/hergy/internal/ops/internal/deliver"
 	"github.com/aq2bq/hergy/internal/ops/internal/launchlog"
 	"github.com/aq2bq/hergy/internal/source"

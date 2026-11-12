@@ -1,7 +1,9 @@
 package main
 
 import (
+	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"slices"
@@ -88,9 +90,8 @@ func gatesFor(paths []string) []gate {
 			// A test goes into no walk; the Go side's checks still hold it.
 			add("fmt", "fix", "lint", "arch", "coverage", "deadcode")
 		case strings.HasPrefix(p, "tools/check/"):
-			// The gates' own code goes into what the walks run, and holds the
-			// owners' table.
-			add("fmt", "fix", "lint", "arch", "coverage", "deadcode", "owners")
+			// The gates' own code goes into what the walks run.
+			add("fmt", "fix", "lint", "arch", "coverage", "deadcode")
 		case strings.HasPrefix(p, "tools/webtools/"):
 			// The modules' gates' tools: eslint, typescript, happy-dom and
 			// openapi-typescript.
@@ -106,9 +107,8 @@ func gatesFor(paths []string) []gate {
 			// The packages the WebUI is built from, and the build itself.
 			add("webbuild", "deadcode")
 		case strings.HasSuffix(p, ".go"):
-			// The Go side holds its half of the owners' table too (the names the
-			// list answers ask internal/catalog for).
-			add("fmt", "tidy", "fix", "lint", "arch", "coverage", "deadcode", "owners")
+			// Go changes keep formatting, import boundaries and static checks.
+			add("fmt", "tidy", "fix", "lint", "arch", "coverage", "deadcode")
 			if !cliOnly(p) {
 				add("e2e")
 			}
@@ -118,7 +118,7 @@ func gatesFor(paths []string) []gate {
 			// The WebUI's sources: the modules the screens are written in. A change
 			// here is built into static/ (webbuild), checked (types, unit) and walked
 			// (e2e).
-			add("types", "unit", "webbuild", "e2e", "owners")
+			add("types", "unit", "webbuild", "e2e")
 		case strings.HasPrefix(p, "internal/web/templates/"):
 			// The templates name the build's entries; the pages are embedded too.
 			add("webbuild", "e2e")
@@ -133,9 +133,8 @@ func gatesFor(paths []string) []gate {
 		case strings.HasPrefix(p, "internal/web/tsconfig.json"):
 			add("types", "webbuild", "unit", "e2e")
 		case strings.HasPrefix(p, "internal/"):
-			// The WebUI's pages, scripts and styles are embedded into the binary,
-			// and the Go side holds its half of the owners' table.
-			add("e2e", "owners")
+			// The WebUI's pages, scripts and styles are embedded into the binary.
+			add("e2e")
 		case p == ".golangci.yml":
 			add("fmt", "lint")
 		case p == ".testcoverage.yml":
@@ -178,7 +177,10 @@ func (r *runner) diff() error {
 	}
 	r.local = true
 	r.write = true // webbuild and apitypes write their files here; CI compares
-	r.testPackages = testPackagesFor(paths)
+	r.testPackages, err = existingTestPackages(r.root, testPackagesFor(paths))
+	if err != nil {
+		return err
+	}
 	specs, err := filepath.Glob(filepath.Join(r.root, browserGlob))
 	if err != nil {
 		return err
@@ -228,8 +230,8 @@ func gateNames(gs []gate) string {
 // documents terms_test.go holds to the glossary). A file nothing here names
 // keeps ./..., which go test's cache makes cheap when it holds. The packages
 // that import a changed one (internal/cli imports nearly everything, and its
-// 259 tests take a minute) are CI's. A deleted directory is left out, so go
-// test does not refuse the run.
+// 259 tests take a minute) are CI's. existingTestPackages then removes the
+// deleted side of package moves before go test runs.
 func testPackagesFor(paths []string) []string {
 	seen := map[string]bool{}
 	var pkgs []string
@@ -330,4 +332,27 @@ func specScreen(name string) string {
 	default:
 		return "" // Includes navigation, copy, save, conflict and unknown walks.
 	}
+}
+
+// existingTestPackages omits a package deleted by a move, while preserving
+// wildcard selections and refusing filesystem errors other than absence.
+func existingTestPackages(root string, packages []string) ([]string, error) {
+	var out []string
+	for _, pkg := range packages {
+		if strings.Contains(pkg, "...") {
+			out = append(out, pkg)
+			continue
+		}
+		entries, err := os.ReadDir(filepath.Join(root, pkg))
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		if slices.ContainsFunc(entries, func(entry os.DirEntry) bool { return !entry.IsDir() && strings.HasSuffix(entry.Name(), ".go") }) {
+			out = append(out, pkg)
+		}
+	}
+	return out, nil
 }

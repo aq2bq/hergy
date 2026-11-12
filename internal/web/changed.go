@@ -74,7 +74,7 @@ func (s *Server) refuseChanged(display, path string, doc func(text string) any, 
 // writtenAt is when one file was last written, or the zero time when it cannot
 // be read: the sentence then leaves the hour out rather than making one up.
 func writtenAt(path string) time.Time {
-	info, err := os.Stat(path)
+	info, err := os.Stat(path) //nolint:gosec // G703: path is a catalog-owned file returned by ops, not an HTTP path.
 	if err != nil {
 		return time.Time{}
 	}

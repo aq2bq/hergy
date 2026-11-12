@@ -17,5 +17,5 @@
 //   - Every answer carries "Content-Security-Policy: default-src 'self'", so a
 //     page cannot pull in script or style from anywhere but this server.
 //   - A write reads the file, checks the change, and writes only when the file
-//     is still the one it read (source.WriteIfUnchanged).
+//     is still the one it read (ops resource saving).
 package web

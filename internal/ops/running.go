@@ -6,14 +6,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aq2bq/hergy/internal/check"
 	domainplace "github.com/aq2bq/hergy/internal/domain/place"
+	"github.com/aq2bq/hergy/internal/ops/internal/check"
 
 	domainname "github.com/aq2bq/hergy/internal/domain/name"
 
 	"github.com/aq2bq/hergy/internal/activity"
-	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/definition"
+	"github.com/aq2bq/hergy/internal/ops/internal/catalog"
 	"github.com/aq2bq/hergy/internal/ops/internal/herdr"
 	"github.com/aq2bq/hergy/internal/ops/internal/launchlog"
 	"github.com/aq2bq/hergy/internal/ops/internal/protocol"

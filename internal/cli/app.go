@@ -26,7 +26,6 @@ import (
 	"github.com/aq2bq/hergy/internal/definition"
 	domainname "github.com/aq2bq/hergy/internal/domain/name"
 	"github.com/aq2bq/hergy/internal/i18n"
-	"github.com/aq2bq/hergy/internal/newteam"
 	"github.com/aq2bq/hergy/internal/options"
 	"github.com/aq2bq/hergy/internal/profile"
 	"github.com/aq2bq/hergy/internal/scaffold"
@@ -306,32 +305,12 @@ func runNew(env ops.Environment, opts *options.Options, stdout io.Writer) error 
 	}
 	cat := env.Catalog(source.Disk{})
 	dir := cat.NewPlace(catalog.NewTeam, name)
-	if _, err := os.Stat(dir); err == nil {
-		return i18n.Errorf("error.new_exists", name, env.Display(dir))
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return err
-	}
-	files, err := scaffold.Team(i18n.Language())
+	checkedName, _ := domainname.NewDefinitionName(name)
+	result, err := ops.CreateStarterDefinition(cat, checkedName, layer, i18n.Language())
 	if err != nil {
 		return err
 	}
-	// A starter team's roles and profile are the ones the person uses only when
-	// neither place holds any: a role or profile a place already holds is chosen
-	// from, not written again into the place the definition goes to (r-54b8,
-	// d-86b1). The role documents are the layer's, not the team's (K5), so one
-	// that is written goes into the layer's roles/ directory.
-	hasRoles := newteam.HasRoles(cat)
-	hasProfiles, err := newteam.HasProfiles(cat)
-	if err != nil {
-		return err
-	}
-	written, err := newteam.Write(newteam.In{
-		Catalog: cat, Layer: layer, Name: name, Lang: i18n.Language(),
-		Files: files, Starter: true, StarterRoles: !hasRoles, StarterProfile: !hasProfiles,
-	})
-	if err != nil {
-		return err
-	}
+	written := result.Written
 	configPath, madeConfig, err := env.EnsureGlobalConfig(i18n.Language())
 	if err != nil {
 		return err

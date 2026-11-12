@@ -2,9 +2,9 @@ package web
 
 import (
 	"encoding/json"
-	"errors"
 	"net/http"
-	"os"
+
+	"github.com/aq2bq/hergy/internal/ops"
 
 	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/check"
@@ -61,7 +61,7 @@ func (s *Server) r2ListOf(reading r2Reading, layers []string) apiList {
 	for _, layer := range layers {
 		place := domainplace.Selection(layer).API()
 		marks := map[string]catalog.ListedRow{}
-		for _, one := range s.cat.ShownRows(catalog.KindRole, layer) {
+		for _, one := range ops.ListResourceRows(s.cat, catalog.KindRole, layer) {
 			marks[one.Name] = one
 		}
 		for _, row := range rows {
@@ -173,11 +173,15 @@ func r2EffectiveDoc(row r2Row) *r2Doc {
 // Get is GET /api/role/{name}?place=: one document, its text and its hash.
 func (k apiRole) Get(name, place string) (any, *apiErr) {
 	s := k.s
-	path, _, _ := s.roleTargets(place, name)
-	text, err := s.cat.Reader().Read(source.Doc{Path: path})
-	if err != nil {
-		return nil, refuse(http.StatusNotFound, t("web.error.not_found"))
+	target, bad := s.resourceSeen(domainplace.Role, place, name)
+	if bad != nil {
+		return nil, bad
 	}
+	file, failure := s.resources().ReadResource(ops.ExistingResource(target), ops.ResourceMain)
+	if failure != nil || !file.Exists {
+		return nil, refuse(404, t("web.error.not_found"))
+	}
+	path, text := file.Path, file.Text
 	effective, hidden := s.effectiveOf(catalog.KindRole, name)
 	return map[string]any{
 		"doc":       r2DocOf(text, path),
@@ -193,7 +197,8 @@ func (k apiRole) Get(name, place string) (any, *apiErr) {
 // YAML a person is typing. The answer is the report as the boundary reads it.
 func (k apiRole) Check(in apiIn) (any, *apiErr) {
 	if len(in.Doc) == 0 {
-		report := check.Role(check.RoleInput{Catalog: k.s.cat, Place: in.Place.Layer(), Name: in.Name, Text: in.Text})
+		result, _ := k.s.resources().CheckResource(ops.ResourceInspection{Kind: domainplace.Role, Place: in.Place.At(k.s.cat.Base()), Name: in.Name, Text: in.Text})
+		report := result.Document
 		return r2CheckAnswer(report, true), nil
 	}
 	var doc r2Doc
@@ -204,10 +209,8 @@ func (k apiRole) Check(in apiIn) (any, *apiErr) {
 	if original == doc.Name {
 		original = ""
 	}
-	return r2CheckAnswer(check.Role(check.RoleInput{
-		Catalog: k.s.cat, Place: in.Place.Layer(), Name: doc.Name,
-		Text: doc.Text, Original: original,
-	}), false), nil
+	result, _ := k.s.resources().CheckResource(ops.ResourceInspection{Kind: domainplace.Role, Place: in.Place.At(k.s.cat.Base()), Name: doc.Name, Text: doc.Text, Original: original})
+	return r2CheckAnswer(result.Document, false), nil
 }
 
 // r2CheckAnswer is one check report in the boundary's shape. fromText says the
@@ -272,66 +275,35 @@ func (k apiRole) saveDoc(in apiIn) (any, *apiErr) {
 	s := k.s
 	var doc r2Doc
 	if err := json.Unmarshal(in.Doc, &doc); err != nil {
-		return nil, refuse(http.StatusUnprocessableEntity, err.Error())
+		return nil, refuse(422, err.Error())
 	}
-	if err := s.r2RolesDir(in.Place.String()); err != nil {
-		return nil, refuse(http.StatusUnprocessableEntity, err.Error())
+	ref, bad := s.resourceRef(domainplace.Role, in.Place.String(), doc.Name)
+	if bad != nil {
+		return nil, bad
 	}
-	target := s.cat.RolePath(in.Place.String(), doc.Name)
-	savedName := in.Original
-	if savedName == "" {
-		savedName = doc.Name
-	}
-	old := s.cat.RolePath(in.Place.String(), savedName)
-	for _, one := range []string{old, target} {
-		if bad := s.docUnreadableRefusal(one); bad != nil {
+	edit := ops.ResourceEdit{Text: doc.Text, Hash: in.Hash, MissingHash: true, RenameUsers: in.RenameUsers, Create: in.Original == ""}
+	if in.Original != "" {
+		old, bad := s.resourceSeen(domainplace.Role, in.Place.String(), in.Original)
+		if bad != nil {
 			return nil, bad
 		}
+		edit.Original = &old
 	}
-	if err := catalog.RoleNameProblem(doc.Name); err != nil {
-		return nil, refuseAt("name", err.Error())
+
+	var saved ops.ResourceSaved
+	var failure *ops.ResourceFailure
+	switch {
+	case edit.Original != nil && edit.Original.Name() != ref.Name():
+		saved, failure = s.resources().RenameResource(*edit.Original, ref, edit)
+	case in.Base != nil:
+		saved, failure = s.resources().CopyResource(ref, edit)
+	default:
+		saved, failure = s.resources().SaveResource(ref, edit)
 	}
-	// The text the draft stands on: the file being replaced, or the file a
-	// duplicate or a copy is based on. A row with neither stands on nothing and
-	// is a new document.
-	text, readErr := s.cat.Reader().Read(source.Doc{Path: old})
-	rename := doc.Name != savedName
-	// A name this place already holds is the name's problem, whether the document
-	// is being renamed or is not written yet (a duplicate or a copy). Such a row
-	// read no file at that name, so its own empty hash would otherwise read as a
-	// change another place made (r-a028, ac-456e).
-	if rename || in.Original == "" {
-		if _, err := os.Stat(target); err == nil {
-			return nil, refuseAt("name", tf("error.role_name_taken", doc.Name, s.cat.Display(target)))
-		}
+	if failure != nil {
+		return nil, s.resourceFailure(failure, ruleDoc(s.cat.Display(failure.Path)), false)
 	}
-	edited := []byte(doc.Text)
-	writeHash := source.Hash("")
-	readHash := ""
-	if readErr == nil {
-		writeHash, readHash = source.Hash(text), source.Hash(text)
-	}
-	// The file moved under the screen: the save is refused, and the answer
-	// carries the file as it is now and the text this save would have written
-	// over it, so the screen keeps the draft and lets the person choose
-	// (r-3c77, d-a34a). A file that is not there is read as the empty hash.
-	if in.Hash != readHash {
-		return nil, s.refuseChanged(s.cat.Display(old), old, ruleDoc(s.cat.Display(old)), false)
-	}
-	if rename {
-		if err := source.WriteIfUnchanged(target, source.Hash(""), string(edited)); err != nil {
-			return s.r2WriteError(err, s.cat.Display(target), target, ruleDoc(s.cat.Display(target)))
-		}
-		if err := os.Remove(old); err != nil {
-			return nil, refuse(http.StatusInternalServerError, err.Error())
-		}
-	} else if err := source.WriteIfUnchanged(old, writeHash, string(edited)); err != nil {
-		return s.r2WriteError(err, s.cat.Display(old), old, ruleDoc(s.cat.Display(old)))
-	}
-	if rename && in.RenameUsers {
-		s.r2RenameUsers(savedName, doc.Name)
-	}
-	return k.savedAnswer(in.Place.String(), doc.Name, r2DocOf(doc.Text, target), doc.Text), nil
+	return k.savedAnswer(in.Place.String(), doc.Name, r2DocOf(saved.Text, saved.Path), saved.Text), nil
 }
 
 // saveYAML writes one file's text as the person wrote it (the old
@@ -339,26 +311,15 @@ func (k apiRole) saveDoc(in apiIn) (any, *apiErr) {
 // not have has appeared (spec-roles X3).
 func (k apiRole) saveYAML(in apiIn) (any, *apiErr) {
 	s := k.s
-	if err := s.r2RolesDir(in.Place.String()); err != nil {
-		return nil, refuse(http.StatusUnprocessableEntity, err.Error())
-	}
-	path := s.cat.RolePath(in.Place.String(), in.Name)
-	display := s.cat.Display(path)
-	if bad := s.docUnreadableRefusal(path); bad != nil {
+	ref, bad := s.resourceRef(domainplace.Role, in.Place.String(), in.Name)
+	if bad != nil {
 		return nil, bad
 	}
-	text, err := s.cat.Reader().Read(source.Doc{Path: path})
-	hash := source.Hash("")
-	if err == nil {
-		hash = source.Hash(text)
+	saved, failure := s.resources().SaveResource(ref, ops.ResourceEdit{Text: in.Text, Hash: in.Hash})
+	if failure != nil {
+		return nil, s.resourceFailure(failure, nil, false)
 	}
-	if in.Hash != hash {
-		return nil, s.refuseChanged(display, path, nil, false)
-	}
-	if err := source.WriteIfUnchanged(path, hash, in.Text); err != nil {
-		return s.r2WriteError(err, display, path, nil)
-	}
-	return k.savedAnswer(in.Place.String(), in.Name, r2DocOf(in.Text, path), in.Text), nil
+	return k.savedAnswer(in.Place.String(), in.Name, r2DocOf(saved.Text, saved.Path), saved.Text), nil
 }
 
 // savedAnswer is the answer of a write: the one document as GET
@@ -373,22 +334,12 @@ func (k apiRole) savedAnswer(place, name string, doc *r2Doc, text string) apiSav
 // Delete is DELETE /api/role/{name}?place=&hash=: take one role document out of
 // its layer. Its answer is the list as it now reads.
 func (k apiRole) Delete(name string, in apiIn) (any, *apiErr) {
-	s := k.s
-	place, hash := in.Place, in.Hash
-	path := s.cat.RolePath(place.String(), name)
-	if bad := s.docUnreadableRefusal(path); bad != nil {
+	target, bad := k.s.resourceSeen(domainplace.Role, in.Place.String(), name)
+	if bad != nil {
 		return nil, bad
 	}
-	text, err := s.cat.Reader().Read(source.Doc{Path: path})
-	pathHash := source.Hash("")
-	if err == nil {
-		pathHash = source.Hash(text)
-	}
-	if hash != pathHash {
-		return nil, s.refuseChanged(s.cat.Display(path), path, nil, true)
-	}
-	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return nil, refuse(http.StatusInternalServerError, err.Error())
+	if failure := k.s.resources().DeleteResource(ops.ExistingResource(target), ops.ResourceDelete{Hash: in.Hash}); failure != nil {
+		return nil, k.s.resourceFailure(failure, nil, true)
 	}
 	return k.List()
 }

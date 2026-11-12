@@ -2,15 +2,11 @@ package web
 
 import (
 	"net/http"
-	"os"
-	"path/filepath"
 	"strings"
 
-	domainplace "github.com/aq2bq/hergy/internal/domain/place"
+	"github.com/aq2bq/hergy/internal/ops"
 
-	"github.com/aq2bq/hergy/internal/catalog"
-	"github.com/aq2bq/hergy/internal/source"
-	"go.yaml.in/yaml/v3"
+	domainplace "github.com/aq2bq/hergy/internal/domain/place"
 )
 
 // apiDangerLoss is GET /api/danger/{kind}/{name}: what deleting one thing takes
@@ -50,15 +46,15 @@ func (s *Server) apiDanger(w http.ResponseWriter, r *http.Request) {
 // people its name reaches. Delete and the loss answer both take it from here
 // (ac-ddb6).
 func (s *Server) profileTargets(place, name string) (display string, users int, found bool) {
-	project, shared, defs := s.p2Read()
-	file := project
-	if place == p2Shared {
-		file = shared
+	target, bad := s.resourceSeen(domainplace.Profile, place, name)
+	if bad != nil {
+		return "", 0, false
 	}
-	if _, ok := p2Find(file, name); !ok {
-		return file.display, 0, false
+	loss, failure := s.resources().ResourceLoss(ops.ExistingResource(target))
+	if failure != nil || len(loss.Files) == 0 {
+		return "", 0, false
 	}
-	return file.display, len(p2Users(p2Chips(defs), name)), true
+	return s.cat.Display(loss.Files[0]), loss.Users, loss.Found
 }
 
 // dangerLossProfile is the profile loss in the confirmation's words.
@@ -78,35 +74,15 @@ func (s *Server) dangerLossProfile(place, name string) ([]string, *apiErr) {
 // roleTargets is what deleting one role takes: its document, and the people
 // who name it. Delete and the loss answer both take it from here (ac-ddb6).
 func (s *Server) roleTargets(place, name string) (path string, readers int, found bool) {
-	path = s.cat.RolePath(place, name)
-	there, ok, _ := s.cat.FileState(path)
-	if !there || !ok {
-		return path, 0, false
+	target, bad := s.resourceSeen(domainplace.Role, place, name)
+	if bad != nil {
+		return "", 0, false
 	}
-	for _, row := range s.cat.Definitions() {
-		teamPath := row.LocalPath
-		if place == catalog.PlaceGlobal {
-			teamPath = row.GlobalPath
-		}
-		text, err := s.cat.Reader().Read(source.Doc{Path: teamPath})
-		if err != nil {
-			continue
-		}
-		var raw struct {
-			Members []struct {
-				Role string `yaml:"role"`
-			} `yaml:"members"`
-		}
-		if yaml.Unmarshal([]byte(text), &raw) != nil {
-			continue
-		}
-		for _, m := range raw.Members {
-			if m.Role == name {
-				readers++
-			}
-		}
+	loss, failure := s.resources().ResourceLoss(ops.ExistingResource(target))
+	if failure != nil || len(loss.Files) == 0 {
+		return "", 0, false
 	}
-	return path, readers, true
+	return loss.Files[0], loss.Users, loss.Found
 }
 
 // dangerLossRole is the role loss in the confirmation's words.
@@ -127,27 +103,15 @@ func (s *Server) dangerLossRole(place, name string) ([]string, *apiErr) {
 // agreement.md when one stands there, whether the folder goes (nothing else in
 // it), and what stays in the folder (ac-ddb6).
 func (s *Server) teamTargets(place, name string) (files, leftovers []string, dirRemoved, found bool) {
-	layer := domainplace.Selection(place).Layer()
-	teamPath := s.cat.TeamYAML(name, layer)
-	agreePath := s.t2AgreeFile(name, layer)
-	for _, path := range []string{teamPath, agreePath} {
-		if there, _, _ := s.cat.FileState(path); there {
-			files = append(files, path)
-		}
-	}
-	if len(files) == 0 {
+	target, bad := s.resourceSeen(domainplace.Definition, place, name)
+	if bad != nil {
 		return nil, nil, false, false
 	}
-	dir := filepath.Dir(teamPath)
-	if entries, err := os.ReadDir(dir); err == nil {
-		for _, one := range entries {
-			path := filepath.Join(dir, one.Name())
-			if path != teamPath && path != agreePath {
-				leftovers = append(leftovers, one.Name())
-			}
-		}
+	loss, failure := s.resources().ResourceLoss(ops.ExistingResource(target))
+	if failure != nil {
+		return nil, nil, false, false
 	}
-	return files, leftovers, len(leftovers) == 0, true
+	return loss.Files, loss.Leftovers, loss.RemoveDirectory, loss.Found
 }
 
 // dangerLossTeam is the team loss in the confirmation's words.

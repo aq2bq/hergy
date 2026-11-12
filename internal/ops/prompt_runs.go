@@ -8,7 +8,7 @@ import (
 
 	domainplace "github.com/aq2bq/hergy/internal/domain/place"
 
-	"github.com/aq2bq/hergy/internal/catalog"
+	"github.com/aq2bq/hergy/internal/ops/internal/catalog"
 )
 
 // This file is the live half of the prompt reading (⑤ r-ba9b): which teams of

@@ -16,7 +16,7 @@ import (
 	"github.com/aq2bq/hergy/internal/definition"
 	domainname "github.com/aq2bq/hergy/internal/domain/name"
 	"github.com/aq2bq/hergy/internal/i18n"
-	"github.com/aq2bq/hergy/internal/migrate"
+	"github.com/aq2bq/hergy/internal/ops/internal/migrate"
 )
 
 // Answer is what a screen reads about the running members whose prompt is not

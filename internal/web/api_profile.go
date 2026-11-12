@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"slices"
 
+	"github.com/aq2bq/hergy/internal/ops"
+
 	"github.com/aq2bq/hergy/internal/catalog"
 	domainplace "github.com/aq2bq/hergy/internal/domain/place"
 	"github.com/aq2bq/hergy/internal/i18n"
@@ -62,10 +64,10 @@ func (s *Server) p2ListLayers(layers []string) apiList {
 			continue
 		}
 		marks := map[string]catalog.ListedRow{}
-		for _, listed := range s.cat.ShownRows(catalog.KindProfile, layer) {
+		for _, listed := range ops.ListResourceRows(s.cat, catalog.KindProfile, layer) {
 			marks[listed.Name] = listed
 		}
-		for _, listed := range s.cat.ShownRows(catalog.KindProfile, layer) {
+		for _, listed := range ops.ListResourceRows(s.cat, catalog.KindProfile, layer) {
 			if listed.Problem != "" || listed.Path == "" {
 				why, state := s.unreadable(listed.Path, listed.Problem)
 				out.Items = append(out.Items, apiItem{
@@ -159,11 +161,19 @@ type apiProfileGet struct {
 
 // Get is GET /api/profile/{name}?place=: one file's document for one name.
 func (k apiProfile) Get(name, place string) (any, *apiErr) {
-	path, display, ok := k.s.p2ProfilePath(place)
+	display, ok := k.s.p2ProfilePath(place)
 	if !ok {
 		return nil, refuse(http.StatusNotFound, t("web.error.not_found"))
 	}
-	text, hash := k.s.p2Text(path)
+	target, bad := k.s.resourceSeen(domainplace.Profile, place, name)
+	if bad != nil {
+		return nil, bad
+	}
+	file, failure := k.s.resources().ReadResource(ops.ExistingResource(target), ops.ResourceMain)
+	if failure != nil {
+		return nil, refuse(404, t("web.error.not_found"))
+	}
+	text, hash := file.Text, file.Hash
 	entries, _ := profile.ReadAll(text, display)
 	entry, found := p2FindEntry(entries, name)
 	if !found {
@@ -205,24 +215,31 @@ func p2DocOf(entry profile.Entry) p2Draft {
 // Check is POST /api/profile/check: what is wrong with a panel's draft or with a
 // file's YAML text.
 func (k apiProfile) Check(in apiIn) (any, *apiErr) {
-	_, display, ok := k.s.p2ProfilePath(in.Place.String())
-	if !ok {
-		return nil, refuse(http.StatusBadRequest, "unknown file")
+	if _, ok := k.s.p2ProfilePath(in.Place.String()); !ok {
+		return nil, refuse(400, "unknown file")
 	}
+	query := ops.ResourceInspection{Kind: domainplace.Profile, Place: in.Place.At(k.s.cat.Base()), Text: in.Text, Original: in.Original}
 	if len(in.Doc) > 0 {
 		var draft p2Draft
 		if err := json.Unmarshal(in.Doc, &draft); err != nil {
-			return nil, refuse(http.StatusUnprocessableEntity, i18n.Errorf("error.edit_yaml", "profile", err).Error())
+			return nil, refuse(422, i18n.Errorf("error.edit_yaml", "profile", err).Error())
 		}
-		text, _ := k.s.p2Text(k.pathOf(in.Place.String()))
-		entries, _ := profile.ReadAll(text, display)
-		problems := profile.CheckDraft(draft.profileOf(), entries, in.Original)
-		return apiCheck{Problems: p2DraftProblems(problems)}, nil
+		value := draft.profileOf()
+		query.Profile = &value
 	}
-	_, problems := profile.ReadAll(in.Text, display)
-	out := make([]apiProblem, 0, len(problems))
-	for _, problem := range p2Sorted(problems) {
-		out = append(out, apiProblem{Sev: problem.Sev.Word(), At: "line", Text: problem.Text, Line: problem.Line})
+	checked, failure := k.s.resources().CheckResource(query)
+	if failure != nil {
+		return nil, k.s.resourceFailure(failure, nil, false)
+	}
+	if query.Profile != nil {
+		return apiCheck{Problems: p2DraftProblems(checked.Profiles)}, nil
+	}
+	var out []apiProblem
+	for _, p := range p2Sorted(checked.Profiles) {
+		out = append(out, apiProblem{Sev: p.Sev.Word(), At: "line", Text: p.Text, Line: p.Line})
+	}
+	if out == nil {
+		out = []apiProblem{}
 	}
 	return apiCheck{Problems: out}, nil
 }
@@ -241,12 +258,6 @@ func p2DraftProblems(problems []profile.Problem) []apiProblem {
 	return out
 }
 
-// pathOf is one place's profiles.yaml.
-func (k apiProfile) pathOf(place string) string {
-	path, _, _ := k.s.p2ProfilePath(place)
-	return path
-}
-
 // Save is PUT /api/profile/{name}: a panel's draft, or a file's text when the
 // request carries one. The name in the path is the row's; the doc is the one
 // that says what to write, so it is also the one that names the file's place.
@@ -260,40 +271,39 @@ func (k apiProfile) Save(_ string, in apiIn) (any, *apiErr) {
 // savePanel writes one panel of the profile tab (the old /profiles/save).
 func (k apiProfile) savePanel(in apiIn) (any, *apiErr) {
 	s := k.s
-	path, display, ok := s.p2ProfilePath(in.Place.String())
-	if !ok {
-		return nil, refuse(http.StatusBadRequest, "unknown file")
-	}
-	if err := s.p2Write(path); err != nil {
-		return nil, refuse(http.StatusUnprocessableEntity, err.Error())
-	}
-	if bad := s.docUnreadableRefusal(path); bad != nil {
-		return nil, bad
+	if _, ok := s.p2ProfilePath(in.Place.String()); !ok {
+		return nil, refuse(400, "unknown file")
 	}
 	var draft p2Draft
 	if err := json.Unmarshal(in.Doc, &draft); err != nil {
-		return nil, refuse(http.StatusUnprocessableEntity, i18n.Errorf("error.edit_yaml", "profile", err).Error())
+		return nil, refuse(422, i18n.Errorf("error.edit_yaml", "profile", err).Error())
 	}
-	text, hash := s.p2Text(path)
-	entries, _ := profile.ReadAll(text, display)
-	edited, err := p2EditProfile(text, display, entries, draft.profileOf(), in.Original)
-	if err != nil {
-		return nil, refuse(http.StatusUnprocessableEntity, err.Error())
+	ref, bad := s.resourceRef(domainplace.Profile, in.Place.String(), draft.Name)
+	if bad != nil {
+		return nil, bad
 	}
-	// The file moved under the screen: the save is refused, and the answer
-	// carries the file as it is now and the text the panel would write over it
-	// (r-3c77, d-a34a).
-	if in.Hash != hash {
-		return nil, s.refuseChanged(display, path, profileDoc(draft.Name, display), false)
+	value := draft.profileOf()
+	edit := ops.ResourceEdit{Profile: &value, Hash: in.Hash, RenameUsers: in.RenameUsers}
+	if in.Original != "" {
+		old, bad := s.resourceSeen(domainplace.Profile, in.Place.String(), in.Original)
+		if bad != nil {
+			return nil, bad
+		}
+		edit.Original = &old
 	}
-	if problem, bad := p2FirstError(edited, display); bad {
-		return nil, refuse(http.StatusUnprocessableEntity, problem)
+	var saved ops.ResourceSaved
+	var failure *ops.ResourceFailure
+	switch {
+	case edit.Original != nil && edit.Original.Name() != ref.Name():
+		saved, failure = s.resources().RenameResource(*edit.Original, ref, edit)
+	case in.Base != nil:
+		saved, failure = s.resources().CopyResource(ref, edit)
+	default:
+		saved, failure = s.resources().SaveResource(ref, edit)
 	}
-	if err := source.WriteIfUnchanged(path, hash, edited); err != nil {
-		return k.s.p2WriteError(err, display, path, profileDoc(draft.Name, display))
-	}
-	if in.Original != "" && in.Original != draft.Name && in.RenameUsers {
-		s.p2RenameUsers(in.Place.String(), in.Original, draft.Name)
+	_ = saved
+	if failure != nil {
+		return nil, s.resourceFailure(failure, profileDoc(draft.Name, s.cat.Display(failure.Path)), false)
 	}
 	return k.savedAnswer(in.Place.String(), draft.Name), nil
 }
@@ -303,58 +313,30 @@ func (k apiProfile) savePanel(in apiIn) (any, *apiErr) {
 // with the whole list under it.
 func (k apiProfile) saveYAML(in apiIn) (any, *apiErr) {
 	s := k.s
-	path, display, ok := s.p2ProfilePath(in.Place.String())
-	if !ok {
-		return nil, refuse(http.StatusBadRequest, "unknown file")
+	if _, ok := s.p2ProfilePath(in.Place.String()); !ok {
+		return nil, refuse(400, "unknown file")
 	}
-	if err := s.p2Write(path); err != nil {
-		return nil, refuse(http.StatusUnprocessableEntity, err.Error())
+	saved, failure := s.resources().SaveProfilesFile(in.Place.At(s.cat.Base()), in.Hash, in.Text)
+	if failure != nil {
+		return nil, s.resourceFailure(failure, nil, false)
 	}
-	if bad := s.docUnreadableRefusal(path); bad != nil {
-		return nil, bad
-	}
-	if problem, bad := p2FirstError(in.Text, display); bad {
-		return nil, refuse(http.StatusUnprocessableEntity, problem)
-	}
-	if err := source.WriteIfUnchanged(path, in.Hash, in.Text); err != nil {
-		return k.s.p2WriteError(err, display, path, nil)
-	}
-	list := k.s.p2List()
-	return apiSaved{
-		Doc:  p2FileDocOf(in.Text, display),
-		Text: in.Text, Hash: source.Hash(in.Text), Path: display,
-		Items: list.Items, Hashes: list.Hashes, Files: list.Files,
-	}, nil
+	list := s.p2List()
+	return apiSaved{Doc: p2FileDocOf(saved.Text, s.cat.Display(saved.Path)), Text: saved.Text, Hash: saved.Hash, Path: s.cat.Display(saved.Path), Items: list.Items, Hashes: list.Hashes, Files: list.Files}, nil
 }
 
 // Delete is DELETE /api/profile/{name}?place=&hash=: take one profile out of one
 // file. Its answer is the list as it now reads.
 func (k apiProfile) Delete(name string, in apiIn) (any, *apiErr) {
 	s := k.s
-	place, hash := in.Place, in.Hash
-	path, display, ok := s.p2ProfilePath(place.String())
-	if !ok {
-		return nil, refuse(http.StatusBadRequest, "unknown file")
+	if _, ok := s.p2ProfilePath(in.Place.String()); !ok {
+		return nil, refuse(400, "unknown file")
 	}
-	if err := s.p2Write(path); err != nil {
-		return nil, refuse(http.StatusUnprocessableEntity, err.Error())
-	}
-	if bad := s.docUnreadableRefusal(path); bad != nil {
+	target, bad := s.resourceSeen(domainplace.Profile, in.Place.String(), name)
+	if bad != nil {
 		return nil, bad
 	}
-	text, pathHash := s.p2Text(path)
-	if hash != pathHash {
-		return nil, s.refuseChanged(display, path, nil, true)
-	}
-	if _, _, found := s.profileTargets(place.String(), name); !found {
-		return nil, refuse(http.StatusUnprocessableEntity, tf("error.edit_no_profile", name))
-	}
-	edited, err := profile.EditYAML([]byte(text), display, profile.Remove(name))
-	if err != nil {
-		return nil, refuse(http.StatusUnprocessableEntity, err.Error())
-	}
-	if err := source.WriteIfUnchanged(path, pathHash, string(edited)); err != nil {
-		return k.s.p2WriteError(err, display, path, nil)
+	if failure := s.resources().DeleteResource(ops.ExistingResource(target), ops.ResourceDelete{Hash: in.Hash}); failure != nil {
+		return nil, s.resourceFailure(failure, nil, true)
 	}
 	return k.listAnswer(), nil
 }

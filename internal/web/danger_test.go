@@ -66,10 +66,10 @@ func TestROLES_DangerLossNamesWhatDeleteTakes(t *testing.T) {
 	if _, err := os.Stat(path); !os.IsNotExist(err) {
 		t.Errorf("the document the loss named is still there: %v", err)
 	}
-	// A role nobody names carries no readers line.
+	// The global writer is read by the project definitions, too.
 	unused, _ := server.dangerLossRole(catalog.PlaceGlobal, "writer")
-	if strings.Contains(strings.Join(unused, "\n"), "読んでいます") {
-		t.Errorf("an unused role names readers: %v", unused)
+	if !strings.Contains(strings.Join(unused, "\n"), "2 人が読んでいます") {
+		t.Errorf("global role must include project readers: %v", unused)
 	}
 }
 

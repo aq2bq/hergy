@@ -1,8 +1,11 @@
 package web
 
 import (
+	"errors"
 	"net/http"
 	"path/filepath"
+
+	"github.com/aq2bq/hergy/internal/ops"
 
 	domainplace "github.com/aq2bq/hergy/internal/domain/place"
 
@@ -12,8 +15,6 @@ import (
 	"github.com/aq2bq/hergy/internal/check"
 	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/i18n"
-	"github.com/aq2bq/hergy/internal/prompt"
-	"github.com/aq2bq/hergy/internal/source"
 )
 
 // PromptReader reads recorded bodies and the live teams of one definition. It
@@ -145,181 +146,74 @@ type promptBuilt struct {
 	Errors    map[string]error
 }
 
-// promptsFor is the one place a member's or worker's text is built (⑤ r-ba9b):
-// the name is chosen here, and prompt.Member / prompt.Worker are called here and
-// nowhere else in internal/web. The caller hands in the draft, or the catalog it
-// already built, and draws what comes back.
+// promptsFor adapts the HTTP draft and runtime reader to the ops preview,
+// then projects the complete prompt result into the WebUI's existing shape.
 func (s *Server) promptsFor(ask promptAsk) (*promptBuilt, *apiErr) {
 	in := ask.In
-	out := &promptBuilt{
-		Names:  promptNames{Team: in.Name, Kind: "definition", Status: "none", Runs: []PromptRun{}},
-		Errors: map[string]error{},
+	target, bad := s.resourceSeen(domainplace.Definition, in.Place.String(), in.Name)
+	if bad != nil {
+		return nil, bad
 	}
-	project := s.cat.Base()
-	if ask.Cat != nil {
-		project = ask.Cat.Base()
+	body, bad := t2DecodeOps(in.apiIn)
+	if bad != nil {
+		return nil, bad
 	}
-	out.Project = project
-	if ask.WithRuns {
-		runs, err := s.promptRuns(project, in.Name, in.Place.String())
-		if err != nil {
-			out.Names.Status, out.Names.Reason = "error", err.Error()
-		} else {
-			out.Names = selectPromptName(in.Name, runs, in.RunningTeam)
+	query := ops.ResourcePromptInput{Target: ops.ExistingResource(target), Hash: in.Hash, Ops: body.ops, Pick: in.RunningTeam, Member: in.Member, WithRuns: ask.WithRuns, Catalog: ask.Cat, Definition: ask.Def, Executable: promptExecutable(), Language: i18n.Language()}
+	if in.New || in.Base != nil {
+		row, bad := s.t2DraftRowOf(in.apiIn)
+		if bad != nil {
+			return nil, bad
 		}
-	}
-	// Select the naming branch once, before checks or text construction.
-	if out.Names.Kind == "run" {
-		out.Names.Naming = domainname.RunningNames(out.Names.Selected.Team)
-	} else {
-		d, _ := domainname.ParseDefinitionName(out.Names.Team)
-		out.Names.Naming = domainname.DefinitionNames(d)
-	}
-	basis, refusal := s.promptBasisFor(ask, project, out.Names)
-	if refusal != nil {
-		return nil, refusal
-	}
-	out.Project, out.Cat, out.Def, out.DefErr = basis.project, basis.cat, basis.def, basis.defErr
-	if basis.def == nil || basis.def.Graph == nil {
-		return out, nil
+		query.Draft = &ops.DefinitionDraft{Team: row.Team, Agreement: row.Agree, AgreementExists: row.AgreementExists}
 	}
 	if ask.Worker != nil {
-		out.Worker, out.WorkerErr = promptWorkerText(out.Names.Naming, basis.def, ask.Worker)
-		return out, nil
+		w := ask.Worker
+		query.Worker = &ops.ResourceWorkerPrompt{Name: w.Name, Purpose: w.Purpose, Task: w.Task, From: w.From, Preview: w.Preview}
 	}
-	out.Built = promptMemberTexts(out.Names.Naming, out.Project, basis.overlay, basis.def, in.Member, out.Errors)
-	return out, nil
-}
-
-// promptBasis is what a prompt's text stands on: the catalog the caller's
-// problems are checked against, the overlay the text reads through, and the
-// definition itself.
-type promptBasis struct {
-	project      domainplace.Project
-	cat, overlay *catalog.Catalog
-	def          *definition.Definition
-	defErr       error
-}
-
-// promptBasisFor is the catalog and definition the name's prompt is built from.
-// The caller's own catalog is used when it has one (the check); otherwise the
-// comparison's catalog is read, in the project the chosen run stands in.
-func (s *Server) promptBasisFor(ask promptAsk, project domainplace.Project, names promptNames) (*promptBasis, *apiErr) {
-	if ask.Cat != nil {
-		basis := &promptBasis{project: project, cat: ask.Cat, overlay: ask.Cat, def: ask.Def}
-		basis.readDefinition(ask.In.Name, ask.In.Place.String())
-		return basis, nil
-	}
-	if names.Selected != nil && names.Selected.Project.Compare(project) != domainplace.Same && (!names.Selected.Project.IsZero() || !project.IsZero()) {
-		scoped, refusal := s.withProject(names.Selected.Project)
-		if refusal != nil {
-			return nil, refusal
+	query.Runs = func(project domainplace.Project, definition, place string) ([]ops.PromptRun, error) {
+		runs, err := s.promptRuns(project, definition, place)
+		out := make([]ops.PromptRun, 0, len(runs))
+		for _, run := range runs {
+			out = append(out, ops.PromptRun{Team: run.Team, Project: run.Project})
 		}
-		s = scoped
-		project = s.cat.Base()
+		return out, err
 	}
-	cat, refusal := s.promptCatalog(ask.In)
-	if refusal != nil {
-		return nil, refusal
+	query.AtProject = func(project domainplace.Project) (*catalog.Catalog, error) {
+		cat, bad := s.catalogAt(project)
+		if bad != nil {
+			return nil, errors.New(bad.Text)
+		}
+		return cat, nil
 	}
-	body, refusal := t2DecodeOps(ask.In.apiIn)
-	if refusal != nil {
-		return nil, refusal
-	}
-	overlay, failure := (apiTeam{s: &Server{cat: cat}}).overlay(ask.In.Name, ask.In.Place.String(), body.ops)
+	out, failure := s.resources().PreviewResourcePrompts(query)
 	if failure != nil {
-		return nil, failure
+		return nil, s.resourceFailure(failure, nil, false)
 	}
-	basis := &promptBasis{project: project, cat: cat, overlay: overlay}
-	basis.readDefinition(ask.In.Name, ask.In.Place.String())
-	return basis, nil
+	built := &promptBuilt{Names: promptNamesOf(out.Names), Project: out.Project, Cat: out.Cat, Def: out.Def, DefErr: out.DefErr, WorkerErr: out.WorkerErr, Errors: out.Errors}
+	for _, text := range out.Built {
+		built.Built = append(built.Built, promptText{Name: text.Name, Text: text.Text, Segments: text.Segments})
+	}
+	if out.Worker != nil {
+		w := out.Worker
+		built.Worker = &promptText{Name: w.Name, Text: w.Text, Segments: w.Segments}
+	}
+	return built, nil
 }
-
-// readDefinition reads the definition once, when the caller did not hand one in.
-func (b *promptBasis) readDefinition(name, place string) {
-	if b.def != nil || b.overlay == nil {
-		return
+func promptNamesOf(in ops.ResourcePromptNames) promptNames {
+	out := promptNames{Team: in.Team, Naming: in.Naming, Kind: in.Kind, Status: in.Status, Reason: in.Reason, Runs: []PromptRun{}}
+	for _, run := range in.Runs {
+		out.Runs = append(out.Runs, PromptRun{Team: run.Team, Project: run.Project})
 	}
-	b.def, b.defErr = b.overlay.Definition(name, domainplace.Selection(place).Layer())
-}
-
-// promptWorkerText builds the one worker's preview with the team name the
-// prompt is named by.
-func promptWorkerText(team domainname.Naming, def *definition.Definition, worker *apiWorkerIn) (*promptText, error) {
-	lead, err := t2HiringMember(def, worker.Purpose, worker.From)
-	if err != nil {
-		return nil, err
-	}
-	built, err := prompt.Worker(prompt.WorkerInput{
-		Team: team.String(), Lead: team.Member(lead.Name), LeadRole: lead.Role,
-		Purpose: worker.Purpose, Name: team.Worker(worker.Name), Task: worker.Task,
-	})
-	if err != nil {
-		return nil, err
-	}
-	return &promptText{Name: team.Worker(worker.Name), Text: built.Text, Segments: built.Segments}, nil
-}
-
-// promptMemberTexts builds every member's text, or the one the caller named. A
-// member whose text cannot be built is left out; the caller's problems say why.
-func promptMemberTexts(team domainname.Naming, project domainplace.Project, overlay *catalog.Catalog, def *definition.Definition, member string, failures map[string]error) []promptText {
-	run := prompt.Run{
-		Team: team, Base: project, Executable: promptExecutable(),
-		Lang: i18n.Language(), Reader: overlay.Reader(), Sources: overlay, Display: overlay.Display,
-	}
-	var out []promptText
-	for i := range def.Graph.Members {
-		node := &def.Graph.Members[i]
-		if member != "" && node.Name.String() != member {
-			continue
-		}
-		built, err := prompt.Member(def, node, run)
-		if err != nil {
-			failures[node.Name.String()] = err
-			continue
-		}
-		out = append(out, promptText{Name: node.Name.String(), Text: built.Text, Segments: built.Segments})
+	if in.Selected != nil {
+		out.Selected = &PromptRun{Team: in.Selected.Team, Project: in.Selected.Project}
 	}
 	return out
 }
-
-// promptRuns reads the live teams through the reader, or answers none when the
-// server has no live reading (a command, or a test without one).
 func (s *Server) promptRuns(project domainplace.Project, definition, place string) ([]PromptRun, error) {
 	if reader, ok := s.act.(PromptReader); ok {
 		return reader.PromptRuns(project, definition, place)
 	}
 	return []PromptRun{}, nil
-}
-
-// selectPromptName is the one name rule: the picked team when it runs, the only
-// running team when none was picked, the definition's name otherwise.
-func selectPromptName(definition string, runs []PromptRun, picked string) promptNames {
-	out := promptNames{Runs: runs, Team: definition, Kind: "definition", Status: "none"}
-	if picked != "" {
-		for i := range runs {
-			if runs[i].Team.String() == picked {
-				selected := runs[i]
-				out.Team, out.Kind, out.Status, out.Selected = picked, "run", "picked", &selected
-				return out
-			}
-		}
-		// A pick that no longer runs is not taken: the person still has to
-		// choose among the teams that do (or none does).
-		if len(runs) > 0 {
-			out.Status = "choose"
-		}
-		return out
-	}
-	if len(runs) == 1 {
-		selected := runs[0]
-		out.Team, out.Kind, out.Status, out.Selected = runs[0].Team.String(), "run", "single", &selected
-		return out
-	}
-	if len(runs) > 1 {
-		out.Status = "choose"
-	}
-	return out
 }
 
 // legacyHistory is the answer's history shape from the name facts and the
@@ -407,23 +301,4 @@ func (s *Server) comparePrompt(in promptComparisonIn) (*promptComparison, *apiEr
 		out.Diff = PromptDiff(out.Recorded.Text, text.Text)
 	}
 	return out, nil
-}
-
-func (s *Server) promptCatalog(in promptComparisonIn) (*catalog.Catalog, *apiErr) {
-	path := s.cat.TeamYAML(in.Name, in.Place.Layer())
-	if in.New || in.Base != nil {
-		row, refusal := s.t2DraftRowOf(in.apiIn)
-		if refusal != nil {
-			return nil, refusal
-		}
-		return s.cat.With(path, row.Team).With(s.t2AgreeFile(in.Name, in.Place.Layer()), row.Agree), nil
-	}
-	text, err := s.cat.Reader().Read(source.Doc{Path: path})
-	if err != nil {
-		return nil, refuse(422, err.Error())
-	}
-	if in.Hash != source.Hash(text) {
-		return nil, refuse(409, "定義が変わりました。ファイルからリロードしてください")
-	}
-	return s.cat.With(path, text), nil
 }

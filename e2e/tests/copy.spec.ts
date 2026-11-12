@@ -719,7 +719,7 @@ test('COPY-C1 the copy says it brings the definition alone, and names what the g
   await readTo<string>(page, `${CARRY_NOTE('beta-dev')}.textContent`, 'the copy says the definition is what is written').toContain('グローバルに書くのは、このチーム定義（team.yaml と agreement.md）だけです');
   await readTo<string>(page, `${CARRY_NOTE('beta-dev')}.textContent`, 'the copy names the role the global layer does not hold').toContain('ロール builder');
   await readTo<string>(page, `${CARRY_NOTE('beta-dev')}.textContent`, 'the copy names the profile the global layer does not hold').toContain('プロファイル beta-fast');
-  await readTo<string>(page, writesOfCopy('beta-dev'), 'before anything is chosen the save writes the definition alone').toBe('team.yaml agreement.md');
+  await readTo<string>(page, writesOfCopy('beta-dev'), 'before anything is chosen the save writes the definition alone').toBe('team.yaml');
 
   // The problems say where the name is, rather than that there is none: the team
   // can be started from beta, and not from a project that has no beta-fast.

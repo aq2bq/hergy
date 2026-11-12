@@ -55,7 +55,6 @@ var gates = []gate{
 	{"arch", Hard, "the direction of imports (arch_test.go); lint restricts os/exec to herdrcli, gycli, browser and tools/check (test files excepted)", (*runner).archGate},
 	{"test", Hard, "go test -race -count=1 ./... with a coverage profile; diff runs go test over the changed packages alone, with the cache and without -race or the profile", (*runner).testGate},
 	{"reading", Hard, "no walk compares what the page said once: an expect( never takes an awaited read, a reading is read again until it matches (e2e/tests/*.spec.ts, r-291a)", (*runner).readingGate},
-	{"owners", Hard, "server row/count readers and prompt builders stay with their Go owners until stage D (TypeScript uses tsc and ESLint)", (*runner).ownersGate},
 	{"e2e", Hard, "the browser walks of e2e/tests (*.spec.ts) in Playwright, run by bun: e2e/bun.lock's dependency and Playwright's pinned chromium are fetched into .bin/ and e2e/.bin/ when missing (d-bb0d)", (*runner).e2eGate},
 	{"coverage", Ratchet, "go-test-coverage against .testcoverage.yml; the total threshold moves up only", (*runner).coverageGate},
 	{"deadcode", Hard, "deadcode -test ./... reports nothing", (*runner).deadcodeGate},

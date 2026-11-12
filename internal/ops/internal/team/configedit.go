@@ -6,11 +6,12 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/aq2bq/hergy/internal/ops/internal/resourcewrite"
+
 	domainplace "github.com/aq2bq/hergy/internal/domain/place"
 
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/projectinput"
-	"github.com/aq2bq/hergy/internal/source"
 	"github.com/aq2bq/hergy/internal/yamledit"
 	"go.yaml.in/yaml/v3"
 )
@@ -52,7 +53,7 @@ func (e Env) AddProjectAt(dir string, at int) (string, error) {
 	if err := os.MkdirAll(filepath.Dir(pathFile), 0o755); err != nil {
 		return "", err
 	}
-	if err := source.WriteBeside(pathFile, string(out)); err != nil {
+	if err := resourcewrite.WriteBeside(pathFile, string(out)); err != nil {
 		return "", err
 	}
 	return written, nil
@@ -78,7 +79,7 @@ func (e Env) RemoveProject(dir string) (int, error) {
 	if err != nil {
 		return -1, err
 	}
-	return at, source.WriteBeside(pathFile, string(out))
+	return at, resourcewrite.WriteBeside(pathFile, string(out))
 }
 
 // projectIndex is where one expanded path stands in the projects: list, or -1.
@@ -355,7 +356,7 @@ func (e Env) AddProjectBlock(at int, block []string) error {
 	if err != nil {
 		return err
 	}
-	return source.WriteBeside(pathFile, string(out))
+	return resourcewrite.WriteBeside(pathFile, string(out))
 }
 
 type addProjectBlock struct {
