@@ -8,19 +8,17 @@
 // tools/webvendor/package.json and bun.lock.
 
 import {
-  renameCarries2,
   clone2,
   fromJSON2,
-  toDoc2,
   Sev2,
   Counts2,
   Badge2,
   Vm2,
   RuleDoc2
-} from "../chunk/nav-1b8pm6h2.js";
+} from "../chunk/nav-mys60rer.js";
 import"../chunk/nav-9htrbyn7.js";
 import"../chunk/nav-zn7g81kr.js";
-import"../chunk/nav-hz0pc9aj.js";
+import"../chunk/nav-5jb4c81a.js";
 export {
   Badge2 as Badge,
   Counts2 as Counts,
@@ -28,7 +26,5 @@ export {
   Sev2 as Sev,
   Vm2 as Vm,
   clone2 as clone,
-  fromJSON2 as fromJSON,
-  renameCarries2 as renameCarries,
-  toDoc2 as toDoc
+  fromJSON2 as fromJSON
 };

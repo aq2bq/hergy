@@ -17,15 +17,22 @@ import {
   u
 } from "../chunk/nav-zn7g81kr.js";
 import {
+  dangerAttrs,
   runDanger
-} from "../chunk/nav-n44pqppw.js";
+} from "../chunk/nav-t8p8j4hq.js";
 import {
   profileModel2
-} from "../chunk/nav-hz0pc9aj.js";
+} from "../chunk/nav-5jb4c81a.js";
 import {
   takeDraft2,
   setDirty2
-} from "../chunk/nav-v59w2j53.js";
+} from "../chunk/nav-vn3nd3vh.js";
+import {
+  rowAddress,
+  readOpen2,
+  writeOpen2,
+  rowsFor
+} from "../chunk/nav-nmj3geqx.js";
 import {
   ConflictNotice,
   resourceIdentity,
@@ -34,11 +41,11 @@ import {
   editYaml,
   profileFiles,
   YamlTab2
-} from "../chunk/nav-wtkrx9gm.js";
+} from "../chunk/nav-bj16zp38.js";
 import {
   copyGroupOf,
   ProjectView
-} from "../chunk/nav-ak3bme2w.js";
+} from "../chunk/nav-dyqtpxcd.js";
 import {
   Field
 } from "../chunk/nav-9htrbyn7.js";
@@ -46,14 +53,6 @@ import {
   movePage,
   installWheel
 } from "../chunk/nav-31sebn46.js";
-import {
-  readOpen2,
-  writeOpen2,
-  rowsFor
-} from "../chunk/nav-hr74m0fy.js";
-import {
-  assignDirty
-} from "../chunk/nav-5jk1wdkd.js";
 import"../chunk/nav-74jj0fve.js";
 
 // profiles/state.ts
@@ -641,7 +640,7 @@ function syncURL() {
     params.set("kind", filterKind.value);
   if (query.value)
     params.set("q", query.value);
-  const open = rows.value.filter((row) => row.open && !row.isNew && row.name).map((row) => ({ name: row.name, group: GROUPED && row.group ? row.group : row.group === "global" ? "global" : "project" }));
+  const open = rows.value.filter((row) => row.open && !row.isNew && row.name).map((row) => rowAddress(row.name, GROUPED && row.group ? row.group : row.group === "global" ? "global" : "project"));
   writeOpen2(params, open);
   const search = params.toString();
   history.replaceState(null, "", location.pathname + (search ? "?" + search : ""));
@@ -669,7 +668,7 @@ var chips = O(() => {
 function dirty() {
   const panels = allPanels().some(({ panel }) => profileDirty(panel));
   const ytexts = yamlTexts().some((one) => one.editing.dirty.value);
-  const picks = assignTeams().some((team) => (team.rows || []).some((row) => assignDirty({ name: row.key, saved: row.saved || "", draft: row.profile })));
+  const picks = assignTeams().some((team) => (team.rows || []).some((row) => row.changed));
   return panels || ytexts || picks;
 }
 function tellDirty() {
@@ -689,7 +688,7 @@ function lost() {
   }
   for (const team of assignTeams())
     for (const row of team.rows || []) {
-      if (!assignDirty({ name: row.key, saved: row.saved || "", draft: row.profile }))
+      if (!row.changed)
         continue;
       out.push(...assignmentEdits.get(team.name)?.lost.value || []);
     }
@@ -709,13 +708,13 @@ function take() {
     });
   });
   yamlTexts().forEach((one) => {
-    if (one.text === one.base)
+    if (!one.editing.dirty.value)
       return;
     out.ytexts.push({ file: one.file, hash: one.hash, text: one.text });
   });
   assignTeams().forEach((team) => {
     (team.rows || []).forEach((row) => {
-      if (!assignDirty({ name: row.key, saved: row.saved || "", draft: row.profile }))
+      if (!row.changed)
         return;
       out.picks.push({ team: team.name, hash: team.hash, key: row.key, profile: row.profile });
     });
@@ -760,7 +759,10 @@ function initAssign() {
             return editing.read.value.draft.find((r) => r.key === row.id)?.profile || "";
           },
           get saved() {
-            return editing.read.value.saved?.find((r) => r.key === row.id)?.profile || "";
+            return editing.rows.value.find((r) => r.key === row.id)?.saved || "";
+          },
+          get changed() {
+            return editing.rows.value.find((r) => r.key === row.id)?.changed || false;
           },
           options: row.options || [],
           get missing() {
@@ -779,7 +781,7 @@ function setPick(teamName, key, profile) {
   assignmentEdits.get(teamName)?.change((rows) => rows.map((row) => row.key === key ? { ...row, profile } : row));
 }
 function teamDirty(team) {
-  return (team.rows || []).filter((row) => assignDirty({ name: row.key, saved: row.saved || "", draft: row.profile })).length;
+  return (team.rows || []).filter((row) => row.changed).length;
 }
 function teamMissing(team) {
   return (team.rows || []).filter((row) => row.missing).length;
@@ -1406,15 +1408,13 @@ function Panel({ panel }) {
       saved ? /* @__PURE__ */ u("button", {
         class: "btn danger",
         "data-act": "del",
-        "data-danger": true,
-        "data-danger-act": "deleteProfile",
+        ...dangerAttrs("deleteProfile"),
         onClick: () => runDanger("deleteProfile", { run: () => pressDelYes(panel.key), loss: { kind: "profile", name: panel.draft.name || panel.saved?.name || "", place: panel.file, project: panel.group }, confirm: { title: `プロファイル ${panel.draft.name || panel.saved?.name || ""} を削除しますか`, label: `削除する${panel.users ? `（${panel.users} 人が使っている）` : ""}` } }),
         children: "削除"
       }) : /* @__PURE__ */ u("button", {
         class: "btn danger",
         "data-act": "discard",
-        "data-danger": true,
-        "data-danger-act": "discardRow",
+        ...dangerAttrs("discardRow"),
         onClick: () => {
           if (!panel.saved && !panel.editing.bornLost.value.length) {
             pressDiscard(panel.key);
@@ -2022,7 +2022,7 @@ function Pick({ row, team }) {
   return /* @__PURE__ */ u("div", {
     class: "pick",
     children: [
-      assignDirty({ name: row.key, saved: row.saved || "", draft: row.profile }) ? /* @__PURE__ */ u("s", {
+      row.changed ? /* @__PURE__ */ u("s", {
         class: "was",
         children: row.saved
       }) : "",
@@ -2064,7 +2064,7 @@ function Pick({ row, team }) {
 function AssignRowView({ row, team }) {
   const dim = assignKind.value !== null && optionKind(row) !== assignKind.value;
   return /* @__PURE__ */ u("div", {
-    class: "arow" + (row.missing ? " missing" : "") + (dim ? " dim" : "") + (assignDirty({ name: row.key, saved: row.saved || "", draft: row.profile }) ? " changed" : ""),
+    class: "arow" + (row.missing ? " missing" : "") + (dim ? " dim" : "") + (row.changed ? " changed" : ""),
     "data-k": row.key,
     "data-saved": row.saved || "",
     children: [

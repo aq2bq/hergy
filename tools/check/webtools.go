@@ -8,12 +8,13 @@ import (
 	"path/filepath"
 )
 
-// The WebUI's modules get two gates before a browser opens them, both run
-// from the tools pinned in tools/webtools:
+// The WebUI's modules are checked before a browser opens them, using tools
+// pinned in tools/webtools:
 //
 //   - names: every name a module uses is defined in the module, imported, or
 //     one of the browser's own (eslint's no-undef), and every name it defines
-//     or imports is read (no-unused-vars). A module that forgot an import
+//     or imports is read (no-unused-vars). Native DOM ownership in TypeScript
+//     uses ESLint built-in restriction rules. A module that forgot an import
 //     throws only when the line runs, so a road no walk opens (the
 //     headquarters' roles list, 3ec7db3) is caught here rather than in a
 //     person's browser; and the deadcode gate reads Go only.

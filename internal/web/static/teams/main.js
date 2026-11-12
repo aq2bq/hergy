@@ -23,10 +23,12 @@ import {
 } from "../chunk/nav-zn7g81kr.js";
 import {
   dropUndo,
+  dangerAttrs,
   runDanger
-} from "../chunk/nav-n44pqppw.js";
+} from "../chunk/nav-t8p8j4hq.js";
 import {
   call2,
+  readPromptComparison2,
   read2,
   list2,
   get2,
@@ -34,12 +36,12 @@ import {
   saved2,
   bases2,
   problemText2
-} from "../chunk/nav-hz0pc9aj.js";
+} from "../chunk/nav-5jb4c81a.js";
 import {
   carryTo2,
   takeDraft2,
   setDirty2
-} from "../chunk/nav-v59w2j53.js";
+} from "../chunk/nav-vn3nd3vh.js";
 import {
   num,
   documents,
@@ -55,7 +57,15 @@ import {
   Counts2,
   Vm2,
   RuleDoc2
-} from "../chunk/nav-1b8pm6h2.js";
+} from "../chunk/nav-mys60rer.js";
+import {
+  rowAddress,
+  token2,
+  parseOpen2,
+  readOpen2,
+  writeOpen2,
+  rowsFor
+} from "../chunk/nav-nmj3geqx.js";
 import {
   ConflictNotice,
   roleProblems,
@@ -67,20 +77,20 @@ import {
   editTeam,
   restoreTeam,
   YamlTab2
-} from "../chunk/nav-wtkrx9gm.js";
+} from "../chunk/nav-bj16zp38.js";
 import {
   st,
   projectName2
-} from "../chunk/nav-0dwk30sr.js";
+} from "../chunk/nav-3syf5wg5.js";
 import {
   RunCell2
-} from "../chunk/nav-b757eq4b.js";
+} from "../chunk/nav-nx8y4n36.js";
 import {
   copyGroupOf,
   groupPlace,
   projectOfGroup,
   ProjectView
-} from "../chunk/nav-ak3bme2w.js";
+} from "../chunk/nav-dyqtpxcd.js";
 import {
   Field
 } from "../chunk/nav-9htrbyn7.js";
@@ -88,16 +98,6 @@ import {
   movePage,
   installWheel
 } from "../chunk/nav-31sebn46.js";
-import {
-  token2,
-  parseOpen2,
-  readOpen2,
-  writeOpen2,
-  rowsFor
-} from "../chunk/nav-hr74m0fy.js";
-import {
-  snapshot
-} from "../chunk/nav-5jk1wdkd.js";
 import {
   resource
 } from "../chunk/nav-74jj0fve.js";
@@ -119,22 +119,35 @@ function nextSide(how, what, from) {
 }
 
 // teams/selection.ts
-function select(r, e) {
-  if (e.how === "side") {
-    if (isSide(e.side))
-      r.side.value = e.side;
-    return;
-  }
-  if (e.how === "yaml") {
-    r.side.value = "yaml";
-    return;
-  }
-  const pick = e.how === "press" || e.how === "field" ? e.what : null;
-  r.sel.value = pick;
-  r.typed.value = null;
-  const next = nextSide(e.how, whatOf(pick), sideOf(r));
-  if (next !== "pressed")
-    r.side.value = next;
+var selectionBrand = Symbol("Selection");
+function createSelection(changed) {
+  const picked = y(null);
+  const side = y("attr");
+  return {
+    [selectionBrand]: true,
+    pick: O(() => picked.value ? Object.freeze({ ...picked.value }) : null),
+    side: O(() => side.value),
+    send: (event) => {
+      if (event.how === "side") {
+        if (isSide(event.side))
+          side.value = event.side;
+        return;
+      }
+      if (event.how === "yaml") {
+        side.value = "yaml";
+        return;
+      }
+      const pick = event.how === "press" || event.how === "field" ? event.what : null;
+      picked.value = pick ? { ...pick } : null;
+      changed();
+      const next = nextSide(event.how, whatOf(pick), side.value);
+      if (next !== "pressed")
+        side.value = next;
+    }
+  };
+}
+function select(r, event) {
+  r.selection.send(event);
 }
 var isSide = (value) => value === "attr" || value === "yaml" || value === "prompt";
 function whatOf(pick) {
@@ -172,7 +185,6 @@ function samePick(a, b) {
     return b.type === "worker" && a.i === b.i;
   return b.type === "edge" && a.k === b.k;
 }
-var startSelection = () => ({ sel: null, side: "attr" });
 
 // teams/rule-selection.ts
 var ruleSelection = y({});
@@ -531,7 +543,7 @@ function Editor({ session, onScanned, visible }) {
                 transfer,
                 hasName: false,
                 heading,
-                row: { uid: session.id, l: ctx.place, saved: e.saved, draft: e.draft, markdown: answer?.preview || { lines: [], chars: 0 }, diff: answer?.effect?.diff || {}, savedIssues: [] },
+                row: { saved: e.saved, draft: e.draft },
                 issues,
                 onDraft: (draft) => {
                   editor.change(draft);
@@ -841,7 +853,7 @@ var state = y({
 var focusAsk = y(null);
 var urlGroup = (r) => GROUPED ? groupOfRecord(r) : r.place.value;
 var here = CURRENT;
-var rowRef = (r) => ({ name: r.name.value, group: urlGroup(r) });
+var rowRef = (r) => rowAddress(r.name.value, urlGroup(r));
 var withOpen = (r, on) => {
   const s = new Set(state.value.open);
   s.forEach((one) => {
@@ -900,7 +912,11 @@ function recOf(init, held) {
     readable: !(init.broken || init.problem)
   });
   const read = (get) => O(get);
+  const selection = createSelection(() => {
+    r.typed.value = null;
+  });
   const r = {
+    selection,
     editing,
     uid: init.uid || 0,
     dom: init.dom,
@@ -954,8 +970,8 @@ function recOf(init, held) {
       const p = r.editing.validation.value.preview;
       return p && "diff" in p ? clone2(p) : { lines: [], diff: { added: [], removedBefore: [], removedAtEnd: false } };
     }),
-    sel: y(init.sel),
-    side: y(init.side),
+    sel: selection.pick,
+    side: selection.side,
     menu: y(init.menu),
     typed: y(init.typed),
     flash: y(init.flash),
@@ -1034,7 +1050,6 @@ function defOf(item, project) {
     how: "",
     base: null,
     seeded: true,
-    ...startSelection(),
     menu: null,
     typed: null,
     flash: null,
@@ -1093,7 +1108,6 @@ function draftRecord(how, place, name, base, project, held) {
     limit: 0,
     drawMark: 0,
     seeded: false,
-    ...startSelection(),
     menu: null,
     typed: null,
     flash: null,
@@ -1584,7 +1598,7 @@ function syncURL() {
       params.set("file", s.yfile);
   } else {
     const rows = [...s.open].map((one) => rowsFor(parseOpen2(one)[0], recs.value, rowRef, here).find((r) => !r.draftRow)).filter((r) => !!r);
-    writeOpen2(params, rows.map((r) => ({ name: r.name.value, group: urlGroup(r) })));
+    writeOpen2(params, rows.map((r) => rowAddress(r.name.value, urlGroup(r))));
     const agrees = rows.filter((r) => dtabOf(r) === "agree").map((r) => token2(r.name.value, urlGroup(r)));
     if (agrees.length)
       params.set("agree", agrees.join(","));
@@ -1633,23 +1647,7 @@ function readURL() {
   if (location.pathname === "/teams/yaml")
     put({ tab: "yaml" });
 }
-var rowOfPanel = (r) => {
-  const saved = r.agreeSaved.value, draft = r.agreeDraft.value;
-  const check = r.check.value;
-  return {
-    uid: r.uid,
-    l: r.place.value,
-    e: { saved, draft, savedIssues: r.agreeSavedIssues.value },
-    saved,
-    draft,
-    name: r.name.value,
-    newRow: !!r.draftRow,
-    issues: agreeIssues(r),
-    savedIssues: r.agreeSavedIssues.value,
-    markdown: check ? check.markdown : { lines: [], chars: 0 },
-    diff: check ? check.diff : { added: [], removedBefore: [], removedAtEnd: false }
-  };
-};
+var rowOfPanel = (r) => ({ saved: r.agreeSaved.value, draft: r.agreeDraft.value });
 function dirty() {
   if (pendingRoleChanges() || roleEntries().some((e) => e.dirty.value))
     return true;
@@ -1809,7 +1807,7 @@ function pressUndoConflict(r, which) {
     checkTeam(r);
 }
 function pressTRevert(r, host) {
-  const ops = snapshot(r.ops.value);
+  const ops = clone2(r.ops.value);
   runDanger("revertDraft", {
     run: () => {
       setOps(r, []);
@@ -1831,7 +1829,7 @@ function pressSave(r) {
   saveAgree(r);
 }
 function pressRevert(r, host) {
-  const before = snapshot(r.agreeDraft.value);
+  const before = clone2(r.agreeDraft.value);
   runDanger("revertDraft", {
     run: () => {
       r.editing.agreement.discard();
@@ -2337,7 +2335,7 @@ function frameOf(r) {
   return { boxes, vx, vy, vw, vh };
 }
 function Figure({ r }) {
-  const t = r.draft.value, s = r.saved.value, p = layoutOf(r), sel = pickOf(r), issues = teamIssues(r) || [];
+  const t = r.draft.value, changes = r.editing.changes.value, p = layoutOf(r), sel = pickOf(r), issues = teamIssues(r) || [];
   const { boxes, vx, vy, vw, vh } = frameOf(r);
   const ids = ["human", ...t.members.map((m) => m.name)];
   const mi = dkey(r).replace(/[^A-Za-z0-9_-]/g, "_");
@@ -2355,7 +2353,7 @@ function Figure({ r }) {
       return "";
     const p1 = edgePt(p[a], boxes[a], p[b]), p2 = edgePt(p[b], boxes[b], p[a]);
     const fwd = hasTurn(t, a, b), back = hasTurn(t, b, a);
-    const isNew = fwd && !hasTurn(s, a, b) || back && !hasTurn(s, b, a);
+    const isNew = changes.turns.some((t) => t.added && (t.from === a && t.to === b || t.from === b && t.to === a));
     const mk = selE === k ? "a" : isNew ? "c" : "n";
     const route = routeEdge(p1, p2, p, boxes);
     const dd = route.map((point, i) => `${i ? "L" : "M"}${point[0].toFixed(1)},${point[1].toFixed(1)}`).join(" ");
@@ -2380,8 +2378,7 @@ function Figure({ r }) {
         selE === k ? /* @__PURE__ */ u("g", {
           class: "cv-ex",
           "data-cv-act": "edge-del",
-          "data-danger": true,
-          "data-danger-act": "removeTurn",
+          ...dangerAttrs("removeTurn"),
           "data-k": k,
           transform: `translate(${mx.toFixed(1)},${my.toFixed(1)})`,
           role: "button",
@@ -2414,7 +2411,6 @@ function Figure({ r }) {
       d: routeEdge(p1, p2, p, boxes).map((point, i) => `${i ? "L" : "M"}${point[0].toFixed(1)},${point[1].toFixed(1)}`).join(" ")
     });
   });
-  const savedNames = new Set(s.members.map((m) => m.name));
   const node = (id) => {
     const b = boxes[id], x = p[id][0], y = p[id][1], mine = sel && sel.type === "node" && sel.id === id;
     const is = issues.filter((m) => m.node === id);
@@ -2448,8 +2444,9 @@ function Figure({ r }) {
         ]
       });
     }
-    const m = memberOf(t, id), sm = s.members.find((z) => z.name === id);
-    const cls = !savedNames.has(id) ? " new" : m && sm && (sm.role !== m.role || sm.profile !== m.profile) ? " chg" : "";
+    const m = memberOf(t, id);
+    const mark = changes.members[id];
+    const cls = mark === "new" ? " new" : mark === "changed" ? " chg" : "";
     return /* @__PURE__ */ u("g", {
       class: "cv-n member" + cls + (mine ? " sel" : "") + (is.some((m) => m.sev === "err") ? " err" : ""),
       "data-cv-n": id,
@@ -2486,11 +2483,10 @@ function Figure({ r }) {
       ]
     });
   };
-  const wexists = new Set(s.workers.map((w) => w.from + "\x00" + w.purpose));
   const wnode = (w, i) => {
     const b = boxes["w" + i], x = p["w" + i][0], y = p["w" + i][1], mine = sel && sel.type === "worker" && sel.i === i, is = issues.filter((m) => m.worker === i);
     return /* @__PURE__ */ u("g", {
-      class: "cv-n worker" + (wexists.has(w.from + "\x00" + w.purpose) ? "" : " new") + (mine ? " sel" : "") + (is.some((m) => m.sev === "err") ? " err" : ""),
+      class: "cv-n worker" + (changes.workers[i]?.added ? " new" : "") + (mine ? " sel" : "") + (is.some((m) => m.sev === "err") ? " err" : ""),
       "data-cv-w": i,
       transform: `translate(${x.toFixed(1)},${y.toFixed(1)})`,
       tabindex: 0,
@@ -2655,59 +2651,15 @@ function Opt({ v, on, children }) {
     children
   });
 }
-function diffList(r) {
-  const s = r.saved.value, t = r.draft.value, out = [];
-  const sm = new Map(s.members.map((m) => [m.name, m])), cm = new Map(t.members.map((m) => [m.name, m]));
-  if (s.description !== t.description)
-    out.push(["c", `説明: ${t.description}`]);
-  cm.forEach((m, n) => {
-    if (!sm.has(n))
-      out.push(["a", `メンバー ${n}（${m.role} · ${m.profile}）`]);
-    else {
-      const o = sm.get(n);
-      if (o && o.role !== m.role)
-        out.push(["c", `${n} のロール ${o.role} → ${m.role}`]);
-      if (o && o.profile !== m.profile)
-        out.push(["c", `${n} のプロファイル ${o.profile} → ${m.profile}`]);
-    }
-  });
-  sm.forEach((_m, n) => {
-    if (!cm.has(n))
-      out.push(["d", `メンバー ${n}`]);
-  });
-  const sw = new Map(s.workers.map((w) => [w.from + "\x00" + w.purpose, w])), cw = new Map(t.workers.map((w) => [w.from + "\x00" + w.purpose, w]));
-  cw.forEach((w, k) => {
-    if (!sw.has(k))
-      out.push(["a", `ワーカー ${w.purpose || "（目的）"}（${w.from} · ${w.profile}）`]);
-    else {
-      const o = sw.get(k);
-      if (o && (o.purpose !== w.purpose || o.profile !== w.profile || o.from !== w.from))
-        out.push(["c", `ワーカー ${w.purpose || "（目的）"}（${w.from} · ${w.profile}）`]);
-    }
-  });
-  sw.forEach((w, k) => {
-    if (!cw.has(k))
-      out.push(["d", `ワーカー ${w.purpose || "（目的）"}`]);
-  });
-  t.turns.forEach(([a, b]) => {
-    if (!hasTurn(s, a, b))
-      out.push(["a", `ターン ${nodeName(a)} → ${nodeName(b)}`]);
-  });
-  s.turns.forEach(([a, b]) => {
-    if (!hasTurn(t, a, b))
-      out.push(["d", `ターン ${nodeName(a)} → ${nodeName(b)}`]);
-  });
-  return out;
-}
-function turnRows(t, s, id, dir) {
-  const list = dir === "out" ? t.turns.filter(([a]) => a === id).map(([, b]) => [id, b]) : t.turns.filter(([, b]) => b === id).map(([a]) => [a, id]);
+function turnRows(changes, id, dir) {
+  const list = dir === "out" ? changes.turns.filter((t) => t.from === id).map((t) => [id, t.to]) : changes.turns.filter((t) => t.to === id).map((t) => [t.from, id]);
   if (!list.length)
     return /* @__PURE__ */ u("span", {
       class: "cv-empty",
       children: "なし"
     });
   return list.map(([a, b]) => /* @__PURE__ */ u("div", {
-    class: "cv-li" + (hasTurn(s, a, b) ? "" : " new"),
+    class: "cv-li" + (changes.turns.some((t) => t.from === a && t.to === b && t.added) ? " new" : ""),
     children: [
       /* @__PURE__ */ u("span", {
         children: [
@@ -2720,8 +2672,7 @@ function turnRows(t, s, id, dir) {
         class: "cv-x",
         type: "button",
         "data-cv-act": "turn-del",
-        "data-danger": true,
-        "data-danger-act": "removeTurn",
+        ...dangerAttrs("removeTurn"),
         "data-a": a,
         "data-b": b,
         "aria-label": `${nodeName(a)} から ${nodeName(b)} へのターンを外す`,
@@ -2766,9 +2717,9 @@ function memberMsgs(r, t, m) {
   return msgs;
 }
 function SideAttr({ r }) {
-  const t = r.draft.value, s = r.saved.value, sel = pickOf(r), team = r.name.value;
+  const t = r.draft.value, changes = r.editing.changes.value, sel = pickOf(r), team = r.name.value;
   if (!sel) {
-    const d = diffList(r), humanIn = t.turns.some(([, b]) => b === "human");
+    const d = changes.list, humanIn = t.turns.some(([, b]) => b === "human");
     return /* @__PURE__ */ u(S, {
       children: [
         /* @__PURE__ */ u("div", {
@@ -2873,7 +2824,7 @@ function SideAttr({ r }) {
   if (sel.type === "edge") {
     const [a, b] = sel.k.split("|");
     const row = (p, q) => hasTurn(t, p, q) ? /* @__PURE__ */ u("div", {
-      class: "cv-li" + (hasTurn(s, p, q) ? "" : " new"),
+      class: "cv-li" + (changes.turns.some((t) => t.from === p && t.to === q && t.added) ? " new" : ""),
       children: [
         /* @__PURE__ */ u("span", {
           children: [
@@ -2886,8 +2837,7 @@ function SideAttr({ r }) {
           class: "cv-x",
           type: "button",
           "data-cv-act": "turn-del",
-          "data-danger": true,
-          "data-danger-act": "removeTurn",
+          ...dangerAttrs("removeTurn"),
           "data-a": p,
           "data-b": q,
           title: "外す",
@@ -3040,8 +2990,7 @@ function SideAttr({ r }) {
           class: "btn danger sm cv-danger",
           type: "button",
           "data-cv-act": "del",
-          "data-danger": true,
-          "data-danger-act": "removeWorker",
+          ...dangerAttrs("removeWorker"),
           children: "ワーカーを外す"
         })
       ]
@@ -3070,7 +3019,7 @@ function SideAttr({ r }) {
               class: "cv-sl",
               children: "ターンを渡す相手"
             }),
-            turnRows(t, s, id, "out"),
+            turnRows(changes, id, "out"),
             addTurnSel(t, id)
           ]
         }),
@@ -3081,7 +3030,7 @@ function SideAttr({ r }) {
               class: "cv-sl",
               children: "ターンを受け取る相手"
             }),
-            turnRows(t, s, id, "in")
+            turnRows(changes, id, "in")
           ]
         })
       ]
@@ -3213,7 +3162,7 @@ function SideAttr({ r }) {
             class: "cv-sl",
             children: "ターンを渡す相手"
           }),
-          turnRows(t, s, id, "out"),
+          turnRows(changes, id, "out"),
           outs.length ? "" : /* @__PURE__ */ u("span", {
             class: "cv-note",
             children: "まだ誰にもターンを渡していません。縁の丸から、渡す相手の点へ引いてください"
@@ -3228,7 +3177,7 @@ function SideAttr({ r }) {
             class: "cv-sl",
             children: "ターンを受け取る相手"
           }),
-          turnRows(t, s, id, "in")
+          turnRows(changes, id, "in")
         ]
       }),
       /* @__PURE__ */ u("div", {
@@ -3239,7 +3188,7 @@ function SideAttr({ r }) {
             children: "ワーカー"
           }),
           ws.length ? ws.map(({ w, i }) => /* @__PURE__ */ u("div", {
-            class: "cv-li" + (s.workers.some((x) => x.from === w.from && x.purpose === w.purpose) ? "" : " new"),
+            class: "cv-li" + (changes.workers[i]?.added ? " new" : ""),
             children: [
               /* @__PURE__ */ u("span", {
                 children: `${w.purpose || "（目的）"} · ${w.profile}`
@@ -3258,8 +3207,7 @@ function SideAttr({ r }) {
                     class: "cv-x",
                     type: "button",
                     "data-cv-act": "w-del",
-                    "data-danger": true,
-                    "data-danger-act": "removeWorker",
+                    ...dangerAttrs("removeWorker"),
                     "data-i": i,
                     title: "外す",
                     "aria-label": "外す",
@@ -3302,8 +3250,7 @@ function SideAttr({ r }) {
             class: "btn danger sm cv-danger",
             type: "button",
             "data-cv-act": "del",
-            "data-danger": true,
-            "data-danger-act": "removeMember",
+            ...dangerAttrs("removeMember"),
             children: "メンバーを外す"
           }),
           /* @__PURE__ */ u("span", {
@@ -3452,177 +3399,181 @@ function CurrentPrompt({ text, lines }) {
 }
 
 // teams/prompt-source.ts
-var PROMPT_READ = { wait: 260 };
+var promptRequestBrand = Symbol("PromptRequest");
 var WORKER_NAME = "zz-worker-name-0";
 var WORKER_TASK = "zzTaskPlaceholder0";
-var members = new Map;
-var workers = new Map;
-var promptRun = y({});
-var runOf = (key) => promptRun.value[key] || "";
-function setRun(key, team) {
-  if (runOf(key) === team)
-    return;
-  promptRun.value = { ...promptRun.value, [key]: team };
-}
-var pickedRun = (r) => runOf(dkey(r));
-var pickRun = (r, team) => setRun(dkey(r), team);
-function liveTeams(r) {
-  if (!st.running.value.herdr || !st.running.value.herdr.ok)
-    return [];
-  const project = r.project && r.project !== "global" ? r.project : CURRENT;
-  return (st.running.value.teams || []).filter((t) => t.definition === r.name.value && (t.place || "project") === r.place.value && (r.place.value === "global" || !project || t.project === project));
-}
-function runningRevision(r) {
-  return liveTeams(r).map((t) => [t.team, t.project || "", ...(t.members || []).map((m) => `${m.name}:${m.live ? "1" : "0"}`)].join("\x00")).sort().join("\x01");
-}
-function useKeepPick(r) {
-  const picked = pickedRun(r);
-  const revision = runningRevision(r);
-  h(() => {
-    if (!picked || !st.running.value.herdr || !st.running.value.herdr.ok)
+function createPromptSource({ wait = 260 } = {}) {
+  const members = new Map;
+  const workers = new Map;
+  const promptRun = y({});
+  const runOf = (key) => promptRun.value[key] || "";
+  function setRun(key, team) {
+    if (runOf(key) === team)
       return;
-    if (!liveTeams(r).some((one) => one.team === picked))
-      setRun(dkey(r), "");
-  }, [picked, revision]);
-}
-function promptKey(r, ask) {
-  return [dkey(r), JSON.stringify(promptComparisonInput(r)), ask.member, pickedRun(r), runningRevision(r)].join("\x02");
-}
-function workerKey(r, from, purpose) {
-  return [dkey(r), JSON.stringify(promptComparisonInput(r)), "worker", from, purpose, pickedRun(r), runningRevision(r)].join("\x02");
-}
-function schedule(slot, key, body) {
-  slot.payload = body;
-  if (slot.key === key)
-    return;
-  slot.key = key;
-  if (slot.timer)
-    clearTimeout(slot.timer);
-  slot.timer = setTimeout(() => {
-    slot.timer = null;
-    if (slot.key === key)
-      slot.kick(key);
-  }, PROMPT_READ.wait);
-}
-function makeSlot(runKey, read, after) {
-  const slot = {
-    runKey,
-    key: "",
-    payload: null,
-    timer: null,
-    shown: y(null),
-    loading: y(false),
-    error: y(""),
-    kick: async () => {
-      return;
-    }
-  };
-  slot.kick = async (key) => {
-    const body = slot.payload;
-    if (!body)
-      return;
-    slot.shown.value = null;
-    slot.error.value = "";
-    slot.loading.value = true;
-    const answer = await read.run(body);
-    if (slot.key !== key)
-      return;
-    slot.loading.value = false;
-    if (answer !== undefined && answer !== null) {
-      slot.shown.value = answer;
-      if (after)
-        after(answer);
-    } else if (read.error.value)
-      slot.error.value = problemText2(read.error.value, "本文を読めませんでした");
-  };
-  return slot;
-}
-function memberSlotFor(r, ask) {
-  const k = dkey(r) + "|" + ask.member;
-  const had = members.get(k);
-  if (had)
-    return had;
-  const reading = resource(async (stop, body) => {
-    const answer = await call2("POST", "/api/team/prompt-comparison", body, { signal: stop });
-    if (!answer.json)
-      throw new Error("本文の応答がありません");
-    return answer.json;
-  });
-  const made = makeSlot(dkey(r), reading, (answer) => {
-    if (answer.status === "error")
-      return;
+    promptRun.value = { ...promptRun.value, [key]: team };
+  }
+  const pickedRun = (r) => runOf(dkey(r));
+  const pickRun = (r, team) => setRun(dkey(r), team);
+  function liveTeams(r) {
+    if (!st.running.value.herdr || !st.running.value.herdr.ok)
+      return [];
+    const project = r.project && r.project !== "global" ? r.project : CURRENT;
+    return structuredClone(st.running.value.teams || []).filter((t) => t.definition === r.name.value && (t.place || "project") === r.place.value && (r.place.value === "global" || !project || t.project === project));
+  }
+  function runningRevision(r) {
+    return liveTeams(r).map((t) => [t.team, t.project || "", ...(t.members || []).map((m) => `${m.name}:${m.live ? "1" : "0"}`)].join("\x00")).sort().join("\x01");
+  }
+  function useKeepPick(r) {
     const picked = pickedRun(r);
-    if (picked && !(answer.runs || []).some((run) => run.team === picked))
-      setRun(dkey(r), "");
-  });
-  members.set(k, made);
-  return made;
-}
-function workerSlotFor(r, from, purpose) {
-  const k = dkey(r) + "|worker|" + from + "|" + purpose;
-  const had = workers.get(k);
-  if (had)
-    return had;
-  const reading = resource(async (stop, body) => {
-    const answer = await r.editing.workerPreview(body, stop);
-    if (!answer)
-      throw new Error("本文の応答がありません");
-    return answer;
-  });
-  const made = makeSlot(dkey(r), reading);
-  workers.set(k, made);
-  return made;
-}
-function workerBody(r, from, purpose) {
-  return { from, purpose, name: WORKER_NAME, task: WORKER_TASK, runningTeam: pickedRun(r) };
-}
-function reloadPrompt(r, ask) {
-  const slot = memberSlotFor(r, ask);
-  const body = { ...promptComparisonInput(r), member: ask.member, running_team: pickedRun(r) };
-  slot.key = "";
-  schedule(slot, promptKey(r, ask), body);
-}
-function usePrompt(r, ask) {
-  useKeepPick(r);
-  const slot = memberSlotFor(r, ask);
-  const key = promptKey(r, ask);
-  const body = { ...promptComparisonInput(r), member: ask.member, running_team: pickedRun(r) };
-  h(() => {
-    schedule(slot, key, body);
-  }, [slot, key]);
-  const answer = slot.shown.value;
-  const error = slot.error.value;
-  return {
-    answer,
-    segments: answer ? answer.segments : [],
-    note: noteOf(answer, r.name.value, error),
-    loading: slot.loading.value,
-    error
-  };
-}
-function useWorkerPrompt(r, i) {
-  useKeepPick(r);
-  const w = r.draft.value.workers[i];
-  const ok = !!(w && w.purpose && w.from);
-  const slot = ok ? workerSlotFor(r, w.from, w.purpose) : null;
-  const key = ok ? workerKey(r, w.from, w.purpose) : "";
-  const body = ok ? workerBody(r, w.from, w.purpose) : null;
-  h(() => {
-    if (slot)
+    const revision = runningRevision(r);
+    h(() => {
+      if (!picked || !st.running.value.herdr || !st.running.value.herdr.ok)
+        return;
+      if (!liveTeams(r).some((one) => one.team === picked))
+        setRun(dkey(r), "");
+    }, [picked, revision]);
+  }
+  function promptKey(r, ask) {
+    return [dkey(r), JSON.stringify(promptComparisonInput(r)), ask.member, pickedRun(r), runningRevision(r)].join("\x02");
+  }
+  function workerKey(r, from, purpose) {
+    return [dkey(r), JSON.stringify(promptComparisonInput(r)), "worker", from, purpose, pickedRun(r), runningRevision(r)].join("\x02");
+  }
+  function schedule(slot, key, body) {
+    slot.payload = body;
+    if (slot.key === key)
+      return;
+    slot.key = key;
+    if (slot.timer)
+      clearTimeout(slot.timer);
+    slot.timer = setTimeout(() => {
+      slot.timer = null;
+      if (slot.key === key)
+        slot.kick(key);
+    }, wait);
+  }
+  function makeSlot(runKey, read, after) {
+    const slot = {
+      runKey,
+      key: "",
+      payload: null,
+      timer: null,
+      shown: y(null),
+      loading: y(false),
+      error: y(""),
+      kick: async () => {
+        return;
+      }
+    };
+    slot.kick = async (key) => {
+      const body = slot.payload;
+      if (!body)
+        return;
+      slot.shown.value = null;
+      slot.error.value = "";
+      slot.loading.value = true;
+      const answer = await read.run(body);
+      if (slot.key !== key)
+        return;
+      slot.loading.value = false;
+      if (answer !== undefined && answer !== null) {
+        slot.shown.value = answer;
+        if (after)
+          after(answer);
+      } else if (read.error.value)
+        slot.error.value = problemText2(read.error.value, "本文を読めませんでした");
+    };
+    return slot;
+  }
+  function memberSlotFor(r, ask) {
+    const k = dkey(r) + "|" + ask.member;
+    const had = members.get(k);
+    if (had)
+      return had;
+    const reading = resource(async (stop, body) => {
+      const answer = await readPromptComparison2({ [promptRequestBrand]: true, body }, { signal: stop });
+      if (!answer.json)
+        throw new Error("本文の応答がありません");
+      return answer.json;
+    });
+    const made = makeSlot(dkey(r), reading, (answer) => {
+      if (answer.status === "error")
+        return;
+      const picked = pickedRun(r);
+      if (picked && !(answer.runs || []).some((run) => run.team === picked))
+        setRun(dkey(r), "");
+    });
+    members.set(k, made);
+    return made;
+  }
+  function workerSlotFor(r, from, purpose) {
+    const k = dkey(r) + "|worker|" + from + "|" + purpose;
+    const had = workers.get(k);
+    if (had)
+      return had;
+    const reading = resource(async (stop, body) => {
+      const answer = await r.editing.workerPreview(body, stop);
+      if (!answer)
+        throw new Error("本文の応答がありません");
+      return answer;
+    });
+    const made = makeSlot(dkey(r), reading);
+    workers.set(k, made);
+    return made;
+  }
+  function workerBody(r, from, purpose) {
+    return { from, purpose, name: WORKER_NAME, task: WORKER_TASK, runningTeam: pickedRun(r) };
+  }
+  function reloadPrompt(r, ask) {
+    const slot = memberSlotFor(r, ask);
+    const body = { ...promptComparisonInput(r), member: ask.member, running_team: pickedRun(r) };
+    slot.key = "";
+    schedule(slot, promptKey(r, ask), body);
+  }
+  function usePrompt(r, ask) {
+    useKeepPick(r);
+    const slot = memberSlotFor(r, ask);
+    const key = promptKey(r, ask);
+    const body = { ...promptComparisonInput(r), member: ask.member, running_team: pickedRun(r) };
+    h(() => {
       schedule(slot, key, body);
-  }, [slot, key]);
-  if (!slot)
-    return null;
-  const answer = slot.shown.value;
-  return {
-    segments: answer ? answer.prompt || [] : [],
-    team: answer && answer.prompt_team || r.name.value,
-    name: WORKER_NAME,
-    task: WORKER_TASK,
-    loading: slot.loading.value,
-    err: slot.error.value
-  };
+    }, [slot, key]);
+    const answer = slot.shown.value ? structuredClone(slot.shown.value) : null;
+    const error = slot.error.value;
+    return {
+      answer,
+      segments: answer ? answer.segments : [],
+      note: noteOf(answer, r.name.value, error),
+      loading: slot.loading.value,
+      error
+    };
+  }
+  function useWorkerPrompt(r, i) {
+    useKeepPick(r);
+    const w = r.draft.value.workers[i];
+    const ok = !!(w && w.purpose && w.from);
+    const slot = ok ? workerSlotFor(r, w.from, w.purpose) : null;
+    const key = ok ? workerKey(r, w.from, w.purpose) : "";
+    const body = ok ? workerBody(r, w.from, w.purpose) : null;
+    h(() => {
+      if (slot)
+        schedule(slot, key, body);
+    }, [slot, key]);
+    if (!slot)
+      return null;
+    const answer = slot.shown.value ? structuredClone(slot.shown.value) : null;
+    return {
+      segments: answer ? answer.prompt || [] : [],
+      team: answer && answer.prompt_team || r.name.value,
+      name: WORKER_NAME,
+      task: WORKER_TASK,
+      loading: slot.loading.value,
+      err: slot.error.value
+    };
+  }
+  return Object.freeze({ pickedRun, pickRun, liveTeams, runningRevision, promptKey, workerKey, reloadPrompt, usePrompt, useWorkerPrompt });
 }
+var { pickedRun, pickRun, liveTeams, runningRevision, promptKey, workerKey, reloadPrompt, usePrompt, useWorkerPrompt } = createPromptSource();
 function noteOf(answer, name, error) {
   if (error)
     return `${error} 文を表示できません。`;
@@ -5629,8 +5580,7 @@ function Dacts({ r }) {
     return /* @__PURE__ */ u("button", {
       class: "btn danger",
       "data-act": "discard",
-      "data-danger": true,
-      "data-danger-act": "discardRow",
+      ...dangerAttrs("discardRow"),
       onClick: discard,
       children: "取り消し"
     });
@@ -5657,8 +5607,7 @@ function Dacts({ r }) {
       /* @__PURE__ */ u("button", {
         class: "btn danger",
         "data-act": "del",
-        "data-danger": true,
-        "data-danger-act": "deleteTeam",
+        ...dangerAttrs("deleteTeam"),
         onClick: del,
         children: "削除"
       })
@@ -6023,8 +5972,7 @@ function Foot({ r, agree }) {
               children: /* @__PURE__ */ u("button", {
                 class: "btn",
                 "data-act": "revert",
-                "data-danger": true,
-                "data-danger-act": "revertDraft",
+                ...dangerAttrs("revertDraft"),
                 hidden: empty || !d,
                 onClick: (e) => pressRevert(r, e.currentTarget.closest(".panel")),
                 children: "元に戻す"
@@ -6058,8 +6006,7 @@ function Foot({ r, agree }) {
             children: /* @__PURE__ */ u("button", {
               class: "btn",
               "data-act": "t-revert",
-              "data-danger": true,
-              "data-danger-act": "revertDraft",
+              ...dangerAttrs("revertDraft"),
               hidden: !n,
               onClick: (e) => pressTRevert(r, e.currentTarget.closest(".panel")),
               children: "元に戻す"
@@ -6087,7 +6034,7 @@ function AgreePanel({ r }) {
     });
   }, []);
   const places = [...new Set(Object.values(scanned).flat())];
-  const shadowed = r.place.value === "global" && (r.places || []).includes("project");
+  const shadowed = r.mark.value === "hidden";
   const mode = pmodeOf(r);
   const workspace = A(null);
   const names = [...new Set(r.draft.value.members.map((m) => m.role).filter(Boolean))];
@@ -6244,9 +6191,7 @@ function AgreePanel({ r }) {
                   onDraft: (draft) => {
                     r.editing.agreement.change(draft);
                     scheduleAgree(r);
-                  },
-                  onMode: (v) => pressPmode(r, v),
-                  onURL: () => syncURL()
+                  }
                 })
               }),
               /* @__PURE__ */ u(Foot, {

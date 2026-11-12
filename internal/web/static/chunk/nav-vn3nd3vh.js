@@ -10,7 +10,7 @@
 import {
   mountDialogs,
   runDanger
-} from "./nav-n44pqppw.js";
+} from "./nav-t8p8j4hq.js";
 
 // lib/nav.ts
 mountDialogs();
@@ -99,44 +99,6 @@ function setDirty2(on) {
   if (!band)
     return;
   setDot(scr(mine()), !!on);
-}
-function setCount2(screen, n) {
-  const el = scr(screen);
-  const num = el?.querySelector(".n");
-  if (num)
-    num.textContent = String(n);
-}
-function setActivity2(running, waiting, counts) {
-  const el = scr("activity");
-  if (!el)
-    return;
-  let num = el.querySelector(".n");
-  if (counts && !num) {
-    num = document.createElement("span");
-    num.className = "n";
-    el.appendChild(num);
-  }
-  if (!counts && num) {
-    num.remove();
-    num = null;
-  }
-  if (num)
-    num.textContent = String(running);
-  let wait = el.querySelector(".wait");
-  if (!wait && waiting > 0) {
-    wait = document.createElement("span");
-    wait.className = "wait";
-    if (num)
-      num.after(wait);
-    else
-      el.appendChild(wait);
-  }
-  if (!wait)
-    return;
-  if (waiting > 0)
-    wait.textContent = "待ち " + waiting;
-  else
-    wait.remove();
 }
 if (band) {
   const scopedURL = (value) => {
@@ -236,4 +198,4 @@ if (header) {
   new ResizeObserver(followBand).observe(header);
 }
 
-export { carryTo2, takeDraft2, setDirty2, setCount2, setActivity2, confirmLeave2 };
+export { carryTo2, takeDraft2, setDirty2, confirmLeave2 };

@@ -21,34 +21,34 @@ import {
   call2,
   read2,
   problemText2
-} from "../chunk/nav-hz0pc9aj.js";
-import"../chunk/nav-n44pqppw.js";
-import"../chunk/nav-v59w2j53.js";
+} from "../chunk/nav-5jb4c81a.js";
+import"../chunk/nav-t8p8j4hq.js";
 import {
+  bandActivity2,
   setRunning2,
   projectName2,
   runningTeam2,
   definitionOf2,
-  bandActivity2,
   readGroups2,
   stopSheet2,
   teamCount,
   openSheet
-} from "../chunk/nav-0dwk30sr.js";
+} from "../chunk/nav-3syf5wg5.js";
 import {
-  TeamFigure2,
-  exports_hq
-} from "../chunk/nav-b757eq4b.js";
-import {
-  movePage,
-  installWheel
-} from "../chunk/nav-31sebn46.js";
-import {
+  rowAddress,
   token2,
   readOpen2,
   writeOpen2,
   placeGroup
-} from "../chunk/nav-hr74m0fy.js";
+} from "../chunk/nav-nmj3geqx.js";
+import {
+  TeamFigure2,
+  exports_hq
+} from "../chunk/nav-nx8y4n36.js";
+import {
+  movePage,
+  installWheel
+} from "../chunk/nav-31sebn46.js";
 import {
   resource
 } from "../chunk/nav-74jj0fve.js";
@@ -168,7 +168,7 @@ function pick(name) {
   const t = teams.value.find((x) => x.name === name);
   if (t && exports_hq) {
     const q = new URLSearchParams(location.search);
-    writeOpen2(q, [{ name, group: t.project || placeGroup("project") }]);
+    writeOpen2(q, [rowAddress(name, t.project || placeGroup("project"))]);
     history.replaceState(null, "", location.pathname + "?" + q.toString());
   }
 }

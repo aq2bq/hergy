@@ -19,6 +19,9 @@ test('team summary and agreement follow the server mark for both, single and unr
     await settle();
     const panel = document.querySelector(`.tdef[data-key="${state.dkey(r)}"] .agree-p`);
     expect(panel, r.name.value + ' ' + r.place.value).not.toBeNull();
+    const summary = document.querySelector(`.tdef[data-key="${state.dkey(r)}"] .sum .state`);
+    expect(summary?.textContent === '無効').toBe(r.mark.value === 'hidden');
+    expect(panel.textContent.includes('（無効）')).toBe(r.mark.value === 'hidden');
     compared.push({name: r.name.value, place: r.place.value, expected: r.mark.value === 'hidden', actual: panel.classList.contains('shadowed')});
   }
   expect(compared).toHaveLength(5);

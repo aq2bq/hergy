@@ -18,13 +18,10 @@ import {
 } from "./nav-zn7g81kr.js";
 import {
   problemText2
-} from "./nav-hz0pc9aj.js";
+} from "./nav-5jb4c81a.js";
 import {
   Field
 } from "./nav-9htrbyn7.js";
-import {
-  roleDirty
-} from "./nav-5jk1wdkd.js";
 
 // lib/measure.tsx
 var num = (n) => Number(n || 0).toLocaleString("ja-JP");
@@ -845,15 +842,10 @@ function ProseEditor({ text, heading, onChange, transfer }) {
 }
 
 // lib/ruledoc.tsx
-var renameBox = y({});
-var renameCarries2 = (key) => renameBox.value[key] !== false;
 var clone2 = (value) => structuredClone(value);
 function fromJSON2(value) {
   const d = value && typeof value === "object" ? value : {};
   return { name: typeof d.name === "string" ? d.name : "", title: typeof d.title === "string" ? d.title : "", text: typeof d.text === "string" ? d.text : "" };
-}
-function toDoc2(draft, _saved) {
-  return { name: draft.name, title: draft.title, text: draft.text };
 }
 function Sev2({ sev }) {
   return /* @__PURE__ */ u("span", {
@@ -903,15 +895,8 @@ function Vm2({ list }) {
     }))
   });
 }
-function RuleDoc2({ row, hasName = true, heading, nameError, issues, onChange, onDraft, rename, transfer }) {
-  function change(draft) {
-    if (onDraft)
-      onDraft(draft);
-    else {
-      Object.assign(row.draft, draft);
-      onChange?.(row);
-    }
-  }
+function RuleDoc2({ row, hasName = true, heading, nameError, issues, onDraft, rename, nameChanged, transfer }) {
+  const change = onDraft;
   return /* @__PURE__ */ u(S, {
     children: [
       hasName ? /* @__PURE__ */ u("label", {
@@ -935,17 +920,14 @@ function RuleDoc2({ row, hasName = true, heading, nameError, issues, onChange, o
           }) : null
         ]
       }) : null,
-      hasName && row.saved && row.saved.name !== row.draft.name ? /* @__PURE__ */ u("label", {
+      hasName && nameChanged ? /* @__PURE__ */ u("label", {
         class: "rename",
         children: [
           /* @__PURE__ */ u("input", {
             type: "checkbox",
-            checked: rename ? rename.value : renameCarries2(row.uid + row.l),
+            checked: rename.value,
             onChange: (event) => {
-              if (rename)
-                rename.change(event.currentTarget.checked);
-              else
-                renameBox.value = { ...renameBox.value, [row.uid + row.l]: event.currentTarget.checked };
+              rename.change(event.currentTarget.checked);
             }
           }),
           "使っているチームのロール名も変更する"
@@ -953,7 +935,7 @@ function RuleDoc2({ row, hasName = true, heading, nameError, issues, onChange, o
       }) : null,
       /* @__PURE__ */ u(ProseEditor, {
         transfer,
-        heading: heading || { kind: "ロール", name: row.draft.name || "新しいロール", title: row.draft.title, path: row.draft.__path, state: roleDirty(row) ? "未保存" : "保存済み" },
+        heading,
         text: row.draft.text,
         onChange: (text) => {
           change({ ...row.draft, text, title: title(text, row.draft.name) });
@@ -966,4 +948,4 @@ function RuleDoc2({ row, hasName = true, heading, nameError, issues, onChange, o
   });
 }
 
-export { num, Measure, documents, documentID, transferKeys, EqualWidths, chars, title, ProseIdentity, renameCarries2, clone2, fromJSON2, toDoc2, Sev2, Counts2, Badge2, Vm2, RuleDoc2 };
+export { num, Measure, documents, documentID, transferKeys, EqualWidths, chars, title, ProseIdentity, clone2, fromJSON2, Sev2, Counts2, Badge2, Vm2, RuleDoc2 };

@@ -17,8 +17,9 @@ import {
   u
 } from "./nav-zn7g81kr.js";
 import {
+  dangerAttrs,
   runDanger
-} from "./nav-n44pqppw.js";
+} from "./nav-t8p8j4hq.js";
 import {
   Refusal2,
   check2,
@@ -26,22 +27,7 @@ import {
   del2,
   saved2,
   problemText2
-} from "./nav-hz0pc9aj.js";
-import {
-  same,
-  snapshot,
-  dirty,
-  diff,
-  lost,
-  ROLE_DOC,
-  TEAM,
-  TEAM_AGREEMENT,
-  PROFILE,
-  PROFILE_ASSIGN,
-  YAML_TEXT,
-  assignDirty,
-  profileFlags
-} from "./nav-5jk1wdkd.js";
+} from "./nav-5jb4c81a.js";
 import {
   resource
 } from "./nav-74jj0fve.js";
@@ -210,8 +196,7 @@ function ConflictNotice({ c, mine, busy, undone, onOverwrite, onRevert, onUndo }
           /* @__PURE__ */ u("button", {
             class: "btn sm",
             "data-act": "cf-revert",
-            "data-danger": true,
-            "data-danger-act": "conflictRevert",
+            ...dangerAttrs("conflictRevert"),
             disabled: !!busy,
             onClick: (e) => {
               const from = e.currentTarget;
@@ -283,6 +268,110 @@ function resourceIdentity(kind, dto) {
 }
 
 // lib/editing.ts
+function same(a, b) {
+  if (Object.is(a, b))
+    return true;
+  if (Array.isArray(a) || Array.isArray(b)) {
+    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length)
+      return false;
+    return a.every((one, i) => same(one, b[i]));
+  }
+  if (typeof a !== "object" || typeof b !== "object" || a === null || b === null)
+    return false;
+  const ka = Object.keys(a).filter((key) => a[key] !== undefined);
+  const kb = Object.keys(b).filter((key) => b[key] !== undefined);
+  if (ka.length !== kb.length)
+    return false;
+  return ka.every((key) => (key in b) && same(a[key], b[key]));
+}
+function snapshot(v) {
+  if (Array.isArray(v))
+    return v.map((one) => snapshot(one));
+  if (v && typeof v === "object") {
+    const out = {};
+    for (const [key, one] of Object.entries(v))
+      out[key] = snapshot(one);
+    return out;
+  }
+  return v;
+}
+function dirty(_shape, from, to, readable = true) {
+  if (!readable)
+    return false;
+  if (from === null || from === undefined)
+    return to !== null && to !== undefined;
+  return !same(from, to);
+}
+function diff(shape, from, to, readable = true) {
+  if (!dirty(shape, from, to, readable))
+    return [];
+  if (from === null || from === undefined) {
+    const out = shape.fields.filter((f) => !empty(f.get(to)));
+    return out.length ? out : [{ key: "*", label: "そのほかの変更", get: () => {
+      return;
+    } }];
+  }
+  const out = shape.fields.filter((f) => !same(f.get(from), f.get(to)));
+  if (out.length === 0)
+    return [{ key: "*", label: "そのほかの変更", get: () => {
+      return;
+    } }];
+  return out;
+}
+function lost(shape, from, to, readable = true) {
+  return diff(shape, from, to, readable).map((f) => f.label);
+}
+function empty(v) {
+  if (v === null || v === undefined || v === "")
+    return true;
+  if (Array.isArray(v))
+    return v.length === 0;
+  if (typeof v === "object")
+    return Object.keys(v).length === 0;
+  return false;
+}
+var ROLE_DOC = { fields: [
+  { key: "name", label: "名前（保存先のファイルも変わる）", get: (v) => v.name },
+  { key: "title", label: "題名", get: (v) => v.title },
+  { key: "text", label: "本文", get: (v) => v.text }
+] };
+var TEAM = { fields: [
+  { key: "description", label: "説明", get: (v) => v.description },
+  { key: "turns", label: "ターン", get: (v) => v.turns },
+  { key: "members", label: "メンバー", get: (v) => v.members.map((m) => ({ name: m.name, role: m.role, profile: m.profile })) },
+  { key: "workers", label: "ワーカー", get: (v) => v.workers.map((w) => ({ from: w.from, purpose: w.purpose, profile: w.profile })) }
+] };
+var TEAM_AGREEMENT = { fields: [
+  { key: "text", label: "チームの規則", get: (v) => v.text }
+] };
+var PROFILE = { fields: [
+  { key: "name", label: "名前（保存先のファイルも変わる）", get: (v) => v.name },
+  { key: "kind", label: "kind", get: (v) => v.kind },
+  { key: "args", label: "引数", get: (v) => v.args },
+  { key: "env", label: "環境変数", get: (v) => v.env }
+] };
+var PROFILE_ASSIGN = { fields: [
+  { key: "picks", label: "割り当て", get: (v) => v.picks }
+] };
+var YAML_TEXT = { fields: [
+  { key: "text", label: "本文", get: (v) => v.text }
+] };
+function profileFlags(saved, draft, readable = true) {
+  const count = diff(PROFILE, saved, draft, readable).length;
+  const out = { name: false, kind: false, args: [], env: [], count };
+  if (!readable)
+    return out;
+  out.name = !saved || !same(saved.name, draft.name);
+  out.kind = !saved || !same(saved.kind, draft.kind);
+  draft.args.forEach((arg, i) => {
+    out.args[i] = !saved || i >= saved.args.length || !same(saved.args[i], arg);
+  });
+  out.env = draft.env.map((pair, i) => ({
+    key: !saved || i >= saved.env.length || !same(saved.env[i].key, pair.key),
+    value: !saved || i >= saved.env.length || !same(saved.env[i].value, pair.value)
+  }));
+  return out;
+}
 function request(kind, name, body) {
   return { kind, name, body };
 }
@@ -594,9 +683,9 @@ function editProfile(identity, initial) {
 function editProfileAssignments(identity, picks, hash) {
   const doc = (s) => ({ ops: s.draft.filter((row) => {
     const saved = s.saved?.find((one) => one.key === row.key);
-    return !saved || assignDirty({ name: row.key, saved: saved.profile, draft: row.profile });
+    return !saved || !same(saved.profile, row.profile);
   }).map((row) => row.key.startsWith("m") ? assignmentAction("memberProfile", row.name, row.profile) : assignmentAction("workerProfile", row.role, row.profile, row.name)) });
-  return editing({
+  const one = editing({
     identity,
     shape: PROFILE_ASSIGN,
     written: (rows) => ({ picks: rows.map((r) => ({ member: r.key, role: r.profile })) }),
@@ -606,6 +695,10 @@ function editProfileAssignments(identity, picks, hash) {
     recovered: () => null,
     saved: (_a, sent) => sent
   }, { saved: picks, draft: picks, hash });
+  return { ...one, rows: O(() => one.read.value.draft.map((row) => {
+    const saved = one.read.value.saved?.find((r) => r.key === row.key)?.profile || "";
+    return { ...row, saved, changed: !same(saved, row.profile) };
+  })) };
 }
 function textEditing(kind, input, nameOf = () => input.name) {
   const identity = resourceIdentity(kind, input);
@@ -712,6 +805,7 @@ function editRole(identity, initial) {
         base = resourceIdentity("role", { place: carry.base.place, project: carry.base.project, name: carry.base.name || undefined });
       return restored || raw;
     },
+    nameChanged: O(() => !!doc.read.value.saved && doc.read.value.saved.name !== doc.read.value.draft.name),
     validation: O(() => doc.read.value.checked || {}),
     grew,
     blocked: O(() => doc.read.value.saved ? grew.value.length > 0 || !doc.dirty.value : doc.read.value.problems.some((p) => p.sev === "err")),
@@ -761,7 +855,7 @@ function readRole(value) {
 function editRoleAssignments(identity, picks, hash) {
   const doc = (s) => ({ ops: s.draft.filter((row) => {
     const saved = s.saved?.find((one) => one.name === row.name);
-    return !saved || assignDirty({ name: row.name, saved: saved.role, draft: row.role });
+    return !saved || !same(saved.role, row.role);
   }).map((row) => assignmentAction("memberRole", row.name, row.role)) });
   const one = editing({
     identity,
@@ -773,7 +867,10 @@ function editRoleAssignments(identity, picks, hash) {
     recovered: () => null,
     saved: (_a, sent) => sent
   }, { saved: picks.map((r) => ({ name: r.name, role: r.saved })), draft: picks.map((r) => ({ name: r.name, role: r.draft })), hash });
-  return { ...one, renameRole: (from, to) => {
+  return { ...one, rows: O(() => one.read.value.draft.map((row) => {
+    const saved = one.read.value.saved?.find((r) => r.name === row.name)?.role || "";
+    return { name: row.name, saved, draft: row.role, changed: !same(saved, row.role) };
+  })), renameRole: (from, to) => {
     const state = one.read.value;
     const map = (rows) => rows.map((r) => ({ ...r, role: r.role === from ? to : r.role }));
     if (state.saved)
@@ -923,6 +1020,61 @@ function teamOperations(before, after) {
     after.turns.forEach(([from, to]) => out.push(teamActions.addTurn(from, to)));
   }
   return out;
+}
+function teamChanges(s, t) {
+  const out = [];
+  const hasTurn = (team, from, to) => team.turns.some(([a, b]) => a === from && b === to);
+  const nodeName = (name) => name === "human" ? "人間" : name;
+  const sm = new Map(s.members.map((m) => [m.name, m])), cm = new Map(t.members.map((m) => [m.name, m]));
+  if (s.description !== t.description)
+    out.push(["c", `説明: ${t.description}`]);
+  cm.forEach((m, n) => {
+    if (!sm.has(n))
+      out.push(["a", `メンバー ${n}（${m.role} · ${m.profile}）`]);
+    else {
+      const o = sm.get(n);
+      if (o && o.role !== m.role)
+        out.push(["c", `${n} のロール ${o.role} → ${m.role}`]);
+      if (o && o.profile !== m.profile)
+        out.push(["c", `${n} のプロファイル ${o.profile} → ${m.profile}`]);
+    }
+  });
+  sm.forEach((_m, n) => {
+    if (!cm.has(n))
+      out.push(["d", `メンバー ${n}`]);
+  });
+  const sw = new Map(s.workers.map((w) => [w.from + "\x00" + w.purpose, w])), cw = new Map(t.workers.map((w) => [w.from + "\x00" + w.purpose, w]));
+  cw.forEach((w, k) => {
+    if (!sw.has(k))
+      out.push(["a", `ワーカー ${w.purpose || "（目的）"}（${w.from} · ${w.profile}）`]);
+    else {
+      const o = sw.get(k);
+      if (o && (o.purpose !== w.purpose || o.profile !== w.profile || o.from !== w.from))
+        out.push(["c", `ワーカー ${w.purpose || "（目的）"}（${w.from} · ${w.profile}）`]);
+    }
+  });
+  sw.forEach((w, k) => {
+    if (!cw.has(k))
+      out.push(["d", `ワーカー ${w.purpose || "（目的）"}`]);
+  });
+  t.turns.forEach(([a, b]) => {
+    if (!hasTurn(s, a, b))
+      out.push(["a", `ターン ${nodeName(a)} → ${nodeName(b)}`]);
+  });
+  s.turns.forEach(([a, b]) => {
+    if (!hasTurn(t, a, b))
+      out.push(["d", `ターン ${nodeName(a)} → ${nodeName(b)}`]);
+  });
+  return {
+    members: Object.fromEntries([...new Set(t.members.map((m) => m.name))].map((name) => {
+      const m = t.members.find((one) => one.name === name);
+      const before = s.members.find((one) => one.name === name);
+      return [m.name, !before ? "new" : before.role !== m.role || before.profile !== m.profile ? "changed" : ""];
+    })),
+    workers: t.workers.map((w) => ({ from: w.from, purpose: w.purpose, added: !s.workers.some((one) => one.from === w.from && one.purpose === w.purpose) })),
+    turns: t.turns.map(([from, to]) => ({ from, to, added: !hasTurn(s, from, to) })),
+    list: out
+  };
 }
 function editTeam(identity, input) {
   const meta = y({
@@ -1101,6 +1253,7 @@ function editTeam(identity, input) {
   });
   const take = () => snapshot({ actions: operations(team.read.value), folder: meta.value, team: team.take(), agreement: agreement.take(), teamYaml: teamYaml.take(), agreementYaml: agreementYaml.take() });
   return {
+    changes: O(() => teamChanges(team.read.value.saved || initialTeam, team.read.value.draft)),
     read: O(() => snapshot(meta.value)),
     team: { ...team, save: () => save("team"), overwrite: () => save("team", true), readConflict: () => recover("team"), undoConflict: () => recover("team", true) },
     agreement: { ...agreement, save: () => save("agreement"), overwrite: () => save("agreement", true), readConflict: () => recover("agreement"), undoConflict: () => recover("agreement", true) },
@@ -1570,8 +1723,7 @@ function YamlTab2(props) {
             children: /* @__PURE__ */ u("button", {
               class: "btn",
               "data-act": "yaml-revert",
-              "data-danger": true,
-              "data-danger-act": "revertDraft",
+              ...dangerAttrs("revertDraft"),
               hidden: !dirty,
               onClick: revert,
               children: "元に戻す"

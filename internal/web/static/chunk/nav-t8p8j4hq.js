@@ -13,25 +13,30 @@ import {
   h,
   A,
   y,
+  O,
   u
 } from "./nav-zn7g81kr.js";
 import {
   read2
-} from "./nav-hz0pc9aj.js";
+} from "./nav-5jb4c81a.js";
 
 // lib/confirm.tsx
-var confirmAsk = y(null);
-var askConfirm = (ask) => {
-  confirmAsk.value = ask;
+var currentAsk = y(null);
+var confirmAsk = O(() => {
+  const ask = currentAsk.value;
+  return ask ? Object.freeze({ title: ask.title, body: ask.body, label: ask.label }) : null;
+});
+var askConfirm = (_decision, ask) => {
+  currentAsk.value = ask;
 };
 var closeConfirm = () => {
-  confirmAsk.value = null;
+  currentAsk.value = null;
 };
 var takeBack = () => {
-  confirmAsk.value = null;
+  currentAsk.value = null;
 };
 function ConfirmDialog() {
-  const ask = confirmAsk.value;
+  const ask = currentAsk.value;
   const dialog = A(null);
   const cancel = A(null);
   const last = A(null);
@@ -100,10 +105,15 @@ function ConfirmDialog() {
     ]
   });
 }
+function confirmView(_host) {
+  return k(ConfirmDialog, {});
+}
 
 // lib/dialogs.tsx
+var dialogHostBrand = Symbol("DialogHost");
+var host = { [dialogHostBrand]: true };
 function Dialogs() {
-  return /* @__PURE__ */ u(ConfirmDialog, {});
+  return confirmView(host);
 }
 function belowBand(className) {
   const found = document.querySelector(`.${className}`);
@@ -128,7 +138,8 @@ function mountDialogs() {
 }
 
 // lib/undo.tsx
-var undo = y(null);
+var currentUndo = y(null);
+var undo = O(() => currentUndo.value ? Object.freeze({ said: currentUndo.value.said }) : null);
 var hostEl = null;
 var watch = null;
 function stopWatch() {
@@ -145,8 +156,8 @@ function place(host) {
   R(/* @__PURE__ */ u(UndoNotice, {}), one);
   return one;
 }
-function offerUndo(one, host) {
-  undo.value = one;
+function offerUndo(_decision, one, host) {
+  currentUndo.value = one;
   stopWatch();
   if (hostEl) {
     R(null, hostEl);
@@ -169,10 +180,10 @@ function offerUndo(one, host) {
   watch.observe(document.body, { childList: true, subtree: true });
 }
 function takeUndo() {
-  const one = undo.value;
+  const one = currentUndo.value;
   if (!one)
     return;
-  undo.value = null;
+  currentUndo.value = null;
   stopWatch();
   const host = hostEl;
   const done = one.restore();
@@ -214,7 +225,7 @@ function dropUndo() {
   }
 }
 function UndoNotice() {
-  const one = undo.value;
+  const one = currentUndo.value;
   if (!one)
     return null;
   return /* @__PURE__ */ u("div", {
@@ -251,6 +262,11 @@ var DANGER = {
   discardRow: "confirm",
   abortStart: "none"
 };
+var dangerBrand = Symbol("DangerDecision");
+var decision = { [dangerBrand]: true };
+function dangerAttrs(action) {
+  return { "data-danger": true, "data-danger-act": action };
+}
 function runDanger(action, opts) {
   const kind = DANGER[action];
   if (kind === "none") {
@@ -260,7 +276,7 @@ function runDanger(action, opts) {
   if (kind === "undoable") {
     const offer = () => {
       if (opts.restore)
-        offerUndo({ said: opts.said || "実行しました", restore: opts.restore }, opts.host);
+        offerUndo(decision, { said: opts.said || "実行しました", restore: opts.restore }, opts.host);
     };
     const done = opts.run();
     if (done && typeof done.then === "function")
@@ -282,19 +298,19 @@ function runDanger(action, opts) {
     const url = `/api/danger/${encodeURIComponent(loss.kind)}/${encodeURIComponent(loss.name)}${q.toString() ? `?${q}` : ""}`;
     read2(url).then((answer) => {
       const lines = answer && answer.lines || [];
-      askConfirm({ ...ask, body: k("div", {}, lines.map((line) => k("p", {}, line))), run: opts.run });
+      askConfirm(decision, { ...ask, body: k("div", {}, lines.map((line) => k("p", {}, line))), run: opts.run });
     }).catch((err) => {
-      askConfirm({ ...ask, body: k("p", { role: "alert" }, `消えるものを読めませんでした: ${String(err)}`), run: () => {
+      askConfirm(decision, { ...ask, body: k("p", { role: "alert" }, `消えるものを読めませんでした: ${String(err)}`), run: () => {
         return;
       } });
     });
     return;
   }
   if (opts.lost) {
-    askConfirm({ ...ask, body: k("div", {}, [...opts.lost.map((one) => k("p", {}, one)), k("p", {}, k("b", {}, "取り消せません。"))]), run: opts.run });
+    askConfirm(decision, { ...ask, body: k("div", {}, [...opts.lost.map((one) => k("p", {}, one)), k("p", {}, k("b", {}, "取り消せません。"))]), run: opts.run });
     return;
   }
-  askConfirm({ ...ask, body: ask.body ?? k("div", {}), run: opts.run });
+  askConfirm(decision, { ...ask, body: ask.body ?? k("div", {}), run: opts.run });
 }
 
-export { mountDialogs, dropUndo, runDanger };
+export { mountDialogs, dropUndo, dangerAttrs, runDanger };

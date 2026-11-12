@@ -22,7 +22,6 @@ const ownersPath = "tools/check/owners.yml"
 // the places that ask it.
 type ownerRule struct {
 	name  string
-	where string // "go" or "ts", which files the name is looked for in
 	files []string
 	// scope, when set, reads only files under these directory prefixes: a rule
 	// about one layer does not list every caller in the other layers.
@@ -35,31 +34,29 @@ var ownerRules = []ownerRule{
 	// The rows and the counts are decided in internal/catalog; the lists and the
 	// band's first value ask it. The row rules of r-929e are gone: a name that
 	// decided rows anywhere else fails here.
-	{name: "Counts", where: "go", files: []string{"internal/catalog/", "internal/ops/hq.go", "internal/web/nav.go"}},
-	{name: "ListedRows", where: "go", files: []string{"internal/catalog/", "internal/web/"}},
-	{name: "ShownRows", where: "go", files: []string{"internal/catalog/", "internal/web/"}},
-	{name: "ReadableOf", where: "go", files: []string{"internal/catalog/", "internal/web/"}},
-	{name: "ListedRoles", where: "go", files: []string{"internal/catalog/"}},
-	{name: "navRoles", where: "go", files: []string{"internal/catalog/"}},
+	{name: "Counts", files: []string{"internal/catalog/", "internal/ops/hq.go", "internal/web/nav.go"}},
+	{name: "ListedRows", files: []string{"internal/catalog/", "internal/web/"}},
+	{name: "ShownRows", files: []string{"internal/catalog/", "internal/web/"}},
+	{name: "ReadableOf", files: []string{"internal/catalog/", "internal/web/"}},
+	{name: "ListedRoles", files: []string{"internal/catalog/"}},
+	{name: "navRoles", files: []string{"internal/catalog/"}},
 }
 
 // The prompt section (⑤ r-ba9b): the text handed to a member or a worker is
 // built by promptsFor (internal/web/api_prompt.go) and read by prompt-source.ts,
 // and nowhere else. The check and the two panels ask the owners; they build no
 // text and keep no second reading of it.
-const (
-	promptBuilder = "internal/web/api_prompt.go"
-)
+const promptBuilder = "internal/web/api_prompt.go"
 
 // promptGoRules are the builder's calls, read only in the WebUI's server: the
 // command's own senders (up, hire, apply) are outside this layer and keep their
 // calls.
 var promptGoRules = []ownerRule{
-	{name: "prompt.Member", where: "go", scope: []string{"internal/web/"}, files: []string{promptBuilder}},
-	{name: "prompt.Worker", where: "go", scope: []string{"internal/web/"}, files: []string{promptBuilder}},
-	{name: "t2PromptOf", where: "go", scope: []string{"internal/web/"}, files: []string{promptBuilder}},
-	{name: "prompt.TurnsOf", where: "go", scope: []string{"internal/web/"}, files: []string{promptBuilder}},
-	{name: "prompt.WorkersOf", where: "go", scope: []string{"internal/web/"}, files: []string{promptBuilder}},
+	{name: "prompt.Member", scope: []string{"internal/web/"}, files: []string{promptBuilder}},
+	{name: "prompt.Worker", scope: []string{"internal/web/"}, files: []string{promptBuilder}},
+	{name: "t2PromptOf", scope: []string{"internal/web/"}, files: []string{promptBuilder}},
+	{name: "prompt.TurnsOf", scope: []string{"internal/web/"}, files: []string{promptBuilder}},
+	{name: "prompt.WorkersOf", scope: []string{"internal/web/"}, files: []string{promptBuilder}},
 }
 
 // ownerAllow is one exception: a name in a file, with why and the decision that
@@ -177,15 +174,11 @@ func (r *runner) ownerFindings(conf ownersFile) ([]string, error) {
 		// without calling them, and the mask keeps the places (reading.go's own
 		// reading of a spec).
 		code := maskSpec(string(raw))
-		goFile := strings.HasSuffix(rel, ".go")
 		for _, rule := range ownerRules {
-			if rule.where == "go" != goFile {
-				continue
-			}
 			if len(rule.scope) > 0 && !allowed(rel, rule.scope) {
 				continue
 			}
-			if goFile && strings.HasSuffix(rel, "_test.go") {
+			if strings.HasSuffix(rel, "_test.go") {
 				continue
 			}
 			if allowed(rel, rule.files) || allowedBy(rel, conf.Allow, rule.name) {
@@ -214,8 +207,7 @@ func (r *runner) sourceFiles() ([]string, error) {
 			}
 			return nil
 		}
-		switch {
-		case strings.HasSuffix(path, ".go"):
+		if strings.HasSuffix(path, ".go") {
 			out = append(out, path)
 		}
 		return nil
@@ -274,9 +266,8 @@ func callLines(code, name string) []int {
 	return out
 }
 
-// promptFindings is the prompt section: the builder's calls (only in the
-// WebUI's server), the names the copies used, and the two addresses only the
-// reader names. It reads the WebUI's Go and TypeScript, not the command's.
+// promptFindings checks the Go builder's calls in internal/web. TypeScript
+// prompt reads are protected by private component state and branded requests.
 func (r *runner) promptFindings(conf ownersFile) ([]string, error) {
 	files, err := r.sourceFiles()
 	if err != nil {
@@ -289,12 +280,8 @@ func (r *runner) promptFindings(conf ownersFile) ([]string, error) {
 			return nil, err
 		}
 		rel = filepath.ToSlash(rel)
-		goFile := strings.HasSuffix(rel, ".go")
-		if goFile && strings.HasSuffix(rel, "_test.go") {
+		if strings.HasSuffix(rel, "_test.go") {
 			continue
-		}
-		if !goFile {
-			continue // the WebUI's screens, not a generated contract or another kind
 		}
 		raw, err := os.ReadFile(path)
 		if err != nil {
