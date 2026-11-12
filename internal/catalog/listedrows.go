@@ -133,8 +133,16 @@ func (c *Catalog) Unreadable(path string) (problem, state string) {
 	if path == "" {
 		return "", ""
 	}
-	if _, ok, why := c.FileState(path); !ok {
+	if there, ok, why := c.FileState(path); !ok {
 		return why, StateUnreadable
+	} else if !there && filepath.Base(path) == "team.yaml" {
+		// team.yaml is required in a nonempty definition folder. Other absent
+		// documents remain optional files a save can create (FileState's rule).
+		if files, err := os.ReadDir(filepath.Dir(path)); err == nil && len(files) > 0 {
+			if _, err := os.Stat(path); err != nil {
+				return err.Error(), StateUnreadable
+			}
+		}
 	}
 	return "", ""
 }
@@ -148,8 +156,8 @@ func (c *Catalog) ReadableOf(row ListedRow) (bool, string) {
 	if row.Legacy || row.NoDoc || row.Path == "" {
 		return true, ""
 	}
-	_, ok, why := c.FileState(row.Path)
-	return ok, why
+	why, _ := c.Unreadable(row.Path)
+	return why == "", why
 }
 
 func (c *Catalog) teamRows(layer string) []ListedRow {

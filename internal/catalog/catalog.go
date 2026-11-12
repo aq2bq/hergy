@@ -563,12 +563,11 @@ func (c *Catalog) candidateNames() []string {
 	return names
 }
 
-// teamNames lists the team directories under a layer that have a team.yaml.
-// teamNames is one layer's team definition names, under the version of its
-// teams/ directory: the same list is not globbed again until a definition is
-// added or taken away (d-e00b).
+// teamNames lists nonempty definition folders, including ones whose team.yaml
+// is missing. The contents of a child folder can change without changing the
+// teams/ directory's version, so the flat-directory cache is not used here.
 func (c *Catalog) teamNames(dir string) []string {
-	return c.dirNames(filepath.Join(dir, "teams"), func() []string { return teamNames(dir) })
+	return teamNames(dir)
 }
 
 // dirNames is one directory's reading held under the directory's version. A
@@ -596,16 +595,25 @@ func (c *Catalog) dirNames(dir string, read func() []string) []string {
 }
 
 func teamNames(dir string) []string {
-	matches, err := filepath.Glob(filepath.Join(dir, "teams", "*", "team.yaml"))
+	root := filepath.Join(dir, "teams")
+	entries, err := os.ReadDir(root)
 	if err != nil {
 		return nil
 	}
 	var names []string
-	for _, match := range matches {
-		names = append(names, filepath.Base(filepath.Dir(match)))
+	for _, entry := range entries {
+		path := filepath.Join(root, entry.Name())
+		info, err := os.Stat(path)
+		if err != nil || !info.IsDir() {
+			continue
+		}
+		files, err := os.ReadDir(path)
+		// A folder that cannot be read stays a row with its own read error.
+		if len(files) > 0 || (err != nil && !errors.Is(err, os.ErrNotExist)) {
+			names = append(names, entry.Name())
+		}
 	}
-	sort.Strings(names)
-	return names
+	return names // ReadDir's order is the list's order.
 }
 
 // ProjectProfileFile is the project's own profiles.yaml, the one a team
