@@ -5,7 +5,7 @@
 // 帯に渡す下書き）だけをここで名付ける。
 import type { components } from '../../../apicontract/api-types';
 import type { Place, Schemas } from '../lib/api.js';
-import type { Conflict } from '../lib/conflict.js';
+import type { ProfileEditing, ReadonlyDeep } from '../lib/editing.js';
 
 // ---- the API's own shapes ----------------------------------------------
 // The answers the profile screen reads are the ones openapi.yaml writes: the
@@ -72,43 +72,15 @@ export type Island = { profile?: ProfileList; assign?: IslandAssign; hq?: Island
 // ---- the screen's own state --------------------------------------------
 // One profile's panel: what the file holds (saved), the draft the fields edit,
 // and what the last check answered.
-export type SavedProfile = { name: string; kind: string; args: string[]; env: EnvPair[] };
-
 export type Draft = { name: string; kind: string; args: string[]; env: EnvPair[] };
 
+// Editing values are read-through projections, never state owned by a row.
 export type Panel = {
-  // born is the draft the panel was made with (new, duplicate or copy), so 取り消し
-  // can tell an untouched panel from one the person changed (r-d480).
-  born?: { name: string; kind: string; args: string[]; env: { key: string; value: string }[] };
-  key: string;
-  rowKey: string;
-  file: Place;
-  group: string;
-  path: string;
-  label: string;
-  otherLabel: string;
-  // mark is the row's owner answer (r-ea17).
-  mark: string;
-  saved: SavedProfile | null;
-  hash: string;
-  users: number;
-  rename_targets: number;
-  draft: Draft;
-  problems: Problem[];
-  errors: number;
-  savedLine: boolean;
-  // problem is why this place's file cannot be read (r-ea17, d-17ab).
-  problem: string;
-  refusal: string;
-  // conflict stands where a save was refused because the file moved: the file as
-  // the answer showed it, and the panel before 元に戻す (r-3c77).
-  conflict: PanelConflict | null;
-  rename: boolean;
-  layerSwitch: boolean;
-};
-
-// PanelConflict is one refused save of a panel.
-export type PanelConflict = { c: Conflict; undone?: boolean; before?: { saved: SavedProfile | null; draft: Draft; hash: string } };
+  editing: ProfileEditing;
+  key: string; rowKey: string; file: Place; group: string; path: string;
+  label: string; otherLabel: string; mark: string; users: number;
+  rename_targets: number; problem: string; layerSwitch: boolean;
+} & ReadonlyDeep<ProfileEditing['read']['value']> & { readonly errors: number };
 
 export type ModelPlace = { label: string; state: string };
 

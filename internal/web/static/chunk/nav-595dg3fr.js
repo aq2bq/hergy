@@ -10,7 +10,7 @@
 import {
   mountDialogs,
   runDanger
-} from "./nav-42b5x58f.js";
+} from "./nav-dp96tqg6.js";
 
 // lib/nav.ts
 mountDialogs();

@@ -1,3 +1,4 @@
+import { save as apiSave } from '../lib/legacy-editing-api.js';
 // roles/state.js — ロールの画面の state（webui-preact-design 4 章・5 章）。
 //
 // 一覧の行、割り当てのチーム、YAML のファイル、そしてサーバーのチェックの答えは、
@@ -13,7 +14,7 @@ import { takeDraft, setDirty } from '../lib/nav.js';
 import { readOpen, rowsFor, writeOpen } from '../lib/address.js';
 import { copyGroupOf, projectOfGroup } from '../lib/copy';
 import {
-  save as apiSave, del as apiDel, saved as apiSaved,
+  del as apiDel, saved as apiSaved,
   roleModel, teamModel, problemText, bases,
 } from '../lib/api.js';
 import { conflictOf } from '../lib/conflict.js';

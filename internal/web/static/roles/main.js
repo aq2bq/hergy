@@ -16,21 +16,20 @@ import {
   u
 } from "../chunk/nav-zn7g81kr.js";
 import {
-  save2,
   del2,
   saved2,
   bases2,
   problemText2,
   roleModel2,
   teamModel2
-} from "../chunk/nav-sk3m5qf3.js";
+} from "../chunk/nav-rkjyh2fn.js";
 import {
   runDanger
-} from "../chunk/nav-42b5x58f.js";
+} from "../chunk/nav-dp96tqg6.js";
 import {
   takeDraft2,
   setDirty2
-} from "../chunk/nav-ag8t5wv9.js";
+} from "../chunk/nav-595dg3fr.js";
 import {
   Measure,
   renameCarries2,
@@ -40,28 +39,29 @@ import {
   Badge2,
   Vm2,
   RuleDoc2
-} from "../chunk/nav-v1b6zxwf.js";
+} from "../chunk/nav-fx9xzm5z.js";
 import {
   conflictOf,
   ConflictNotice,
   YamlTab2
-} from "../chunk/nav-w38d9r9j.js";
+} from "../chunk/nav-sms8zms6.js";
 import {
+  save2,
   roleEditor,
   roleProblems
-} from "../chunk/nav-d94s040z.js";
+} from "../chunk/nav-vfm0j9vx.js";
 import {
   copyGroupOf,
   projectOfGroup,
   ProjectView
-} from "../chunk/nav-x8mye5ra.js";
+} from "../chunk/nav-g00n7gwn.js";
 import {
   Field
 } from "../chunk/nav-9htrbyn7.js";
 import {
   movePage,
   installWheel
-} from "../chunk/nav-kj98ksd1.js";
+} from "../chunk/nav-31sebn46.js";
 import {
   readOpen2,
   writeOpen2,
@@ -78,6 +78,7 @@ import {
   assignDirty,
   yamlDirty
 } from "../chunk/nav-36f6dmhj.js";
+import"../chunk/nav-74jj0fve.js";
 
 // roles/state.ts
 var view = document.getElementById("view");

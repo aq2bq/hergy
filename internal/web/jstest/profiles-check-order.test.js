@@ -12,10 +12,10 @@ test('only an accepted profile check changes the problems and save gate', async 
     }
     return undefined;
   });
-  const { addRow, rows, patchPanel, checkPanel, saveBlocked } = await import('../src/profiles/state');
+  const { addRow, rows, changeDraft, checkPanel, saveBlocked } = await import('../src/profiles/state');
   const row = addRow('project', '');
   const key = row.panels[0].key;
-  patchPanel(key, { draft: { name: 'builder', kind: 'claude', args: [], env: [] } });
+  changeDraft(key, { name: 'builder', kind: 'claude', args: [], env: [] });
   const panel = () => rows.value.find((r) => r.key === row.key).panels[0];
   const problem = { sev: 'err', field: 'name', text: 'name is taken' };
   const assertBlocked = () => {

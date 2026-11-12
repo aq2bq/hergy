@@ -1,3 +1,4 @@
+import type { EditedRequest } from './editing.js';
 // lib/api.ts — the one way a screen talks to the server (spec-boundary 7, r-2cc2).
 //
 // Every kind of thing a screen reads and writes answers under /api/ in one shape
@@ -161,11 +162,11 @@ export const list = <K extends Kind>(kind: K, opts?: CallOptions): Promise<Answe
 export const get = <K extends Kind>(kind: K, name: string, place?: Place | '', project?: string, opts?: CallOptions): Promise<Answer<K, 'get'>> =>
   read<Answer<K, 'get'>>(urls.get(kind, name, place || '', project || ''), opts);
 // check is POST /api/{kind}/check: what is wrong with a draft or a text.
-export const check = <K extends Kind>(kind: K, payload: Request<K, 'check'>, opts?: CallOptions): Promise<RawAnswer<Answer<K, 'check'>>> =>
-  call<Answer<K, 'check'>>('POST', `/api/${kind}/check`, payload, opts);
+export const check = <K extends Kind>(kind: K, payload: EditedRequest<K, 'check'>, opts?: CallOptions): Promise<RawAnswer<Answer<K, 'check'>>> =>
+  call<Answer<K, 'check'>>('POST', `/api/${kind}/check`, payload.body, opts);
 // save is PUT /api/{kind}/{name}: write one document.
-export const save = <K extends Kind>(kind: K, name: string, payload: Request<K, 'save'>, opts?: CallOptions): Promise<RawAnswer<Answer<K, 'save'>>> =>
-  call<Answer<K, 'save'>>('PUT', `/api/${kind}/${enc(name)}`, payload, opts);
+export const save = <K extends Kind>(kind: K, payload: EditedRequest<K, 'save'>, opts?: CallOptions): Promise<RawAnswer<Answer<K, 'save'>>> =>
+  call<Answer<K, 'save'>>('PUT', `/api/${kind}/${enc(payload.name)}`, payload.body, opts);
 export const del = <K extends Kind>(kind: K, name: string, place: Place, hash: string, agreementHash?: string, project?: string, opts?: CallOptions): Promise<RawAnswer<Answer<K, 'del'>>> =>
   call<Answer<K, 'del'>>('DELETE', urls.del(kind, name, place, hash, agreementHash || '', project || ''), undefined, opts);
 

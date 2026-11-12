@@ -81,8 +81,8 @@ function answerOf(a, what) {
 }
 var list2 = (kind, opts) => read2(urls.list(kind), opts);
 var get2 = (kind, name, place, project, opts) => read2(urls.get(kind, name, place || "", project || ""), opts);
-var check2 = (kind, payload, opts) => call2("POST", `/api/${kind}/check`, payload, opts);
-var save2 = (kind, name, payload, opts) => call2("PUT", `/api/${kind}/${enc(name)}`, payload, opts);
+var check3 = (kind, payload, opts) => call2("POST", `/api/${kind}/check`, payload.body, opts);
+var save3 = (kind, payload, opts) => call2("PUT", `/api/${kind}/${enc(payload.name)}`, payload.body, opts);
 var del2 = (kind, name, place, hash, agreementHash, project, opts) => call2("DELETE", urls.del(kind, name, place, hash, agreementHash || "", project || ""), undefined, opts);
 var applyList2 = (opts) => read2("/api/apply", opts);
 var applyCount2 = (opts) => read2("/api/apply/count", opts);
@@ -233,4 +233,4 @@ function teamModel2(list) {
   };
 }
 
-export { token3, Refusal2, raw2, call2, read2, list2, get2, check2, save2, del2, applyList2, applyCount2, applyMembers2, hqList2, saved2, bases2, problemText2, profileModel2, roleModel2, teamModel2 };
+export { token3, Refusal2, raw2, call2, read2, list2, get2, check3, save3, del2, applyList2, applyCount2, applyMembers2, hqList2, saved2, bases2, problemText2, profileModel2, roleModel2, teamModel2 };

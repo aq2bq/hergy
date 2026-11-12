@@ -8,16 +8,19 @@
 // tools/webvendor/package.json and bun.lock.
 
 import {
+  Refusal2,
+  call2
+} from "./nav-rkjyh2fn.js";
+import {
   y
 } from "./nav-zn7g81kr.js";
 import {
-  Refusal2,
-  check2,
-  save2
-} from "./nav-sk3m5qf3.js";
-import {
   resource
-} from "./nav-kj98ksd1.js";
+} from "./nav-74jj0fve.js";
+
+// lib/legacy-editing-api.ts
+var check2 = (kind, payload, opts) => call2("POST", `/api/${kind}/check`, payload, opts);
+var save2 = (kind, name, payload, opts) => call2("PUT", `/api/${kind}/${encodeURIComponent(name)}`, payload, opts);
 
 // lib/role-editor.ts
 function record(value) {
@@ -93,4 +96,4 @@ function roleProblems(_doc, list) {
   }));
 }
 
-export { roleEditor, roleProblems };
+export { check2, save2, roleEditor, roleProblems };

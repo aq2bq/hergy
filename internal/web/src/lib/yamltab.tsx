@@ -14,32 +14,25 @@
 // press is handled once: the screen draws the section's element, the part draws
 // what stands inside it, and the screen passes the file and the ways to tell it
 // things as props (依頼書 4).
-import { yamlDirty } from './changed.js';
 import { runDanger } from './danger.js';
 import { useEffect, useRef, useState } from './preact.js';
-import { check as apiCheck, save as apiSave, problemText, saved as apiSaved } from './api.js';
+import { saved as apiSaved } from './api.js';
+import { editYaml, type YamlEditing } from './editing.js';
 import type { RawAnswer } from './api.js';
-import { ConflictNotice, conflictOf } from './conflict.js';
-import type { Conflict } from './conflict.js';
+import { ConflictNotice } from './conflict.js';
 import type { components, operations } from '../../../apicontract/api-types';
 
 type Place = operations['getTeam']['parameters']['query']['place'];
 type YamlKind = 'role' | 'team' | 'profile';
 type Problem = components['schemas']['Problem'];
-type CheckRequest = components['schemas']['RoleCheckRequest']
-  | components['schemas']['TeamCheckRequest']
-  | components['schemas']['ProfileCheckRequest'];
-type SaveRequest = components['schemas']['RoleSaveRequest']
-  | components['schemas']['TeamSaveRequest']
-  | components['schemas']['ProfileSaveRequest'];
 type SavedJson = components['schemas']['RoleSaved']
   | components['schemas']['TeamSaved']
   | components['schemas']['ProfileSaved'];
 type ApiAnswer<T> = RawAnswer<T>;
 type YamlState = { base: string; text: string; hash: string };
-type YamlWorkingState = { text: string; problems: Problem[]; baseProblems: Problem[] };
 
 export type YamlTabProps = {
+  editing?: YamlEditing;
   label: string;
   path: string;
   text: string;
@@ -61,67 +54,6 @@ export type YamlTabProps = {
   onSaved?: (answer: ApiAnswer<SavedJson>) => void;
 };
 
-function isProblem(value: unknown): value is Problem {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
-  const problem = Object.fromEntries(Object.entries(value));
-  return (problem.sev === 'err' || problem.sev === 'warn')
-    && typeof problem.at === 'string'
-    && typeof problem.text === 'string'
-    && (problem.field === undefined || typeof problem.field === 'string')
-    && (problem.line === undefined || typeof problem.line === 'number')
-    && (problem.definition === undefined || typeof problem.definition === 'string')
-    && (problem.role === undefined || typeof problem.role === 'string');
-}
-
-function isProblemList(value: unknown): value is Problem[] {
-  return Array.isArray(value) && value.every(isProblem);
-}
-
-
-// checkText asks the server what is wrong with one file's text. The kind says
-// which files these are, and extra carries the kind's own word for which one
-// (a team definition's team.yaml and agreement.md share one kind); the same
-// words answer a panel's draft.
-export async function checkText(
-  kind: YamlKind,
-  place: Place | string,
-  name: string,
-  text: string,
-  extra?: YamlTabProps['extra'],
-): Promise<Problem[]> {
-  try {
-    // A profile's file is known from its place; only a role's file and a team
-    // definition's read a name from the body (n-3f6c).
-    const request: CheckRequest = { place, ...(kind === 'profile' ? {} : { name }), text, ...extra };
-    const answer = await apiCheck(kind, request);
-    return (answer.json && answer.json.problems) || [];
-  } catch (e) {
-    // A refusal still carries what the server said about the text; a reading
-    // that never arrived leaves no problems, as it always did.
-    if (typeof e !== 'object' || e === null || !('json' in e)) return [];
-    const json: unknown = e.json;
-    if (typeof json !== 'object' || json === null || !('problems' in json)) return [];
-    const problems = json.problems;
-    return isProblemList(problems) ? problems : [];
-  }
-}
-
-// saveText writes one file's whole text. The answer carries the new hash. The
-// name travels in the payload as well as in the URL: a kind that reads the
-// file's name from the body rather than from the path (a role's file is the
-// row's own name) writes the file it was handed (r-8e85).
-export function saveText(
-  kind: YamlKind,
-  name: string,
-  place: Place | string,
-  text: string,
-  hash: string,
-  extra?: YamlTabProps['extra'],
-): Promise<ApiAnswer<SavedJson>> {
-  const request: SaveRequest = { place, ...(kind === 'profile' ? {} : { name }), text, hash: hash || '', ...extra };
-  return apiSave(kind, name, request);
-}
-
 // tellDirty lets the page mark itself as carrying unsaved work, the same way the
 // panels do (the browser's beforeunload reads it).
 export function tellDirty() {
@@ -141,9 +73,9 @@ export function insertTab(textarea: HTMLTextAreaElement): void {
   textarea.dispatchEvent(new Event('input', { bubbles: true }));
 }
 
-const errTexts = (problems: Problem[] | null | undefined): string[] => (problems || []).filter((p) => p.sev === 'err').map((p) => p.text);
+const errTexts = (problems: readonly Problem[] | null | undefined): string[] => (problems || []).filter((p) => p.sev === 'err').map((p) => p.text);
 const heightOf = (lines: number): number => Math.min(Math.max(lines, 6), 34);
-const marksOf = (problems: Problem[] | null | undefined): Record<number, Problem['sev']> => {
+const marksOf = (problems: readonly Problem[] | null | undefined): Record<number, Problem['sev']> => {
   const marks: Record<number, Problem['sev']> = {};
   (problems || []).forEach((p) => {
     if (p.line !== undefined && marks[p.line] !== 'err') marks[p.line] = p.sev;
@@ -171,165 +103,77 @@ export function YamlTab(props: YamlTabProps) {
   const gutter = useRef<HTMLPreElement | null>(null);
   const timer = useRef<number>(0);
   const alive = useRef(true);
-  const seq = useRef(0);
-  const base = useRef(text);
-  // The field is the person's after the first frame: a re-render (a check's
-  // answer) must not put the file's text back over what they typed.
+  const owned = useRef(props.editing || editYaml(kind, { place, name, text, hash, problems, problem, part: extra?.part,
+    project: new URLSearchParams(location.search).get('project') || undefined }));
+  const editing = owned.current;
+  const state = editing.read.value;
   const initial = useRef(text);
-  const mine = useRef(hash || '');
-
-  const [now, setNow] = useState<YamlWorkingState>({ text, problems: problems || [], baseProblems: problems || [] });
   const [laid, setLaid] = useState(text);
-  const [saved, setSaved] = useState(false);
-  const [refusal, setRefusal] = useState('');
-  // conflict stands where a save was refused because the file moved: the file as
-  // the answer showed it, and the text the part held before 元に戻す (r-3c77).
-  const [conflict, setConflict] = useState<Conflict | null>(null);
-  const [undone, setUndone] = useState(false);
-  const keep = useRef<{ text: string; base: string; hash: string } | null>(null);
-
-  const dirty = yamlDirty(base.current, now.text);
-  const errs = now.problems.filter((p: Problem) => p.sev === 'err').length;
+  const now = { text: state.draft, problems: state.problems, baseProblems: state.baseProblems };
+  const conflict = state.conflict?.c || null;
+  const undone = !!state.conflict?.undone;
+  const saved = state.savedLine;
+  const refusal = state.refusal;
+  const dirty = editing.dirty.value;
+  const errs = now.problems.filter((p) => p.sev === 'err').length;
   const warns = now.problems.length - errs;
-  const grew = now.problems.some((p: Problem) => p.sev === 'err' && errTexts(now.baseProblems).indexOf(p.text) < 0);
+  const grew = now.problems.some((p) => p.sev === 'err' && errTexts(now.baseProblems).indexOf(p.text) < 0);
 
-  // foot keeps the 保存 / 元に戻す in step with the text and the problems: a text
-  // that has grown an error the written file did not have cannot be saved (the
-  // server refuses it anyway, but the button says so first). An error the file
-  // already had does not stop a save (spec-roles X3).
+  function report() {
+    const s = editing.read.value;
+    onState?.({ base: s.saved || '', text: s.draft, hash: s.hash });
+  }
   function foot() {
     const el = ta.current;
     if (!el) return;
-    const value = el.value;
-    setNow((was: YamlWorkingState) => (was.text === value ? was : { ...was, text: value }));
-    if (value !== base.current) setSaved(false);
-    // The screen hears the typed text now: a press that comes in the same frame
-    // (leaving the screen, switching the project) must see the change it would
-    // throw away (r-1e9a, d-021e).
+    if (el.value !== editing.read.value.draft) editing.change(el.value);
     report();
     tellDirty();
   }
-
-  // report says what the part holds to a screen that keeps it as its own state.
-  function report() {
-    const el = ta.current;
-    if (!el || !onState) return;
-    onState({ base: base.current, text: el.value, hash: mine.current });
+  function layout() {
+    if (!alive.current) return;
+    setLaid(editing.read.value.draft);
+    onProblems?.(editing.read.value.problems.map((p) => ({ ...p })));
+    report();
+    tellDirty();
   }
-
-  // layout draws what the server said about the text: the numbered gutter with a
-  // mark on each bad line, the height the file needs, and the list of problems
-  // under the text.
-  function layout(next: Problem[]) {
-    const el = ta.current;
-    if (!el) return;
-    const value = el.value;
-    setLaid(value);
-    setNow((was: YamlWorkingState) => ({ text: value, problems: next, baseProblems: value === base.current ? next : was.baseProblems }));
-    if (onProblems) onProblems(next);
-    foot();
-  }
-
   async function check() {
-    const el = ta.current;
-    if (!el) return;
-    const mine = (seq.current += 1);
-    const found = await checkText(kind, place, name, el.value, extra);
-    // Only the newest reading's answer is laid out: the check the mount started
-    // can answer after the one the typing started, and the older text's problems
-    // must not stand over the newer text (5 章 3).
-    if (!alive.current || mine !== seq.current) return;
-    layout(found);
+    await editing.check();
+    layout();
   }
-
   function schedule() {
     clearTimeout(timer.current);
     timer.current = window.setTimeout(() => { check(); }, 300);
   }
-
-  async function save(over?: string) {
+  async function save(overwrite = false) {
+    foot();
+    const answer = await (overwrite ? editing.overwrite() : editing.save());
+    if (!alive.current || !answer) return;
+    onSaved?.(answer);
+    layout();
+    check();
+    report();
+    apiSaved();
+  }
+  function overwrite() { save(true); }
+  function syncField() {
     const el = ta.current;
     if (!el) return;
-    setRefusal('');
-    try {
-      const answer = await saveText(kind, name, place, el.value, over === undefined ? mine.current : over, extra);
-      if (!alive.current) return;
-      base.current = el.value;
-      if (answer.json && answer.json.hash) mine.current = answer.json.hash;
-      setConflict(null);
-      setUndone(false);
-      if (onSaved) onSaved({ ok: true, status: answer.status, json: answer.json, text: answer.text });
-      layout(now.problems);
-      check();
-      setSaved(true);
-      report();
-      apiSaved();
-    } catch (e) {
-      if (!alive.current) return;
-      const c = conflictOf(e);
-      if (c) {
-        // The file moved: the text the person typed stays in the field, and the
-        // notice stands above the save band (r-3c77, d-a34a).
-        setConflict(c);
-        setUndone(false);
-        return;
-      }
-      setRefusal(problemText(e, '保存できませんでした'));
-    }
-  }
-
-  // overwrite writes the text the person typed over the file the answer showed:
-  // the save carries the hash of that file, so a file that moved again is
-  // refused the same way.
-  function overwrite() {
-    if (!conflict) return;
-    save(conflict.file.hash || '');
-  }
-
-  // readIn puts the file the answer carried into the field, and keeps the text
-  // the person typed for 取り消す.
-  function readIn() {
-    const el = ta.current;
-    if (!el || !conflict) return;
-    keep.current = { text: el.value, base: base.current, hash: mine.current };
-    el.value = conflict.file.text || '';
-    base.current = el.value;
-    mine.current = conflict.file.hash || '';
-    setUndone(true);
-    setRefusal('');
+    el.value = editing.read.value.draft;
     autosize(el);
-    layout(now.problems);
-    check();
-    report();
+    layout();
   }
-
-  // undoRead puts the text the person typed back, over the file just read.
-  function undoRead() {
-    const el = ta.current;
-    const was = keep.current;
-    if (!el || !was) return;
-    el.value = was.text;
-    base.current = was.base;
-    mine.current = was.hash;
-    keep.current = null;
-    setConflict(null);
-    setUndone(false);
-    autosize(el);
-    layout(now.problems);
-    check();
-    report();
-  }
-
+  function readIn() { editing.readConflict(); syncField(); check(); }
+  function undoRead() { editing.undoConflict(); syncField(); check(); }
   function revert() {
     const el = ta.current;
     if (!el) return;
-    const was = now.text;
-    const host = ta.current ? (ta.current.closest('.panel') as HTMLElement | null) || ta.current.parentElement : null;
+    const was = editing.take();
+    const host = (el.closest('.panel') as HTMLElement | null) || el.parentElement;
     runDanger('revertDraft', {
-      run: () => { if (onRevert) onRevert(); el.value = base.current; setRefusal(''); layout(now.problems); check(); },
-      restore: () => { if (el) el.value = was; setNow((one) => ({ ...one, text: was })); onState?.({ text: was } as unknown as Parameters<NonNullable<typeof onState>>[0]); check(); },
-      said: '保存した内容に戻しました',
-      host,
+      run: () => { onRevert?.(); editing.discard(); syncField(); check(); },
+      restore: () => { editing.restore(was); syncField(); check(); },
+      said: '保存した内容に戻しました', host,
     });
   }
 
@@ -355,6 +199,7 @@ export function YamlTab(props: YamlTabProps) {
     return () => {
       alive.current = false;
       clearTimeout(timer.current);
+      editing.dispose();
     };
   }, []);
 
@@ -367,9 +212,8 @@ export function YamlTab(props: YamlTabProps) {
     if (carried == null) return;
     const el = ta.current;
     if (!el || el.value === carried) return;
-    el.value = carried;
-    autosize(el);
-    layout(now.problems);
+    editing.change(carried);
+    syncField();
     check();
   }, [carried]);
 
@@ -381,8 +225,10 @@ export function YamlTab(props: YamlTabProps) {
   // The hash the page read is the one a save carries: the answer's own hash
   // travels through the screen, and comes back as this prop (5 章 2).
   useEffect(() => {
-    if (hash) mine.current = hash;
+    if (hash) editing.rebase(hash);
   }, [hash]);
+
+  useEffect(() => { if (ta.current && ta.current.value !== state.draft) { syncField(); check(); } }, [state.draft]);
 
   const lines = laid.split('\n');
   const marks = marksOf(now.problems);
@@ -391,7 +237,7 @@ export function YamlTab(props: YamlTabProps) {
     <div class={'code h' + heightOf(lines.length)}><pre class="gutter" aria-hidden="true" ref={gutter}>{lines.map((_: string, i: number) => <span class={marks[i + 1] || ''}>{i + 1}</span>)}</pre><textarea class="ytext" data-file={file || undefined} wrap="off" spellcheck={false} autocomplete="off" aria-label={path} ref={ta} onInput={() => { foot(); schedule(); }} onScroll={() => { if (gutter.current && ta.current) gutter.current.scrollTop = ta.current.scrollTop; }} onKeyDown={(e: KeyboardEvent) => { if (e.key === 'Tab' && !e.shiftKey) { const target = e.target; if (target instanceof HTMLTextAreaElement) { e.preventDefault(); insertTab(target); } } }}>{initial.current}</textarea></div>
     <div class="vlist"><div class="vhead"><span class="vt">設定の検査</span>{now.problems.length ? <span class="vcount">{errs ? <span class="sev err">問題 {errs}</span> : ''}{warns ? <span class="sev warn">警告 {warns}</span> : ''}</span> : <span class="vclean">✓ 問題なし</span>}</div>{now.problems.map((p: Problem) => <button class="vitem" data-act="yaml-jump" data-line={p.line} onClick={() => jump(p.line)}><span class={'sev ' + (p.sev === 'err' ? 'err' : 'warn')}>{p.sev === 'err' ? '問題' : '警告'}</span><span class="lno">{p.line} 行</span><span class="msg">{p.text}</span></button>)}</div>
   </div>
-  {conflict ? <ConflictNotice c={conflict} mine={base.current} undone={undone} onOverwrite={overwrite} onRevert={readIn} onUndo={undoRead} /> : null}
+  {conflict ? <ConflictNotice c={conflict} mine={state.saved || ''} undone={undone} onOverwrite={overwrite} onRevert={readIn} onUndo={undoRead} /> : null}
   <footer class="pf">
     <button class="btn primary" data-act="yaml-save" disabled={!dirty || grew || !!problem} onClick={() => save()}>保存</button><span class="dirty">{dirty ? '変更あり' : ''}</span>
     {problem ? <span class="sev err refusal" role="alert">{problem}</span> : ''}{refusal ? <span class="sev err refusal">{refusal}</span> : ''}{saved ? <span class="ok">保存しました</span> : ''}

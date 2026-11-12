@@ -21,9 +21,9 @@ import {
   call2,
   read2,
   problemText2
-} from "../chunk/nav-sk3m5qf3.js";
-import"../chunk/nav-42b5x58f.js";
-import"../chunk/nav-ag8t5wv9.js";
+} from "../chunk/nav-rkjyh2fn.js";
+import"../chunk/nav-dp96tqg6.js";
+import"../chunk/nav-595dg3fr.js";
 import {
   setRunning2,
   projectName2,
@@ -34,22 +34,24 @@ import {
   stopSheet2,
   teamCount,
   openSheet
-} from "../chunk/nav-ft5mppx9.js";
+} from "../chunk/nav-nkknfkvh.js";
 import {
   TeamFigure2,
   exports_hq
-} from "../chunk/nav-b0zbkbnt.js";
+} from "../chunk/nav-1n4w7336.js";
 import {
   movePage,
-  installWheel,
-  resource
-} from "../chunk/nav-kj98ksd1.js";
+  installWheel
+} from "../chunk/nav-31sebn46.js";
 import {
   token2,
   readOpen2,
   writeOpen2,
   placeGroup
 } from "../chunk/nav-hr74m0fy.js";
+import {
+  resource
+} from "../chunk/nav-74jj0fve.js";
 
 // activity/state.ts
 var POLL = 1e4;

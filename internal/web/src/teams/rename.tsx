@@ -1,6 +1,7 @@
+import { check } from '../lib/legacy-editing-api.js';
 import { useEffect, useMemo, useState } from '../lib/preact.js';
 import { resource } from '../lib/resource.js';
-import { call, check, problemText } from '../lib/api.js';
+import { call, problemText } from '../lib/api.js';
 import type { Schemas } from '../lib/api.js';
 import { projectOfGroup } from '../lib/copy.js';
 import { renamed, renameDirty, groupOfRecord } from './state.js';
