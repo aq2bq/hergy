@@ -10,16 +10,15 @@ import { Measure } from '../lib/measure.js';
 import { Field } from '../lib/field.js';
 import {
   PLACES, LNAME, HQ, GROUPED, state, roles, teams, currentProjectName, CURRENT, roleGroups, groupOfRow,
-  live, eff, cur, curName, whoReads, projectNameOf, pathOfRow, issuesOf, rowIssues, checks,
+  live, eff, cur, curName, whoReads, projectNameOf, pathOfRow, issuesOf, rowIssues, checkOf,
   rowOfPanel, filtering, ruleShown, filterCount, FILTERS, okOf, refusalOf, touch, scheduleCheck,
-  focusAsk, withEntry, clone, pressToggle, pressFilter, pressNew, pressPmode,
+  focusAsk, changeDraft, pressToggle, pressFilter, pressNew, pressPmode,
   pressDup, pressCopy, pressDiscard, pressSearch, pressTab, pressGoto, canCopy,
   doSave, doDelete, syncURL, conflictAt, pressOverwrite, pressRevertConflict, pressUndoConflict,
 } from './state.js';
 import { ConflictNotice } from '../lib/conflict.js';
 import { movePage } from '../lib/page-position.js';
 import { RuleDoc, Counts, Badge } from '../lib/ruledoc.js';
-import { dirty as changedDirty, lost as changedLost, roleDirty, ROLE_DOC } from '../lib/changed.js';
 import type { RuleIssue } from '../lib/ruledoc.js';
 import type { Place, RoleGroup, RoleRow } from './state.js';
 import { AssignPage } from './assign.js';
@@ -111,7 +110,7 @@ function Role({ r }: { r: RoleRow }) {
 }
 
 // unsaved is whether a row holds more than the files do.
-const unsaved = (r: RoleRow): boolean => PLACES.some((l) => r[l] && roleDirty(r[l]!, r.born));
+const unsaved = (r: RoleRow): boolean => PLACES.some((l) => r[l] && r[l]!.editing.dirty.value);
 
 const readersCell = (r: RoleRow) => {
   if (!GROUPED) {
@@ -162,7 +161,7 @@ function sumInner(r: RoleRow) {
   const d = cur(r), saved = live(r, 'project') || live(r, 'global');
   const readers = whoReads(curName(r), r.group);
   const issues = rowIssues(r);
-  const size = checks.value[r.uid + eff(r)];
+  const size = checkOf(r, eff(r));
   const teamIds = [...new Set(readers.map((x) => x.t.id))];
   return <><button type="button" class="chev disclosure" aria-label={`${r.markdown ? r.name : curName(r)} を開閉する`} aria-expanded={state.value.open.has(r.uid)} onClick={(e) => { e.stopPropagation(); pressToggle(r.uid); }}></button>
       <span class="c-name"><span class="nm">{d.name ? d.name : <span class="none">—</span>}</span>{r.mark ? <span class={'state ' + (r.mark === 'hidden' ? 'off' : 'on')}>{r.mark === 'hidden' ? '無効' : '優先'}</span> : ''}<span class="ttl">{d.title}</span>{r.isNew ? <span class="tag">新規</span> : ''}{saved ? <Badge list={issues} /> : readers.length ? <span class="sev err">問題 {readers.length}</span> : ''}</span>
@@ -195,12 +194,6 @@ function usage(r: RoleRow) {
 
 // onChange is the shared part saying the document it was handed changed: the row
 // gets a new draft (a copy), the band's dot moves, and the check rides on it.
-function onChangeDraft(r: RoleRow, l: Place): void {
-  withEntry(r.uid, l, (e) => ({ ...e, draft: clone(e.draft) }));
-  touch();
-  scheduleCheck(r, l);
-}
-
 // Panel is one place's document: the head (where it stands, the 編集 / Markdown
 // switch), the shared part's drawing of the document, and the foot (保存, what
 // changed, 複製 / 削除).
@@ -222,10 +215,9 @@ function Panel({ r, l }: { r: RoleRow; l: Place }) {
   // same answer until the next check speaks.
   const nameIssue = issues.find((m) => m.f === 'name' && m.sev === 'err');
   const nameError = nameIssue ? nameIssue.text : (refusal && refusal.at === 'name' ? refusal.text : '');
-  const n = roleDirty(e, r.born) ? 1 : 0;
-  const before = new Set((e.saved && e.__savedIssues ? e.__savedIssues : issues).filter((m) => m.sev === 'err').map((m) => m.text));
-  const grew = issues.filter((m) => m.sev === 'err' && !before.has(m.text));
-  const blocked = !!nameIssue || (!e.saved ? issues.some((m) => m.sev === 'err') : (grew.length > 0 || n === 0));
+  const n = e.editing.dirty.value ? 1 : 0;
+  const grew = e.editing.grew.value;
+  const blocked = e.editing.blocked.value;
   // held is why 保存 is shut, in the server's own sentences (ac-456e): the save's
   // refusal, the name's problem, and the errors the row grew over the document it
   // reads. A rule's problem is drawn where the rule stands and a folded rule shows
@@ -246,9 +238,9 @@ function Panel({ r, l }: { r: RoleRow; l: Place }) {
             // Compared with what the row was made with, through the one owner
             // (r-d480, r-1e9a). A row with no born has nothing to compare, so it
             // goes; there is no template to compare with.
-            const untouched = !r.born || !changedDirty(ROLE_DOC, r.born, { name: e.draft.name, title: e.draft.title || '', text: e.draft.text });
+            const untouched = !e.editing.bornLost.value.length;
             if (untouched) { pressDiscard(r.uid, l); return; }
-            runDanger('discardRow', { run: () => pressDiscard(r.uid, l), lost: changedLost(ROLE_DOC, r.born || null, { name: e.draft.name, title: e.draft.title || '', text: e.draft.text }), confirm: { title: '入力した内容を捨てますか', label: '破棄する' } });
+            runDanger('discardRow', { run: () => pressDiscard(r.uid, l), lost: e.editing.bornLost.value, confirm: { title: '入力した内容を捨てますか', label: '破棄する' } });
           }}>取り消し</button>
             : <button class="btn danger" data-act="del" data-danger data-danger-act="deleteRole" onClick={() => runDanger('deleteRole', { run: () => doDelete(r.uid, l), loss: { kind: 'role', name: d.name, place: l, project: groupOfRow(r) }, confirm: { title: `ロール ${d.name} を削除しますか`, label: `削除する${nread ? `（${nread} 人が読んでいる）` : ''}` } })}>削除</button>}
         </span></header>
@@ -256,7 +248,8 @@ function Panel({ r, l }: { r: RoleRow; l: Place }) {
           id: `role-${r.uid}-${l}`, compact: true, path: `${placeLabel} · roles/${d.name}.md`, fullPath: pathOfRow(r, l, d), state: (n ? '未保存' : '保存済み') + (shadowed ? '（無効）' : ''), members: whoReads(row.draft.name, r.group).map((u) => `${u.t.id}: ${u.m.name}`).join('、') }}
         filtering={filtering()} query={state.value.q}
         readerCount={(name: string) => whoReads(name, GROUPED ? CURRENT : '').length}
-        onChange={() => onChangeDraft(r, l)}
+        onDraft={(draft) => { changeDraft(r.uid, l, draft); touch(); scheduleCheck(r, l); }}
+        rename={{ value: e.editing.read.value.rename, change: (on) => e.editing.renameUsers(on) }}
         onMode={(v: 'edit' | 'md') => pressPmode(r.uid, l, v)}
         onURL={() => syncURL(false)} /></div>
       {hold ? <ConflictNotice c={hold.c} mine={e.text || ''} undone={hold.undone}

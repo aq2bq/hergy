@@ -17,7 +17,7 @@ import {
 } from "./nav-zn7g81kr.js";
 import {
   read2
-} from "./nav-5wk0yvna.js";
+} from "./nav-ghcq2kwy.js";
 
 // lib/confirm.tsx
 var confirmAsk = y(null);

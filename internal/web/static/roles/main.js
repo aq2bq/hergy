@@ -16,45 +16,40 @@ import {
   u
 } from "../chunk/nav-zn7g81kr.js";
 import {
-  del2,
   saved2,
   bases2,
-  problemText2,
   roleModel2,
   teamModel2
-} from "../chunk/nav-5wk0yvna.js";
+} from "../chunk/nav-ghcq2kwy.js";
 import {
   runDanger
-} from "../chunk/nav-n7k9prc1.js";
+} from "../chunk/nav-me9ek2sz.js";
 import {
   takeDraft2,
   setDirty2
-} from "../chunk/nav-6xksh4n8.js";
+} from "../chunk/nav-fsrd36y0.js";
 import {
   Measure,
-  renameCarries2,
   fromJSON2,
-  toDoc2,
   Counts2,
   Badge2,
   Vm2,
   RuleDoc2
-} from "../chunk/nav-3zkakthz.js";
+} from "../chunk/nav-btmsht8f.js";
 import {
-  conflictOf,
   ConflictNotice,
+  roleProblems,
+  resourceIdentity,
+  editRole,
+  restoreRole,
+  editRoleAssignments,
   YamlTab2
-} from "../chunk/nav-9as7qv3s.js";
-import {
-  save2,
-  roleEditor,
-  roleProblems
-} from "../chunk/nav-e8h9vhqq.js";
+} from "../chunk/nav-0fkstt2f.js";
 import {
   copyGroupOf,
   projectOfGroup,
   ProjectView
-} from "../chunk/nav-hcs16qxf.js";
+} from "../chunk/nav-b3v9q990.js";
 import {
   Field
 } from "../chunk/nav-9htrbyn7.js";
@@ -68,16 +63,8 @@ import {
   rowsFor
 } from "../chunk/nav-hr74m0fy.js";
 import {
-  snapshot,
-  dirty,
-  lost,
-  ROLE_DOC,
-  PROFILE_ASSIGN,
-  YAML_TEXT,
-  roleDirty,
-  assignDirty,
-  yamlDirty
-} from "../chunk/nav-36f6dmhj.js";
+  assignDirty
+} from "../chunk/nav-w5ecmbs1.js";
 import"../chunk/nav-74jj0fve.js";
 
 // roles/state.ts
@@ -101,12 +88,6 @@ var LNAME = { project: "プロジェクト", global: "グローバル" };
 var clone = (o) => structuredClone(o);
 var other = (l) => l === "project" ? "global" : "project";
 var uid = 0;
-var refusalAt = (err) => {
-  if (typeof err !== "object" || err === null || !("json" in err))
-    return;
-  const json = err.json;
-  return typeof json === "object" && json !== null && "at" in json ? json.at : undefined;
-};
 var HQ = ISLAND.hq || null;
 var GROUPED = !!(HQ && HQ.projects && HQ.projects.mode === "listed");
 var CURRENT = GROUPED && HQ ? HQ.projects.current && HQ.projects.current.path || "" : "";
@@ -128,6 +109,29 @@ var currentGroupName = () => {
   const found = (p.projects || []).find((x) => x.path === CURRENT);
   return found ? found.name : p.current && p.current.name || "";
 };
+function entryOf(l, group, data) {
+  const identity = resourceIdentity("role", { place: l, project: projectOfGroup(group), name: data.saved?.name });
+  const editing = editRole(identity, { ...data, saved: data.saved && identity.name ? { ...data.saved, name: identity.name } : null, readable: !data.problem });
+  return entryView(editing, data.problem);
+}
+function entryView(editing, problem) {
+  return {
+    editing,
+    problem,
+    get saved() {
+      return editing.read.value.saved;
+    },
+    get draft() {
+      return editing.read.value.draft;
+    },
+    get hash() {
+      return editing.read.value.hash;
+    },
+    get text() {
+      return editing.read.value.text || "";
+    }
+  };
+}
 function rowsOf(model, group) {
   const out = [];
   for (const r of model.roles) {
@@ -143,9 +147,7 @@ function rowsOf(model, group) {
       if (r[l]) {
         const draft = fromJSON2(r[l]);
         const saved = r.noDoc || r[l].problem ? null : draft;
-        row[l] = { saved, draft: clone(draft), hash: r[l].hash || "", text: r[l].text || "" };
-        if (r[l].problem)
-          row[l].problem = r[l].problem;
+        row[l] = entryOf(l, row.group, { saved, draft, hash: r[l].hash || "", text: r[l].text || "", problem: r[l].problem });
         if (r[l].path)
           row.paths[l] = r[l].path;
       } else {
@@ -154,8 +156,6 @@ function rowsOf(model, group) {
     }
     if (r.mark)
       row.mark = r.mark;
-    if (r.noDoc && row.project)
-      row.born = snapshot({ name: row.project.draft.name, title: row.project.draft.title || "", text: row.project.draft.text });
     if (!row.project && !row.global)
       continue;
     if (r.noDoc)
@@ -208,16 +208,9 @@ var state = y({
   filter: null,
   q: "",
   roleHi: null,
-  ok: {},
   yfile: null,
-  pmode: {},
-  refusals: {},
-  teamErrors: {},
-  conflicts: {}
+  pmode: {}
 });
-var checks = y({});
-var ychecks = y({});
-var okShowing = y({});
 var focusAsk = y(null);
 var gotoAsk = y(null);
 var patch = (part) => {
@@ -235,7 +228,20 @@ var askFocus = (id, sel, opts) => {
 var askGoto = (team, member, i) => {
   gotoAsk.value = { team, member, i, seq: (gotoAsk.value && gotoAsk.value.seq || 0) + 1 };
 };
-var TEAMS = teamModel2(ISLAND.team || null).teams.map((t) => ({ ...t, group: currentGroup() }));
+var TEAMS = teamModel2(ISLAND.team || null).teams.map((t) => {
+  const editing = editRoleAssignments(resourceIdentity("team", { place: t.place, project: projectOfGroup(currentGroup()), name: t.id }), t.members, t.hash);
+  return {
+    ...t,
+    group: currentGroup(),
+    editing,
+    get hash() {
+      return editing.read.value.hash;
+    },
+    get members() {
+      return editing.read.value.draft.map((m) => ({ name: m.name, draft: m.role, saved: editing.read.value.saved?.find((p) => p.name === m.name)?.role || "" }));
+    }
+  };
+});
 var teams = y(TEAMS);
 var hqTeams = [];
 if (GROUPED && HQ) {
@@ -284,120 +290,75 @@ var withRow = (id, fn) => {
   const one = Number(id);
   roles.value = roles.value.map((r) => r.uid === one ? fn(r) : r);
 };
-var withEntry = (id, l, fn) => withRow(id, (r) => r[l] ? { ...r, [l]: fn(r[l]) } : r);
-function touch() {
-  okShowing.value = { ...state.value.ok };
-  if (Object.keys(state.value.ok).length)
-    patch({ ok: {} });
+function changeDraft(id, l, draft) {
+  byUid(id)?.[l]?.editing.change(draft);
+}
+function touch(savedKeys = []) {
+  allEntries().forEach(({ r, l, e }) => {
+    if (!savedKeys.includes(keyOf(r, l)))
+      e.editing.dismissSaved();
+  });
+  teams.value.forEach((t) => {
+    if (!savedKeys.includes("t" + t.id))
+      t.editing.dismissSaved();
+  });
   redraw();
 }
 function redraw() {
   roles.value = roles.value.slice();
   tellDirty();
 }
-var editors = new Map;
-function editorFor(k) {
-  let one = editors.get(k);
-  if (!one) {
-    one = roleEditor();
-    editors.set(k, one);
-  }
-  return one;
-}
-var checkerFor = (k) => editorFor(k).check;
 var timers = {};
 var keyOf = (r, l) => r.uid + l;
-var convertProblems = roleProblems;
-function issuesOf(r, l) {
-  const c = checks.value[keyOf(r, l)];
-  return c ? c.issues : [];
-}
-function rowOfPanel(r, l) {
-  const e = r[l], c = checks.value[keyOf(r, l)];
-  if (!e)
-    return null;
-  return {
-    uid: r.uid,
-    l,
-    e,
-    saved: e.saved,
-    draft: e.draft,
-    issues: c ? c.issues : [],
-    markdown: c ? c.markdown : { lines: [], chars: 0 },
-    diff: c ? c.diff : { added: [], removedBefore: [], removedAtEnd: false },
-    savedIssues: e.__savedIssues
-  };
-}
-async function askCheck(r, l, cb) {
-  if (!r)
-    return;
+var entryAt = (key) => allEntries().find(({ r, l }) => keyOf(r, l) === key)?.e;
+function checkOf(r, l) {
   const e = r[l];
   if (!e)
-    return;
-  const k = keyOf(r, l);
-  const answer = await checkerFor(k).run({
-    place: l,
-    original: e.saved ? e.saved.name : null,
-    project: projectOfGroup(r.group),
-    doc: toDoc2(e.draft, e.saved || e.base || null)
-  });
-  const c = answer && answer.json;
-  if (!c || !c.problems)
-    return;
-  const issues = convertProblems(e.draft, c.problems);
-  checks.value = {
-    ...checks.value,
-    [k]: {
-      issues,
-      markdown: c.preview || { lines: [], chars: 0 },
-      diff: c.effect?.diff || { added: [], removedBefore: [], removedAtEnd: false },
-      readers: c.readers || null,
-      size: c.size,
-      limit: c.limit
-    }
+    return null;
+  const c = e.editing.validation.value;
+  return {
+    issues: issuesOf(r, l),
+    markdown: c.preview ? clone(c.preview) : { lines: [], chars: 0 },
+    diff: c.effect?.diff ? clone(c.effect.diff) : { added: [], removedBefore: [], removedAtEnd: false },
+    readers: c.readers ? clone(c.readers) : null,
+    size: c.size,
+    limit: c.limit
   };
-  const shown = state.value.refusals[k];
-  if (shown && shown.at === "name" && !issues.some((m) => m.f === "name")) {
-    const next = { ...state.value.refusals };
-    delete next[k];
-    patch({ refusals: next });
-  }
-  if (cb)
-    cb();
+}
+function issuesOf(r, l) {
+  const e = r[l];
+  return e ? roleProblems(e.draft, e.editing.read.value.problems.map((p) => ({ ...p }))) : [];
+}
+function rowOfPanel(r, l) {
+  const e = r[l], c = checkOf(r, l);
+  if (!e || !c)
+    return null;
+  return { uid: r.uid, l, saved: e.saved, draft: clone(e.draft), issues: c.issues, markdown: c.markdown, diff: c.diff };
+}
+async function askCheck(r, l, cb) {
+  const e = r?.[l];
+  if (!e)
+    return;
+  await e.editing.check();
+  cb?.();
 }
 function scheduleCheck(r, l) {
   const k = keyOf(r, l);
   clearTimeout(timers[k]);
-  timers[k] = setTimeout(() => askCheck(r, l, () => {
-    updateRowSummary(r.uid);
-    redraw();
-  }), 300);
+  timers[k] = setTimeout(() => askCheck(byUid(r.uid), l, () => redraw()), 300);
 }
 var clearTimer = (r, l) => clearTimeout(timers[keyOf(r, l)]);
-function updateRowSummary(id) {
-  const r = byUid(id);
-  if (!r)
-    return;
-  const entries = {};
-  PLACES.forEach((l) => {
-    const entry = r[l];
-    if (!entry || !entry.saved)
-      return;
-    const c = checks.value[keyOf(r, l)];
-    if (c)
-      entries[l] = { ...entry, __savedIssues: c.issues };
-  });
-  if (Object.keys(entries).length)
-    withRow(id, (old) => ({ ...old, ...entries }));
-}
-var okOf = (k) => !!okShowing.value[k];
-var refusalOf = (k) => state.value.refusals[k] || null;
-var teamErrorOf = (id) => state.value.teamErrors[id] || "";
+var okOf = (key) => key.startsWith("t") ? !!teams.value.find((t) => "t" + t.id === key)?.editing.read.value.savedLine : !!entryAt(key)?.editing.read.value.savedLine;
+var refusalOf = (key) => {
+  const state = entryAt(key)?.editing.read.value;
+  return state?.refusal ? { at: state.refusalAt || "doc", text: state.refusal } : null;
+};
+var teamErrorOf = (id) => teams.value.find((t) => t.id === id)?.editing.read.value.refusal || "";
 function openNewPanel(r) {
   const l = eff(r), e = r[l];
   if (!e)
     return;
-  if (!checks.value[keyOf(r, l)])
+  if (!e.editing.read.value.checked)
     askCheck(r, l, () => touch());
 }
 function parseURL() {
@@ -479,66 +440,27 @@ var rowIssues = (r) => PLACES.filter((l) => r[l]).flatMap((l) => issuesOf(r, l))
 function filterCount(f) {
   return roles.value.filter((r) => !f || rowIssues(r).length > 0).length;
 }
-var ykey = (place, name) => place + "." + name;
-var ychecksOf = (place, name) => ychecks.value[ykey(place, name)];
-var setYchecks = (place, name, list) => {
-  ychecks.value = { ...ychecks.value, [ykey(place, name)]: list };
-};
-var filesList = () => allEntries().filter((entry) => (!!entry.e.saved || !!entry.e.problem) && live(entry.r, entry.l) && (!GROUPED || entry.r.group === CURRENT || entry.r.group === "global")).map((entry) => ({ ...entry, e: { ...entry.e, saved: entry.e.saved || { name: curName(entry.r), title: "", text: "", __path: entry.r.paths?.[entry.l] } } }));
-var docText = (r, l) => {
-  const e = r[l];
-  return e && e.ytext !== undefined ? e.ytext : e && e.text || "";
-};
-function showRefusal(key, at, text) {
-  patch({ refusals: { ...state.value.refusals, [key]: { at: at === "name" ? "name" : "doc", text: text || "保存できませんでした" } } });
-  touch();
-}
-function clearRefusal(key) {
-  if (!state.value.refusals[key])
-    return;
-  const next = { ...state.value.refusals };
-  delete next[key];
-  patch({ refusals: next });
-  touch();
-}
-var conflictAt = (key) => state.value.conflicts[key] || null;
-function clearConflict(key) {
-  if (!state.value.conflicts[key])
-    return;
-  const next = { ...state.value.conflicts };
-  delete next[key];
-  patch({ conflicts: next });
-}
+var filesList = () => allEntries().filter((entry) => !!entry.e.saved && live(entry.r, entry.l) && (!GROUPED || entry.r.group === CURRENT || entry.r.group === "global"));
+var conflictAt = (key) => entryAt(key)?.editing.read.value.conflict || null;
 function pressOverwrite(id, l) {
-  const hold = conflictAt(id + l);
-  if (!hold)
-    return;
-  doSave(id, l, hold.c.file.hash || "");
+  saveRole(id, l, true);
 }
 function pressRevertConflict(id, l) {
-  const key = id + l;
-  const hold = conflictAt(key);
   const r = byUid(id);
-  const entry = r && r[l];
-  if (!hold || !entry || !hold.c.file.doc)
-    return;
-  const doc = fromJSON2(hold.c.file.doc);
-  const before = { draft: clone(entry.draft), saved: entry.saved ? clone(entry.saved) : null, hash: entry.hash, text: entry.text };
-  withEntry(id, l, (e) => ({ ...e, draft: clone(doc), saved: clone(doc), hash: hold.c.file.hash || "", text: hold.c.file.text || "" }));
-  patch({ conflicts: { ...state.value.conflicts, [key]: { c: hold.c, undone: true, before } } });
-  askCheck(byUid(id), l, () => touch());
+  r?.[l]?.editing.readConflict();
+  askCheck(r, l, () => touch());
   touch();
 }
 function pressUndoConflict(id, l) {
-  const key = id + l;
-  const hold = conflictAt(key);
-  const before = hold && hold.before;
-  if (!hold || !before)
-    return;
-  withEntry(id, l, (e) => ({ ...e, draft: clone(before.draft), saved: before.saved ? clone(before.saved) : null, hash: before.hash, text: before.text }));
-  clearConflict(key);
-  askCheck(byUid(id), l, () => touch());
+  const r = byUid(id);
+  r?.[l]?.editing.undoConflict();
+  askCheck(r, l, () => touch());
   touch();
+}
+function yamlSaved(r, l, answer) {
+  rebase(answer.json, r.group || "");
+  askCheck(byUid(r.uid), l, () => redraw());
+  tellDirty();
 }
 function pressToggle(idPressed) {
   const r = byUid(idPressed);
@@ -568,8 +490,7 @@ function pressNew(group) {
   const key = group === undefined ? roleGroups()[0].key : group;
   const place = key === "global" ? "global" : "project";
   const nr = { uid: nextUid(), isNew: true, group: key, project: null, global: null };
-  nr[place] = { saved: null, draft: d, hash: "", text: "" };
-  nr.born = snapshot({ name: d.name, title: d.title || "", text: d.text });
+  nr[place] = entryOf(place, key, { saved: null, draft: d, hash: "", text: "" });
   const order = roleGroups().map((g) => g.key);
   const rank = order.indexOf(key);
   let at = roles.value.findIndex((r) => groupOfRow(r) === key);
@@ -592,20 +513,16 @@ function pressPmode(id, l, v) {
   patch({ pmode: { ...state.value.pmode, [id + l]: v } });
   touch();
 }
-var basePlaceOf = (r, l) => {
-  const group = groupOfRow(r);
-  return { place: l, name: r[l] && r[l].saved ? r[l].saved.name : "", project: projectOfGroup(l === "global" ? "global" : group) };
-};
+var basePlaceOf = (r, l) => resourceIdentity("role", { place: l, name: r[l]?.saved?.name, project: projectOfGroup(l === "global" ? "global" : groupOfRow(r)) });
 function pressDup(id, l) {
   const r = byUid(id);
   const src = r && r[l] && r[l].saved;
   if (!src)
     return;
-  const d = clone(src);
+  const d = { ...src };
   d.name += "-2";
   const nr = { uid: nextUid(), isNew: true, group: r.group, project: null, global: null };
-  nr[l] = { saved: null, draft: d, base: clone(src), basePlace: basePlaceOf(r, l), hash: "", text: "" };
-  nr.born = { name: d.name, title: d.title || "", text: d.text };
+  nr[l] = entryOf(l, r.group, { saved: null, draft: d, base: basePlaceOf(r, l), hash: "", text: "" });
   const at = roles.value.indexOf(r);
   roles.value = [...roles.value.slice(0, at + 1), nr, ...roles.value.slice(at + 1)];
   const open = new Set(state.value.open);
@@ -622,11 +539,9 @@ function pressCopy(id, l) {
   if (!r || !r[l] || !r[l].saved)
     return;
   const to = other(l);
-  const e = { saved: null, draft: clone(r[l].saved), base: clone(r[l].saved), basePlace: basePlaceOf(r, l), hash: "", text: "" };
   const group = copyGroupOf(to, groupOfRow(r), CURRENT);
   const nr = { uid: nextUid(), isNew: true, group, project: null, global: null };
-  nr[to] = e;
-  nr.born = snapshot({ name: e.draft.name, title: e.draft.title || "", text: e.draft.text });
+  nr[to] = entryOf(to, group, { saved: null, draft: clone(r[l].saved), base: basePlaceOf(r, l), hash: "", text: "" });
   const order = roleGroups().map((g) => g.key);
   const rank = order.indexOf(group);
   let at = roles.value.findIndex((x) => groupOfRow(x) === group);
@@ -662,13 +577,14 @@ function pressDiscard(id, l) {
     return;
   const entry = r[l];
   if (entry && entry.saved) {
-    withEntry(id, l, (e) => ({ ...e, draft: clone(entry.saved) }));
+    entry.editing.discard();
   } else {
+    entry?.editing.dispose();
     withRow(id, (old) => ({ ...old, [l]: null }));
   }
   const after = byUid(id);
   if (after && !after.project && !after.global) {
-    roles.value = roles.value.filter((x) => x.uid !== id);
+    roles.value = roles.value.filter((x) => x.uid !== Number(id));
     const open = new Set(state.value.open);
     open.delete(Number(id));
     patch({ open });
@@ -701,7 +617,8 @@ function pickRole(id, i, value) {
   const t = teams.value.find((x) => x.id === id);
   if (!t)
     return;
-  teams.value = teams.value.map((one) => one.id !== id ? one : { ...one, members: one.members.map((m, j) => j === Number(i) ? { ...m, draft: value } : m) });
+  const name = t.members[Number(i)]?.name;
+  t.editing.change((members) => members.map((m) => m.name === name ? { ...m, role: value } : m));
   touch();
 }
 function pressYfile(key) {
@@ -712,230 +629,172 @@ function pressYfile(key) {
 function setYfile(key) {
   patch({ yfile: key });
 }
-function setYtext(r, l, text) {
-  withEntry(r.uid, l, (e) => ({ ...e, ytext: text }));
-}
-function pressYamlRevert(r, l) {
-  if (r && r[l]) {
-    withEntry(r.uid, l, (e) => {
-      const next = { ...e };
-      delete next.ytext;
-      return next;
-    });
-    tellDirty();
-  }
-}
 function rebase(answer, group) {
   const files = bases2(answer);
   if (!files.length)
     return;
-  roles.value = roles.value.map((r) => {
+  for (const r of roles.value) {
     if ((r.group || "") !== group)
-      return r;
-    let row = r;
+      continue;
     for (const b of files) {
       const l = b.place === "project" ? "project" : b.place === "global" ? "global" : null;
-      const e = l ? row[l] : null;
-      if (!l || !e || !e.saved || e.saved.name !== b.name || e.hash === b.hash)
-        continue;
-      row = { ...row, [l]: { ...e, hash: b.hash } };
+      const e = l ? r[l] : null;
+      if (e?.saved?.name === b.name && e.hash !== b.hash)
+        e.editing.rebase(b.hash);
     }
-    return row;
-  });
-}
-async function doSave(id, l, over) {
-  const r = byUid(id);
-  const e = r && r[l];
-  if (!e)
-    return;
-  const key = id + l;
-  const keepRename = renameCarries2(key);
-  const payload = { place: l, original: e.saved ? e.saved.name : null, doc: toDoc2(e.draft, e.saved || e.base || null), rename_users: keepRename, hash: over === undefined ? e.hash || "" : over };
-  payload.project = projectOfGroup(r.group);
-  if (e.basePlace)
-    payload.base = e.basePlace;
-  let res;
-  try {
-    res = await editorFor(keyOf(r, l)).save(e.draft.name || (e.saved ? e.saved.name : "_"), payload);
-  } catch (err) {
-    const c = conflictOf(err);
-    if (c) {
-      patch({ conflicts: { ...state.value.conflicts, [key]: { c } } });
-      return;
-    }
-    showRefusal(key, refusalAt(err), problemText2(err, "保存できませんでした"));
-    return;
   }
-  clearRefusal(key);
-  clearConflict(key);
-  const json = res.json;
-  if (!json)
+}
+async function doSave(id, l) {
+  await saveRole(id, l);
+}
+async function saveRole(id, l, overwrite = false) {
+  const r = byUid(id), e = r?.[l];
+  if (!r || !e)
     return;
-  const now = byUid(id);
-  const cur0 = now && now[l];
-  if (!cur0)
+  const old = e.saved?.name;
+  const keepRename = e.editing.read.value.rename;
+  const answer = await (overwrite ? e.editing.overwrite() : e.editing.save());
+  if (!answer?.json || byUid(id)?.[l]?.editing !== e.editing)
     return;
-  const old = cur0.saved;
-  const newName = cur0.draft.name;
-  const saved = json.doc ? fromJSON2(json.doc) : clone(cur0.draft);
-  withEntry(id, l, (one) => {
-    const next = { ...one, hash: json.hash || one.hash, saved, draft: clone(saved) };
-    if (typeof json.text === "string")
-      next.text = json.text;
-    delete next.base;
-    delete next.basePlace;
-    delete next.ytext;
-    return next;
-  });
-  withRow(id, (one) => {
-    const next = { ...one };
+  const newName = e.saved?.name || "";
+  withRow(id, (row) => {
+    const next = { ...row };
     delete next.isNew;
     delete next.noDoc;
     return next;
   });
-  if (old && old.name !== newName && keepRename) {
-    teams.value = teams.value.map((t) => ({
-      ...t,
-      members: t.members.map((m) => ({ ...m, saved: m.saved === old.name ? newName : m.saved, draft: m.draft === old.name ? newName : m.draft }))
-    }));
-    const o = other(l);
-    if (!GROUPED && now[o]) {
-      const split = { uid: nextUid(), project: null, global: null, group: now.group };
-      split[o] = now[o];
-      const at = roles.value.findIndex((x) => x.uid === id);
+  if (old && old !== newName && keepRename) {
+    teams.value.forEach((team) => team.editing.renameRole(old, newName));
+    const otherPlace = other(l);
+    if (!GROUPED && r[otherPlace]) {
+      const split = { uid: nextUid(), project: null, global: null, group: r.group };
+      split[otherPlace] = r[otherPlace];
+      const at = roles.value.findIndex((x) => x.uid === Number(id));
       roles.value = [...roles.value.slice(0, at + 1), split, ...roles.value.slice(at + 1)];
-      withRow(id, (one) => ({ ...one, [o]: null }));
+      withRow(id, (row) => ({ ...row, [otherPlace]: null }));
     }
   }
-  setYchecks(l, newName, undefined);
-  patch({ ok: { ...state.value.ok, [key]: 1 } });
-  rebase(json, r.group || "");
-  await askCheck(byUid(id), l, null);
-  touch();
+  rebase(answer.json, r.group || "");
+  await askCheck(byUid(id), l);
+  touch([keyOf(r, l)]);
   syncURL(false);
   saved2();
 }
 async function doDelete(id, l) {
-  const r = byUid(id);
-  const e = r && r[l];
-  if (!e || !e.saved)
+  const r = byUid(id), e = r?.[l];
+  if (!r || !e?.saved)
     return;
-  try {
-    await del2("role", e.saved.name, l, e.hash || "", undefined, projectOfGroup(r.group));
-  } catch (err) {
-    showRefusal(id + l, refusalAt(err), problemText2(err, "削除できませんでした"));
+  const answer = await e.editing.remove();
+  if (!answer || byUid(id)?.[l]?.editing !== e.editing) {
+    touch();
     return;
   }
-  setYchecks(l, e.saved.name, undefined);
-  withRow(id, (one) => ({ ...one, [l]: null }));
+  clearTimer(r, l);
+  e.editing.dispose();
+  withRow(id, (row) => ({ ...row, [l]: null }));
   const after = byUid(id);
-  if (!after)
-    return;
-  if (!after.project && !after.global) {
+  if (after && !after.project && !after.global) {
     roles.value = roles.value.filter((x) => x.uid !== Number(id));
     const open = new Set(state.value.open);
     open.delete(Number(id));
     patch({ open, tab: "roles" });
-  } else {
+  } else
     patch({ tab: "roles" });
-  }
   touch();
   syncURL(false);
 }
 async function doAssignSave(id) {
-  const t = teams.value.find((x) => x.id === id);
-  if (!t)
+  const team = teams.value.find((t) => t.id === id);
+  if (!team?.editing.dirty.value)
     return;
-  const changes = t.members.filter((m) => assignDirty(m)).map((m) => ({ member: m.name, role: m.draft }));
-  if (!changes.length)
-    return;
-  let res;
-  try {
-    const request = { place: t.place || "project", part: "team", hash: t.hash || "", doc: { ops: changes.map((m) => ({ kind: "memberRole", member: m.member, role: m.role })) } };
-    res = await save2("team", id, request);
-  } catch (err) {
-    patch({ teamErrors: { ...state.value.teamErrors, [id]: problemText2(err, "保存できませんでした") } });
+  const answer = await team.editing.save();
+  if (!answer?.json) {
     touch();
     return;
   }
-  const json = res.json;
-  if (!json)
-    return;
-  const nextErrors = { ...state.value.teamErrors };
-  delete nextErrors[id];
-  patch({ teamErrors: nextErrors, ok: { ...state.value.ok, ["t" + id]: 1 } });
-  teams.value = teams.value.map((one) => one.id !== id ? one : {
-    ...one,
-    hash: json.hash || one.hash,
-    members: one.members.map((m) => ({ ...m, saved: m.draft }))
-  });
   for (const r of savedRoles())
-    await askCheck(r, eff(r), null);
-  touch();
+    await askCheck(r, eff(r));
+  touch(["t" + id]);
   saved2();
 }
-function dirty2() {
-  const rows = roles.value.some((r) => PLACES.some((l) => r[l] && roleDirty(r[l], r.born)));
-  const members = teams.value.some((t) => t.members.some((m) => assignDirty(m)));
-  const ytexts = allEntries().some(({ e }) => yamlDirty(e.text || "", e.ytext));
+function dirty() {
+  const rows = roles.value.some((r) => PLACES.some((l) => r[l] && r[l].editing.dirty.value));
+  const members = teams.value.some((t) => t.editing.dirty.value);
+  const ytexts = allEntries().some(({ e }) => e.editing.yaml.dirty.value);
   return rows || members || ytexts;
 }
 function tellDirty() {
-  setDirty2(dirty2());
+  setDirty2(dirty());
 }
-function lost2() {
+function lost() {
   const out = [];
   for (const r of roles.value)
     for (const l of PLACES) {
       const e = r[l];
-      if (!e || !roleDirty(e, r.born))
+      if (!e || !e.editing.dirty.value)
         continue;
-      out.push(...lost(ROLE_DOC, e.saved || r.born || null, e.draft, !e.problem));
+      out.push(...e.editing.lost.value);
     }
   for (const t of teams.value)
     for (const m of t.members) {
       if (!assignDirty(m))
         continue;
-      out.push(...lost(PROFILE_ASSIGN, { picks: [{ member: m.name, role: m.saved }] }, { picks: [{ member: m.name, role: m.draft }] }));
+      out.push(...t.editing.lost.value);
     }
   for (const { e } of allEntries()) {
-    if (!yamlDirty(e.text || "", e.ytext))
+    if (!e.editing.yaml.dirty.value)
       continue;
-    out.push(...lost(YAML_TEXT, { text: e.text || "" }, { text: e.ytext ?? (e.text || "") }));
+    out.push(...e.editing.yaml.lost.value);
   }
   return [...new Set(out)];
 }
 function take() {
-  const rows = [], ytexts = [], members = [];
-  roles.value.forEach((r) => {
-    PLACES.forEach((l) => {
-      const e = r[l];
-      if (!e)
-        return;
-      if (!e.saved) {
-        rows.push({ place: l, group: r.group || "", saved: null, name: e.draft.name, hash: e.hash || "", draft: e.draft, isNew: !!r.isNew, noDoc: !!r.noDoc });
-      } else if (roleDirty(e)) {
-        rows.push({ place: l, group: r.group || "", saved: e.saved.name, name: e.draft.name, hash: e.hash || "", draft: e.draft });
-      }
-      if (yamlDirty(e.text || "", e.ytext)) {
-        ytexts.push({ place: l, group: r.group || "", name: (e.saved || e.draft).name, hash: e.hash || "", text: e.ytext || "" });
-      }
-    });
-  });
-  teams.value.forEach((t) => t.members.forEach((m) => {
-    if (assignDirty(m))
-      members.push({ team: t.id, hash: t.hash || "", name: m.name, saved: m.saved, draft: m.draft });
-  }));
-  return { rows, ytexts, members };
+  return {
+    entries: allEntries().filter(({ e }) => !e.saved || e.editing.dirty.value || e.editing.yaml.dirty.value).map(({ e }) => e.editing.take()),
+    assignments: teams.value.filter((t) => t.editing.dirty.value).map((t) => t.editing.take())
+  };
 }
 function restore(carried) {
+  for (const carry of carried.entries || []) {
+    const existing = allEntries().find(({ e }) => e.editing.matches(carry));
+    if (existing) {
+      if (existing.e.editing.restore(carry))
+        askCheck(existing.r, existing.l);
+      continue;
+    }
+    const group = carry.target.place === "global" ? "global" : carry.target.project || "";
+    if (!roleGroups().some((g) => g.key === group))
+      continue;
+    const l = carry.target.place;
+    const editing = restoreRole(resourceIdentity("role", { place: l, project: projectOfGroup(group) }), carry);
+    if (!editing)
+      continue;
+    const row = { uid: nextUid(), group, isNew: true, project: null, global: null };
+    row[l] = entryView(editing);
+    const at = roles.value.findIndex((r) => groupOfRow(r) === group);
+    const order = roleGroups().map((g) => g.key);
+    const before = at >= 0 ? at : roles.value.findIndex((r) => order.indexOf(groupOfRow(r)) > order.indexOf(group));
+    const index = before >= 0 ? before : roles.value.length;
+    roles.value = [...roles.value.slice(0, index), row, ...roles.value.slice(index)];
+    patch({ open: new Set([...state.value.open, row.uid]) });
+    askCheck(row, l);
+  }
+  for (const carry of carried.assignments || [])
+    teams.value.find((t) => t.editing.matches(carry))?.editing.restore(carry);
   (carried.rows || []).forEach((c) => {
-    const r = roles.value.find((x) => {
+    let r = roles.value.find((x) => {
       if ((x.group || "") !== (c.group || ""))
         return false;
       const entry = x[c.place];
       return c.saved ? !!entry?.saved && entry.saved.name === c.saved : !!entry && !entry.saved && (x.noDoc || x.isNew || entry.draft.name === c.name);
     });
+    if (!r && c.isNew && c.saved === null && c.hash === "" && roleGroups().some((g) => g.key === (c.group || ""))) {
+      r = { uid: nextUid(), group: c.group || "", isNew: true, project: null, global: null };
+      r[c.place] = entryOf(c.place, r.group, { saved: null, draft: { name: "", title: "", text: `## 責務
+` }, hash: "", text: "" });
+      roles.value = [...roles.value, r];
+      patch({ open: new Set([...state.value.open, r.uid]) });
+    }
     if (!r)
       return;
     const e = r[c.place];
@@ -943,7 +802,7 @@ function restore(carried) {
       return;
     if (c.hash && e.hash !== c.hash)
       return;
-    withEntry(r.uid, c.place, (one) => ({ ...one, draft: clone(c.draft) }));
+    e.editing.restore({ hash: c.hash, draft: c.draft });
     if (c.isNew)
       withRow(r.uid, (one) => ({ ...one, isNew: true }));
     clearTimer(r, c.place);
@@ -963,7 +822,7 @@ function restore(carried) {
       return;
     if (c.hash && e.hash !== c.hash)
       return;
-    withEntry(r.uid, c.place, (one) => ({ ...one, ytext: c.text }));
+    e.editing.yaml.restore({ hash: c.hash, draft: c.text });
   });
   (carried.members || []).forEach((c) => {
     const t = teams.value.find((x) => x.id === c.team);
@@ -971,17 +830,14 @@ function restore(carried) {
       return;
     const at = t.members.findIndex((x) => x.name === c.name && x.saved === c.saved);
     if (at >= 0) {
-      teams.value = teams.value.map((one) => one.id !== t.id ? one : { ...one, members: one.members.map((m, i) => i === at ? { ...m, draft: c.draft } : m) });
+      t.editing.change((members) => members.map((m, i) => i === at ? { ...m, role: c.draft } : m));
     }
   });
   touch();
 }
 async function boot() {
   parseURL();
-  await Promise.all(roles.value.flatMap((r) => PLACES.filter((l) => r[l] && r[l].saved).map((l) => askCheck(r, l, () => {
-    updateRowSummary(r.uid);
-  }))));
-  roles.value.forEach((r) => updateRowSummary(r.uid));
+  await Promise.all(roles.value.flatMap((r) => PLACES.filter((l) => r[l] && r[l].saved).map((l) => askCheck(r, l))));
   const carried = takeDraft2("roles");
   if (carried)
     restore(carried);
@@ -1231,38 +1087,21 @@ function YamlFile({ file }) {
       label: LNAME[l],
       path: pathOf(l, e.saved),
       badge: both ? { cls: "state " + (hid ? "off" : "on"), text: hid ? "無効" : "優先" } : null,
-      text: docText(r, l),
+      editing: e.editing.yaml,
+      text: e.editing.yaml.read.value.saved || "",
       hash: e.hash || "",
       kind: "role",
       place: l,
       name,
-      problems: ychecksOf(l, name) || [],
+      problems: e.editing.yaml.read.value.problems.map((p) => ({ ...p })),
       problem: e.problem || "",
-      onProblems: (probs) => setYchecks(l, name, probs),
-      onRevert: () => pressYamlRevert(r, l),
-      onState: ({ text }) => {
-        setYtext(r, l, text);
-        tellDirty();
-      },
-      onSaved: (answer) => {
-        const json = answer.json;
-        if (!json)
-          return;
-        e.hash = json.hash || e.hash;
-        if (typeof json.text === "string")
-          e.text = json.text;
-        if (json.doc && "text" in json.doc) {
-          e.saved = fromJSON2(json.doc);
-          e.draft = clone(e.saved);
-        }
-        e.ytext = undefined;
-      }
+      onState: () => tellDirty(),
+      onSaved: (answer) => yamlSaved(r, l, answer)
     }, keyOfYed(r, l))
   });
 }
-function ychecksText(place, name) {
-  const y = ychecksOf(place, name);
-  return y && y.some((m) => m.sev === "err") ? /* @__PURE__ */ u("span", {
+function ychecksText(file) {
+  return file.e.editing.yaml.read.value.problems.some((p) => p.sev === "err") ? /* @__PURE__ */ u("span", {
     class: "dirty",
     children: "●"
   }) : "";
@@ -1335,7 +1174,7 @@ function YamlPageBody() {
                   /* @__PURE__ */ u("span", {
                     class: "fs",
                     children: [
-                      ychecksText(l, e.saved.name),
+                      ychecksText({ r, l, e }),
                       badgeOrCount(is, e.saved)
                     ]
                   }),
@@ -1596,7 +1435,7 @@ function Role({ r }) {
     ]
   });
 }
-var unsaved = (r) => PLACES.some((l) => r[l] && roleDirty(r[l], r.born));
+var unsaved = (r) => PLACES.some((l) => r[l] && r[l].editing.dirty.value);
 var readersCell = (r) => {
   if (!GROUPED) {
     const ids = [...new Set(whoReads(curName(r), r.group).map((x) => x.t.id))];
@@ -1733,7 +1572,7 @@ function sumInner(r) {
   const d = cur(r), saved = live(r, "project") || live(r, "global");
   const readers = whoReads(curName(r), r.group);
   const issues = rowIssues(r);
-  const size = checks.value[r.uid + eff(r)];
+  const size = checkOf(r, eff(r));
   const teamIds = [...new Set(readers.map((x) => x.t.id))];
   return /* @__PURE__ */ u(S, {
     children: [
@@ -1911,11 +1750,6 @@ function usage(r) {
     ]
   });
 }
-function onChangeDraft(r, l) {
-  withEntry(r.uid, l, (e) => ({ ...e, draft: clone(e.draft) }));
-  touch();
-  scheduleCheck(r, l);
-}
 function Panel({ r, l }) {
   const e = r[l];
   if (!e)
@@ -1933,10 +1767,9 @@ function Panel({ r, l }) {
   const hold = conflictAt(key);
   const nameIssue = issues.find((m) => m.f === "name" && m.sev === "err");
   const nameError = nameIssue ? nameIssue.text : refusal && refusal.at === "name" ? refusal.text : "";
-  const n = roleDirty(e, r.born) ? 1 : 0;
-  const before = new Set((e.saved && e.__savedIssues ? e.__savedIssues : issues).filter((m) => m.sev === "err").map((m) => m.text));
-  const grew = issues.filter((m) => m.sev === "err" && !before.has(m.text));
-  const blocked = !!nameIssue || (!e.saved ? issues.some((m) => m.sev === "err") : grew.length > 0 || n === 0);
+  const n = e.editing.dirty.value ? 1 : 0;
+  const grew = e.editing.grew.value;
+  const blocked = e.editing.blocked.value;
   const held = [];
   const say = (text) => {
     if (text && !held.includes(text))
@@ -1985,12 +1818,12 @@ function Panel({ r, l }) {
                 "data-danger": true,
                 "data-danger-act": "discardRow",
                 onClick: () => {
-                  const untouched = !r.born || !dirty(ROLE_DOC, r.born, { name: e.draft.name, title: e.draft.title || "", text: e.draft.text });
+                  const untouched = !e.editing.bornLost.value.length;
                   if (untouched) {
                     pressDiscard(r.uid, l);
                     return;
                   }
-                  runDanger("discardRow", { run: () => pressDiscard(r.uid, l), lost: lost(ROLE_DOC, r.born || null, { name: e.draft.name, title: e.draft.title || "", text: e.draft.text }), confirm: { title: "入力した内容を捨てますか", label: "破棄する" } });
+                  runDanger("discardRow", { run: () => pressDiscard(r.uid, l), lost: e.editing.bornLost.value, confirm: { title: "入力した内容を捨てますか", label: "破棄する" } });
                 },
                 children: "取り消し"
               }) : /* @__PURE__ */ u("button", {
@@ -2025,7 +1858,12 @@ function Panel({ r, l }) {
           filtering: filtering(),
           query: state.value.q,
           readerCount: (name) => whoReads(name, GROUPED ? CURRENT : "").length,
-          onChange: () => onChangeDraft(r, l),
+          onDraft: (draft) => {
+            changeDraft(r.uid, l, draft);
+            touch();
+            scheduleCheck(r, l);
+          },
+          rename: { value: e.editing.read.value.rename, change: (on) => e.editing.renameUsers(on) },
           onMode: (v) => pressPmode(r.uid, l, v),
           onURL: () => syncURL(false)
         })
@@ -2074,7 +1912,7 @@ function Panel({ r, l }) {
 
 // roles/main.tsx
 if (view) {
-  const page = { screen: "roles", dirty: dirty2, lost: lost2, take, settled: false };
+  const page = { screen: "roles", dirty, lost, take, settled: false };
   window.hergyPage = page;
   R(/* @__PURE__ */ u(Tabs, {}), tabsEl);
   R(/* @__PURE__ */ u(App, {}), view);

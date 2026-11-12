@@ -2,11 +2,13 @@
 // @ts-expect-error The transport without an editing capability is private.
 import { raw } from './api.js';
 import { save, check, call, sendLegacy } from './api.js';
-import { editProfile } from './editing.js';
-import type { ProfileEditing, EditedRequest } from './editing.js';
+import { editProfile, editRole } from './editing.js';
+import type { ProfileEditing, RoleEditing, EditedRequest } from './editing.js';
 import type { Project, ResourcePlace, ResourceName, ResourceIdentity } from './resource-identity.js';
 declare const editing: ProfileEditing;
+declare const role: RoleEditing;
 declare const identity: ResourceIdentity<'profile'>;
+declare const roleIdentity: ResourceIdentity<'role'>;
 declare const teamSave: EditedRequest<'team', 'save'>;
 if (false) {
   void raw;
@@ -24,6 +26,16 @@ if (false) {
   save('profile', teamSave);
   // @ts-expect-error Saved names must come from the API identity boundary.
   editProfile(identity, { saved: { name: 'fast', kind: 'claude', args: [], env: [] }, draft: { name: 'fast', kind: 'claude', args: [], env: [] }, hash: 'h1' });
+  // @ts-expect-error Saved role names must come from the identity boundary.
+  editRole(roleIdentity, { saved: { name: 'builder', title: '', text: '' }, draft: { name: 'builder', title: '', text: '' }, hash: 'h1' });
+  // @ts-expect-error Role drafts are readonly, including raw text.
+  role.read.value.draft.text = 'outside';
+  // @ts-expect-error A role editor cannot receive a caller-built save body.
+  role.save({ place: 'project', doc: {} });
+  // @ts-expect-error Cross-representation synchronization is private.
+  role.accept({}, 'hash', '', 0);
+  // @ts-expect-error The raw editor cannot expose its mutable saved value.
+  role.yaml.read.value.saved = 'outside';
   // @ts-expect-error The saved value is not writable by a screen.
   editing.read.value.saved = null;
   // @ts-expect-error Draft fields are deeply readonly.

@@ -1,23 +1,17 @@
 import { HQ } from './state';
 import { ProjectView } from '../lib/project-view';
-// roles/yaml.js — YAML のタブ（spec-boundary 7）。
-//
-// 左にファイルの並び、右に選んだ 1 つのファイルの面。面そのものは共有部品
-// （lib/yamltab.js）が描く。この画面が持つのは、どのファイルをどのテキストで
-// 読んだか、そのファイルのチェックの答え（並びの ● に使う）、そして保存の答えを
-// 行へ戻すこと（state.js）。面の中の押し込みは部品のもので、画面は props で
-// 読むものと知らせる先を渡す（依頼書 4）。
+// The file list and selection are the screen's. The text, validation and
+// saved basis are read directly from the role's text editor.
 import { useEffect } from '../lib/preact.js';
 import { YamlTab } from '../lib/yamltab.js';
-import { fromJSON, Badge } from '../lib/ruledoc.js';
+import { Badge } from '../lib/ruledoc.js';
 import {
   PLACES, LNAME, DIR, state, filesList, live, issuesOf,
-  ychecksOf, setYchecks, docText, pathOf, clone, setYtext, pressYamlRevert, pressTab, pressYfile, setYfile, tellDirty,
+  pathOf, yamlSaved, pressTab, pressYfile, setYfile, tellDirty,
 } from './state.js';
 import type { Place, RoleRow, SavedFileEntry } from './state.js';
 import type { EditableDocument, RuleIssue } from '../lib/ruledoc.js';
 import type { YamlTabProps } from '../lib/yamltab.js';
-import type { components } from '../../../apicontract/api-types';
 
 const keyOfYed = (r: RoleRow, l: Place): string => r.uid + l;
 
@@ -34,26 +28,17 @@ function YamlFile({ file }: { file: SavedFileEntry }) {
   return <section class="yed" data-key={keyOfYed(r, l)} data-hash={e.hash || ''}>
     <YamlTab key={keyOfYed(r, l)} label={LNAME[l]} path={pathOf(l, e.saved)}
       badge={both ? { cls: 'state ' + (hid ? 'off' : 'on'), text: hid ? '無効' : '優先' } : null}
-      text={docText(r, l)} hash={e.hash || ''} kind="role" place={l} name={name}
-      problems={ychecksOf(l, name) || []} problem={e.problem || ''}
-      onProblems={(probs: components['schemas']['Problem'][]) => setYchecks(l, name, probs)}
-      onRevert={() => pressYamlRevert(r, l)}
-      onState={({ text }: { text: string }) => { setYtext(r, l, text); tellDirty(); }}
-      onSaved={(answer: Parameters<NonNullable<YamlTabProps['onSaved']>>[0]) => {
-        const json = answer.json;
-        if (!json) return;
-        e.hash = json.hash || e.hash;
-        if (typeof json.text === 'string') e.text = json.text;
-        if (json.doc && 'text' in json.doc) { e.saved = fromJSON(json.doc); e.draft = clone(e.saved); }
-        e.ytext = undefined;
-      }} />
+      editing={e.editing.yaml} text={e.editing.yaml.read.value.saved || ''} hash={e.hash || ''} kind="role" place={l} name={name}
+      problems={e.editing.yaml.read.value.problems.map((p) => ({ ...p }))} problem={e.problem || ''}
+      onState={() => tellDirty()}
+      onSaved={(answer: Parameters<NonNullable<YamlTabProps['onSaved']>>[0]) => yamlSaved(r, l, answer)} />
   </section>;
 }
 
 // ychecksText marks a file whose text the check found something wrong with.
-function ychecksText(place: Place, name: string) {
-  const y = ychecksOf(place, name);
-  return y && y.some((m) => m.sev === 'err') ? <span class="dirty">●</span> : '';
+function ychecksText(file: SavedFileEntry) {
+  return file.e.editing.yaml.read.value.problems.some((p) => p.sev === 'err') ? <span class="dirty">●</span> : '';
+
 }
 
 function YamlPageBody() {
@@ -78,7 +63,7 @@ function YamlPageBody() {
   return <div class="ylay">
       <nav class="files">{PLACES.map((l) => <div class="fgroup"><div class="gh"><b>{LNAME[l]}</b><code>{DIR[l]}</code></div>{files.filter((f) => f.l === l).map(({ r, e }) => {
         const key = keyOfYed(r, l), is = issuesOf(r, l), hid = l === 'global' && live(r, 'project');
-        return <button class={['file', chosen === key ? 'on' : '', hid ? 'hid' : ''].filter(Boolean).join(' ')} data-act="yfile" data-key={key} aria-pressed={chosen === key} onClick={() => pressYfile(key)}><code>{e.saved.name}.md</code><span class="fs">{ychecksText(l, e.saved.name)}{badgeOrCount(is, e.saved)}</span><span class="ft">{e.saved.title}{hid ? '・無効' : ''}</span></button>;
+        return <button class={['file', chosen === key ? 'on' : '', hid ? 'hid' : ''].filter(Boolean).join(' ')} data-act="yfile" data-key={key} aria-pressed={chosen === key} onClick={() => pressYfile(key)}><code>{e.saved.name}.md</code><span class="fs">{ychecksText({ r, l, e })}{badgeOrCount(is, e.saved)}</span><span class="ft">{e.saved.title}{hid ? '・無効' : ''}</span></button>;
       })}</div>)}</nav>
       {one ? <YamlFile key={chosen} file={one} /> : <div class="none">ロールの文書はありません</div>}
     </div>;

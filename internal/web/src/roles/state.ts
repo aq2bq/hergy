@@ -1,29 +1,22 @@
-import { save as apiSave } from '../lib/legacy-editing-api.js';
-// roles/state.js — ロールの画面の state（webui-preact-design 4 章・5 章）。
-//
-// 一覧の行、割り当てのチーム、YAML のファイル、そしてサーバーのチェックの答えは、
-// すべてここに signal で置く（5 章 2）。部品（view.js / assign.js / yaml.js）は
-// signal を読んで描き、値が変われば Preact が自分で描き直す。だから描き直しを
-// 呼ぶ関数は無い（依頼書 1）。行の下書きは共有部品（ruledoc）が書き換え、変える
-// たびに onChange で知らせるので、画面はそのたびに新しい行（新しい下書きの写し）を
-// signal に入れる。
-import { PROFILE_ASSIGN, ROLE_DOC, YAML_TEXT, assignDirty, lost as changedLost, roleDirty, yamlDirty, snapshot as changedSnapshot } from '../lib/changed.js';
+// roles/state.ts — role rows, navigation and read-through projections of editing.
+// Resource drafts, checks, conflicts and save requests belong to lib/editing.
+import { assignDirty } from '../lib/changed.js';
+import { editRole, restoreRole, editRoleAssignments, type RoleCarry, type CompleteCarry, type RoleEditing, type RoleAssignments, type ReadonlyDeep } from '../lib/editing.js';
+import { resourceIdentity, type ResourceIdentity } from '../lib/resource-identity.js';
 import { signal } from '../lib/preact.js';
-import { roleEditor, roleProblems } from '../lib/role-editor.js';
+import { roleProblems } from '../lib/role-check.js';
 import { takeDraft, setDirty } from '../lib/nav.js';
 import { readOpen, rowsFor, writeOpen } from '../lib/address.js';
 import { copyGroupOf, projectOfGroup } from '../lib/copy';
 import {
-  del as apiDel, saved as apiSaved,
-  roleModel, teamModel, problemText, bases,
+  saved as apiSaved,
+  roleModel, teamModel, bases,
 } from '../lib/api.js';
-import { conflictOf } from '../lib/conflict.js';
-import type { Conflict } from '../lib/conflict.js';
 import {
-  fromJSON, toDoc, renameCarries,
+  fromJSON,
 } from '../lib/ruledoc.js';
 import type { EditableDocument, RuleIssue, RulePanel } from '../lib/ruledoc.js';
-import type { Answer, RawAnswer, Request, RoleRow as ApiRoleRow, TeamCard as ApiTeamCard } from '../lib/api.js';
+import type { RoleRow as ApiRoleRow, TeamCard as ApiTeamCard } from '../lib/api.js';
 import type { components, operations } from '../../../apicontract/api-types';
 
 export type Place = operations['getTeam']['parameters']['query']['place'];
@@ -43,15 +36,10 @@ type RoleIsland = {
 };
 type RoleModel = { roles: ApiRoleRow[] };
 type RoleEntry = {
-  saved: EditableDocument | null;
-  draft: EditableDocument;
-  base?: EditableDocument;
-  basePlace?: NonNullable<components['schemas']['RoleSaveRequest']['base']>;
-  hash: string;
-  text: string;
-  ytext?: string;
-  problem?: string;
-  __savedIssues?: RuleIssue[];
+  readonly editing: RoleEditing;
+  readonly saved: ReadonlyDeep<EditableDocument> | null;
+  readonly draft: ReadonlyDeep<EditableDocument>;
+  readonly hash: string; readonly text: string; readonly problem?: string;
 };
 export type RoleRow = {
   uid: number;
@@ -65,13 +53,9 @@ export type RoleRow = {
   name?: string;
   noDoc?: boolean;
   isNew?: boolean;
-  // born is the document the row was made with (a new one, a duplicate or a
-  // copy), so 取り消し can tell an untouched row from one the person changed
-  // (r-d480).
-  born?: { name: string; title: string; text: string };
 };
-type RoleMember = { name: string; saved: string; draft: string };
-type TeamCard = Omit<ApiTeamCard, 'group'> & { group: string };
+type RoleMember = { name: string; readonly saved: string; readonly draft: string };
+type TeamCard = Omit<ApiTeamCard, 'group' | 'members' | 'hash'> & { group: string; readonly hash: string; readonly members: RoleMember[]; readonly editing: RoleAssignments };
 type HqTeam = { id: string; group: string; members: RoleMember[] };
 type RoleState = {
   tab: 'roles' | 'assign' | 'yaml';
@@ -79,28 +63,14 @@ type RoleState = {
   filter: 'issues' | null;
   q: string;
   roleHi: string | null;
-  ok: Record<string, 1>;
   yfile: string | null;
   pmode: Record<string, string>;
-  refusals: Record<string, { at: 'name' | 'doc'; text: string }>;
-  teamErrors: Record<string, string>;
-  // conflicts stand where a save was refused because the file moved: the file as
-  // the answer showed it, and the draft the panel held before 元に戻す (r-3c77).
-  conflicts: Record<string, ConflictHold>;
-};
-// ConflictHold is one refused save: what the server answered, whether the person
-// has read the file's own text in (undone), and the draft to put back with
-// 取り消す.
-type ConflictHold = {
-  c: Conflict;
-  undone?: boolean;
-  before?: { draft: EditableDocument; saved: EditableDocument | null; hash: string; text: string };
 };
 type CheckState = {
   issues: RuleIssue[];
-  markdown: components['schemas']['RolePreview'];
-  diff: components['schemas']['RoleDiff'];
-  readers: components['schemas']['RoleReader'][] | null;
+  markdown: ReadonlyDeep<components['schemas']['RolePreview']>;
+  diff: ReadonlyDeep<components['schemas']['RoleDiff']>;
+  readers: ReadonlyDeep<components['schemas']['RoleReader'][]> | null;
   size?: number;
   limit?: number;
 };
@@ -112,7 +82,7 @@ export type SavedFileEntry = { r: RoleRow; l: Place; e: RoleEntry & { saved: Edi
 type CarriedRole = { place: Place; group?: string; saved: string | null; name: string; hash: string; draft: EditableDocument; isNew?: boolean; noDoc?: boolean };
 type CarriedYaml = { place: Place; group?: string; name: string; hash: string; text: string };
 type CarriedMember = { team: string; hash: string; name: string; saved: string; draft: string };
-type CarriedRoles = { rows?: CarriedRole[]; ytexts?: CarriedYaml[]; members?: CarriedMember[] };
+type CarriedRoles = { entries?: RoleCarry[]; assignments?: CompleteCarry<{ name: string; role: string }[]>[]; rows?: CarriedRole[]; ytexts?: CarriedYaml[]; members?: CarriedMember[] };
 
 export const view = document.getElementById('view');
 export const tabsEl = document.getElementById('tabs');
@@ -136,12 +106,6 @@ export const LNAME: Record<Place, string> = { project: 'プロジェクト', glo
 export const clone = <T,>(o: T): T => structuredClone(o);
 const other = (l: Place): Place => (l === 'project' ? 'global' : 'project');
 let uid = 0;
-
-const refusalAt = (err: unknown): unknown => {
-  if (typeof err !== 'object' || err === null || !('json' in err)) return undefined;
-  const json = err.json;
-  return typeof json === 'object' && json !== null && 'at' in json ? json.at : undefined;
-};
 
 // HQ is the headquarters lists (d-73fc): every listed project's roles and team
 // definitions, then the global layer's. Without it the screen is the one
@@ -170,6 +134,19 @@ export const currentGroupName = (): string => {
   return found ? found.name : ((p.current && p.current.name) || '');
 };
 
+function entryOf(l: Place, group: string, data: { saved: EditableDocument | null; draft: EditableDocument; hash: string; text: string; problem?: string; base?: ResourceIdentity<'role'> }): RoleEntry {
+  const identity = resourceIdentity('role', { place: l, project: projectOfGroup(group), name: data.saved?.name });
+  const editing = editRole(identity, { ...data, saved: data.saved && identity.name ? { ...data.saved, name: identity.name } : null, readable: !data.problem });
+  return entryView(editing, data.problem);
+}
+function entryView(editing: RoleEditing, problem?: string): RoleEntry {
+  return {
+    editing, problem,
+    get saved() { return editing.read.value.saved; }, get draft() { return editing.read.value.draft; },
+    get hash() { return editing.read.value.hash; }, get text() { return editing.read.value.text || ''; },
+  };
+}
+
 // ---- the model -------------------------------------------------------
 // rowsOf is every row the list draws: the answer already carries one place per
 // row (r-ea17), so this copies each item and gives it its group. A name both
@@ -192,13 +169,11 @@ function rowsOf(model: RoleModel, group: string): RoleRow[] {
         // 1.2.10), and a file that cannot be read keeps its row with the reason
         // (r-ea17, d-17ab): neither stands on a saved document.
         const saved = r.noDoc || r[l].problem ? null : draft;
-        row[l] = { saved, draft: clone(draft), hash: r[l].hash || '', text: r[l].text || '' };
-        if (r[l].problem) row[l]!.problem = r[l].problem;
+        row[l] = entryOf(l, row.group, { saved, draft, hash: r[l].hash || '', text: r[l].text || '', problem: r[l].problem });
         if (r[l].path) row.paths[l] = r[l].path;
       } else { row[l] = null; }
     }
     if (r.mark) row.mark = r.mark;
-    if (r.noDoc && row.project) row.born = changedSnapshot({ name: row.project.draft.name, title: row.project.draft.title || '', text: row.project.draft.text });
     if (!row.project && !row.global) continue;
     if (r.noDoc) row.noDoc = true;
     if (r.isNew) row.isNew = true;
@@ -256,20 +231,13 @@ function initialRoles(): RoleRow[] {
 }
 
 // ---- the screen's state ---------------------------------------------
-// roles is every row; state is what the screen knows about itself; checks and
-// ychecks are the server's answers; teams is the assign tab's cards. Each is a
-// signal, and every change puts a new value in (5 章 2).
+// Rows and navigation are the screen's; entries read their private editors.
 const FIRST = initialRoles();
 export const roles = signal<RoleRow[]>(FIRST);
 export const state = signal<RoleState>({
   tab: 'roles', open: new Set(), filter: null, q: '', roleHi: null,
-  ok: {}, yfile: null, pmode: {}, refusals: {}, teamErrors: {}, conflicts: {},
+  yfile: null, pmode: {},
 });
-export const checks = signal<Record<string, CheckState>>({});
-export const ychecks = signal<Record<string, components['schemas']['Problem'][] | undefined>>({});
-// okShowing is the 保存しました the current drawing shows: a save's answer shows
-// it once, until the next change (the part that says a document is saved).
-export const okShowing = signal<Record<string, 1>>({});
 // focusAsk and gotoAsk are where the caret goes after a press: which row's which
 // field (5 章 5), and which member of the assign tab a chip sent it to (P11).
 export const focusAsk = signal<{ uid: number; sel: string; select?: boolean; scroll?: boolean; seq: number } | null>(null);
@@ -286,7 +254,13 @@ export const askGoto = (team: string, member: string, i: number): void => {
   gotoAsk.value = { team, member, i, seq: ((gotoAsk.value && gotoAsk.value.seq) || 0) + 1 };
 };
 
-const TEAMS: TeamCard[] = teamModel(ISLAND.team || null).teams.map((t) => ({ ...t, group: currentGroup() }));
+const TEAMS: TeamCard[] = teamModel(ISLAND.team || null).teams.map((t) => {
+  const editing = editRoleAssignments(resourceIdentity('team', { place: t.place, project: projectOfGroup(currentGroup()), name: t.id }), t.members, t.hash);
+  return { ...t, group: currentGroup(), editing,
+    get hash() { return editing.read.value.hash; },
+    get members() { return editing.read.value.draft.map((m) => ({ name: m.name, draft: m.role, saved: editing.read.value.saved?.find((p) => p.name === m.name)?.role || '' })); },
+  };
+});
 // The definitions that read the roles: the current project's for the 割り当て
 // tab, and every group's for the 使っているチーム column.
 export const teams = signal<TeamCard[]>(TEAMS);
@@ -319,7 +293,7 @@ const rowGroup = (r: RoleRow): string => (GROUPED ? r.group : eff(r));
 // rowRef reads a row the way the address writes it (⑥-2, d-a143).
 const rowRef = (x: RoleRow): { name: string; group: string } => ({ name: curName(x), group: rowGroup(x) });
 const here = HQ && HQ.projects && HQ.projects.current ? (HQ.projects.current.path || '') : (GROUPED ? CURRENT : '');
-export const cur = (r: RoleRow): EditableDocument => r[eff(r)]!.draft;
+export const cur = (r: RoleRow): ReadonlyDeep<EditableDocument> => r[eff(r)]!.draft;
 export const curName = (r: RoleRow): string => (r.markdown ? r.name || '' : (r[eff(r)]!.saved || r[eff(r)]!.draft).name);
 export const savedRoles = (): RoleRow[] => roles.value.filter((r) => live(r, 'project') || live(r, 'global'));
 export const roleByName = (n: string): RoleRow | undefined => savedRoles().find((r) => curName(r) === n && (!GROUPED || r.group === CURRENT)) || savedRoles().find((r) => curName(r) === n && r.group === 'global');
@@ -348,14 +322,12 @@ export const withRow = (id: number | string, fn: (row: RoleRow) => RoleRow): voi
   const one = Number(id);
   roles.value = roles.value.map((r) => (r.uid === one ? fn(r) : r));
 };
-// withEntry puts a new place's entry in place of one row's, and the row with it.
-export const withEntry = (id: number | string, l: Place, fn: (entry: RoleEntry) => RoleEntry): void => withRow(id, (r) => (r[l] ? { ...r, [l]: fn(r[l]!) } : r));
-
-// touch is what a change that the rows do not show by themselves goes through:
-// the 保存しました that stands for one drawing, the band's dot and its number.
-export function touch(): void {
-  okShowing.value = { ...state.value.ok };
-  if (Object.keys(state.value.ok).length) patch({ ok: {} });
+export function changeDraft(id: number | string, l: Place, draft: EditableDocument): void {
+  byUid(id)?.[l]?.editing.change(draft);
+}
+export function touch(savedKeys: string[] = []): void {
+  allEntries().forEach(({ r, l, e }) => { if (!savedKeys.includes(keyOf(r, l))) e.editing.dismissSaved(); });
+  teams.value.forEach((t) => { if (!savedKeys.includes('t' + t.id)) t.editing.dismissSaved(); });
   redraw();
 }
 // redraw draws the rows and the band again without moving the 保存しました the
@@ -370,96 +342,44 @@ function redraw(): void {
 }
 
 // ---- server checks ---------------------------------------------------
-// checkers are one resource per document place: a check is a reading like any
-// other, so the newest request is the one whose answer is kept, and the one
-// before it is dropped (5 章 3). The screen keeps no numbering of its own.
-const editors = new Map<string, ReturnType<typeof roleEditor>>();
-function editorFor(k: string) {
-  let one = editors.get(k);
-  if (!one) { one = roleEditor(); editors.set(k, one); }
-  return one;
-}
-const checkerFor = (k: string) => editorFor(k).check;
 const timers: Record<string, ReturnType<typeof setTimeout>> = {};
 const keyOf = (r: RoleRow, l: Place): string => r.uid + l;
-const convertProblems = roleProblems;
-
-export function issuesOf(r: RoleRow, l: Place): RuleIssue[] { const c = checks.value[keyOf(r, l)]; return c ? c.issues : []; }
-
-// rowOf is one panel as the shared part reads it: the draft and the saved
-// document, and the check the server last answered (its problems, the Markdown,
-// the diff, the arrows).
-export function rowOfPanel(r: RoleRow, l: Place): RulePanel | null {
-  const e = r[l], c = checks.value[keyOf(r, l)];
-  if (!e) return null;
-  return {
-    uid: r.uid, l, e, saved: e.saved, draft: e.draft,
-    issues: c ? c.issues : [], markdown: c ? c.markdown : { lines: [], chars: 0 },
-    diff: c ? c.diff : { added: [], removedBefore: [], removedAtEnd: false },
-    savedIssues: e.__savedIssues,
-  };
-}
-
-export async function askCheck(r: RoleRow | null | undefined, l: Place, cb?: (() => void) | null): Promise<void> {
-  if (!r) return;
+const entryAt = (key: string): RoleEntry | undefined => allEntries().find(({ r, l }) => keyOf(r, l) === key)?.e;
+export function checkOf(r: RoleRow, l: Place): CheckState | null {
   const e = r[l];
-  if (!e) return;
-  const k = keyOf(r, l);
-  // A check that a newer one has replaced answers nothing (the resource dropped
-  // it), so only the newest reading reaches the panel.
-  const answer = await checkerFor(k).run({
-    place: l, original: e.saved ? e.saved.name : null,
-    project: projectOfGroup(r.group),
-    doc: toDoc(e.draft, e.saved || e.base || null),
-  });
-  const c = answer && answer.json;
-  if (!c || !c.problems) return;
-  const issues = convertProblems(e.draft, c.problems);
-  checks.value = {
-    ...checks.value,
-    [k]: {
-      issues,
-      markdown: c.preview || { lines: [], chars: 0 },
-      diff: c.effect?.diff || { added: [], removedBefore: [], removedAtEnd: false },
-      readers: c.readers || null, size: c.size, limit: c.limit,
-    },
-  };
-  // A save's refusal under ロール名 is the same answer, older: the check speaks
-  // for the name field now, so a refusal it no longer holds goes (d-841e).
-  const shown = state.value.refusals[k];
-  if (shown && shown.at === 'name' && !issues.some((m) => m.f === 'name')) {
-    const next = { ...state.value.refusals };
-    delete next[k];
-    patch({ refusals: next });
-  }
-  if (cb) cb();
+  if (!e) return null;
+  const c = e.editing.validation.value;
+  return { issues: issuesOf(r, l), markdown: c.preview ? clone(c.preview) : { lines: [], chars: 0 },
+    diff: c.effect?.diff ? clone(c.effect.diff) : { added: [], removedBefore: [], removedAtEnd: false },
+    readers: c.readers ? clone(c.readers) : null, size: c.size, limit: c.limit };
 }
-
+export function issuesOf(r: RoleRow, l: Place): RuleIssue[] {
+  const e = r[l];
+  return e ? roleProblems(e.draft, e.editing.read.value.problems.map((p) => ({ ...p }))) : [];
+}
+export function rowOfPanel(r: RoleRow, l: Place): RulePanel | null {
+  const e = r[l], c = checkOf(r, l);
+  if (!e || !c) return null;
+  return { uid: r.uid, l, saved: e.saved, draft: clone(e.draft), issues: c.issues, markdown: c.markdown, diff: c.diff };
+}
+export async function askCheck(r: RoleRow | null | undefined, l: Place, cb?: (() => void) | null): Promise<void> {
+  const e = r?.[l];
+  if (!e) return;
+  await e.editing.check();
+  cb?.();
+}
 export function scheduleCheck(r: RoleRow, l: Place): void {
   const k = keyOf(r, l);
   clearTimeout(timers[k]);
-  timers[k] = setTimeout(() => askCheck(r, l, () => { updateRowSummary(r.uid); redraw(); }), 300);
+  timers[k] = setTimeout(() => askCheck(byUid(r.uid), l, () => redraw()), 300);
 }
 export const clearTimer = (r: RoleRow, l: Place): void => clearTimeout(timers[keyOf(r, l)]);
-
-// updateRowSummary is what a check's answer changes about the row itself: the
-// saved document's own problems are what a save is held to (X3).
-function updateRowSummary(id: number | string): void {
-  const r = byUid(id);
-  if (!r) return;
-  const entries: Partial<Record<Place, RoleEntry>> = {};
-  PLACES.forEach((l) => {
-    const entry = r[l];
-    if (!entry || !entry.saved) return;
-    const c = checks.value[keyOf(r, l)];
-    if (c) entries[l] = { ...entry, __savedIssues: c.issues };
-  });
-  if (Object.keys(entries).length) withRow(id, (old) => ({ ...old, ...entries }));
-}
-
-export const okOf = (k: string): boolean => !!okShowing.value[k];
-export const refusalOf = (k: string): RoleState['refusals'][string] | null => state.value.refusals[k] || null;
-export const teamErrorOf = (id: string): string => state.value.teamErrors[id] || '';
+export const okOf = (key: string): boolean => key.startsWith('t') ? !!teams.value.find((t) => 't' + t.id === key)?.editing.read.value.savedLine : !!entryAt(key)?.editing.read.value.savedLine;
+export const refusalOf = (key: string): { at: 'name' | 'doc'; text: string } | null => {
+  const state = entryAt(key)?.editing.read.value;
+  return state?.refusal ? { at: state.refusalAt || 'doc', text: state.refusal } : null;
+};
+export const teamErrorOf = (id: string): string => teams.value.find((t) => t.id === id)?.editing.read.value.refusal || '';
 
 // ---- URL -------------------------------------------------------------
 // openNewPanel opens the row a screen shows for a role no document holds: its
@@ -469,7 +389,7 @@ export const teamErrorOf = (id: string): string => state.value.teamErrors[id] ||
 export function openNewPanel(r: RoleRow): void {
   const l = eff(r), e = r[l];
   if (!e) return;
-  if (!checks.value[keyOf(r, l)]) askCheck(r, l, () => touch());
+  if (!e.editing.read.value.checked) askCheck(r, l, () => touch());
 }
 
 export function parseURL(): void {  const path = location.pathname;
@@ -541,86 +461,19 @@ export function filterCount(f: RoleState['filter']): number {
   return roles.value.filter((r) => !f || rowIssues(r).length > 0).length;
 }
 
-// ---- the YAML tab's own state ---------------------------------------
-// A file's problems are what the file nav marks a file with; the part checks the
-// text and hands them back (yamltab.js).
-export const ykey = (place: Place, name: string): string => place + '.' + name;
-export const ychecksOf = (place: Place, name: string): components['schemas']['Problem'][] | undefined => ychecks.value[ykey(place, name)];
-export const setYchecks = (place: Place, name: string, list: components['schemas']['Problem'][] | undefined): void => { ychecks.value = { ...ychecks.value, [ykey(place, name)]: list }; };
-// filesList is the YAML tab's files: this serve's project and the global layer,
-// which are the two places the tab writes to. Another project's rows are read and
-// written in the list, not here.
-// filesList is every document the YAML tab opens: the saved ones, and the rows
-// whose file cannot be read, which open read-only with the reason (r-ea17,
-// d-0d00; the same shape the team and profile tabs use).
-export const filesList = (): SavedFileEntry[] => allEntries()
-  .filter((entry) => (!!entry.e.saved || !!entry.e.problem) && live(entry.r, entry.l) && (!GROUPED || entry.r.group === CURRENT || entry.r.group === 'global'))
-  .map((entry): SavedFileEntry => ({ ...entry, e: { ...entry.e, saved: entry.e.saved || { name: curName(entry.r), title: '', text: '', __path: entry.r.paths?.[entry.l] } } }));
-export const docText = (r: RoleRow, l: Place): string => { const e = r[l]; return e && e.ytext !== undefined ? e.ytext : (e && e.text) || ''; };
-
-// ---- operations ------------------------------------------------------
-// A refusal stands where its field does: a name's refusal under the name field,
-// the document's in the panel's footer (spec-roles 1.2.9).
-export function showRefusal(key: string, at: unknown, text: string): void {
-  patch({ refusals: { ...state.value.refusals, [key]: { at: at === 'name' ? 'name' : 'doc', text: text || '保存できませんでした' } } });
-  touch();
-}
-export function clearRefusal(key: string): void {
-  if (!state.value.refusals[key]) return;
-  const next = { ...state.value.refusals };
-  delete next[key];
-  patch({ refusals: next });
-  touch();
-}
-
-// ---- a save refused because the file moved (r-3c77, d-a34a) ---------------
-// conflictAt is the notice one panel stands under: the file as the answer showed
-// it, or null when the file is the one the panel read.
-export const conflictAt = (key: string): ConflictHold | null => state.value.conflicts[key] || null;
-export function clearConflict(key: string): void {
-  if (!state.value.conflicts[key]) return;
-  const next = { ...state.value.conflicts };
-  delete next[key];
-  patch({ conflicts: next });
-}
-
-// pressOverwrite writes what the person wrote over the file the answer showed:
-// the save carries the hash of that file, so a file that moved again is refused
-// the same way instead of being written over unseen.
-export function pressOverwrite(id: number | string, l: Place): void {
-  const hold = conflictAt(id + l);
-  if (!hold) return;
-  doSave(id, l, hold.c.file.hash || '');
-}
-
-// pressRevertConflict reads the file the answer carried into the panel: the
-// panel then stands on the file as it is, and the draft the person wrote is kept
-// for 取り消す.
+// ---- the text representation and conflict operations ------------------
+export const filesList = (): SavedFileEntry[] => allEntries().filter((entry): entry is SavedFileEntry => !!entry.e.saved && live(entry.r, entry.l) && (!GROUPED || entry.r.group === CURRENT || entry.r.group === 'global'));
+export const docText = (r: RoleRow, l: Place): string => r[l]?.editing.yaml.read.value.draft || '';
+export const conflictAt = (key: string) => entryAt(key)?.editing.read.value.conflict || null;
+export function pressOverwrite(id: number | string, l: Place): void { void saveRole(id, l, true); }
 export function pressRevertConflict(id: number | string, l: Place): void {
-  const key = id + l;
-  const hold = conflictAt(key);
-  const r = byUid(id);
-  const entry = r && r[l];
-  if (!hold || !entry || !hold.c.file.doc) return;
-  const doc = fromJSON(hold.c.file.doc);
-  const before = { draft: clone(entry.draft), saved: entry.saved ? clone(entry.saved) : null, hash: entry.hash, text: entry.text };
-  withEntry(id, l, (e) => ({ ...e, draft: clone(doc), saved: clone(doc), hash: hold.c.file.hash || '', text: hold.c.file.text || '' }));
-  patch({ conflicts: { ...state.value.conflicts, [key]: { c: hold.c, undone: true, before } } });
-  askCheck(byUid(id), l, () => touch());
-  touch();
+  const r = byUid(id); r?.[l]?.editing.readConflict(); void askCheck(r, l, () => touch()); touch();
 }
-
-// pressUndoConflict puts the words the person wrote back, over the file the panel
-// has just read: their draft stands as a change to that file, ready to save.
 export function pressUndoConflict(id: number | string, l: Place): void {
-  const key = id + l;
-  const hold = conflictAt(key);
-  const before = hold && hold.before;
-  if (!hold || !before) return;
-  withEntry(id, l, (e) => ({ ...e, draft: clone(before.draft), saved: before.saved ? clone(before.saved) : null, hash: before.hash, text: before.text }));
-  clearConflict(key);
-  askCheck(byUid(id), l, () => touch());
-  touch();
+  const r = byUid(id); r?.[l]?.editing.undoConflict(); void askCheck(r, l, () => touch()); touch();
+}
+export function yamlSaved(r: RoleRow, l: Place, answer: { json: { hashes?: Record<string, string> | null } | null }): void {
+  rebase(answer.json, r.group || ''); void askCheck(byUid(r.uid), l, () => redraw()); tellDirty();
 }
 
 // pressToggle opens or closes a row. A row a person presses into opens in front
@@ -650,8 +503,7 @@ export function pressNew(group?: string): void {
   const key = group === undefined ? roleGroups()[0].key : group;
   const place: Place = key === 'global' ? 'global' : 'project';
   const nr: RoleRow = { uid: nextUid(), isNew: true, group: key, project: null, global: null };
-  nr[place] = { saved: null, draft: d, hash: '', text: '' };
-  nr.born = changedSnapshot({ name: d.name, title: d.title || '', text: d.text }) as { name: string; title: string; text: string };
+  nr[place] = entryOf(place, key, { saved: null, draft: d, hash: '', text: '' });
   // The row stands at the top of the head it was added under.
   const order = roleGroups().map((g) => g.key);
   const rank = order.indexOf(key);
@@ -668,14 +520,6 @@ export function pressNew(group?: string): void {
   askCheck(nr, place, () => { askFocus(nr.uid, '[data-f=name]'); touch(); });
 }
 
-// pressPickPlace is kept for a row that was made before r-410c and still holds
-// both places in one record: it moves the record to the place a person picked.
-export function pressPickPlace(id: number | string, l: Place, x: Place): void {
-  if (x === l) return;
-  withRow(id, (r) => ({ ...r, [x]: r[l], [l]: null }));
-  touch();
-}
-
 export function pressPmode(id: number | string, l: Place, v: string): void {
   // The switch's button is the one the person pressed: it keeps the focus
   // through the draw, so nothing is put back (5 章 5).
@@ -688,22 +532,17 @@ export function pressPmode(id: number | string, l: Place, v: string): void {
 // for a row under a listed project's head, that project. Without the project
 // the server reads the file of the project it was started in, and the copy is
 // written from another project's lines (r-a028).
-const basePlaceOf = (r: RoleRow, l: Place): NonNullable<components['schemas']['RoleSaveRequest']['base']> => {
-  const group = groupOfRow(r);
-  return { place: l, name: (r[l] && r[l]!.saved ? r[l]!.saved!.name : ''), project: projectOfGroup(l === 'global' ? 'global' : group) };
-};
+const basePlaceOf = (r: RoleRow, l: Place): ResourceIdentity<'role'> => resourceIdentity('role', { place: l, name: r[l]?.saved?.name, project: projectOfGroup(l === 'global' ? 'global' : groupOfRow(r)) });
 
 export function pressDup(id: number | string, l: Place): void {
-  // The copy keeps the places its rules stood in (their _k), so the server
-  // writes the new file from the original's own lines (spec-roles 1.2.9).
+  // Duplicate the saved document and retain its source identity.
   const r = byUid(id);
   const src = r && r[l] && r[l].saved;
   if (!src) return;
-  const d = clone(src);
+  const d: EditableDocument = { ...src };
   d.name += '-2';
   const nr: RoleRow = { uid: nextUid(), isNew: true, group: r.group, project: null, global: null };
-  nr[l] = { saved: null, draft: d, base: clone(src), basePlace: basePlaceOf(r, l), hash: '', text: '' };
-  nr.born = { name: d.name, title: d.title || '', text: d.text };
+  nr[l] = entryOf(l, r.group, { saved: null, draft: d, base: basePlaceOf(r, l), hash: '', text: '' });
   const at = roles.value.indexOf(r);
   roles.value = [...roles.value.slice(0, at + 1), nr, ...roles.value.slice(at + 1)];
   const open = new Set(state.value.open);
@@ -717,13 +556,12 @@ export function pressCopy(id: number | string, l: Place): void {
   const r = byUid(id);
   if (!r || !r[l] || !r[l].saved) return;
   const to = other(l);
-  const e: RoleEntry = { saved: null, draft: clone(r[l]!.saved!), base: clone(r[l]!.saved!), basePlace: basePlaceOf(r, l), hash: '', text: '' };
+
   // The list draws each place as its own row under its head; the copy stands in
   // the place it was copied to, not in the row it came from (r-f781, r-410c).
   const group = copyGroupOf(to, groupOfRow(r), CURRENT);
   const nr: RoleRow = { uid: nextUid(), isNew: true, group, project: null, global: null };
-  nr[to] = e;
-  nr.born = changedSnapshot({ name: e.draft.name, title: e.draft.title || '', text: e.draft.text }) as { name: string; title: string; text: string };
+  nr[to] = entryOf(to, group, { saved: null, draft: clone(r[l]!.saved!), base: basePlaceOf(r, l), hash: '', text: '' });
   const order = roleGroups().map((g) => g.key);
   const rank = order.indexOf(group);
   let at = roles.value.findIndex((x) => groupOfRow(x) === group);
@@ -763,13 +601,14 @@ export function pressDiscard(id: number | string, l: Place): void {
   if (!r) return;
   const entry = r[l];
   if (entry && entry.saved) {
-    withEntry(id, l, (e) => ({ ...e, draft: clone(entry.saved!) }));
+    entry.editing.discard();
   } else {
+    entry?.editing.dispose();
     withRow(id, (old) => ({ ...old, [l]: null }));
   }
   const after = byUid(id);
   if (after && !after.project && !after.global) {
-    roles.value = roles.value.filter((x) => x.uid !== id);
+    roles.value = roles.value.filter((x) => x.uid !== Number(id));
     const open = new Set(state.value.open);
     open.delete(Number(id));
     patch({ open });
@@ -813,11 +652,8 @@ export function pressGoto(team: string, member: string, i: number): void {
 export function pickRole(id: string, i: number, value: string): void {
   const t = teams.value.find((x) => x.id === id);
   if (!t) return;
-  // The select is the same element after the draw, so the cursor stays in it:
-  // nothing puts it back (5 章 5).
-  teams.value = teams.value.map((one) => (one.id !== id
-    ? one
-    : { ...one, members: one.members.map((m, j) => (j === Number(i) ? { ...m, draft: value } : m)) }));
+  const name = t.members[Number(i)]?.name;
+  t.editing.change((members) => members.map((m) => m.name === name ? { ...m, role: value } : m));
   touch();
 }
 
@@ -830,21 +666,6 @@ export function pressYfile(key: string | null): void {
 // setYfile is the file the tab shows when the address names none: the first one.
 export function setYfile(key: string | null): void {
   patch({ yfile: key });
-}
-
-// setYtext writes one entry's typed YAML text where the rows hold it: the
-// YAML tab's files are copies, so the text must go back through the row.
-export function setYtext(r: RoleRow, l: Place, text: string): void {
-  withEntry(r.uid, l, (e) => ({ ...e, ytext: text }));
-}
-export function pressYamlRevert(r: RoleRow | null | undefined, l: Place): void {
-  // The text goes back to the saved one, and the shared part checks the text it
-  // now shows: a result for the thrown-away text must not stay.
-  if (r && r[l]) {
-    withEntry(r.uid, l, (e) => { const next = { ...e }; delete next.ytext; return next; });
-    tellDirty();
-
-  }
 }
 
 // ---- writes ----------------------------------------------------------
@@ -862,166 +683,71 @@ export function pressYamlRevert(r: RoleRow | null | undefined, l: Place): void {
 function rebase(answer: { hashes?: Record<string, string> | null } | null, group: string): void {
   const files = bases(answer);
   if (!files.length) return;
-  roles.value = roles.value.map((r) => {
-    if ((r.group || '') !== group) return r;
-    let row = r;
+  for (const r of roles.value) {
+    if ((r.group || '') !== group) continue;
     for (const b of files) {
-      const l: Place | null = b.place === 'project' ? 'project' : b.place === 'global' ? 'global' : null;
-      const e = l ? row[l] : null;
-      if (!l || !e || !e.saved || e.saved.name !== b.name || e.hash === b.hash) continue;
-      row = { ...row, [l]: { ...e, hash: b.hash } };
+      const l = b.place === 'project' ? 'project' : b.place === 'global' ? 'global' : null;
+      const e = l ? r[l] : null;
+      if (e?.saved?.name === b.name && e.hash !== b.hash) e.editing.rebase(b.hash);
     }
-    return row;
-  });
+  }
 }
 
-export async function doSave(id: number | string, l: Place, over?: string): Promise<void> {
-  const r = byUid(id);
-  const e = r && r[l];
-  if (!e) return;
-  const key = id + l;
-  // Whether the rename carries into the teams that read the role is the rule
-  // document's state, not a box the screen reads back (5 章 2).
-  const keepRename = renameCarries(key);
-  // over is the hash the conflict's answer carried: 上書き sends the file that
-  // was seen, and a file that moved again is refused the same way (r-3c77).
-  const payload: components['schemas']['RoleSaveRequest'] = { place: l, original: e.saved ? e.saved.name : null, doc: toDoc(e.draft, e.saved || e.base || null), rename_users: keepRename, hash: over === undefined ? (e.hash || '') : over };
-  payload.project = projectOfGroup(r.group);
-  if (e.basePlace) payload.base = e.basePlace;
-  let res: RawAnswer<Answer<'role', 'save'>>;
-  try {
-    res = await editorFor(keyOf(r, l)).save(e.draft.name || (e.saved ? e.saved.name : '_'), payload);
-  } catch (err) {
-    const c = conflictOf(err);
-    if (c) {
-      // The file moved: the panel keeps its draft and the notice stands above
-      // the save band (r-3c77, d-a34a).
-      patch({ conflicts: { ...state.value.conflicts, [key]: { c } } });
-      return;
-    }
-    showRefusal(key, refusalAt(err), problemText(err, '保存できませんでした'));
-    return;
-  }
-  clearRefusal(key);
-  clearConflict(key);
-  const json = res.json;
-  if (!json) return;
-  const now = byUid(id);
-  const cur0 = now && now[l];
-  if (!cur0) return;
-  const old = cur0.saved;
-  const newName = cur0.draft.name;
-  // The written document comes back with the answer: hergy wrote the day a rule
-  // was switched off (off_since), so the screen takes the document the server
-  // made rather than the one it sent (d-85dc).
-  const saved = json.doc ? fromJSON(json.doc) : clone(cur0.draft);
-  withEntry(id, l, (one) => {
-    const next = { ...one, hash: json.hash || one.hash, saved, draft: clone(saved) };
-    // The written text comes back with the answer, so the YAML tab shows the file
-    // this save just made (a moved line, a rule the write re-emitted).
-    if (typeof json.text === 'string') next.text = json.text;
-    delete next.base;
-    delete next.basePlace;
-    delete next.ytext;
-    return next;
-  });
-  withRow(id, (one) => {
-    const next = { ...one };
-    delete next.isNew;
-    delete next.noDoc;
-    return next;
-  });
-  if (old && old.name !== newName && keepRename) {
-    teams.value = teams.value.map((t) => ({
-      ...t,
-      members: t.members.map((m) => ({ ...m, saved: m.saved === old.name ? newName : m.saved, draft: m.draft === old.name ? newName : m.draft })),
-    }));
-    const o = other(l);
-    if (!GROUPED && now[o]) {
-      const split: RoleRow = { uid: nextUid(), project: null, global: null, group: now.group };
-      split[o] = now[o];
-      const at = roles.value.findIndex((x) => x.uid === id);
+export async function doSave(id: number | string, l: Place): Promise<void> { await saveRole(id, l); }
+async function saveRole(id: number | string, l: Place, overwrite = false): Promise<void> {
+  const r = byUid(id), e = r?.[l];
+  if (!r || !e) return;
+  const old = e.saved?.name;
+  const keepRename = e.editing.read.value.rename;
+  const answer = await (overwrite ? e.editing.overwrite() : e.editing.save());
+  if (!answer?.json || byUid(id)?.[l]?.editing !== e.editing) return;
+  const newName = e.saved?.name || '';
+  withRow(id, (row) => { const next = { ...row }; delete next.isNew; delete next.noDoc; return next; });
+  if (old && old !== newName && keepRename) {
+    teams.value.forEach((team) => team.editing.renameRole(old, newName));
+    const otherPlace = other(l);
+    if (!GROUPED && r[otherPlace]) {
+      const split: RoleRow = { uid: nextUid(), project: null, global: null, group: r.group };
+      split[otherPlace] = r[otherPlace];
+      const at = roles.value.findIndex((x) => x.uid === Number(id));
       roles.value = [...roles.value.slice(0, at + 1), split, ...roles.value.slice(at + 1)];
-      withRow(id, (one) => ({ ...one, [o]: null }));
+      withRow(id, (row) => ({ ...row, [otherPlace]: null }));
     }
   }
-  setYchecks(l, newName, undefined);
-  patch({ ok: { ...state.value.ok, [key]: 1 } });
-  rebase(json, r.group || '');
-  await askCheck(byUid(id), l, null);
-  touch();
-  // A rename changes the name the address opens the row by, so the address
-  // follows the save (spec-roles 2 節).
-  syncURL(false);
-  apiSaved();
+  rebase(answer.json, r.group || '');
+  await askCheck(byUid(id), l);
+  touch([keyOf(r, l)]); syncURL(false); apiSaved();
 }
-
 export async function doDelete(id: number | string, l: Place): Promise<void> {
-  const r = byUid(id);
-  const e = r && r[l];
-  if (!e || !e.saved) return;
-  try {
-    await apiDel('role', e.saved.name, l, e.hash || '', undefined, projectOfGroup(r.group));
-  } catch (err) {
-    showRefusal(id + l, refusalAt(err), problemText(err, '削除できませんでした'));
-    return;
-  }
-  setYchecks(l, e.saved.name, undefined);
-  withRow(id, (one) => ({ ...one, [l]: null }));
+  const r = byUid(id), e = r?.[l];
+  if (!r || !e?.saved) return;
+  const answer = await e.editing.remove();
+  if (!answer || byUid(id)?.[l]?.editing !== e.editing) { touch(); return; }
+  clearTimer(r, l); e.editing.dispose();
+  withRow(id, (row) => ({ ...row, [l]: null }));
   const after = byUid(id);
-  if (!after) return;
-  if (!after.project && !after.global) {
+  if (after && !after.project && !after.global) {
     roles.value = roles.value.filter((x) => x.uid !== Number(id));
-    const open = new Set(state.value.open);
-    open.delete(Number(id));
-    patch({ open, tab: 'roles' });
-  } else {
-    patch({ tab: 'roles' });
-  }
-  touch();
-  syncURL(false);
+    const open = new Set(state.value.open); open.delete(Number(id)); patch({ open, tab: 'roles' });
+  } else patch({ tab: 'roles' });
+  touch(); syncURL(false);
 }
-
 export async function doAssignSave(id: string): Promise<void> {
-  const t = teams.value.find((x) => x.id === id);
-  if (!t) return;
-  const changes = t.members.filter((m) => assignDirty(m)).map((m) => ({ member: m.name, role: m.draft }));
-  if (!changes.length) return;
-  // The pick travels as the team kind's own op, so the save writes one line of
-  // team.yaml and no other (spec-boundary 6, spec-teams 1.3). The place is the
-  // card's own: a global definition is saved in the global file, and every
-  // project reading it changes (d-0f32, r-f8b9).
-  let res: RawAnswer<Answer<'team', 'save'>>;
-  try {
-    const request: Request<'team', 'save'> = { place: t.place || 'project', part: 'team', hash: t.hash || '', doc: { ops: changes.map((m) => ({ kind: 'memberRole', member: m.member, role: m.role })) } };
-    res = await apiSave('team', id, request);
-  } catch (err) {
-    patch({ teamErrors: { ...state.value.teamErrors, [id]: problemText(err, '保存できませんでした') } });
-    touch();
-    return;
-  }
-  const json = res.json;
-  if (!json) return;
-  const nextErrors = { ...state.value.teamErrors };
-  delete nextErrors[id];
-  patch({ teamErrors: nextErrors, ok: { ...state.value.ok, ['t' + id]: 1 } });
-  teams.value = teams.value.map((one) => (one.id !== id ? one : {
-    ...one,
-    hash: json.hash || one.hash,
-    members: one.members.map((m) => ({ ...m, saved: m.draft })),
-  }));
-  for (const r of savedRoles()) await askCheck(r, eff(r), null);
-  touch();
-  apiSaved();
+  const team = teams.value.find((t) => t.id === id);
+  if (!team?.editing.dirty.value) return;
+  const answer = await team.editing.save();
+  if (!answer?.json) { touch(); return; }
+  for (const r of savedRoles()) await askCheck(r, eff(r));
+  touch(['t' + id]); apiSaved();
 }
 
 // ---- 帯への報告と持ち越し (spec-nav.md 1.4, 1.5) ---------------------
 // dirty is whether the screen holds something no save wrote yet: a row's draft,
 // a row a person added, a pick in the assign tab, or a YAML text.
 export function dirty(): boolean {
-  const rows = roles.value.some((r) => PLACES.some((l) => r[l] && roleDirty(r[l]!, r.born)));
-  const members = teams.value.some((t) => t.members.some((m) => assignDirty(m)));
-  const ytexts = allEntries().some(({ e }) => yamlDirty(e.text || '', e.ytext));
+  const rows = roles.value.some((r) => PLACES.some((l) => r[l] && r[l]!.editing.dirty.value));
+  const members = teams.value.some((t) => t.editing.dirty.value);
+  const ytexts = allEntries().some(({ e }) => e.editing.yaml.dirty.value);
   return rows || members || ytexts;
 }
 
@@ -1035,16 +761,16 @@ export function lost(): string[] {
   const out: string[] = [];
   for (const r of roles.value) for (const l of PLACES) {
     const e = r[l];
-    if (!e || !roleDirty(e, r.born)) continue;
-    out.push(...changedLost(ROLE_DOC, e.saved || r.born || null, e.draft, !e.problem));
+    if (!e || !e.editing.dirty.value) continue;
+    out.push(...e.editing.lost.value);
   }
   for (const t of teams.value) for (const m of t.members) {
     if (!assignDirty(m)) continue;
-    out.push(...changedLost(PROFILE_ASSIGN, { picks: [{ member: m.name, role: m.saved }] }, { picks: [{ member: m.name, role: m.draft }] }));
+    out.push(...t.editing.lost.value);
   }
   for (const { e } of allEntries()) {
-    if (!yamlDirty(e.text || '', e.ytext)) continue;
-    out.push(...changedLost(YAML_TEXT, { text: e.text || '' }, { text: e.ytext ?? (e.text || '') }));
+    if (!e.editing.yaml.dirty.value) continue;
+    out.push(...e.editing.yaml.lost.value);
   }
   return [...new Set(out)];
 }
@@ -1054,43 +780,54 @@ export function lost(): string[] {
 // text that was typed — each with the hash of the file it was read from, so a
 // file that moved outside is not written over by a page that read another one.
 export function take(): CarriedRoles {
-  const rows: CarriedRole[] = [], ytexts: CarriedYaml[] = [], members: CarriedMember[] = [];
-  roles.value.forEach((r) => {
-    PLACES.forEach((l) => {
-      const e = r[l];
-      if (!e) return;
-      if (!e.saved) {
-        rows.push({ place: l, group: r.group || '', saved: null, name: e.draft.name, hash: e.hash || '', draft: e.draft, isNew: !!r.isNew, noDoc: !!r.noDoc });
-      } else if (roleDirty(e)) {
-        rows.push({ place: l, group: r.group || '', saved: e.saved.name, name: e.draft.name, hash: e.hash || '', draft: e.draft });
-      }
-      if (yamlDirty(e.text || '', e.ytext)) {
-        ytexts.push({ place: l, group: r.group || '', name: (e.saved || e.draft).name, hash: e.hash || '', text: e.ytext || '' });
-      }
-    });
-  });
-  teams.value.forEach((t) => t.members.forEach((m) => {
-    if (assignDirty(m)) members.push({ team: t.id, hash: t.hash || '', name: m.name, saved: m.saved, draft: m.draft });
-  }));
-  return { rows, ytexts, members };
+  return {
+    entries: allEntries().filter(({ e }) => !e.saved || e.editing.dirty.value || e.editing.yaml.dirty.value).map(({ e }) => e.editing.take()),
+    assignments: teams.value.filter((t) => t.editing.dirty.value).map((t) => t.editing.take()),
+  };
 }
 
 // restore puts the carried draft back, skipping every part whose file moved
 // outside since the draft was made (spec-nav.md 1.5).
 export function restore(carried: CarriedRoles): void {
+  for (const carry of carried.entries || []) {
+    const existing = allEntries().find(({ e }) => e.editing.matches(carry));
+    if (existing) { if (existing.e.editing.restore(carry)) void askCheck(existing.r, existing.l); continue; }
+    const group = carry.target.place === 'global' ? 'global' : carry.target.project || '';
+    if (!roleGroups().some((g) => g.key === group)) continue;
+    const l = carry.target.place;
+    const editing = restoreRole(resourceIdentity('role', { place: l, project: projectOfGroup(group) }), carry);
+    if (!editing) continue;
+    const row: RoleRow = { uid: nextUid(), group, isNew: true, project: null, global: null };
+    row[l] = entryView(editing);
+    const at = roles.value.findIndex((r) => groupOfRow(r) === group);
+    const order = roleGroups().map((g) => g.key);
+    const before = at >= 0 ? at : roles.value.findIndex((r) => order.indexOf(groupOfRow(r)) > order.indexOf(group));
+    const index = before >= 0 ? before : roles.value.length;
+    roles.value = [...roles.value.slice(0, index), row, ...roles.value.slice(index)];
+    patch({ open: new Set([...state.value.open, row.uid]) });
+    void askCheck(row, l);
+  }
+  for (const carry of carried.assignments || []) teams.value.find((t) => t.editing.matches(carry))?.editing.restore(carry);
+  // Read the preceding UI's carry format, but only write editing's format.
   (carried.rows || []).forEach((c) => {
-    const r = roles.value.find((x) => {
+    let r = roles.value.find((x) => {
       if ((x.group || '') !== (c.group || '')) return false;
       const entry = x[c.place];
       return c.saved
         ? !!entry?.saved && entry.saved.name === c.saved
         : !!entry && !entry.saved && (x.noDoc || x.isNew || entry.draft.name === c.name);
     });
+    if (!r && c.isNew && c.saved === null && c.hash === '' && roleGroups().some((g) => g.key === (c.group || ''))) {
+      r = { uid: nextUid(), group: c.group || '', isNew: true, project: null, global: null };
+      r[c.place] = entryOf(c.place, r.group, { saved: null, draft: { name: '', title: '', text: '## 責務\n' }, hash: '', text: '' });
+      roles.value = [...roles.value, r];
+      patch({ open: new Set([...state.value.open, r.uid]) });
+    }
     if (!r) return;
     const e = r[c.place];
     if (!e) return;
     if (c.hash && e.hash !== c.hash) return;
-    withEntry(r.uid, c.place, (one) => ({ ...one, draft: clone(c.draft) }));
+    e.editing.restore({ hash: c.hash, draft: c.draft });
     if (c.isNew) withRow(r.uid, (one) => ({ ...one, isNew: true }));
     clearTimer(r, c.place);
     askCheck(byUid(r.uid), c.place, null);
@@ -1101,14 +838,14 @@ export function restore(carried: CarriedRoles): void {
     const e = r[c.place];
     if (!e) return;
     if (c.hash && e.hash !== c.hash) return;
-    withEntry(r.uid, c.place, (one) => ({ ...one, ytext: c.text }));
+    e.editing.yaml.restore({ hash: c.hash, draft: c.text });
   });
   (carried.members || []).forEach((c) => {
     const t = teams.value.find((x) => x.id === c.team);
     if (!t || (c.hash && t.hash !== c.hash)) return;
     const at = t.members.findIndex((x) => x.name === c.name && x.saved === c.saved);
     if (at >= 0) {
-      teams.value = teams.value.map((one) => (one.id !== t.id ? one : { ...one, members: one.members.map((m, i) => (i === at ? { ...m, draft: c.draft } : m)) }));
+      t.editing.change((members) => members.map((m, i) => i === at ? { ...m, role: c.draft } : m));
     }
   });
   touch();
@@ -1118,8 +855,7 @@ export function restore(carried: CarriedRoles): void {
 // band carried from the screen before this one (spec-nav.md 1.5).
 export async function boot(): Promise<void> {
   parseURL();
-  await Promise.all(roles.value.flatMap((r) => PLACES.filter((l) => r[l] && r[l].saved).map((l) => askCheck(r, l, () => { updateRowSummary(r.uid); }))));
-  roles.value.forEach((r) => updateRowSummary(r.uid));
+  await Promise.all(roles.value.flatMap((r) => PLACES.filter((l) => r[l] && r[l].saved).map((l) => askCheck(r, l))));
   const carried = takeDraft('roles');
   if (carried) restore(carried);
   touch();

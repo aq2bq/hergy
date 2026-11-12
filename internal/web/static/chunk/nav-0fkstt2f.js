@@ -18,25 +18,27 @@ import {
 } from "./nav-zn7g81kr.js";
 import {
   runDanger
-} from "./nav-n7k9prc1.js";
+} from "./nav-me9ek2sz.js";
 import {
-  check3,
-  save3,
+  Refusal2,
+  check2,
+  save2,
   del2,
   saved2,
   problemText2
-} from "./nav-5wk0yvna.js";
+} from "./nav-ghcq2kwy.js";
 import {
   snapshot,
   dirty,
   diff,
   lost,
+  ROLE_DOC,
   PROFILE,
   PROFILE_ASSIGN,
   YAML_TEXT,
   assignDirty,
   profileFlags
-} from "./nav-36f6dmhj.js";
+} from "./nav-w5ecmbs1.js";
 import {
   resource
 } from "./nav-74jj0fve.js";
@@ -221,6 +223,51 @@ function ConflictNotice({ c, mine, busy, undone, onOverwrite, onRevert, onUndo }
   });
 }
 
+// lib/role-check.ts
+function record(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function isProblem(value) {
+  if (!record(value))
+    return false;
+  return (value.sev === "err" || value.sev === "warn") && typeof value.at === "string" && typeof value.text === "string" && (value.field === undefined || typeof value.field === "string") && (value.line === undefined || typeof value.line === "number") && (value.definition === undefined || typeof value.definition === "string") && (value.role === undefined || typeof value.role === "string");
+}
+function isProblemList(value) {
+  return Array.isArray(value) && value.every(isProblem);
+}
+function isRolePreviewLine(value) {
+  return record(value) && typeof value.text === "string" && typeof value.part === "string";
+}
+function isRolePreview(value) {
+  return record(value) && typeof value.chars === "number" && (value.lines === null || Array.isArray(value.lines) && value.lines.every(isRolePreviewLine));
+}
+function isRoleDiff(value) {
+  return record(value) && (value.added === null || Array.isArray(value.added) && value.added.every((line) => typeof line === "number")) && (value.removedBefore === null || Array.isArray(value.removedBefore) && value.removedBefore.every((line) => typeof line === "number")) && typeof value.removedAtEnd === "boolean";
+}
+function isRoleReader(value) {
+  return record(value) && typeof value.definition === "string" && typeof value.member === "string";
+}
+function isRoleEffect(value) {
+  return record(value) && isRoleDiff(value.diff);
+}
+function isRoleCheckData(value) {
+  if (!record(value))
+    return false;
+  return (value.problems === undefined || isProblemList(value.problems)) && (value.preview === undefined || isRolePreview(value.preview)) && (value.effect === undefined || isRoleEffect(value.effect)) && (value.readers === undefined || Array.isArray(value.readers) && value.readers.every(isRoleReader)) && (value.size === undefined || typeof value.size === "number") && (value.limit === undefined || typeof value.limit === "number");
+}
+function roleCheckData(value) {
+  return isRoleCheckData(value) ? value : {};
+}
+function roleProblems(_doc, list) {
+  return list.map((p) => ({
+    sev: p.sev,
+    k: 0,
+    f: p.field || "",
+    text: p.text,
+    definition: p.definition || ""
+  }));
+}
+
 // lib/resource-identity.ts
 function resourceIdentity(kind, dto) {
   const place = dto.place === "global" ? "global" : "project";
@@ -236,16 +283,31 @@ function resourceIdentity(kind, dto) {
 function request(kind, name, body) {
   return { kind, name, body };
 }
+var nextDraft = 0;
 function checkedProblems(answer) {
-  return answer && "problems" in answer ? answer.problems || [] : undefined;
+  if (typeof answer !== "object" || answer === null || !("problems" in answer))
+    return;
+  return answer.problems === null ? [] : Array.isArray(answer.problems) ? answer.problems : undefined;
 }
 function savedHash(answer) {
   return answer?.hash || "";
 }
+function savedText(answer, fallback) {
+  return typeof answer?.text === "string" ? answer.text : fallback;
+}
+function refusalAt(error) {
+  if (typeof error !== "object" || error === null || !("json" in error))
+    return "doc";
+  const json = error.json;
+  return typeof json === "object" && json !== null && "at" in json && json.at === "name" ? "name" : "doc";
+}
 function editing(definition, initial) {
   const state = y({
-    ...snapshot(initial),
-    born: snapshot(initial.draft),
+    saved: snapshot(initial.saved),
+    draft: snapshot(initial.draft),
+    hash: initial.hash,
+    text: initial.text || "",
+    born: snapshot(initial.born ?? initial.draft),
     problems: snapshot(initial.problems || []),
     baseProblems: snapshot(initial.problems || []),
     refusal: "",
@@ -253,16 +315,76 @@ function editing(definition, initial) {
     rename: true,
     savedLine: !!initial.savedLine
   });
+  const draftId = initial.draftId || `draft-${++nextDraft}`;
+  const target = () => {
+    const name = definition.origin ? definition.origin(state.value) : definition.identity.name;
+    return { kind: definition.identity.kind, place: definition.identity.place, project: definition.identity.project, name, ...name === null ? { draftId } : {} };
+  };
+  const matches = (carry) => {
+    if (!carry.target)
+      return true;
+    const expected = target(), got = carry.target;
+    return expected.kind === got.kind && expected.place === got.place && expected.project === got.project && expected.name === got.name && (expected.name !== null || expected.draftId === got.draftId);
+  };
   let alive = true;
   let revision = 0;
   let saving = 0;
+  let pendingSaves = 0;
   const patch = (next) => {
     state.value = { ...state.value, ...next };
   };
   const written = () => definition.written(state.value.draft);
-  const original = () => state.value.saved === null ? null : definition.written(state.value.saved);
+  const original = () => {
+    const basis = definition.baseline ? definition.baseline(state.value) : state.value.saved;
+    return basis === null ? null : definition.written(basis);
+  };
   const readable = initial.readable !== false;
-  const reading = resource(async (signal, input) => check3(input.kind, input, { signal }));
+  const loadCheck = async (signal, input) => {
+    try {
+      return { json: (await check2(input.kind, input, { signal })).json };
+    } catch (error) {
+      if (input.kind === "role" && error instanceof Refusal2) {
+        const json = roleCheckData(error.json);
+        if (Array.isArray(json.problems))
+          return { json };
+      }
+      throw error;
+    }
+  };
+  const reading = resource(loadCheck);
+  const baseReading = resource(loadCheck);
+  let baseHash;
+  let basePending;
+  let originalEpoch = 0;
+  function forgetOriginal() {
+    originalEpoch++;
+    baseReading.abort();
+    baseHash = undefined;
+    basePending = undefined;
+  }
+  async function checkOriginal() {
+    if (state.value.saved === null)
+      return;
+    if (baseHash === state.value.hash && basePending)
+      return basePending;
+    baseHash = state.value.hash;
+    const epoch = originalEpoch;
+    const basis = snapshot(state.value);
+    basis.draft = snapshot(basis.saved);
+    basePending = (async () => {
+      const answer = await baseReading.run(request(definition.identity.kind, definition.name(basis), definition.check(basis)));
+      if (!alive || epoch !== originalEpoch || state.value.hash !== basis.hash)
+        return;
+      const problems = checkedProblems(answer?.json);
+      if (problems !== undefined)
+        patch({ baseProblems: snapshot(problems) });
+      else {
+        baseHash = undefined;
+        basePending = undefined;
+      }
+    })();
+    return basePending;
+  }
   const change = (draft) => {
     reading.abort();
     revision++;
@@ -278,24 +400,33 @@ function editing(definition, initial) {
     const problems = checkedProblems(answer.json);
     if (problems === undefined)
       return;
-    patch({ problems: snapshot(problems), ...dirty(definition.shape, original(), written()) ? {} : { baseProblems: snapshot(problems) } });
+    patch({ checked: snapshot(answer.json), refusal: state.value.refusalAt === "name" && !problems.some((p) => p.sev === "err" && p.field === "name") ? "" : state.value.refusal, problems: snapshot(problems), ...dirty(definition.shape, original(), written()) ? {} : { baseProblems: snapshot(problems) } });
   }
   async function save(over) {
+    if (definition.busySave && pendingSaves > 0) {
+      patch({ refusal: definition.busySave, refusalAt: "doc" });
+      return;
+    }
+    pendingSaves++;
     const mine = ++saving;
     const sent = snapshot(state.value);
     const current = revision;
     if (over !== undefined)
       sent.hash = over;
-    patch({ refusal: "" });
+    patch({ refusal: "", refusalAt: undefined });
     try {
-      const answer = await save3(definition.identity.kind, request(definition.identity.kind, definition.name(sent), definition.save(sent)));
+      const answer = await save2(definition.identity.kind, request(definition.identity.kind, definition.name(sent), definition.save(sent)));
       if (!alive || mine !== saving)
         return;
+      forgetOriginal();
       const saved = definition.saved(answer.json, sent.draft);
       reading.abort();
       patch({
         saved: snapshot(saved),
         draft: current === revision ? snapshot(saved) : state.value.draft,
+        refusal: "",
+        refusalAt: undefined,
+        text: savedText(answer.json, sent.text || ""),
         hash: savedHash(answer.json) || sent.hash,
         baseProblems: snapshot(sent.problems),
         conflict: null,
@@ -306,8 +437,10 @@ function editing(definition, initial) {
       if (!alive || mine !== saving)
         return;
       const c = conflictOf(error);
-      patch(c ? { conflict: { c } } : { refusal: problemText2(error, "保存できませんでした") });
+      patch(c ? { conflict: { c } } : { refusal: problemText2(error, "保存できませんでした"), refusalAt: refusalAt(error) });
       return;
+    } finally {
+      pendingSaves--;
     }
   }
   function readConflict() {
@@ -317,11 +450,20 @@ function editing(definition, initial) {
     const draft = definition.recovered(c);
     if (draft === null)
       return;
-    const before = snapshot({ saved: state.value.saved, draft: state.value.draft, hash: state.value.hash });
+    const before = snapshot({ saved: state.value.saved, draft: state.value.draft, hash: state.value.hash, text: state.value.text });
+    forgetOriginal();
     change(draft);
-    patch({ saved: snapshot(draft), hash: c.file.hash || "", refusal: "", conflict: { c, undone: true, before } });
+    patch({ saved: snapshot(draft), hash: c.file.hash || "", text: c.file.text || "", refusal: "", conflict: { c, undone: true, before } });
   }
   return {
+    version: () => revision,
+    checkOriginal,
+    accept: (saved, hash, text, version) => {
+      saving++;
+      reading.abort();
+      forgetOriginal();
+      patch({ saved: snapshot(saved), draft: revision === version ? snapshot(saved) : state.value.draft, hash, text, conflict: null });
+    },
     read: O(() => snapshot(state.value)),
     changes: O(() => diff(definition.shape, original(), written(), readable)),
     dirty: O(() => dirty(definition.shape, original(), written(), readable)),
@@ -332,14 +474,14 @@ function editing(definition, initial) {
     remove: async () => {
       if (!definition.remove)
         return;
-      patch({ refusal: "" });
+      patch({ refusal: "", refusalAt: undefined });
       const mine = ++saving;
       try {
         const answer = await definition.remove(snapshot(state.value));
         return alive && mine === saving ? answer : undefined;
       } catch (e) {
         if (alive && mine === saving)
-          patch({ refusal: problemText2(e, "削除できませんでした") });
+          patch({ refusal: problemText2(e, "削除できませんでした"), refusalAt: refusalAt(e) });
         return;
       }
     },
@@ -347,6 +489,7 @@ function editing(definition, initial) {
     check,
     save: () => save(),
     overwrite: () => state.value.conflict ? save(state.value.conflict.c.file.hash || "") : Promise.resolve(undefined),
+    dismissSaved: () => patch({ savedLine: false }),
     renameUsers: (rename) => patch({ rename }),
     discard: () => {
       change(state.value.saved ?? state.value.born);
@@ -357,21 +500,32 @@ function editing(definition, initial) {
       const before = state.value.conflict?.before;
       if (!before)
         return;
+      forgetOriginal();
       change(before.draft);
-      patch({ saved: before.saved, hash: before.hash, conflict: null });
+      patch({ saved: before.saved, hash: before.hash, text: before.text, conflict: null });
     },
-    take: () => snapshot({ hash: state.value.hash, draft: state.value.draft }),
+    matches,
+    take: () => snapshot({ hash: state.value.hash, draft: state.value.draft, saved: state.value.saved, born: state.value.born, rename: state.value.rename, target: target() }),
     restore: (carry) => {
-      if (carry.hash && carry.hash !== state.value.hash)
+      if (!matches(carry) || carry.hash && carry.hash !== state.value.hash)
         return false;
       change(carry.draft);
+      if (carry.rename !== undefined)
+        patch({ rename: carry.rename });
+      if (state.value.saved === null && carry.born)
+        patch({ born: snapshot(carry.born) });
       return true;
     },
-    rebase: (hash) => patch({ hash }),
+    rebase: (hash) => {
+      if (hash !== state.value.hash)
+        forgetOriginal();
+      patch({ hash });
+    },
     dispose: () => {
       alive = false;
       saving++;
       reading.abort();
+      baseReading.abort();
     }
   };
 }
@@ -379,6 +533,7 @@ var profileDoc = (d) => ({ name: d.name || "", kind: d.kind || "", args: [...d.a
 function editProfile(identity, initial) {
   const definition = {
     identity,
+    origin: (s) => s.saved?.name || null,
     shape: PROFILE,
     written: profileDoc,
     name: (s) => s.saved?.name || s.draft.name || "_",
@@ -410,25 +565,29 @@ function editProfileAssignments(identity, picks, hash) {
     saved: (_a, sent) => sent
   }, { saved: picks, draft: picks, hash });
 }
-function editYaml(kind, input) {
+function textEditing(kind, input, nameOf = () => input.name) {
   const identity = resourceIdentity(kind, input);
   const body = (s) => ({
     place: identity.place,
     project: identity.project,
-    ...kind === "profile" ? {} : { name: identity.name || input.name },
+    ...kind === "profile" ? {} : { name: nameOf() },
     text: s.draft,
     ...input.part ? { part: input.part } : {}
   });
   return editing({
     identity,
+    origin: () => nameOf(),
     shape: YAML_TEXT,
     written: (text) => ({ text }),
-    name: () => input.name,
+    name: nameOf,
     check: body,
     save: (s) => ({ ...body(s), hash: s.hash }),
     recovered: (c) => c.file.text || "",
     saved: (_a, sent) => sent
   }, { saved: input.text, draft: input.text, hash: input.hash, problems: input.problems, readable: !input.problem });
+}
+function editYaml(kind, input) {
+  return textEditing(kind, input);
 }
 function profileFiles() {
   const hashes = y({});
@@ -440,6 +599,143 @@ function profileFiles() {
         hashes.value = { ...hashes.value, [key(id)]: hash };
     }
   };
+}
+var roleDoc = (doc) => ({ name: doc.name, title: doc.title || "", text: doc.text });
+function editRole(identity, initial) {
+  let base = initial.base;
+  const doc = editing({
+    identity,
+    origin: (s) => s.saved?.name || null,
+    busySave: "ロールを保存しています。完了をお待ちください",
+    shape: ROLE_DOC,
+    written: roleDoc,
+    baseline: (s) => s.saved || s.born,
+    name: (s) => s.draft.name || s.saved?.name || "_",
+    check: (s) => ({ place: identity.place, project: identity.project, original: s.saved?.name || null, doc: roleDoc(s.draft) }),
+    save: (s) => ({
+      place: identity.place,
+      project: identity.project,
+      original: s.saved?.name || null,
+      doc: roleDoc(s.draft),
+      rename_users: s.rename,
+      hash: s.hash,
+      ...base ? { base: { place: base.place, name: base.name || "", project: base.project } } : {}
+    }),
+    remove: (s) => del2("role", s.saved?.name || "", identity.place, s.hash, undefined, identity.project),
+    recovered: (c) => c.file.doc ? readRole(c.file.doc) : null,
+    saved: (answer, sent) => {
+      base = undefined;
+      return answer?.doc ? readRole(answer.doc) : sent;
+    }
+  }, initial);
+  const yaml = textEditing("role", {
+    place: identity.place,
+    project: identity.project,
+    name: identity.name || initial.draft.name,
+    text: initial.text || "",
+    hash: initial.hash,
+    problem: initial.readable === false ? "unreadable" : ""
+  }, () => doc.read.value.saved?.name || doc.read.value.draft.name);
+  async function saveDocument(overwrite = false) {
+    const version = yaml.version();
+    const answer = await (overwrite ? doc.overwrite() : doc.save());
+    if (answer?.json)
+      yaml.accept(answer.json.text ?? "", answer.json.hash || doc.read.value.hash, answer.json.text ?? "", version);
+    return answer;
+  }
+  async function saveText(overwrite = false) {
+    const version = doc.version();
+    const answer = await (overwrite ? yaml.overwrite() : yaml.save());
+    const json = answer?.json;
+    if (json && "doc" in json && json.doc && "text" in json.doc) {
+      base = undefined;
+      doc.accept(readRole(json.doc), json.hash || yaml.read.value.hash, json.text || "", version);
+    }
+    return answer;
+  }
+  const grew = O(() => {
+    const state = doc.read.value;
+    const before = new Set(state.baseProblems.filter((p) => p.sev === "err").map((p) => p.text));
+    return state.problems.filter((p) => p.sev === "err" && !before.has(p.text));
+  });
+  return {
+    ...doc,
+    take: () => ({ ...doc.take(), yaml: yaml.take(), ...base ? { base: snapshot(base) } : {} }),
+    restore: (carry) => {
+      const restored = doc.restore(carry);
+      const raw = "yaml" in carry && carry.yaml ? yaml.restore(carry.yaml) : false;
+      if (restored && "base" in carry && carry.base)
+        base = resourceIdentity("role", { place: carry.base.place, project: carry.base.project, name: carry.base.name || undefined });
+      return restored || raw;
+    },
+    validation: O(() => doc.read.value.checked || {}),
+    grew,
+    blocked: O(() => doc.read.value.saved ? grew.value.length > 0 || !doc.dirty.value : doc.read.value.problems.some((p) => p.sev === "err")),
+    check: async () => {
+      await Promise.all([doc.checkOriginal(), doc.check()]);
+    },
+    save: () => saveDocument(),
+    overwrite: () => saveDocument(true),
+    yaml: { ...yaml, save: () => saveText(), overwrite: () => saveText(true) },
+    readConflict: () => {
+      const version = yaml.dirty.value ? -1 : yaml.version();
+      doc.readConflict();
+      const s = doc.read.value;
+      yaml.accept(s.text || "", s.hash, s.text || "", version);
+    },
+    undoConflict: () => {
+      const version = yaml.dirty.value ? -1 : yaml.version();
+      doc.undoConflict();
+      const s = doc.read.value;
+      yaml.accept(s.text || "", s.hash, s.text || "", version);
+    },
+    rebase: (hash) => {
+      doc.rebase(hash);
+      yaml.rebase(hash);
+    },
+    dispose: () => {
+      doc.dispose();
+      yaml.dispose();
+    }
+  };
+}
+function restoreRole(identity, carry) {
+  if (carry.saved !== null || carry.target.name !== null || carry.hash !== "" || carry.target.kind !== "role" || carry.target.place !== identity.place || carry.target.project !== identity.project || identity.name !== null)
+    return;
+  const editing = editRole(identity, { saved: null, draft: carry.born, born: carry.born, draftId: carry.target.draftId, hash: "", text: "" });
+  if (!editing.restore(carry)) {
+    editing.dispose();
+    return;
+  }
+  return editing;
+}
+function readRole(value) {
+  if (typeof value !== "object" || value === null)
+    return { name: "", title: "", text: "" };
+  return { name: "name" in value && typeof value.name === "string" ? value.name : "", title: "title" in value && typeof value.title === "string" ? value.title : "", text: "text" in value && typeof value.text === "string" ? value.text : "" };
+}
+function editRoleAssignments(identity, picks, hash) {
+  const doc = (s) => ({ ops: s.draft.filter((row) => {
+    const saved = s.saved?.find((one) => one.name === row.name);
+    return !saved || assignDirty({ name: row.name, saved: saved.role, draft: row.role });
+  }).map((row) => ({ kind: "memberRole", member: row.name, role: row.role })) });
+  const one = editing({
+    identity,
+    shape: PROFILE_ASSIGN,
+    written: (rows) => ({ picks: rows.map((r) => ({ member: r.name, role: r.role })) }),
+    name: () => identity.name || "",
+    check: (s) => ({ place: identity.place, project: identity.project, name: identity.name || "", doc: doc(s) }),
+    save: (s) => ({ place: identity.place, part: "team", hash: s.hash, doc: doc(s) }),
+    recovered: () => null,
+    saved: (_a, sent) => sent
+  }, { saved: picks.map((r) => ({ name: r.name, role: r.saved })), draft: picks.map((r) => ({ name: r.name, role: r.draft })), hash });
+  return { ...one, renameRole: (from, to) => {
+    const state = one.read.value;
+    const map = (rows) => rows.map((r) => ({ ...r, role: r.role === from ? to : r.role }));
+    if (state.saved)
+      one.accept(map(state.saved), state.hash, "", -1);
+    one.change(map(state.draft));
+  } };
 }
 
 // lib/yamltab.tsx
@@ -599,7 +895,8 @@ function YamlTab2(props) {
     return () => {
       alive.current = false;
       clearTimeout(timer.current);
-      editing.dispose();
+      if (!props.editing)
+        editing.dispose();
     };
   }, []);
   h(() => {
@@ -806,4 +1103,4 @@ function YamlTab2(props) {
   });
 }
 
-export { conflictOf, ConflictNotice, resourceIdentity, editProfile, editProfileAssignments, editYaml, profileFiles, tellDirty2, autosize2, insertTab2, YamlTab2 };
+export { conflictOf, ConflictNotice, roleCheckData, roleProblems, resourceIdentity, editProfile, editProfileAssignments, editYaml, profileFiles, editRole, restoreRole, editRoleAssignments, tellDirty2, autosize2, insertTab2, YamlTab2 };

@@ -107,9 +107,6 @@ function roleDirty(e, born) {
 function assignDirty(m) {
   return dirty(PROFILE_ASSIGN, { picks: [{ member: m.name, role: m.saved }] }, { picks: [{ member: m.name, role: m.draft }] });
 }
-function yamlDirty(text, typed) {
-  return dirty(YAML_TEXT, { text }, { text: typed === undefined ? text : typed });
-}
 function profileFlags(saved, draft, readable = true) {
   const count = diff(PROFILE, saved, draft, readable).length;
   const out = { name: false, kind: false, args: [], env: [], count };
@@ -127,4 +124,4 @@ function profileFlags(saved, draft, readable = true) {
   return out;
 }
 
-export { snapshot, dirty, diff, lost, ROLE_DOC, TEAM, TEAM_AGREEMENT, PROFILE, PROFILE_ASSIGN, YAML_TEXT, roleDirty, assignDirty, yamlDirty, profileFlags };
+export { snapshot, dirty, diff, lost, ROLE_DOC, TEAM, TEAM_AGREEMENT, PROFILE, PROFILE_ASSIGN, YAML_TEXT, roleDirty, assignDirty, profileFlags };

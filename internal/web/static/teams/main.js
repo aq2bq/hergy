@@ -24,9 +24,11 @@ import {
 import {
   dropUndo,
   runDanger
-} from "../chunk/nav-n7k9prc1.js";
+} from "../chunk/nav-me9ek2sz.js";
 import {
+  Refusal2,
   call2,
+  sendLegacy2,
   read2,
   list2,
   get2,
@@ -35,12 +37,12 @@ import {
   saved2,
   bases2,
   problemText2
-} from "../chunk/nav-5wk0yvna.js";
+} from "../chunk/nav-ghcq2kwy.js";
 import {
   carryTo2,
   takeDraft2,
   setDirty2
-} from "../chunk/nav-6xksh4n8.js";
+} from "../chunk/nav-fsrd36y0.js";
 import {
   num,
   documents,
@@ -57,31 +59,27 @@ import {
   Counts2,
   Vm2,
   RuleDoc2
-} from "../chunk/nav-3zkakthz.js";
+} from "../chunk/nav-btmsht8f.js";
 import {
   conflictOf,
   ConflictNotice,
+  roleCheckData,
+  roleProblems,
   YamlTab2
-} from "../chunk/nav-9as7qv3s.js";
+} from "../chunk/nav-0fkstt2f.js";
 import {
   st,
   projectName2
-} from "../chunk/nav-mvjbr7t3.js";
+} from "../chunk/nav-xckgx88h.js";
 import {
   RunCell2
-} from "../chunk/nav-1g2p38ew.js";
-import {
-  check2,
-  save2,
-  roleEditor,
-  roleProblems
-} from "../chunk/nav-e8h9vhqq.js";
+} from "../chunk/nav-sd0hps2t.js";
 import {
   copyGroupOf,
   groupPlace,
   projectOfGroup,
   ProjectView
-} from "../chunk/nav-hcs16qxf.js";
+} from "../chunk/nav-b3v9q990.js";
 import {
   Field
 } from "../chunk/nav-9htrbyn7.js";
@@ -106,10 +104,17 @@ import {
   TEAM_AGREEMENT,
   YAML_TEXT,
   roleDirty
-} from "../chunk/nav-36f6dmhj.js";
+} from "../chunk/nav-w5ecmbs1.js";
 import {
   resource
 } from "../chunk/nav-74jj0fve.js";
+
+// lib/legacy-editing-api.ts
+function request(kind, action, name, body) {
+  return { kind, action, name, body };
+}
+var check = (kind, payload, opts) => sendLegacy2(request(kind, "check", "", payload), opts);
+var save = (kind, name, payload, opts) => sendLegacy2(request(kind, "save", name, payload), opts);
 
 // teams/selection-table.ts
 var SIDE_RULES = [
@@ -248,7 +253,7 @@ async function transferTargets() {
             if (context.state !== "readable" || context.place !== place || context.errors.length)
               throw new Error(context.problem || context.errors.join("、") || "ロールの保存先と使用先を確認できませんでした");
             try {
-              const answer = await save2("role", item.name, { place, project, original: item.name, hash, role_context: place, doc: { name: item.name, title: title(text), text } });
+              const answer = await save("role", item.name, { place, project, original: item.name, hash, role_context: place, doc: { name: item.name, title: title(text), text } });
               if (!answer.json)
                 return false;
               hash = answer.json.hash;
@@ -264,6 +269,37 @@ async function transferTargets() {
       }
     }
   return out;
+}
+
+// lib/role-editor.ts
+function roleEditor() {
+  const saving = y(false);
+  const check2 = resource(async (signal, payload) => {
+    try {
+      const result = await check("role", payload, { signal });
+      if (!Array.isArray(result.json?.problems))
+        throw new Error("ロールの検査結果を読めませんでした");
+      return result;
+    } catch (err) {
+      if (err instanceof Refusal2) {
+        const json = roleCheckData(err.json);
+        if (Array.isArray(json.problems))
+          return { ok: false, status: err.status, text: err.text, json };
+      }
+      throw err;
+    }
+  });
+  async function save2(name, payload) {
+    if (saving.value)
+      throw new Error("ロールを保存しています。完了をお待ちください");
+    saving.value = true;
+    try {
+      return await save("role", name, payload);
+    } finally {
+      saving.value = false;
+    }
+  }
+  return { check: check2, saving, save: save2 };
 }
 
 // teams/role-modal.tsx
@@ -1450,7 +1486,7 @@ function checkersFor(r) {
   if (had)
     return had;
   const load = async (signal, payload) => {
-    const res = await check2("team", payload, { signal });
+    const res = await check("team", payload, { signal });
     return res.json;
   };
   const one = { draft: resource(load), base: resource(load), agree: resource(load) };
@@ -1580,7 +1616,7 @@ function setOps(r, ops) {
 async function saveTeam(r, over) {
   if (r.draftRow)
     return saveFolder(r);
-  const json = await answered(r, "t", save2("team", r.name.value, teamIn(r, { hash: over === undefined ? r.hash.value : over, doc: { ops: r.ops.value } })), "保存できませんでした");
+  const json = await answered(r, "t", save("team", r.name.value, teamIn(r, { hash: over === undefined ? r.hash.value : over, doc: { ops: r.ops.value } })), "保存できませんでした");
   if (!json)
     return;
   setConflict(r, "t", null);
@@ -1615,7 +1651,7 @@ async function saveAgree(r, over) {
   if (r.draftRow)
     return saveFolder(r);
   const doc = toDoc2(r.agreeDraft.value, r.agreeSaved.value);
-  const json = await answered(r, "a", save2("team", r.name.value, agreeIn(r, { hash: over === undefined ? r.agreeHash.value : over, doc: { ops: r.ops.value, doc } })), "保存できませんでした");
+  const json = await answered(r, "a", save("team", r.name.value, agreeIn(r, { hash: over === undefined ? r.agreeHash.value : over, doc: { ops: r.ops.value, doc } })), "保存できませんでした");
   if (!json)
     return;
   setConflict(r, "a", null);
@@ -1646,7 +1682,7 @@ async function saveFolder(r) {
     part: "folder",
     doc: { ops: r.ops.value, doc }
   });
-  const json = await answered(r, "t", save2("team", r.name.value, body), "保存できませんでした");
+  const json = await answered(r, "t", save("team", r.name.value, body), "保存できませんでした");
   if (!json)
     return;
   const name = r.name.value, dom = r.dom, dtab = dtabOf(r), opens = isOpenRow(r);
@@ -3987,7 +4023,7 @@ function workerSlotFor(r, from, purpose) {
   if (had)
     return had;
   const reading = resource(async (stop, body) => {
-    const answer = await check2("team", body, { signal: stop });
+    const answer = await check("team", body, { signal: stop });
     if (!answer.json)
       throw new Error("本文の応答がありません");
     return answer.json;
@@ -5444,7 +5480,7 @@ function Rename({ r }) {
   const [open, setOpen] = d(false), [name, setName] = d(r.name.value);
   const [saving, setSaving] = d(false), [error, setError] = d("");
   const reading = T(() => resource(async (signal, next) => {
-    const res = await check2("team", { name: r.name.value, place: r.place.value, project: projectOfGroup(groupOfRecord(r)), rename_to: next }, { signal });
+    const res = await check("team", { name: r.name.value, place: r.place.value, project: projectOfGroup(groupOfRecord(r)), rename_to: next }, { signal });
     return res.json?.rename || null;
   }), [r]);
   h(() => {
