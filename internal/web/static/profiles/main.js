@@ -18,53 +18,43 @@ import {
 } from "../chunk/nav-zn7g81kr.js";
 import {
   runDanger
-} from "../chunk/nav-42b5x58f.js";
+} from "../chunk/nav-n7k9prc1.js";
 import {
-  check2,
-  save2,
-  del2,
-  bases2,
-  problemText2,
   profileModel2
-} from "../chunk/nav-sk3m5qf3.js";
+} from "../chunk/nav-5wk0yvna.js";
 import {
   takeDraft2,
   setDirty2
-} from "../chunk/nav-ag8t5wv9.js";
+} from "../chunk/nav-6xksh4n8.js";
 import {
-  conflictOf,
   ConflictNotice,
+  resourceIdentity,
+  editProfile,
+  editProfileAssignments,
+  editYaml,
+  profileFiles,
   YamlTab2
-} from "../chunk/nav-w38d9r9j.js";
+} from "../chunk/nav-9as7qv3s.js";
 import {
   copyGroupOf,
-  projectOfGroup,
   ProjectView
-} from "../chunk/nav-x8mye5ra.js";
+} from "../chunk/nav-hcs16qxf.js";
 import {
   Field
 } from "../chunk/nav-9htrbyn7.js";
 import {
   movePage,
-  installWheel,
-  resource
-} from "../chunk/nav-kj98ksd1.js";
+  installWheel
+} from "../chunk/nav-31sebn46.js";
 import {
   readOpen2,
   writeOpen2,
   rowsFor
 } from "../chunk/nav-hr74m0fy.js";
 import {
-  snapshot,
-  dirty,
-  lost,
-  PROFILE,
-  PROFILE_ASSIGN,
-  YAML_TEXT,
-  assignDirty,
-  yamlDirty,
-  profileFlags
+  assignDirty
 } from "../chunk/nav-36f6dmhj.js";
+import"../chunk/nav-74jj0fve.js";
 
 // profiles/state.ts
 function mustElement(id) {
@@ -167,34 +157,18 @@ var pathFor = (file, group) => {
   const g = (GROUPS || []).find((x) => groupKeyOf(x) === group);
   return `${g && g.project && g.project.display || ""}/.hergy/profiles.yaml`;
 };
-var hashes = y({ project: view.dataset.hashProject || "", global: view.dataset.hashShared || "" });
-var fileKey = (group, file) => (group || "") + "|" + file;
-var fileHashes = y({});
-function fileHashOf(group, file) {
-  const g = group || "";
-  const known = fileHashes.value[fileKey(g, file)];
-  if (known)
-    return known;
-  if (file === "global")
-    return hashes.value.global;
-  if (!g || g === CURRENT)
-    return hashes.value.project;
-  return "";
-}
+var fileBases = profileFiles();
+var identityOf = (file, group = "", name) => resourceIdentity("profile", { place: file, project: group || CURRENT, name });
+fileBases.learn(identityOf("project"), view.dataset.hashProject || "");
+fileBases.learn(identityOf("global"), view.dataset.hashShared || "");
+var fileHashOf = (group, file) => fileBases.hash(identityOf(file, group));
 function learnFiles(group, list) {
   if (!list)
     return;
-  const next = { ...fileHashes.value };
-  const read = list.hashes || {};
-  for (const place of PLACES) {
-    if (read[place])
-      next[fileKey(group, place)] = read[place];
-  }
-  for (const one of list.files || []) {
-    if (one.place && one.hash)
-      next[fileKey(group, placeOf(one.place))] = one.hash;
-  }
-  fileHashes.value = next;
+  for (const place of PLACES)
+    fileBases.learn(identityOf(place, group), list.hashes?.[place] || "");
+  for (const one of list.files || [])
+    fileBases.learn(identityOf(placeOf(one.place), group), one.hash);
 }
 var params = () => new URLSearchParams(location.search);
 var OPEN_ROWS = readOpen2(params());
@@ -210,7 +184,15 @@ var keyGroup = (group) => GROUPED ? group : group === "global" ? "global" : "";
 var openKeys = y(new Set(OPEN_ROWS.map((t) => t.name + "|" + keyGroup(t.group || ""))));
 var nextId = 1;
 var newKey = () => "new-" + nextId++;
-function panelOf(p, group, rowKey) {
+function panelOf(p, group, rowKey, retained) {
+  const identity = identityOf(p.file, group, p.saved ? p.savedName : undefined);
+  const editing = retained || editProfile(identity, {
+    saved: p.saved && identity.name ? { name: identity.name, kind: p.savedKind, args: stringList(p.savedArgs), env: envList(p.savedEnv) } : null,
+    draft: { name: p.name || "", kind: p.kind || "claude", args: (p.args || []).slice(), env: (p.env || []).map((pair) => ({ ...pair })) },
+    hash: p.hash || fileBases.hash(identity),
+    readable: !p.problem,
+    savedLine: p.savedLine
+  });
   return {
     key: rowKey + ":" + p.file,
     rowKey,
@@ -219,23 +201,48 @@ function panelOf(p, group, rowKey) {
     path: p.path || pathFor(p.file, group),
     label: p.label,
     otherLabel: p.otherLabel,
-    saved: p.saved ? { name: p.savedName, kind: p.savedKind, args: stringList(p.savedArgs), env: envList(p.savedEnv) } : null,
-    hash: p.hash || "",
     users: p.users || 0,
     rename_targets: p.rename_targets || 0,
-    draft: { name: p.name || "", kind: p.kind || "claude", args: (p.args || []).slice(), env: (p.env || []).map((pair) => ({ key: pair.key, value: pair.value })) },
-    problems: [],
-    errors: 0,
-    savedLine: !!p.savedLine,
     problem: p.problem || "",
     mark: p.mark || "",
-    refusal: "",
-    conflict: null,
-    rename: true,
-    layerSwitch: false
+    layerSwitch: false,
+    editing,
+    get saved() {
+      return editing.read.value.saved;
+    },
+    get draft() {
+      return editing.read.value.draft;
+    },
+    get born() {
+      return editing.read.value.born;
+    },
+    get hash() {
+      return editing.read.value.hash;
+    },
+    get problems() {
+      return editing.read.value.problems;
+    },
+    get baseProblems() {
+      return editing.read.value.baseProblems;
+    },
+    get errors() {
+      return editing.read.value.problems.filter((p) => p.sev === "err").length;
+    },
+    get refusal() {
+      return editing.read.value.refusal;
+    },
+    get conflict() {
+      return editing.read.value.conflict;
+    },
+    get rename() {
+      return editing.read.value.rename;
+    },
+    get savedLine() {
+      return editing.read.value.savedLine;
+    }
   };
 }
-function rowOf(row, index) {
+function rowOf(row, index, retained) {
   const key = (row.name || "") + "|" + (row.group || "") + (row.name ? "" : "|" + index);
   return {
     key,
@@ -255,7 +262,7 @@ function rowOf(row, index) {
     places: row.places || [],
     isNew: !!row.new,
     open: openKeys.value.has(key) || isOpenRow(row),
-    panels: (row.panels || []).map((p) => panelOf(p, row.group || "", key))
+    panels: (row.panels || []).map((p) => panelOf(p, row.group || "", key, retained && row.name === retained.saved?.name && (row.group || "") === retained.group && p.file === retained.file ? retained.editing : undefined))
   };
 }
 function modelOf(list, group) {
@@ -278,22 +285,19 @@ function readInitial() {
       all.push(...modelOf(g.list || null, key).rows);
     });
     learnFiles(CURRENT, ISLAND.profile || null);
-    return { rows: all.map(rowOf), files: modelOf(ISLAND.profile || null).files || [] };
+    return { rows: all.map((row, i) => rowOf(row, i)), files: modelOf(ISLAND.profile || null).files || [] };
   }
   learnFiles("", ISLAND.profile || null);
   const model = modelOf(ISLAND.profile || null);
-  return { rows: model.rows.map(rowOf), files: model.files || [] };
+  return { rows: model.rows.map((row, i) => rowOf(row, i)), files: model.files || [] };
 }
 {
   const first = readInitial();
   rows.value = first.rows;
   files.value = first.files;
 }
-var panelFlags = (panel) => profileFlags(savedProfile(panel), writtenProfile(panel), !panel.problem);
-var profileDoc = (d) => ({ name: d.name || "", kind: d.kind || "", args: d.args || [], env: d.env || [] });
-var writtenProfile = (panel) => profileDoc(panel.draft);
-var savedProfile = (panel) => panel.saved ? profileDoc(panel.saved) : null;
-var profileDirty = (panel) => dirty(PROFILE, savedProfile(panel), writtenProfile(panel), !panel.problem);
+var panelFlags = (panel) => panel.editing.flags.value;
+var profileDirty = (panel) => panel.editing.dirty.value;
 var rowUnsaved = (row) => row.panels.some(profileDirty);
 var saveBlocked = (panel) => panel.errors > 0 || (panel.saved ? !profileDirty(panel) : false) || panel.draft.name === "";
 var focusAsk = y(null);
@@ -303,8 +307,11 @@ function askFocus(key, field, index, select, scroll) {
 function updateRow(fn) {
   rows.value = rows.value.map(fn);
 }
-function patchPanel(key, patch) {
-  updateRow((row) => row.panels.some((p) => p.key === key) ? { ...row, panels: row.panels.map((p) => p.key === key ? { ...p, ...typeof patch === "function" ? patch(p) : patch } : p) } : row);
+function changeDraft(key, change) {
+  panelByKey(key)?.editing.change(change);
+}
+function renamePanel(key, on) {
+  panelByKey(key)?.editing.renameUsers(on);
 }
 function allPanels() {
   return rows.value.flatMap((row) => row.panels.map((panel) => ({ row, panel })));
@@ -358,7 +365,6 @@ function addRow(file, group) {
     savedLine: false,
     problem: ""
   }, g, key);
-  panel.born = snapshot(writtenProfile(panel));
   const row = {
     key,
     name: "",
@@ -448,7 +454,6 @@ function duplicateRow(panel) {
   };
   row.panels[0].key = row.key + ":" + panel.file;
   row.panels[0].rowKey = row.key;
-  row.panels[0].born = snapshot(writtenProfile(row.panels[0]));
   const next = new Set(openKeys.value);
   next.add(row.key);
   openKeys.value = next;
@@ -509,7 +514,6 @@ function copyPanel(panel) {
   };
   fresh.rowKey = row.key;
   fresh.key = row.key + ":" + file;
-  fresh.born = snapshot(writtenProfile(fresh));
   const next = new Set(openKeys.value);
   next.add(row.key);
   openKeys.value = next;
@@ -534,6 +538,7 @@ function discardPanel(key) {
   const row = rows.value.find((r) => r.panels.some((p) => p.key === key));
   if (!row)
     return;
+  panelByKey(key)?.editing.dispose();
   if (row.panels.length > 1) {
     updateRow((r) => r.key === row.key ? { ...r, panels: r.panels.filter((p) => p.key !== key) } : r);
     return;
@@ -543,106 +548,42 @@ function discardPanel(key) {
   openKeys.value = next;
   rows.value = rows.value.filter((r) => r.key !== row.key);
 }
-var checkers = new Map;
-function checkerFor(key) {
-  let one = checkers.get(key);
-  if (one)
-    return one;
-  one = resource(async (signal, payload) => {
-    const answer = await check2("profile", payload, { signal });
-    return { json: answer.json };
-  });
-  checkers.set(key, one);
-  return one;
-}
 async function checkPanel(key) {
+  await panelByKey(key)?.editing.check();
+}
+async function savePanel(key) {
   const panel = panelByKey(key);
   if (!panel)
     return;
-  const answer = await checkerFor(key).run({
-    place: panel.file,
-    original: panel.saved ? panel.saved.name : "",
-    project: projectOf(panel),
-    doc: panel.draft
-  });
-  if (!answer?.json)
-    return;
-  const problems = answer.json.problems || [];
-  if (!panelByKey(key))
-    return;
-  patchPanel(key, { problems, errors: problems.filter((p) => p.sev === "err").length });
-}
-function projectOf(panel) {
-  return projectOfGroup(panel.group);
-}
-async function savePanel(key, over) {
-  const panel = panelByKey(key);
-  if (!panel)
-    return;
-  const draft = panel.draft;
-  patchPanel(key, { refusal: "" });
-  try {
-    const answer = await save2("profile", panel.saved ? panel.saved.name : draft.name || "_", {
-      place: panel.file,
-      original: panel.saved ? panel.saved.name : "",
-      project: projectOf(panel),
-      doc: draft,
-      rename_users: !!panel.rename,
-      hash: over === undefined ? panel.hash || fileHashOf(panel.group, panel.file) : over
-    });
-    patchPanel(key, { conflict: null });
+  const answer = await panel.editing.save();
+  if (answer)
     applySaved(panel, answer.json);
-  } catch (e) {
-    const c = conflictOf(e);
-    if (c) {
-      patchPanel(key, { conflict: { c } });
-      return;
-    }
-    patchPanel(key, { refusal: problemText2(e, "保存できませんでした") });
-  }
 }
 function pressOverwrite(key) {
   const panel = panelByKey(key);
-  const c = panel && panel.conflict;
-  if (!panel || !c)
-    return;
-  savePanel(key, c.c.file.hash || "");
+  if (panel)
+    panel.editing.overwrite().then((answer) => {
+      if (answer)
+        applySaved(panel, answer.json);
+    });
 }
 function pressRevertConflict(key) {
-  const panel = panelByKey(key);
-  if (!panel || !panel.conflict || !panel.conflict.c.file.doc)
-    return;
-  const doc = panel.conflict.c.file.doc;
-  const before = { saved: panel.saved ? { ...panel.saved, args: panel.saved.args.slice(), env: panel.saved.env.map((p) => ({ ...p })) } : null, draft: { ...panel.draft, args: panel.draft.args.slice(), env: panel.draft.env.map((p) => ({ ...p })) }, hash: panel.hash };
-  const next = { name: doc.name || "", kind: doc.kind || "claude", args: (doc.args || []).slice(), env: (doc.env || []).map((p) => ({ key: p.key, value: p.value })) };
-  patchPanel(key, {
-    saved: { name: next.name, kind: next.kind, args: next.args.slice(), env: next.env.map((p) => ({ ...p })) },
-    draft: next,
-    hash: panel.conflict.c.file.hash || "",
-    conflict: { c: panel.conflict.c, undone: true, before },
-    savedLine: false
-  });
+  panelByKey(key)?.editing.readConflict();
 }
 function pressUndoConflict(key) {
-  const panel = panelByKey(key);
-  const before = panel && panel.conflict && panel.conflict.before;
-  if (!panel || !before)
-    return;
-  patchPanel(key, { saved: before.saved, draft: before.draft, hash: before.hash, conflict: null });
+  panelByKey(key)?.editing.undoConflict();
 }
 async function deletePanel(key) {
   const panel = panelByKey(key);
   if (!panel || !panel.saved)
     return;
-  patchPanel(key, { refusal: "" });
-  try {
-    const answer = await del2("profile", panel.saved.name, panel.file, panel.hash || fileHashOf(panel.group, panel.file), undefined, projectOf(panel));
+  const answer = await panel.editing.remove();
+  if (answer)
     applySaved(panel, answer.json);
-  } catch (e) {
-    patchPanel(key, { refusal: problemText2(e, "削除できませんでした") });
-  }
 }
 function applySaved(panel, answer) {
+  const retainedEdit = panel.editing.dirty.value ? panel : undefined;
+  const previous = allPanels().map(({ panel }) => panel);
   const list = {
     items: answer && answer.items || null,
     hashes: answer && answer.hashes || {},
@@ -651,9 +592,6 @@ function applySaved(panel, answer) {
   const group = panel.group || "";
   learnFiles(group, list);
   const model = modelOf(list, panel.group);
-  if (!GROUPED && answer && answer.hashes) {
-    hashes.value = { project: answer.hashes.project || hashes.value.project, global: answer.hashes.global || hashes.value.global };
-  }
   const order = groupOrder();
   const byGroup = new Map;
   rows.value.forEach((row) => {
@@ -664,7 +602,7 @@ function applySaved(panel, answer) {
     if (held)
       held.push(row);
   });
-  const answered = model.rows.map(rowOf);
+  const answered = model.rows.map((row, i) => rowOf(row, i, retainedEdit));
   const own = new Map;
   answered.forEach((row) => {
     const key = row.group || "";
@@ -677,24 +615,22 @@ function applySaved(panel, answer) {
     byGroup.set(group, []);
   const next = order.flatMap((key) => byGroup.get(key) || []);
   const open = new Set(openKeys.value);
-  const written = panel.saved ? panel.draft.name : panel.draft.name;
+  const written = panel.saved?.name || panel.draft.name;
   const found = next.find((row) => row.name === written && (row.group || "") === group);
-  if (found)
+  if (found) {
     open.add(found.key);
-  else if (panel.saved)
+    const target = found.panels.find((p) => p.file === panel.file);
+    if (retainedEdit && target)
+      target.editing.check();
+  } else if (panel.saved)
     open.add((panel.draft.name || "") + "|" + group);
   openKeys.value = open;
-  const moved = new Map(bases2(answer).filter((b) => b.hash && !b.name).map((b) => [b.place, b.hash]));
-  rows.value = next.map((row) => ({
-    ...row,
-    open: open.has(row.key),
-    panels: row.panels.map((p) => {
-      if ((row.group || "") !== group)
-        return p;
-      const hash = moved.get(p.file);
-      return hash && hash !== p.hash ? { ...p, hash } : p;
-    })
-  }));
+  rows.value = next.map((row) => ({ ...row, open: open.has(row.key) }));
+  const retained = new Set(allPanels().map(({ panel }) => panel.editing));
+  previous.forEach((p) => {
+    if (!retained.has(p.editing))
+      p.editing.dispose();
+  });
   if (TAB === "profiles")
     syncURL();
   tellDirty();
@@ -730,32 +666,32 @@ var chips = O(() => {
   });
   return out;
 });
-function dirty2() {
+function dirty() {
   const panels = allPanels().some(({ panel }) => profileDirty(panel));
-  const ytexts = yamlTexts().some((one) => yamlDirty(one.base, one.text));
+  const ytexts = yamlTexts().some((one) => one.editing.dirty.value);
   const picks = assignTeams().some((team) => (team.rows || []).some((row) => assignDirty({ name: row.key, saved: row.saved || "", draft: row.profile })));
   return panels || ytexts || picks;
 }
 function tellDirty() {
-  setDirty2(dirty2());
+  setDirty2(dirty());
 }
-function lost2() {
+function lost() {
   const out = [];
   for (const { panel } of allPanels()) {
     if (!profileDirty(panel))
       continue;
-    out.push(...lost(PROFILE, savedProfile(panel), writtenProfile(panel), !panel.problem));
+    out.push(...panel.editing.lost.value);
   }
   for (const one of yamlTexts()) {
-    if (!yamlDirty(one.base, one.text))
+    if (!one.editing.dirty.value)
       continue;
-    out.push(...lost(YAML_TEXT, { text: one.base }, { text: one.text }));
+    out.push(...one.editing.lost.value);
   }
   for (const team of assignTeams())
     for (const row of team.rows || []) {
       if (!assignDirty({ name: row.key, saved: row.saved || "", draft: row.profile }))
         continue;
-      out.push(...lost(PROFILE_ASSIGN, { picks: [{ member: row.key, role: row.saved || "" }] }, { picks: [{ member: row.key, role: row.profile }] }));
+      out.push(...assignmentEdits.get(team.name)?.lost.value || []);
     }
   return [...new Set(out)];
 }
@@ -769,7 +705,7 @@ function take() {
       group: panel.group,
       saved: panel.saved ? panel.saved.name : null,
       hash: fileHashOf(panel.group, panel.file),
-      values: { name: panel.draft.name, kind: panel.draft.kind, args: panel.draft.args.slice(), env: panel.draft.env.map((pair) => ({ ...pair })) }
+      values: panel.editing.take().draft
     });
   });
   yamlTexts().forEach((one) => {
@@ -786,6 +722,7 @@ function take() {
   });
   return out;
 }
+var assignmentEdits = new Map;
 var assign = y({ empty: false, teams: [] });
 function assignTeams() {
   return assign.value.teams || [];
@@ -795,36 +732,51 @@ function initAssign() {
   const card = ISLAND.assign;
   assign.value = {
     empty: !!card && !!card.empty,
-    teams: (card && card.teams || []).map((team) => ({
-      name: team.name,
-      place: placeOf(team.place || "project"),
-      hash: team.hash,
-      path: team.path,
-      members: team.members || 0,
-      workers: team.workers || 0,
-      err: team.err || 0,
-      saved: !!team.saved,
-      refusal: "",
-      rows: (team.rows || []).map((row) => ({
-        key: row.id,
-        kind: row.kind,
-        name: row.name,
-        role: row.role,
-        profile: row.profile,
-        saved: row.profile,
-        options: row.options || [],
-        missing: !!row.missing,
-        error: row.error || "",
-        kindCls: row.kindCls || ""
-      }))
-    }))
+    teams: (card && card.teams || []).map((team) => {
+      const editing = editProfileAssignments(resourceIdentity("team", { name: team.name, place: team.place, project: CURRENT }), (team.rows || []).map((r) => ({ key: r.id, name: r.name, role: r.role, profile: r.profile })), team.hash);
+      assignmentEdits.set(team.name, editing);
+      return {
+        name: team.name,
+        place: placeOf(team.place || "project"),
+        get hash() {
+          return editing.read.value.hash;
+        },
+        path: team.path,
+        members: team.members || 0,
+        workers: team.workers || 0,
+        err: team.err || 0,
+        get saved() {
+          return editing.read.value.savedLine || !!team.saved;
+        },
+        get refusal() {
+          return editing.read.value.refusal;
+        },
+        rows: (team.rows || []).map((row) => ({
+          key: row.id,
+          kind: row.kind,
+          name: row.name,
+          role: row.role,
+          get profile() {
+            return editing.read.value.draft.find((r) => r.key === row.id)?.profile || "";
+          },
+          get saved() {
+            return editing.read.value.saved?.find((r) => r.key === row.id)?.profile || "";
+          },
+          options: row.options || [],
+          get missing() {
+            return !!row.missing && editing.read.value.draft.find((r) => r.key === row.id)?.profile === row.profile;
+          },
+          get error() {
+            return this.missing ? row.error || "" : "";
+          },
+          kindCls: row.kindCls || ""
+        }))
+      };
+    })
   };
 }
 function setPick(teamName, key, profile) {
-  assign.value = {
-    ...assign.value,
-    teams: assign.value.teams.map((team) => team.name === teamName ? { ...team, saved: false, rows: team.rows.map((row) => row.key === key ? { ...row, profile, missing: false, error: "" } : row) } : team)
-  };
+  assignmentEdits.get(teamName)?.change((rows) => rows.map((row) => row.key === key ? { ...row, profile } : row));
 }
 function teamDirty(team) {
   return (team.rows || []).filter((row) => assignDirty({ name: row.key, saved: row.saved || "", draft: row.profile })).length;
@@ -836,20 +788,7 @@ async function saveTeam(name) {
   const team = assignTeams().find((t) => t.name === name);
   if (!team)
     return false;
-  const ops = (team.rows || []).filter((row) => assignDirty({ name: row.key, saved: row.saved || "", draft: row.profile })).map((row) => row.key.startsWith("m") ? { kind: "memberProfile", member: row.name, profile: row.profile } : { kind: "workerProfile", from: row.role, purpose: row.name, profile: row.profile });
-  try {
-    const answer = await save2("team", team.name, { place: team.place || "project", doc: { ops }, hash: team.hash });
-    const json = answer.json;
-    assign.value = {
-      ...assign.value,
-      teams: assign.value.teams.map((t) => t.name === name ? { ...t, hash: json && json.hash || t.hash, saved: true, rows: t.rows.map((row) => ({ ...row, saved: row.profile })) } : t)
-    };
-    return true;
-  } catch (e) {
-    const text = problemText2(e, "保存できませんでした");
-    assign.value = { ...assign.value, teams: assign.value.teams.map((t) => t.name === name ? { ...t, refusal: text } : t) };
-    return false;
-  }
+  return !!await assignmentEdits.get(name)?.save();
 }
 function syncAssignURL() {
   const params = new URLSearchParams(location.search);
@@ -861,20 +800,24 @@ function syncAssignURL() {
   history.replaceState(null, "", location.pathname + (search ? "?" + search : "") + location.hash);
 }
 var yamlFiles = y([]);
-var yamlState = y(new Map);
+var yamlEdits = new Map;
+var yamlEditing = (file) => yamlEdits.get(file);
 function yamlTexts() {
-  return yamlFiles.value.map((file) => {
-    const one = yamlState.value.get(file.file) || {};
-    return { file: file.file, hash: file.hash, base: one.base || file.text || "", text: one.text === undefined ? file.text || "" : one.text };
+  return yamlFiles.value.flatMap((file) => {
+    const editing = yamlEdits.get(file.file);
+    if (!editing)
+      return [];
+    const one = editing.read.value;
+    return [{ file: file.file, hash: one.hash, base: one.saved || "", text: one.draft, editing }];
   });
 }
 function initYaml() {
-  yamlFiles.value = (files.value || []).map((file) => ({ ...file }));
-}
-function tellYaml(file, one) {
-  const next = new Map(yamlState.value);
-  next.set(file, one);
-  yamlState.value = next;
+  yamlEdits.forEach((one) => one.dispose());
+  yamlEdits.clear();
+  yamlFiles.value = (files.value || []).map((file) => {
+    yamlEdits.set(file.file, editYaml("profile", { ...file, place: file.file, name: "_yaml", project: CURRENT }));
+    return { ...file };
+  });
 }
 function restore(carried) {
   (carried.rows || []).forEach((c) => {
@@ -883,19 +826,19 @@ function restore(carried) {
       return;
     const found = allPanels().find(({ panel }) => panel.file === placeOf(c.file) && (panel.group || "") === group && (panel.saved ? panel.saved.name : null) === c.saved);
     if (found) {
-      patchPanel(found.panel.key, { draft: { name: c.values.name, kind: c.values.kind, args: c.values.args.slice(), env: c.values.env.map((pair) => ({ ...pair })) } });
+      found.panel.editing.restore({ hash: c.hash, draft: c.values });
       return;
     }
     if (c.saved)
       return;
     const row = addRow(placeOf(c.file), group || CURRENT);
-    patchPanel(row.panels[0].key, { draft: { name: c.values.name, kind: c.values.kind, args: c.values.args.slice(), env: c.values.env.map((pair) => ({ ...pair })) } });
+    row.panels[0].editing.restore({ hash: c.hash, draft: c.values });
   });
   (carried.ytexts || []).forEach((c) => {
     const file = yamlFiles.value.find((f) => f.file === c.file);
     if (!file || c.hash && c.hash !== file.hash)
       return;
-    tellYaml(c.file, { ...yamlState.value.get(c.file) || {}, text: c.text, carried: c.text });
+    yamlEdits.get(c.file)?.restore({ hash: c.hash, draft: c.text });
   });
   (carried.picks || []).forEach((c) => {
     const team = assignTeams().find((t) => t.name === c.team);
@@ -947,7 +890,7 @@ function pressToggle(key) {
   tellDirty();
 }
 function pressSetKind(key, kind) {
-  patchPanel(key, (panel) => ({ draft: { ...panel.draft, kind } }));
+  changeDraft(key, (draft) => ({ ...draft, kind }));
   scheduleCheck(key);
   tellDirty();
 }
@@ -961,7 +904,7 @@ function pressArgAdd(key) {
   if (!panel)
     return;
   const args = panel.draft.args.concat([""]);
-  patchPanel(key, (p) => ({ draft: { ...p.draft, args } }));
+  changeDraft(key, (draft) => ({ ...draft, args }));
   askFocus(key, "arg", args.length - 1, false);
   scheduleCheck(key);
   tellDirty();
@@ -970,7 +913,7 @@ function pressArgDel(key, index) {
   const panel = panelByKey(key);
   if (!panel)
     return;
-  patchPanel(key, (p) => ({ draft: { ...p.draft, args: p.draft.args.filter((_, i) => i !== index) } }));
+  changeDraft(key, (draft) => ({ ...draft, args: draft.args.filter((_, i) => i !== index) }));
   scheduleCheck(key);
   tellDirty();
 }
@@ -979,13 +922,13 @@ function pressEnvAdd(key) {
   if (!panel)
     return;
   const env = panel.draft.env.concat([{ key: "", value: "" }]);
-  patchPanel(key, (p) => ({ draft: { ...p.draft, env } }));
+  changeDraft(key, (draft) => ({ ...draft, env }));
   askFocus(key, "ek", env.length - 1, false);
   scheduleCheck(key);
   tellDirty();
 }
 function pressEnvDel(key, index) {
-  patchPanel(key, (p) => ({ draft: { ...p.draft, env: p.draft.env.filter((_, i) => i !== index) } }));
+  changeDraft(key, (draft) => ({ ...draft, env: draft.env.filter((_, i) => i !== index) }));
   scheduleCheck(key);
   tellDirty();
 }
@@ -1024,7 +967,7 @@ function reorderArgs(key, order) {
   const panel = panelByKey(key);
   if (!panel)
     return;
-  patchPanel(key, (p) => ({ draft: { ...p.draft, args: order.slice() } }));
+  changeDraft(key, (draft) => ({ ...draft, args: order.slice() }));
   scheduleCheck(key);
   tellDirty();
 }
@@ -1032,7 +975,7 @@ function pressDelYes(key) {
   return deletePanel(key);
 }
 function pressRename(key, on) {
-  patchPanel(key, { rename: !!on });
+  renamePanel(key, !!on);
 }
 function pressKind(kind) {
   assignKind.value = assignKind.value === kind ? null : kind;
@@ -1050,13 +993,13 @@ function inputField(key, field, index, value) {
   if (!panel)
     return;
   if (field === "name") {
-    patchPanel(key, (p) => ({ draft: { ...p.draft, name: value } }));
+    changeDraft(key, (draft) => ({ ...draft, name: value }));
   } else if (field === "arg") {
-    patchPanel(key, (p) => ({ draft: { ...p.draft, args: p.draft.args.map((arg, i) => i === index ? value : arg) } }));
+    changeDraft(key, (draft) => ({ ...draft, args: draft.args.map((arg, i) => i === index ? value : arg) }));
   } else if (field === "ek") {
-    patchPanel(key, (p) => ({ draft: { ...p.draft, env: p.draft.env.map((pair, i) => i === index ? { ...pair, key: value } : pair) } }));
+    changeDraft(key, (draft) => ({ ...draft, env: draft.env.map((pair, i) => i === index ? { ...pair, key: value } : pair) }));
   } else if (field === "ev") {
-    patchPanel(key, (p) => ({ draft: { ...p.draft, env: p.draft.env.map((pair, i) => i === index ? { ...pair, value } : pair) } }));
+    changeDraft(key, (draft) => ({ ...draft, env: draft.env.map((pair, i) => i === index ? { ...pair, value } : pair) }));
   } else {
     return;
   }
@@ -1473,11 +1416,11 @@ function Panel({ panel }) {
         "data-danger": true,
         "data-danger-act": "discardRow",
         onClick: () => {
-          if (!panel.saved && (!panel.born || !dirty(PROFILE, panel.born, writtenProfile(panel)))) {
+          if (!panel.saved && !panel.editing.bornLost.value.length) {
             pressDiscard(panel.key);
             return;
           }
-          runDanger("discardRow", { run: () => pressDiscard(panel.key), lost: lost(PROFILE, panel.born || null, writtenProfile(panel)), confirm: { title: "入力した内容を捨てますか", label: "破棄する" } });
+          runDanger("discardRow", { run: () => pressDiscard(panel.key), lost: panel.editing.bornLost.value, confirm: { title: "入力した内容を捨てますか", label: "破棄する" } });
         },
         children: "取り消し"
       })
@@ -2310,7 +2253,7 @@ function AssignPage() {
 
 // profiles/yaml.tsx
 function YamlFileSection({ file }) {
-  const one = yamlState.value.get(file.file) || {};
+  const editing = yamlEditing(file.file);
   return /* @__PURE__ */ u("section", {
     class: "yed",
     "data-file": file.file,
@@ -2326,11 +2269,8 @@ function YamlFileSection({ file }) {
       name: "_yaml",
       problems: file.problems || [],
       problem: file.problem || "",
-      carried: one.carried === undefined ? null : one.carried,
-      onState: (state) => {
-        tellYaml(file.file, { ...yamlState.value.get(file.file) || {}, ...state, carried: null });
-        tellDirty();
-      }
+      editing,
+      onState: () => tellDirty()
     }, file.file)
   });
 }
@@ -2367,7 +2307,7 @@ function App() {
     children: /* @__PURE__ */ u(List, {})
   });
 }
-var page = { screen: "profiles", dirty: dirty2, lost: lost2, take, tellDirty, settled: true };
+var page = { screen: "profiles", dirty, lost, take, tellDirty, settled: true };
 Object.assign(window, { hergyPage: page });
 view.replaceChildren();
 R(/* @__PURE__ */ u(App, {}), view);

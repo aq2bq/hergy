@@ -417,7 +417,7 @@ function RunSheet({ id, launch: first }: { id: string; launch: HQLaunch }): JSX.
   ].filter(Boolean).join(' · ');
   const abort = async (): Promise<void> => {
     try {
-      const answer = await call<HQLaunchEnvelope>('DELETE', '/api/hq/launches/' + encodeURIComponent(id));
+      const answer = await call<HQLaunchEnvelope>('DELETE', `/api/hq/launches/${encodeURIComponent(id)}`);
       const next = answer.json && answer.json.launch;
       if (next) watched.value = Object.assign({}, watched.value, { [id]: next });
     } catch { /* the reading a moment later says where it stands */ }

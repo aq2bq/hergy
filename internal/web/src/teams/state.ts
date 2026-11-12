@@ -1,3 +1,4 @@
+import { check as apiCheck, save as apiSave } from '../lib/legacy-editing-api.js';
 // teams/state.js — チーム定義の画面の状態と、サーバーとのやり取り
 // （webui-preact-design 4 章・5 章、webui-components 1・2 章）。
 //
@@ -12,7 +13,7 @@
 // 作らない（spec-boundary 3）。
 import { signal, computed } from '../lib/preact.js';
 import { resource } from '../lib/resource';
-import { saved as apiSaved, list as apiList, check as apiCheck, save as apiSave, del as apiDel, hqList, problemText as apiProblemText, bases } from '../lib/api';
+import { saved as apiSaved, list as apiList, del as apiDel, hqList, problemText as apiProblemText, bases } from '../lib/api';
 import type { Answer, ApiAnswer, Request, Schemas } from '../lib/api';
 import { conflictOf } from '../lib/conflict.js';
 import type { Conflict } from '../lib/conflict.js';

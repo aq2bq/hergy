@@ -8,21 +8,18 @@
 // tools/webvendor/package.json and bun.lock.
 
 import {
-  checkText2,
-  saveText2,
   tellDirty2,
   autosize2,
   insertTab2,
   YamlTab2
-} from "../chunk/nav-w38d9r9j.js";
-import"../chunk/nav-42b5x58f.js";
+} from "../chunk/nav-9as7qv3s.js";
+import"../chunk/nav-74jj0fve.js";
+import"../chunk/nav-n7k9prc1.js";
 import"../chunk/nav-zn7g81kr.js";
-import"../chunk/nav-sk3m5qf3.js";
+import"../chunk/nav-5wk0yvna.js";
 export {
   YamlTab2 as YamlTab,
   autosize2 as autosize,
-  checkText2 as checkText,
   insertTab2 as insertTab,
-  saveText2 as saveText,
   tellDirty2 as tellDirty
 };

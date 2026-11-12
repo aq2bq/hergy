@@ -1,7 +1,8 @@
+import { check as apiCheck, save as apiSave } from './legacy-editing-api.js';
 // One role file's check ordering and save state, shared by both editors.
 import { signal } from './preact.js';
 import { resource } from './resource.js';
-import { check as apiCheck, save as apiSave, Refusal } from './api.js';
+import { Refusal } from './api.js';
 import type { Answer, RawAnswer, Request, Schemas } from './api.js';
 import type { components } from '../../../apicontract/api-types';
 import type { EditableDocument, RuleIssue } from './ruledoc.js';

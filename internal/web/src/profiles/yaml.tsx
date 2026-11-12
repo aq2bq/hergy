@@ -6,20 +6,19 @@ import { ProjectView } from '../lib/project-view';
 // どのテキストで読んだかだけで、帯に渡す下書きもそこから作る（spec-nav 1.5）。
 // 面の中の押し込み（問題の行・元に戻す・保存）と Tab は部品のもので、画面は
 // props で読むものと知らせる先を渡す（依頼書 4）。
-import { yamlFiles, yamlState, tellYaml, tellDirty } from './state.js';
+import { yamlFiles, yamlEditing, tellDirty } from './state.js';
 import { YamlTab } from '../lib/yamltab.js';
-import type { YamlFile, YamlOne } from './types.js';
+import type { YamlFile } from './types.js';
 
 // YamlFileSection is one file's section: the section is the screen's (it
 // carries the file's name and hash), the part draws what stands inside it.
 function YamlFileSection({ file }: { file: YamlFile }) {
-  const one: YamlOne = yamlState.value.get(file.file) || {};
+  const editing = yamlEditing(file.file);
   return (
     <section class="yed" data-file={file.file} data-hash={file.hash}>
       <YamlTab key={file.file} file={file.file} label={file.label} path={file.path}
         text={file.text} hash={file.hash} kind="profile" place={file.file} name="_yaml" problems={file.problems || []} problem={file.problem || ''}
-        carried={one.carried === undefined ? null : one.carried}
-        onState={(state: YamlOne) => { tellYaml(file.file, { ...(yamlState.value.get(file.file) || {}), ...state, carried: null }); tellDirty(); }} />
+        editing={editing} onState={() => tellDirty()} />
     </section>
   );
 }

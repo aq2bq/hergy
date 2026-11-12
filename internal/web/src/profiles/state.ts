@@ -5,17 +5,17 @@
 // 一覧（プロファイルの行と、行の中のプロジェクト/グローバルの面）、
 // 割り当て（チーム定義のメンバーのプロファイル）、YAML（profiles.yaml の面）。
 import { signal, computed } from '../lib/preact.js';
-import { resource, type Reading } from '../lib/resource';
-import { profileModel, check as apiCheck, save as apiSave, del as apiDel, list as apiList, problemText, bases, type Answer, type Place, type ProfilePanel, type ProfileRow, type Schemas } from '../lib/api.js';
-import { conflictOf } from '../lib/conflict.js';
+import { editProfile, editProfileAssignments, editYaml, profileFiles, type ProfileAssignments, type YamlEditing, type ProfileEditing } from '../lib/editing.js';
+import { resourceIdentity } from '../lib/resource-identity.js';
+import { profileModel, list as apiList, type Answer, type Place, type ProfilePanel, type ProfileRow } from '../lib/api.js';
 import { readOpen, rowsFor, writeOpen } from '../lib/address.js';
-import { copyGroupOf, projectOfGroup } from '../lib/copy';
-import { PROFILE, PROFILE_ASSIGN, YAML_TEXT, assignDirty, yamlDirty, diff as changedDiff, dirty as changedDirty, lost as changedLost, profileFlags, snapshot as changedSnapshot } from '../lib/changed.js';
+import { copyGroupOf } from '../lib/copy';
+import { assignDirty } from '../lib/changed.js';
 import { setDirty } from '../lib/nav.js';
 import type {
   Assign, AssignRow, Carried, Draft, EnvPair, FocusAsk, Island,
-  IslandHQ, HQProfileGroup, IslandRow, OpenTarget, Panel, ProfileCheck,
-  ProfileList, Problem, Row, Team, YamlFile, YamlOne,
+  IslandHQ, HQProfileGroup, IslandRow, OpenTarget, Panel,
+  ProfileList, Row, Team, YamlFile,
 } from './types.js';
 
 // mustElement is a node the page always carries: the screen reads it once, and
@@ -139,49 +139,16 @@ export const pathFor = (file: Place, group: string | undefined): string => {
   const g = (GROUPS || []).find((x) => groupKeyOf(x) === group);
   return `${(g && g.project && g.project.display) || ''}/.hergy/profiles.yaml`;
 };
-// hashes are the two files' hashes as the newest answer left them: a save
-// answers with the list, and the hashes are the list's, so the next write
-// carries the file the page just wrote (spec-boundary 5). They are this serve's
-// project's two files and the global layer's, which every project shares.
-export const hashes = signal({ project: view.dataset.hashProject || '', global: view.dataset.hashShared || '' });
-export const hashOf = (file: Place): string => (file === 'global' ? hashes.value.global : hashes.value.project);
-
-// fileHashes are the hashes of the files a write compares against, by the group
-// whose file it is and the place it stands in (r-57d8). A headquarters screen
-// holds one profiles.yaml per group, and one project's file is not another's: a
-// write to a listed project carries that project's hash, which only its own list
-// answer read.
-const fileKey = (group: string, file: Place): string => (group || '') + '|' + file;
-export const fileHashes = signal<Record<string, string>>({});
-
-// fileHashOf is the hash of one group's file of one place. This serve's project
-// and the global layer answer the page's own two hashes; another project has
-// only what its list answered. A file whose hash is not known answers nothing
-// rather than another project's hash: the server then refuses the write with its
-// own reason, and no file is compared against one it is not (r-57d8).
-export function fileHashOf(group: string | undefined, file: Place): string {
-  const g = group || '';
-  const known = fileHashes.value[fileKey(g, file)];
-  if (known) return known;
-  if (file === 'global') return hashes.value.global;
-  if (!g || g === CURRENT) return hashes.value.project;
-  return '';
-}
-
-// learnFiles keeps the hashes one list answer read, under the group the list is
-// of (r-57d8): a save's answer reads its own project's files again, and the next
-// write of that group carries what this answer read.
+// profiles.yaml bases are owned by editing, keyed by project and place.
+const fileBases = profileFiles();
+const identityOf = (file: Place, group = '', name?: string) => resourceIdentity('profile', { place: file, project: group || CURRENT, name });
+fileBases.learn(identityOf('project'), view.dataset.hashProject || '');
+fileBases.learn(identityOf('global'), view.dataset.hashShared || '');
+export const fileHashOf = (group: string | undefined, file: Place): string => fileBases.hash(identityOf(file, group));
 function learnFiles(group: string, list: ProfileList | null): void {
   if (!list) return;
-  const next = { ...fileHashes.value };
-  const read = list.hashes || {};
-  for (const place of PLACES) {
-    if (read[place]) next[fileKey(group, place)] = read[place];
-  }
-  for (const one of list.files || []) {
-    if (one.place && one.hash) next[fileKey(group, placeOf(one.place))] = one.hash;
-  }
-  fileHashes.value = next;
+  for (const place of PLACES) fileBases.learn(identityOf(place, group), list.hashes?.[place] || '');
+  for (const one of list.files || []) fileBases.learn(identityOf(placeOf(one.place), group), one.hash);
 }
 
 // ---- the address --------------------------------------------------------
@@ -212,35 +179,35 @@ const newKey = (): string => 'new-' + nextId++;
 
 // panelOf reads one server panel as the panel's state: what the file holds
 // (saved), and the draft the fields start from.
-function panelOf(p: ProfilePanel, group: string | undefined, rowKey: string): Panel {
+function panelOf(p: ProfilePanel, group: string | undefined, rowKey: string, retained?: ProfileEditing): Panel {
+  const identity = identityOf(p.file, group, p.saved ? p.savedName : undefined);
+  const editing = retained || editProfile(identity, {
+    saved: p.saved && identity.name ? { name: identity.name, kind: p.savedKind, args: stringList(p.savedArgs), env: envList(p.savedEnv) } : null,
+    draft: { name: p.name || '', kind: p.kind || 'claude', args: (p.args || []).slice(), env: (p.env || []).map((pair) => ({ ...pair })) },
+    hash: p.hash || fileBases.hash(identity), readable: !p.problem, savedLine: p.savedLine,
+  });
   return {
-    key: rowKey + ':' + p.file,
-    rowKey,
-    file: p.file,
-    group: group || '',
-    path: p.path || pathFor(p.file, group),
-    label: p.label,
-    otherLabel: p.otherLabel,
-    saved: p.saved ? { name: p.savedName, kind: p.savedKind, args: stringList(p.savedArgs), env: envList(p.savedEnv) } : null,
-    hash: p.hash || '',
-    users: p.users || 0,
-    rename_targets: p.rename_targets || 0,
-    draft: { name: p.name || '', kind: p.kind || 'claude', args: (p.args || []).slice(), env: (p.env || []).map((pair) => ({ key: pair.key, value: pair.value })) },
-    problems: [],
-    errors: 0,
-    savedLine: !!p.savedLine,
-    problem: p.problem || '',
-    mark: p.mark || '',
-    refusal: '',
-    conflict: null,
-    rename: true,
-    layerSwitch: false,
+    key: rowKey + ':' + p.file, rowKey, file: p.file, group: group || '',
+    path: p.path || pathFor(p.file, group), label: p.label, otherLabel: p.otherLabel,
+    users: p.users || 0, rename_targets: p.rename_targets || 0,
+    problem: p.problem || '', mark: p.mark || '', layerSwitch: false, editing,
+    get saved() { return editing.read.value.saved; },
+    get draft() { return editing.read.value.draft; },
+    get born() { return editing.read.value.born; },
+    get hash() { return editing.read.value.hash; },
+    get problems() { return editing.read.value.problems; },
+    get baseProblems() { return editing.read.value.baseProblems; },
+    get errors() { return editing.read.value.problems.filter((p) => p.sev === 'err').length; },
+    get refusal() { return editing.read.value.refusal; },
+    get conflict() { return editing.read.value.conflict; },
+    get rename() { return editing.read.value.rename; },
+    get savedLine() { return editing.read.value.savedLine; },
   };
 }
 
 // rowOf reads one row of the model: its summary columns, and the panels it
 // opens into.
-function rowOf(row: ProfileRow & { group?: string }, index: number): Row {
+function rowOf(row: ProfileRow & { group?: string }, index: number, retained?: Panel): Row {
   const key = (row.name || '') + '|' + (row.group || '') + (row.name ? '' : '|' + index);
   return {
     key,
@@ -260,7 +227,8 @@ function rowOf(row: ProfileRow & { group?: string }, index: number): Row {
     places: row.places || [],
     isNew: !!row.new,
     open: openKeys.value.has(key) || isOpenRow(row),
-    panels: (row.panels || []).map((p) => panelOf(p, row.group || '', key)),
+    panels: (row.panels || []).map((p) => panelOf(p, row.group || '', key,
+      retained && row.name === retained.saved?.name && (row.group || '') === retained.group && p.file === retained.file ? retained.editing : undefined)),
   };
 }
 
@@ -300,11 +268,11 @@ function readInitial(): { rows: Row[]; files: YamlFile[] } {
     // The island's own list is this serve's project's: a write to its group
     // carries the hashes that list read (r-57d8).
     learnFiles(CURRENT, ISLAND.profile || null);
-    return { rows: all.map(rowOf), files: modelOf(ISLAND.profile || null).files || [] };
+    return { rows: all.map((row, i) => rowOf(row, i)), files: modelOf(ISLAND.profile || null).files || [] };
   }
   learnFiles('', ISLAND.profile || null);
   const model = modelOf(ISLAND.profile || null);
-  return { rows: model.rows.map(rowOf), files: model.files || [] };
+  return { rows: model.rows.map((row, i) => rowOf(row, i)), files: model.files || [] };
 }
 {
   const first = readInitial();
@@ -315,13 +283,9 @@ function readInitial(): { rows: Row[]; files: YamlFile[] } {
 // ---- what a panel holds, and how far it is from the file ----------------
 // panelFlags is which fields changed, for the screens to draw: the owner's
 // answer, not a second comparison (r-1e9a).
-export const panelFlags = (panel: Panel) => profileFlags(savedProfile(panel), writtenProfile(panel), !panel.problem);
-
-const profileDoc = (d: { name: string; kind: string; args: string[]; env: { key: string; value: string }[] }) => ({ name: d.name || '', kind: d.kind || '', args: d.args || [], env: d.env || [] });
-export const writtenProfile = (panel: Panel) => profileDoc(panel.draft);
-const savedProfile = (panel: Panel) => (panel.saved ? profileDoc(panel.saved) : null);
-export const profileChanges = (panel: Panel) => changedDiff(PROFILE, savedProfile(panel), writtenProfile(panel), !panel.problem);
-export const profileDirty = (panel: Panel): boolean => changedDirty(PROFILE, savedProfile(panel), writtenProfile(panel), !panel.problem);
+export const panelFlags = (panel: Panel) => panel.editing.flags.value;
+export const profileChanges = (panel: Panel) => panel.editing.changes.value;
+export const profileDirty = (panel: Panel): boolean => panel.editing.dirty.value;
 export const rowUnsaved = (row: Row): boolean => row.panels.some(profileDirty);
 export const saveBlocked = (panel: Panel): boolean =>
   panel.errors > 0 || (panel.saved ? !profileDirty(panel) : false) || panel.draft.name === '';
@@ -341,11 +305,10 @@ export function updateRow(fn: (row: Row) => Row): void {
   rows.value = rows.value.map(fn);
 }
 
-export function patchPanel(key: string, patch: Partial<Panel> | ((panel: Panel) => Partial<Panel>)): void {
-  updateRow((row) => (row.panels.some((p) => p.key === key)
-    ? { ...row, panels: row.panels.map((p) => (p.key === key ? { ...p, ...(typeof patch === 'function' ? patch(p) : patch) } : p)) }
-    : row));
+export function changeDraft(key: string, change: Draft | ((draft: Draft) => Draft)): void {
+  panelByKey(key)?.editing.change(change);
 }
+export function renamePanel(key: string, on: boolean): void { panelByKey(key)?.editing.renameUsers(on); }
 
 export const panelsOf = (row: Row): Panel[] => row.panels;
 export function allPanels(): { row: Row; panel: Panel }[] {
@@ -391,7 +354,6 @@ export function addRow(file: Place, group: string | undefined): Row {
     savedName: '', savedKind: '', savedArgs: '[]', savedEnv: '[]', hash: '', users: 0, rename_targets: 0, err: 0, warn: 0,
     other: otherOf(file), savedLine: false, problem: '',
   }, g, key);
-  panel.born = changedSnapshot(writtenProfile(panel));
   const row: Row = {
     key, name: '', group: g, kind: 'claude', kindClass: classOf('claude'), args: '', env: [], more: 0,
     mark: '',
@@ -436,7 +398,6 @@ export function duplicateRow(panel: Panel): Row | null {
   };
   row.panels[0].key = row.key + ':' + panel.file;
   row.panels[0].rowKey = row.key;
-  row.panels[0].born = changedSnapshot(writtenProfile(row.panels[0]));
   const next = new Set(openKeys.value);
   next.add(row.key);
   openKeys.value = next;
@@ -468,7 +429,6 @@ export function copyPanel(panel: Panel): Panel | null {
   };
   fresh.rowKey = row.key;
   fresh.key = row.key + ':' + file;
-  fresh.born = changedSnapshot(writtenProfile(fresh));
   const next = new Set(openKeys.value);
   next.add(row.key);
   openKeys.value = next;
@@ -496,6 +456,7 @@ export function canCopy(panel: Panel): boolean {
 export function discardPanel(key: string): void {
   const row = rows.value.find((r) => r.panels.some((p) => p.key === key));
   if (!row) return;
+  panelByKey(key)?.editing.dispose();
   if (row.panels.length > 1) {
     updateRow((r) => (r.key === row.key ? { ...r, panels: r.panels.filter((p) => p.key !== key) } : r));
     return;
@@ -507,127 +468,27 @@ export function discardPanel(key: string): void {
 }
 
 // ---- asking the server --------------------------------------------------
-// checkers are one resource per panel: a check is a reading like any other, so
-// the newest request is the one whose answer is kept and the one before it is
-// dropped (5 章 3). The panel keeps no numbering of its own.
-type CheckRequest = Schemas['ProfileCheckRequest'];
-type CheckAnswer = { json: ProfileCheck | null };
-
-const checkers = new Map<string, Reading<CheckAnswer, [CheckRequest]>>();
-function checkerFor(key: string): Reading<CheckAnswer, [CheckRequest]> {
-  let one = checkers.get(key);
-  if (one) return one;
-  one = resource<CheckAnswer, [CheckRequest]>(async (signal, payload) => {
-    const answer = await apiCheck('profile', payload, { signal });
-    return { json: answer.json };
-  });
-  checkers.set(key, one);
-  return one;
-}
-
-// check asks what is wrong with one panel's draft. A panel that is shut keeps
-// its last answer, and a check a newer one replaced answers nothing.
-export async function checkPanel(key: string): Promise<void> {
+export async function checkPanel(key: string): Promise<void> { await panelByKey(key)?.editing.check(); }
+export const projectOf = (panel: Panel): string | undefined => identityOf(panel.file, panel.group).project;
+export async function savePanel(key: string): Promise<void> {
   const panel = panelByKey(key);
   if (!panel) return;
-  const answer = await checkerFor(key).run({
-    place: panel.file, original: panel.saved ? panel.saved.name : '', project: projectOf(panel), doc: panel.draft,
-  });
-  // resource returns no answer for a superseded request or a failure. Neither
-  // means the draft passed its check; keep the last accepted problems.
-  if (!answer?.json) return;
-  const problems: Problem[] = answer.json.problems || [];
-  if (!panelByKey(key)) return;
-  patchPanel(key, { problems, errors: problems.filter((p) => p.sev === 'err').length });
+  const answer = await panel.editing.save();
+  if (answer) applySaved(panel, answer.json);
 }
-
-// projectOf is the listed project a panel writes to: the group the row stands
-// in. All screens keep a known project path, including this serve's own project.
-export function projectOf(panel: Panel): string | undefined {
-  return projectOfGroup(panel.group);
-}
-
-// savePanel writes one panel. The answer carries the project's list, which
-// stands in place of the rows: the counts move with it (spec-boundary 5).
-export async function savePanel(key: string, over?: string): Promise<void> {
-  const panel = panelByKey(key);
-  if (!panel) return;
-  const draft = panel.draft;
-  patchPanel(key, { refusal: '' });
-  try {
-    const answer = await apiSave('profile', panel.saved ? panel.saved.name : (draft.name || '_'), {
-      place: panel.file,
-      original: panel.saved ? panel.saved.name : '',
-      project: projectOf(panel),
-      doc: draft,
-      rename_users: !!panel.rename,
-      // over is the hash the conflict's answer carried: 上書き sends the file
-      // that was seen, and a file that moved again is refused the same way
-      // (r-3c77).
-      hash: over === undefined ? (panel.hash || fileHashOf(panel.group, panel.file)) : over,
-    });
-    patchPanel(key, { conflict: null });
-    applySaved(panel, answer.json);
-  } catch (e) {
-    const c = conflictOf(e);
-    if (c) {
-      // The file moved: the panel keeps its draft and the notice stands above
-      // the save band (r-3c77, d-a34a).
-      patchPanel(key, { conflict: { c } });
-      return;
-    }
-    patchPanel(key, { refusal: problemText(e, '保存できませんでした') });
-  }
-}
-
-// pressOverwrite writes the panel's draft over the file the answer showed.
 export function pressOverwrite(key: string): void {
   const panel = panelByKey(key);
-  const c = panel && panel.conflict;
-  if (!panel || !c) return;
-  savePanel(key, c.c.file.hash || '');
+  if (panel) panel.editing.overwrite().then((answer) => { if (answer) applySaved(panel, answer.json); });
 }
-
-// pressRevertConflict reads the file the answer carried into the panel: the panel
-// then stands on the file as it is, and the panel before the read is kept for
-// 取り消す. The draft stays in the notice until the person goes back.
-export function pressRevertConflict(key: string): void {
-  const panel = panelByKey(key);
-  if (!panel || !panel.conflict || !panel.conflict.c.file.doc) return;
-  const doc = panel.conflict.c.file.doc as Draft;
-  const before = { saved: panel.saved ? { ...panel.saved, args: panel.saved.args.slice(), env: panel.saved.env.map((p) => ({ ...p })) } : null, draft: { ...panel.draft, args: panel.draft.args.slice(), env: panel.draft.env.map((p) => ({ ...p })) }, hash: panel.hash };
-  const next: Draft = { name: doc.name || '', kind: doc.kind || 'claude', args: (doc.args || []).slice(), env: (doc.env || []).map((p) => ({ key: p.key, value: p.value })) };
-  patchPanel(key, {
-    saved: { name: next.name, kind: next.kind, args: next.args.slice(), env: next.env.map((p) => ({ ...p })) },
-    draft: next,
-    hash: panel.conflict.c.file.hash || '',
-    conflict: { c: panel.conflict.c, undone: true, before },
-    savedLine: false,
-  });
-}
-
-// pressUndoConflict puts the panel back the way the person had it, over the file
-// the panel has just read: the draft stands as a change to that file.
-export function pressUndoConflict(key: string): void {
-  const panel = panelByKey(key);
-  const before = panel && panel.conflict && panel.conflict.before;
-  if (!panel || !before) return;
-  patchPanel(key, { saved: before.saved, draft: before.draft, hash: before.hash, conflict: null });
-}
+export function pressRevertConflict(key: string): void { panelByKey(key)?.editing.readConflict(); }
+export function pressUndoConflict(key: string): void { panelByKey(key)?.editing.undoConflict(); }
 
 // deletePanel takes one document away, after the person pressed 削除する.
 export async function deletePanel(key: string): Promise<void> {
   const panel = panelByKey(key);
   if (!panel || !panel.saved) return;
-  patchPanel(key, { refusal: '' });
-  try {
-    // The hash is the one the file of this panel's group was read with: a listed
-    // project's file is not this serve's (r-57d8).
-    const answer = await apiDel('profile', panel.saved.name, panel.file, panel.hash || fileHashOf(panel.group, panel.file), undefined, projectOf(panel));
-    applySaved(panel, answer.json);
-  } catch (e) {
-    patchPanel(key, { refusal: problemText(e, '削除できませんでした') });
-  }
+  const answer = await panel.editing.remove();
+  if (answer) applySaved(panel, answer.json);
 }
 
 // SavedAnswer is what a save and a delete answer with: the document they wrote
@@ -638,6 +499,8 @@ type SavedAnswer = Answer<'profile', 'save'> | Answer<'profile', 'del'>;
 // rows, keeping open the rows a person had open and opening the one just
 // written by its new name.
 function applySaved(panel: Panel, answer: SavedAnswer | null): void {
+  const retainedEdit = panel.editing.dirty.value ? panel : undefined;
+  const previous = allPanels().map(({ panel }) => panel);
   const list: ProfileList = {
     items: (answer && answer.items) || null,
     hashes: (answer && answer.hashes) || {},
@@ -648,9 +511,6 @@ function applySaved(panel: Panel, answer: SavedAnswer | null): void {
   // that group's, and no other group's panels stand on them (r-57d8).
   learnFiles(group, list);
   const model = modelOf(list, panel.group);
-  if (!GROUPED && answer && answer.hashes) {
-    hashes.value = { project: answer.hashes.project || hashes.value.project, global: answer.hashes.global || hashes.value.global };
-  }
   const order = groupOrder();
   const byGroup = new Map<string, Row[]>();
   rows.value.forEach((row) => {
@@ -662,7 +522,7 @@ function applySaved(panel: Panel, answer: SavedAnswer | null): void {
   // The answer's rows go into the frame of their own place (the item's
   // Effective): a save under one head carries the global rows too, and they
   // must stay under the global head (r-ea17).
-  const answered = model.rows.map(rowOf);
+  const answered = model.rows.map((row, i) => rowOf(row, i, retainedEdit));
   const own = new Map<string, Row[]>();
   answered.forEach((row) => {
     const key = row.group || '';
@@ -673,9 +533,13 @@ function applySaved(panel: Panel, answer: SavedAnswer | null): void {
   if (!own.has(group)) byGroup.set(group, []);
   const next = order.flatMap((key) => byGroup.get(key) || []);
   const open = new Set(openKeys.value);
-  const written = panel.saved ? panel.draft.name : panel.draft.name;
+  const written = panel.saved?.name || panel.draft.name;
   const found = next.find((row) => row.name === written && (row.group || '') === group);
-  if (found) open.add(found.key);
+  if (found) {
+    open.add(found.key);
+    const target = found.panels.find((p) => p.file === panel.file);
+    if (retainedEdit && target) void target.editing.check();
+  }
   else if (panel.saved) open.add((panel.draft.name || '') + '|' + group);
   openKeys.value = open;
   // The answer read every file again, and a save gives the rules their ids
@@ -683,16 +547,9 @@ function applySaved(panel: Panel, answer: SavedAnswer | null): void {
   // of the text that is there now, so the next save is not refused as a change
   // another place made (r-b41c). The answer names one project's files, so only
   // that group's panels take them (r-57d8).
-  const moved = new Map(bases(answer).filter((b) => b.hash && !b.name).map((b) => [b.place, b.hash]));
-  rows.value = next.map((row) => ({
-    ...row,
-    open: open.has(row.key),
-    panels: row.panels.map((p) => {
-      if ((row.group || '') !== group) return p;
-      const hash = moved.get(p.file);
-      return hash && hash !== p.hash ? { ...p, hash } : p;
-    }),
-  }));
+  rows.value = next.map((row) => ({ ...row, open: open.has(row.key) }));
+  const retained = new Set(allPanels().map(({ panel }) => panel.editing));
+  previous.forEach((p) => { if (!retained.has(p.editing)) p.editing.dispose(); });
   // A rename can split one row into two; the counts and the address follow.
   if (TAB === 'profiles') syncURL();
   tellDirty();
@@ -740,7 +597,7 @@ export const chips = computed(() => {
 // dirty is whether the screen holds something no save wrote yet (spec-nav 1.5).
 export function dirty(): boolean {
   const panels = allPanels().some(({ panel }) => profileDirty(panel));
-  const ytexts = yamlTexts().some((one) => yamlDirty(one.base, one.text));
+  const ytexts = yamlTexts().some((one) => one.editing.dirty.value);
   const picks = assignTeams().some((team) => (team.rows || []).some((row) => assignDirty({ name: row.key, saved: row.saved || '', draft: row.profile })));
   return panels || ytexts || picks;
 }
@@ -754,15 +611,15 @@ export function lost(): string[] {
   const out: string[] = [];
   for (const { panel } of allPanels()) {
     if (!profileDirty(panel)) continue;
-    out.push(...changedLost(PROFILE, savedProfile(panel), writtenProfile(panel), !panel.problem));
+    out.push(...panel.editing.lost.value);
   }
   for (const one of yamlTexts()) {
-    if (!yamlDirty(one.base, one.text)) continue;
-    out.push(...changedLost(YAML_TEXT, { text: one.base }, { text: one.text }));
+    if (!one.editing.dirty.value) continue;
+    out.push(...one.editing.lost.value);
   }
   for (const team of assignTeams()) for (const row of team.rows || []) {
     if (!assignDirty({ name: row.key, saved: row.saved || '', draft: row.profile })) continue;
-    out.push(...changedLost(PROFILE_ASSIGN, { picks: [{ member: row.key, role: row.saved || '' }] }, { picks: [{ member: row.key, role: row.profile }] }));
+    out.push(...(assignmentEdits.get(team.name)?.lost.value || []));
   }
   return [...new Set(out)];
 }
@@ -781,7 +638,7 @@ export function take(): Carried {
       // The hash is the one of the file this panel's group writes: a listed
       // project's file is not this serve's (r-57d8).
       hash: fileHashOf(panel.group, panel.file),
-      values: { name: panel.draft.name, kind: panel.draft.kind, args: panel.draft.args.slice(), env: panel.draft.env.map((pair) => ({ ...pair })) },
+      values: panel.editing.take().draft,
     });
   });
   yamlTexts().forEach((one) => {
@@ -800,6 +657,7 @@ export function take(): Carried {
 // ---- the assign tab -----------------------------------------------------
 // The cards come from the island's own reading of the team definitions; the
 // picks a person makes are this screen's.
+const assignmentEdits = new Map<string, ProfileAssignments>();
 export const assign = signal<Assign>({ empty: false, teams: [] });
 export function assignTeams(): Team[] { return assign.value.teams || []; }
 export const assignKind = signal<string | null>(params().get('kind'));
@@ -808,41 +666,39 @@ export function initAssign(): void {
   const card = ISLAND.assign;
   assign.value = {
     empty: !!card && !!card.empty,
-    teams: ((card && card.teams) || []).map((team): Team => ({
+    teams: ((card && card.teams) || []).map((team): Team => {
+      const editing = editProfileAssignments(resourceIdentity('team', { name: team.name, place: team.place, project: CURRENT }), (team.rows || []).map((r) => ({ key: r.id, name: r.name, role: r.role, profile: r.profile })), team.hash);
+      assignmentEdits.set(team.name, editing);
+      return ({
       name: team.name,
       // The place the card's save writes: a global definition is saved in the
       // global file, and every project reading it changes (d-0f32, r-f8b9).
       place: placeOf(team.place || 'project'),
-      hash: team.hash,
+      get hash() { return editing.read.value.hash; },
       path: team.path,
       members: team.members || 0,
       workers: team.workers || 0,
       err: team.err || 0,
-      saved: !!team.saved,
-      refusal: '',
+      get saved() { return editing.read.value.savedLine || !!team.saved; },
+      get refusal() { return editing.read.value.refusal; },
       rows: (team.rows || []).map((row: IslandRow): AssignRow => ({
         key: row.id,
         kind: row.kind,
         name: row.name,
         role: row.role,
-        profile: row.profile,
-        saved: row.profile,
+        get profile() { return editing.read.value.draft.find((r) => r.key === row.id)?.profile || ''; },
+        get saved() { return editing.read.value.saved?.find((r) => r.key === row.id)?.profile || ''; },
         options: row.options || [],
-        missing: !!row.missing,
-        error: row.error || '',
+        get missing() { return !!row.missing && editing.read.value.draft.find((r) => r.key === row.id)?.profile === row.profile; },
+        get error() { return this.missing ? row.error || '' : ''; },
         kindCls: row.kindCls || '',
       })),
-    })),
+    }); }),
   };
 }
 
 export function setPick(teamName: string, key: string, profile: string): void {
-  assign.value = {
-    ...assign.value,
-    teams: assign.value.teams.map((team) => (team.name === teamName
-      ? { ...team, saved: false, rows: team.rows.map((row) => (row.key === key ? { ...row, profile, missing: false, error: '' } : row)) }
-      : team)),
-  };
+  assignmentEdits.get(teamName)?.change((rows) => rows.map((row) => row.key === key ? { ...row, profile } : row));
 }
 
 export function teamDirty(team: Team): number {
@@ -855,24 +711,7 @@ export function teamMissing(team: Team): number {
 export async function saveTeam(name: string): Promise<boolean> {
   const team = assignTeams().find((t) => t.name === name);
   if (!team) return false;
-  const ops = (team.rows || []).filter((row) => assignDirty({ name: row.key, saved: row.saved || '', draft: row.profile })).map((row) => (row.key.startsWith('m')
-    ? { kind: 'memberProfile', member: row.name, profile: row.profile }
-    : { kind: 'workerProfile', from: row.role, purpose: row.name, profile: row.profile }));
-  try {
-    const answer = await apiSave('team', team.name, { place: team.place || 'project', doc: { ops }, hash: team.hash });
-    const json = answer.json;
-    assign.value = {
-      ...assign.value,
-      teams: assign.value.teams.map((t) => (t.name === name
-        ? { ...t, hash: (json && json.hash) || t.hash, saved: true, rows: t.rows.map((row) => ({ ...row, saved: row.profile })) }
-        : t)),
-    };
-    return true;
-  } catch (e) {
-    const text = problemText(e, '保存できませんでした');
-    assign.value = { ...assign.value, teams: assign.value.teams.map((t) => (t.name === name ? { ...t, refusal: text } : t)) };
-    return false;
-  }
+  return !!(await assignmentEdits.get(name)?.save());
 }
 
 export function syncAssignURL(): void {
@@ -888,20 +727,23 @@ export function syncAssignURL(): void {
 // screen keeps is the text each file was read with, so the band knows what was
 // typed and the carry can put it back (spec-nav 1.5).
 export const yamlFiles = signal<YamlFile[]>([]);
-export const yamlState = signal(new Map<string, YamlOne>());
-export function yamlTexts(): { file: string; hash: string; base: string; text: string }[] {
-  return yamlFiles.value.map((file) => {
-    const one = yamlState.value.get(file.file) || {};
-    return { file: file.file, hash: file.hash, base: one.base || file.text || '', text: one.text === undefined ? (file.text || '') : one.text };
+const yamlEdits = new Map<string, YamlEditing>();
+export const yamlEditing = (file: string): YamlEditing | undefined => yamlEdits.get(file);
+export function yamlTexts() {
+  return yamlFiles.value.flatMap((file) => {
+    const editing = yamlEdits.get(file.file);
+    if (!editing) return [];
+    const one = editing.read.value;
+    return [{ file: file.file, hash: one.hash, base: one.saved || '', text: one.draft, editing }];
   });
 }
 export function initYaml(): void {
-  yamlFiles.value = (files.value || []).map((file) => ({ ...file }));
-}
-export function tellYaml(file: string, one: YamlOne): void {
-  const next = new Map(yamlState.value);
-  next.set(file, one);
-  yamlState.value = next;
+  yamlEdits.forEach((one) => one.dispose());
+  yamlEdits.clear();
+  yamlFiles.value = (files.value || []).map((file) => {
+    yamlEdits.set(file.file, editYaml('profile', { ...file, place: file.file, name: '_yaml', project: CURRENT }));
+    return { ...file };
+  });
 }
 
 // applyCarried puts the band's draft back, skipping every part whose file moved
@@ -914,17 +756,17 @@ export function restore(carried: Carried): void {
     if (c.hash && c.hash !== fileHashOf(group, placeOf(c.file))) return;
     const found = allPanels().find(({ panel }) => panel.file === placeOf(c.file) && (panel.group || '') === group && (panel.saved ? panel.saved.name : null) === c.saved);
     if (found) {
-      patchPanel(found.panel.key, { draft: { name: c.values.name, kind: c.values.kind, args: c.values.args.slice(), env: c.values.env.map((pair) => ({ ...pair })) } });
+      found.panel.editing.restore({ hash: c.hash, draft: c.values });
       return;
     }
     if (c.saved) return;
     const row = addRow(placeOf(c.file), group || CURRENT);
-    patchPanel(row.panels[0].key, { draft: { name: c.values.name, kind: c.values.kind, args: c.values.args.slice(), env: c.values.env.map((pair) => ({ ...pair })) } });
+    row.panels[0].editing.restore({ hash: c.hash, draft: c.values });
   });
   (carried.ytexts || []).forEach((c) => {
     const file = yamlFiles.value.find((f) => f.file === c.file);
     if (!file || (c.hash && c.hash !== file.hash)) return;
-    tellYaml(c.file, { ...(yamlState.value.get(c.file) || {}), text: c.text, carried: c.text });
+    yamlEdits.get(c.file)?.restore({ hash: c.hash, draft: c.text });
   });
   (carried.picks || []).forEach((c) => {
     const team = assignTeams().find((t) => t.name === c.team);

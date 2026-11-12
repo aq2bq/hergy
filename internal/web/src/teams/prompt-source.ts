@@ -1,3 +1,4 @@
+import { check } from '../lib/legacy-editing-api.js';
 // teams/prompt-source.ts — 渡る文を読む唯一のモジュール (⑤ r-ba9b, d-002b).
 //
 // 規則:
@@ -18,7 +19,7 @@
 // - ワーカーのプレビューもここが読む。名前と依頼は hire のときに決まるので、
 //   画面の仮の値（WORKER_NAME・WORKER_TASK）で組み、画面が <> で描く。
 import { signal, useEffect } from '../lib/preact.js';
-import { call, check, problemText } from '../lib/api.js';
+import { call, problemText } from '../lib/api.js';
 import type { Schemas } from '../lib/api.js';
 import { resource } from '../lib/resource.js';
 import type { Reading } from '../lib/resource.js';

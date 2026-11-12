@@ -1,4 +1,5 @@
-import { get, hqList, read, save, saved, problemText } from '../lib/api.js';
+import { save } from '../lib/legacy-editing-api.js';
+import { get, hqList, read, saved, problemText } from '../lib/api.js';
 import type { Schemas } from '../lib/api.js';
 import { documents, documentID } from '../lib/prose-transfer.js';
 import type { TransferDocument, TransferSource, TransferTarget } from '../lib/prose-transfer.js';

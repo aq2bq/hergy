@@ -7,10 +7,6 @@
 // templates load (webui-preact-design 3 章). The versions are pinned in
 // tools/webvendor/package.json and bun.lock.
 
-import {
-  y
-} from "./nav-zn7g81kr.js";
-
 // lib/page-position.ts
 var PAGE_POSITION = {
   copyRow: { at: "band", why: "コピーは押した行と別の置き場所にできる。行を画面の中に出す", d: "d-022a" },
@@ -89,46 +85,4 @@ function installWheel() {
   }, { passive: false, capture: true });
 }
 
-// lib/resource.ts
-function resource(load) {
-  const value = y(null);
-  const loading = y(false);
-  const error = y(null);
-  let inflight = null;
-  async function run(...args) {
-    if (inflight)
-      inflight.stop.abort();
-    const mine = { stop: new AbortController };
-    inflight = mine;
-    loading.value = true;
-    error.value = null;
-    try {
-      const next = await load(mine.stop.signal, ...args);
-      if (mine.stop.signal.aborted)
-        return;
-      value.value = next;
-      return next;
-    } catch (e) {
-      if (mine.stop.signal.aborted)
-        return;
-      error.value = e;
-      return;
-    } finally {
-      if (inflight === mine) {
-        inflight = null;
-        loading.value = false;
-      }
-    }
-  }
-  function abort() {
-    if (!inflight)
-      return;
-    inflight.stop.abort();
-    inflight = null;
-    loading.value = false;
-    error.value = null;
-  }
-  return { value, loading, error, run, abort };
-}
-
-export { movePage, installWheel, resource };
+export { movePage, installWheel };

@@ -24,25 +24,23 @@ import {
 import {
   dropUndo,
   runDanger
-} from "../chunk/nav-42b5x58f.js";
+} from "../chunk/nav-n7k9prc1.js";
 import {
   call2,
   read2,
   list2,
   get2,
-  check2,
-  save2,
   del2,
   hqList2,
   saved2,
   bases2,
   problemText2
-} from "../chunk/nav-sk3m5qf3.js";
+} from "../chunk/nav-5wk0yvna.js";
 import {
   carryTo2,
   takeDraft2,
   setDirty2
-} from "../chunk/nav-ag8t5wv9.js";
+} from "../chunk/nav-6xksh4n8.js";
 import {
   num,
   documents,
@@ -59,37 +57,38 @@ import {
   Counts2,
   Vm2,
   RuleDoc2
-} from "../chunk/nav-v1b6zxwf.js";
+} from "../chunk/nav-3zkakthz.js";
 import {
   conflictOf,
   ConflictNotice,
   YamlTab2
-} from "../chunk/nav-w38d9r9j.js";
+} from "../chunk/nav-9as7qv3s.js";
 import {
   st,
   projectName2
-} from "../chunk/nav-ft5mppx9.js";
+} from "../chunk/nav-mvjbr7t3.js";
 import {
   RunCell2
-} from "../chunk/nav-b0zbkbnt.js";
+} from "../chunk/nav-1g2p38ew.js";
 import {
+  check2,
+  save2,
   roleEditor,
   roleProblems
-} from "../chunk/nav-d94s040z.js";
+} from "../chunk/nav-e8h9vhqq.js";
 import {
   copyGroupOf,
   groupPlace,
   projectOfGroup,
   ProjectView
-} from "../chunk/nav-x8mye5ra.js";
+} from "../chunk/nav-hcs16qxf.js";
 import {
   Field
 } from "../chunk/nav-9htrbyn7.js";
 import {
   movePage,
-  installWheel,
-  resource
-} from "../chunk/nav-kj98ksd1.js";
+  installWheel
+} from "../chunk/nav-31sebn46.js";
 import {
   token2,
   parseOpen2,
@@ -108,6 +107,9 @@ import {
   YAML_TEXT,
   roleDirty
 } from "../chunk/nav-36f6dmhj.js";
+import {
+  resource
+} from "../chunk/nav-74jj0fve.js";
 
 // teams/selection-table.ts
 var SIDE_RULES = [

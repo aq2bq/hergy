@@ -23,7 +23,7 @@ class Refusal2 extends Error {
     this.json = json;
   }
 }
-async function raw2(method, url, payload, { signal: stop } = {}) {
+async function raw(method, url, payload, { signal: stop } = {}) {
   const project = new URLSearchParams(location.search).get("project");
   if (project && /^\/api\/(team|role|profile)(\/|\?|$)/.test(url)) {
     const target = new URL(url, location.origin);
@@ -53,8 +53,8 @@ async function raw2(method, url, payload, { signal: stop } = {}) {
   }
   return { ok: response.ok, status: response.status, json, text };
 }
-async function call2(method, url, payload, opts) {
-  const a = await raw2(method, url, payload, opts);
+async function send(method, url, payload, opts) {
+  const a = await raw(method, url, payload, opts);
   if (!a.ok)
     throw new Refusal2(a.status, sentenceOf(a.json) || a.text, a.json);
   if (method !== "GET")
@@ -66,13 +66,15 @@ function sentenceOf(json) {
     return "";
   return typeof json.text === "string" ? json.text : "";
 }
+var call2 = (method, url, payload, opts) => send(method, url, payload, opts);
+var sendLegacy2 = (input, opts) => send(input.action === "check" ? "POST" : "PUT", input.action === "check" ? `/api/${input.kind}/check` : `/api/${input.kind}/${enc(input.name)}`, input.body, opts);
 var urls = {
   list: (kind) => `/api/${kind}`,
   get: (kind, name, place, project) => `/api/${kind}/${enc(name)}?${place ? `place=${enc(place)}&` : ""}${project ? `project=${enc(project)}` : ""}`,
   del: (kind, name, place, hash, agreementHash, project) => `/api/${kind}/${enc(name)}?place=${enc(place)}&hash=${enc(hash)}${agreementHash ? `&agreement_hash=${enc(agreementHash)}` : ""}${project ? `&project=${enc(project)}` : ""}`
 };
 async function read2(url, opts) {
-  return answerOf(await call2("GET", url, undefined, opts), url);
+  return answerOf(await send("GET", url, undefined, opts), url);
 }
 function answerOf(a, what) {
   if (a.json === null)
@@ -81,13 +83,13 @@ function answerOf(a, what) {
 }
 var list2 = (kind, opts) => read2(urls.list(kind), opts);
 var get2 = (kind, name, place, project, opts) => read2(urls.get(kind, name, place || "", project || ""), opts);
-var check2 = (kind, payload, opts) => call2("POST", `/api/${kind}/check`, payload, opts);
-var save2 = (kind, name, payload, opts) => call2("PUT", `/api/${kind}/${enc(name)}`, payload, opts);
-var del2 = (kind, name, place, hash, agreementHash, project, opts) => call2("DELETE", urls.del(kind, name, place, hash, agreementHash || "", project || ""), undefined, opts);
+var check3 = (kind, payload, opts) => send("POST", `/api/${kind}/check`, payload.body, opts);
+var save3 = (kind, payload, opts) => send("PUT", `/api/${kind}/${enc(payload.name)}`, payload.body, opts);
+var del2 = (kind, name, place, hash, agreementHash, project, opts) => send("DELETE", urls.del(kind, name, place, hash, agreementHash || "", project || ""), undefined, opts);
 var applyList2 = (opts) => read2("/api/apply", opts);
 var applyCount2 = (opts) => read2("/api/apply/count", opts);
 async function applyMembers2(members, opts) {
-  const a = await call2("POST", "/api/apply", { members }, opts);
+  const a = await send("POST", "/api/apply", { members }, opts);
   return answerOf(a, "/api/apply");
 }
 var hqList2 = (kind, opts) => read2(`/api/hq/${kind}`, opts);
@@ -233,4 +235,4 @@ function teamModel2(list) {
   };
 }
 
-export { token3, Refusal2, raw2, call2, read2, list2, get2, check2, save2, del2, applyList2, applyCount2, applyMembers2, hqList2, saved2, bases2, problemText2, profileModel2, roleModel2, teamModel2 };
+export { token3, Refusal2, call2, sendLegacy2, read2, list2, get2, check3, save3, del2, applyList2, applyCount2, applyMembers2, hqList2, saved2, bases2, problemText2, profileModel2, roleModel2, teamModel2 };

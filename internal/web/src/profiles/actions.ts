@@ -6,7 +6,7 @@
 import {
   filterKind, query, placeGroups, pathFor, labelOf, classOf, BASE_KINDS, assignKind,
   addRow, duplicateRow, copyPanel, discardPanel, deletePanel, savePanel, checkPanel,
-  patchPanel, panelByKey, toggleRow, closeRow, closeAllConfirm, askFocus, syncURL,
+  changeDraft, renamePanel, panelByKey, toggleRow, closeRow, closeAllConfirm, askFocus, syncURL,
   syncAssignURL, saveTeam, tellDirty,
 } from './state.js';
 import type { Place } from '../lib/api.js';
@@ -52,7 +52,7 @@ export function pressToggle(key: string): void {
 
 // ---- the panel ----------------------------------------------------------
 export function pressSetKind(key: string, kind: string): void {
-  patchPanel(key, (panel) => ({ draft: { ...panel.draft, kind } }));
+  changeDraft(key, (draft) => ({ ...draft, kind }));
   scheduleCheck(key);
   tellDirty();
 }
@@ -66,7 +66,7 @@ export function pressArgAdd(key: string): void {
   const panel = panelByKey(key);
   if (!panel) return;
   const args = panel.draft.args.concat(['']);
-  patchPanel(key, (p) => ({ draft: { ...p.draft, args } }));
+  changeDraft(key, (draft) => ({ ...draft, args }));
   askFocus(key, 'arg', args.length - 1, false);
   scheduleCheck(key);
   tellDirty();
@@ -75,7 +75,7 @@ export function pressArgAdd(key: string): void {
 export function pressArgDel(key: string, index: number): void {
   const panel = panelByKey(key);
   if (!panel) return;
-  patchPanel(key, (p) => ({ draft: { ...p.draft, args: p.draft.args.filter((_, i) => i !== index) } }));
+  changeDraft(key, (draft) => ({ ...draft, args: draft.args.filter((_, i) => i !== index) }));
   scheduleCheck(key);
   tellDirty();
 }
@@ -84,14 +84,14 @@ export function pressEnvAdd(key: string): void {
   const panel = panelByKey(key);
   if (!panel) return;
   const env = panel.draft.env.concat([{ key: '', value: '' }]);
-  patchPanel(key, (p) => ({ draft: { ...p.draft, env } }));
+  changeDraft(key, (draft) => ({ ...draft, env }));
   askFocus(key, 'ek', env.length - 1, false);
   scheduleCheck(key);
   tellDirty();
 }
 
 export function pressEnvDel(key: string, index: number): void {
-  patchPanel(key, (p) => ({ draft: { ...p.draft, env: p.draft.env.filter((_, i) => i !== index) } }));
+  changeDraft(key, (draft) => ({ ...draft, env: draft.env.filter((_, i) => i !== index) }));
   scheduleCheck(key);
   tellDirty();
 }
@@ -138,7 +138,7 @@ export function pressDiscard(key: string): void {
 export function reorderArgs(key: string, order: string[]): void {
   const panel = panelByKey(key);
   if (!panel) return;
-  patchPanel(key, (p) => ({ draft: { ...p.draft, args: order.slice() } }));
+  changeDraft(key, (draft) => ({ ...draft, args: order.slice() }));
   scheduleCheck(key);
   tellDirty();
 }
@@ -150,20 +150,10 @@ export function pressDelYes(key: string): Promise<void> {
 }
 
 export function pressRename(key: string, on: boolean): void {
-  patchPanel(key, { rename: !!on });
+  renamePanel(key, !!on);
 }
 
 // ---- the layer, the assign tab's kind and its save ----------------------
-// pressLayer moves a row being added between the project's file and the
-// global one: the path, the segment and the pending pill follow.
-export function pressLayer(key: string, file: Place): void {
-  const panel = panelByKey(key);
-  if (!panel || panel.file === file) return;
-  patchPanel(key, { file, path: pathFor(file, panel.group) });
-  scheduleCheck(key);
-  tellDirty();
-}
-
 // pressKind is the assign tab's kind: the other kinds and people go thin, the
 // chosen one stays plain, and the address keeps it (R6).
 export function pressKind(kind: string): void {
@@ -181,13 +171,13 @@ export function inputField(key: string, field: string, index: number, value: str
   const panel = panelByKey(key);
   if (!panel) return;
   if (field === 'name') {
-    patchPanel(key, (p) => ({ draft: { ...p.draft, name: value } }));
+    changeDraft(key, (draft) => ({ ...draft, name: value }));
   } else if (field === 'arg') {
-    patchPanel(key, (p) => ({ draft: { ...p.draft, args: p.draft.args.map((arg, i) => (i === index ? value : arg)) } }));
+    changeDraft(key, (draft) => ({ ...draft, args: draft.args.map((arg, i) => (i === index ? value : arg)) }));
   } else if (field === 'ek') {
-    patchPanel(key, (p) => ({ draft: { ...p.draft, env: p.draft.env.map((pair, i) => (i === index ? { ...pair, key: value } : pair)) } }));
+    changeDraft(key, (draft) => ({ ...draft, env: draft.env.map((pair, i) => (i === index ? { ...pair, key: value } : pair)) }));
   } else if (field === 'ev') {
-    patchPanel(key, (p) => ({ draft: { ...p.draft, env: p.draft.env.map((pair, i) => (i === index ? { ...pair, value } : pair)) } }));
+    changeDraft(key, (draft) => ({ ...draft, env: draft.env.map((pair, i) => (i === index ? { ...pair, value } : pair)) }));
   } else {
     return;
   }

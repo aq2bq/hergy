@@ -329,7 +329,7 @@ export function unlistProject(path: string, host?: HTMLElement | null): Promise<
     const opts: DangerOptions = {
       run: async () => {
         try {
-          const answer = await call<HQProjects>('DELETE', '/api/hq/projects?path=' + encodeURIComponent(String(path)));
+          const answer = await call<HQProjects>('DELETE', `/api/hq/projects?path=${encodeURIComponent(String(path))}`);
           const json = answer.json;
           if (json) {
             at = json.removed_at ?? -1;

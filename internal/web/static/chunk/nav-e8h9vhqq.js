@@ -8,16 +8,22 @@
 // tools/webvendor/package.json and bun.lock.
 
 import {
+  Refusal2,
+  sendLegacy2
+} from "./nav-5wk0yvna.js";
+import {
   y
 } from "./nav-zn7g81kr.js";
 import {
-  Refusal2,
-  check2,
-  save2
-} from "./nav-sk3m5qf3.js";
-import {
   resource
-} from "./nav-kj98ksd1.js";
+} from "./nav-74jj0fve.js";
+
+// lib/legacy-editing-api.ts
+function request(kind, action, name, body) {
+  return { kind, action, name, body };
+}
+var check2 = (kind, payload, opts) => sendLegacy2(request(kind, "check", "", payload), opts);
+var save2 = (kind, name, payload, opts) => sendLegacy2(request(kind, "save", name, payload), opts);
 
 // lib/role-editor.ts
 function record(value) {
@@ -93,4 +99,4 @@ function roleProblems(_doc, list) {
   }));
 }
 
-export { roleEditor, roleProblems };
+export { check2, save2, roleEditor, roleProblems };
