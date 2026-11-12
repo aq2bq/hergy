@@ -368,6 +368,19 @@ func TestGlossaryBannedWordsStayOut(t *testing.T) {
 		}
 	}
 
+	// The rules: internal/words is where the sentences of help, both cheats and
+	// the generated parts of README and SKILL are written, once. Those outputs
+	// are not read again below, so a banned word is caught here, at the one
+	// place a person writes it, and the hit names the rule (n-42bb).
+	for _, rule := range words.Rules() {
+		for _, lang := range []string{"en", "ja"} {
+			where := "internal/words rule " + string(rule.ID)
+			check(where, "", lang, words.Describe([]words.RuleID{rule.ID}, lang))
+			check(where+" (statement)", "", lang, rule.Statement[lang])
+			check(where+" (recovery)", "", lang, rule.Recovery[lang])
+		}
+	}
+
 	// The prose and the bundled skills, line by line so a hit has a line number.
 	for _, src := range []struct{ path, lang string }{
 		{"README.md", "en"},
