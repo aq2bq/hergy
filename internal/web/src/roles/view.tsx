@@ -188,6 +188,8 @@ function detail(r: RoleRow) {
 function usage(r: RoleRow) {
   const readers = whoReads(curName(r), r.group);
   if (!readers.length) return '';
+  // Readonly projections may return fresh objects: the row address follows the
+  // member name, never object identity (the old indexOf wrote m--1).
   return <><span class="lbl">使っているチーム</span>{readers.map(({ t, m }) => <button class="uchip" data-act="goto" data-t={t.id} data-m={m.name} data-i={t.members.findIndex((one) => one.name === m.name)} onClick={() => pressGoto(t.id, m.name, t.members.findIndex((one) => one.name === m.name))}><span class="g">{r.group === 'global' ? `${projectNameOf(t.group)}: ` : ''}{t.id}</span>{m.name}</button>)}</>;
 }
 
