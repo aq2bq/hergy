@@ -12,7 +12,7 @@ import { runDanger } from '../danger.js';
 import type { DangerOptions } from '../danger.js';
 import { signal } from '../preact.js';
 import { read, call, problemText } from '../api.js';
-import { applyCounts, applyActivity } from '../band-counts.js';
+import { bandCounts, bandActivity } from '../band-counts.js';
 import type { components } from '../../../../apicontract/api-types';
 
 type HQProjects = components['schemas']['HQProjects'];
@@ -33,6 +33,8 @@ type GroupKind = 'teams' | 'roles' | 'profiles';
 type GroupSets = { teams: HQTeamGroup[]; roles: HQRoleGroup[]; profiles: HQProfileGroup[] };
 export type RunningTeam = Omit<HQRunningTeam, 'not_up'> & { not_up?: string[]; provisional?: boolean };
 type RunningState = Omit<HQRunning, 'teams'> & { teams: RunningTeam[] };
+
+export { bandActivity } from '../band-counts.js';
 
 export const POLL = 10000;
 // esc is the words a sheet puts in its markup (the sheets that are still strings:
@@ -151,41 +153,6 @@ export function definitionDoc(definition: string, project: string): TeamDocument
     if (own) return own;
   }
   return globalDefinition(definition) || definitionOf('', definition);
-}
-
-// ---- 帯 ---------------------------------------------------------------
-// bandActivity keeps the band's two numbers the reading's own: アクティビティ N（動いている
-// チーム）と 待ち N（人間を待っているメンバー）(spec 2 章, spec-activity 2.1).
-export function bandActivity() {
-  const teams = st.running.value.teams || [];
-  const waiting = teams.reduce((n, t) => n + (t.waiting || []).length, 0);
-  applyActivity(teams.length, waiting, !!st.running.value.herdr.ok && teams.length > 0);
-}
-
-// bandCounts writes the projects reading's totals into the band, so the four
-// numbers are the listed projects' and the global layer's (spec 2 章). The server
-// writes them too; this keeps them right after a project is listed or removed
-// without a reload.
-export function bandCounts() {
-  const p = st.projects.value;
-  if (!p) return;
-  const totals = { teams: 0, roles: 0, profiles: 0 };
-  const add = (one: { definitions?: number; roles?: number; profiles?: number } | null | undefined) => {
-    if (!one) return;
-    totals.teams += one.definitions || 0;
-    totals.roles += one.roles || 0;
-    totals.profiles += one.profiles || 0;
-  };
-  if (p.mode === 'listed') {
-    ((p.projects || []).filter((x) => x.listed)).forEach(add);
-    add(p.global);
-  } else {
-    // One project and the global layer: the same rows the server's own band
-    // counts (r-ea17).
-    add(p.current);
-    add(p.global);
-  }
-  applyCounts(totals);
 }
 
 // refreshCounts is what a save, delete, copy or rename asks for: the projects

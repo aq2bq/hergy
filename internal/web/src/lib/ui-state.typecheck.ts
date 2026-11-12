@@ -56,3 +56,15 @@ call('POST', '/api/team/prompt-comparison', {member: 'lead'});
 // @ts-expect-error prompt runs have no exported arbitrary-key writer
 import { setRun } from '../teams/prompt-source.js';
 void setRun;
+
+import { bandCounts, bandActivity } from './band-counts.js';
+// @ts-expect-error a screen cannot supply its own resource count
+bandCounts({teams: 3, roles: 2, profiles: 1});
+// @ts-expect-error a screen cannot supply its own activity count
+bandActivity(4, 5, true);
+// @ts-expect-error the DOM count setter is private to band-counts
+import { setCount } from './band-counts.js';
+void setCount;
+// @ts-expect-error nav no longer exports count writers
+import { setActivity } from './nav.js';
+void setActivity;
