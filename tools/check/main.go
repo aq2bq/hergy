@@ -42,6 +42,7 @@ type gate struct {
 
 // gates is the one table the run, the -h text and the CI steps come from.
 var gates = []gate{
+	{"words", Hard, "public operation rules, terms and marked documentation match internal/words (go run ./tools/check words -write)", (*runner).wordsGate},
 	{"fmt", Hard, "gofmt and goimports leave no diff (golangci-lint fmt --diff)", (*runner).fmtGate},
 	{"tidy", Hard, "go mod tidy -diff is empty", (*runner).tidyGate},
 	{"fix", Hard, "go fix -diff is empty", (*runner).fixGate},

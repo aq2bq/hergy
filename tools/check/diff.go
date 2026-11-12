@@ -81,6 +81,9 @@ func gatesFor(paths []string) []gate {
 	}
 	for _, p := range paths {
 		add("test")
+		if wordsPath(p) {
+			add("words")
+		}
 		switch {
 		case p == "go.mod" || p == "go.sum":
 			add("tidy", "lint", "deadcode", "e2e", "vuln")
@@ -149,6 +152,17 @@ func gatesFor(paths []string) []gate {
 		}
 	}
 	return out
+}
+
+// wordsPath covers the catalog, its renderers and generated outputs. Changes to
+// screen text also check the vocabulary artifact before a future TermID migration.
+func wordsPath(p string) bool {
+	for _, prefix := range []string{"internal/words/", "internal/options/", "internal/cheat/", "internal/i18n/", "internal/ops/", "internal/web/src/", "tools/check/"} {
+		if strings.HasPrefix(p, prefix) {
+			return true
+		}
+	}
+	return p == "README.md" || p == "README.ja.md" || p == "skills/hergy/SKILL.md"
 }
 
 func (r *runner) diff() error {
