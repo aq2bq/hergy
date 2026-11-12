@@ -67,7 +67,7 @@ import {
   editTeam,
   restoreTeam,
   YamlTab2
-} from "../chunk/nav-92c6mas0.js";
+} from "../chunk/nav-wdf3bnvz.js";
 import {
   st,
   projectName2

@@ -53,6 +53,9 @@ type Definition<K extends ResourceKind, D, W> = {
   check: (state: EditingState<D>) => Request<K, 'check'>;
   save: (state: EditingState<D>) => Request<K, 'save'>;
   name: (state: EditingState<D>) => string;
+  // A profile's URL names the saved resource; a name refusal concerns the
+  // proposed name in its draft instead.
+  inputName?: (state: EditingState<D>) => string;
   recovered: (conflict: Conflict) => D | null;
   remove?: (state: EditingState<D>) => Promise<RawAnswer<Answer<K, 'del'>>>;
   saved: (answer: Answer<K, 'save'> | null, sent: D) => D;
@@ -126,6 +129,8 @@ function editing<K extends ResourceKind, D, W>(definition: Definition<K, D, W>, 
   let alive = true;
   let revision = 0;
   let saving = 0;
+  let refusedName: string | undefined;
+  const inputName = (s: EditingState<D>) => (definition.inputName || definition.name)(s);
   const pendingSaves = signal(0);
   const patch = (next: Partial<EditingState<D>>) => { state.value = { ...state.value, ...next }; };
   const written = () => definition.written(state.value.draft);
@@ -179,13 +184,18 @@ function editing<K extends ResourceKind, D, W>(definition: Definition<K, D, W>, 
     if (!alive || current !== revision || !answer?.json) return;
     const problems = checkedProblems(answer.json);
     if (problems === undefined) return;
-    patch({ checked: snapshot(answer.json), refusal: state.value.refusalAt === 'name' && !problems.some((p) => p.sev === 'err' && p.field === 'name') ? '' : state.value.refusal, problems: snapshot(problems), ...(dirty(definition.shape, original(), written()) ? {} : { baseProblems: snapshot(problems) }) });
+    // Validation of an unchanged name cannot undo a write refusal (for
+    // example, a destination occupied after copying). Only a checked change
+    // of that name resolves the preceding name's refusal.
+    const resolvedName = state.value.refusalAt === 'name' && inputName(state.value) !== refusedName && !problems.some((p) => p.sev === 'err' && (p.field === 'name' || p.at === 'name'));
+    patch({ checked: snapshot(answer.json), ...(resolvedName ? { refusal: '', refusalAt: undefined } : {}), problems: snapshot(problems), ...(dirty(definition.shape, original(), written()) ? {} : { baseProblems: snapshot(problems) }) });
   }
   async function save(over?: string): Promise<RawAnswer<Answer<K, 'save'>> | undefined> {
     if (definition.busySave && pendingSaves.value > 0) { patch({ refusal: definition.busySave, refusalAt: 'doc' }); return undefined; }
     pendingSaves.value++;
     const mine = ++saving;
     const sent = snapshot(state.value);
+    const sentName = inputName(sent);
     const current = revision;
     if (over !== undefined) sent.hash = over;
     patch({ refusal: '', refusalAt: undefined });
@@ -201,6 +211,7 @@ function editing<K extends ResourceKind, D, W>(definition: Definition<K, D, W>, 
     } catch (error) {
       if (!alive || mine !== saving) return undefined;
       const c = conflictOf(error);
+      refusedName = sentName;
       patch(c ? { conflict: { c } } : { refusal: problemText(error, '保存できませんでした'), refusalAt: refusalAt(error) });
       return undefined;
     } finally { pendingSaves.value--; }
@@ -266,6 +277,7 @@ export function editProfile(identity: ResourceIdentity<'profile'>, initial: Prof
   const definition: Definition<'profile', ProfileDraft, ProfileDraft> = {
     identity, origin: (s) => s.saved?.name || null, shape: PROFILE, written: profileDoc,
     name: (s) => s.saved?.name || s.draft.name || '_',
+    inputName: (s) => s.draft.name,
     check: (s) => ({ place: identity.place, project: identity.project, original: s.saved?.name || '', doc: profileDoc(s.draft) }),
     save: (s) => ({ place: identity.place, project: identity.project, original: s.saved?.name || '', doc: profileDoc(s.draft), hash: s.hash, rename_users: s.rename }),
     remove: (s) => apiDel('profile', s.saved?.name || s.draft.name, identity.place, s.hash, undefined, identity.project),

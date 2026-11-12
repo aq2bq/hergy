@@ -2,10 +2,36 @@ import { expect, test } from 'bun:test';
 import { later, serve } from './page.js';
 import { editTeam, restoreTeam } from '../src/lib/editing';
 import { resourceIdentity } from '../src/lib/resource-identity';
+import { Refusal } from '../src/lib/api';
 const team = (description = 'old') => ({ description, members: [{ name: 'lead', role: 'lead', profile: 'first' }], workers: [], turns: [['human', 'lead'], ['lead', 'human']] });
 const id = (name = 'sample', project = '/work/alpha') => resourceIdentity('team', { name, place: 'project', project });
 const open = () => editTeam(id(), { team: team(), hash: 't1', agreement: { name: '', title: 'sample', text: 'old rules' }, agreementHash: 'a1', name: 'sample' });
 const answer = (description = 'sent', name = 'sample') => ({ name, hash: 't2', text: 'yaml', path: `${name}/team.yaml`, doc: team(description), items: [{ name, effective: 'project', places: { project: { hash: 't2', path: `${name}/team.yaml`, doc: { ...team(description), agreement: { hash: 'a2', path: `${name}/agreement.md`, has: true, doc: { name: '', title: name, text: 'sent rules' } } } } } }] });
+for (const checkFirst of [false, true]) test(`new team name refusal survives validation, check first ${checkFirst}`, async () => {
+ const pending = [], message = 'その名前は既にあります。別のチーム定義名を指定してください';
+ serve((method) => { if (method === 'PUT') return Promise.reject(new Refusal(422, message, { at: 'name', text: message })); const one = later(); pending.push(one); return one.promise; });
+ const e = editTeam(id(''), { name: 'taken', team: team(), hash: '', agreement: null, agreementHash: '', how: 'new', seeded: true });
+ const checking = e.checkTeam();
+ const answerChecks = async (checking) => { pending.forEach((one) => one.resolve({ problems: [] })); await checking; };
+ if (checkFirst) await answerChecks(checking);
+ await e.save('team');
+ if (!checkFirst) await answerChecks(checking);
+ expect(e.team.read.value.refusal).toBe(message);
+ await answerChecks(e.checkTeam()); expect(e.team.read.value.refusal).toBe(message);
+ e.changeName('available'); await answerChecks(e.checkTeam());
+ expect(e.team.read.value.refusal).toBe(''); e.dispose();
+});
+for (const part of ['team', 'agreement']) for (const checkFirst of [false, true]) test(`${part} write refusal survives validation, check first ${checkFirst}`, async () => {
+ const pending = [], message = '書き込み先を確認してください';
+ serve((method) => { if (method === 'PUT') return Promise.reject(new Refusal(422, message, { at: 'doc', text: message })); const one = later(); pending.push(one); return one.promise; });
+ const e = open(), editor = part === 'team' ? e.team : e.agreement;
+ const checking = part === 'team' ? e.checkTeam() : e.checkAgreement();
+ const answerChecks = async () => { pending.forEach((one) => one.resolve({ problems: [] })); await checking; };
+ if (checkFirst) await answerChecks();
+ await e.save(part);
+ if (!checkFirst) await answerChecks();
+ expect(editor.read.value.refusal).toBe(message); e.dispose();
+});
 for (const typed of [false, true]) test(`team save keeps sent basis and later input ${typed}`, async () => {
  const pending = later(); const asked = serve(() => pending.promise); const e = open();
  e.act([{ kind: 'description', text: 'sent' }]); const saving = e.save('team');

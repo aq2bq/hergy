@@ -9,6 +9,32 @@ const open = () => editRole(identity(), { saved: { ...doc(), name: identity().na
 const problem = (text) => ({ sev: 'err', at: 'text', field: 'text', text });
 const result = (problems) => ({ problems, preview: { lines: [], chars: 1 }, effect: { diff: { added: [], removedBefore: [], removedAtEnd: false } }, readers: [] });
 
+for (const checkFirst of [false, true]) test(`a copied role keeps the save refusal when a valid-name check answers, check first ${checkFirst}`, async () => {
+  const pending = [];
+  const refusal = 'そのロール名は既にあります。別のロール名を指定してください';
+  serve((method) => {
+    if (method === 'PUT') return Promise.reject(new Refusal(422, refusal, { at: 'name', text: refusal }));
+    const one = later(); pending.push(one); return one.promise;
+  });
+  const editing = editRole(resourceIdentity('role', { place: 'global' }), { saved: null, draft: doc('copy', 'builder'), hash: '', text: '', base: identity() });
+  editing.change(doc('copy', 'lead'));
+  const checking = editing.check();
+  const answer = async () => { pending.forEach((one) => one.resolve(result([]))); await checking; };
+  if (checkFirst) await answer();
+  await editing.save();
+  if (!checkFirst) await answer();
+  expect(editing.read.value.refusal).toBe(refusal);
+  expect(editing.read.value.refusalAt).toBe('name');
+  // Rechecking the same input cannot establish that a target can be written.
+  const sameName = editing.check(); pending.at(-1).resolve(result([])); await sameName;
+  expect(editing.read.value.refusal).toBe(refusal);
+  // A new name is checked on its own; the preceding name's refusal can clear.
+  editing.change(doc('copy', 'another'));
+  const corrected = editing.check(); pending.at(-1).resolve(result([])); await corrected;
+  expect(editing.read.value.refusal).toBe('');
+  editing.dispose();
+});
+
 test('original problems and draft problems are compared even when their answers arrive backwards', async () => {
   const pending = [];
   serve((method, url, body) => { const one = later(); pending.push({ ...one, body }); return one.promise; });

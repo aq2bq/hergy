@@ -34,7 +34,7 @@ import {
   editYaml,
   profileFiles,
   YamlTab2
-} from "../chunk/nav-92c6mas0.js";
+} from "../chunk/nav-wdf3bnvz.js";
 import {
   copyGroupOf,
   ProjectView

@@ -2,11 +2,38 @@ import { expect, test } from 'bun:test';
 import { later, serve } from './page.js';
 import { editProfile, editProfileAssignments, editYaml, profileFiles } from '../src/lib/editing';
 import { resourceIdentity } from '../src/lib/resource-identity';
+import { Refusal } from '../src/lib/api';
 
 const draft = (name = 'fast') => ({ name, kind: 'claude', args: [], env: [] });
 const id = (project = '/work/alpha', name = 'fast', place = 'project') => resourceIdentity('profile', { place, project, name });
 const open = () => editProfile(id(), { saved: draft(), draft: draft(), hash: 'h1' });
 const problem = { sev: 'err', at: 'name', text: 'taken' };
+
+for (const saved of [false, true]) for (const checkFirst of [false, true]) test(`profile name refusal survives validation, saved ${saved}, check first ${checkFirst}`, async () => {
+  const pending = [];
+  const message = 'その名前は既にあります。別のプロファイル名を指定してください';
+  serve((method) => {
+    if (method === 'PUT') return Promise.reject(new Refusal(422, message, { at: 'name', text: message }));
+    const one = later(); pending.push(one); return one.promise;
+  });
+  const editing = editProfile(id(), { saved: saved ? draft() : null, draft: draft(), hash: saved ? 'h1' : '' });
+  editing.change(draft('taken'));
+  const checking = editing.check();
+  if (checkFirst) { pending[0].resolve({ problems: [] }); await checking; }
+  await editing.save();
+  if (!checkFirst) { pending[0].resolve({ problems: [] }); await checking; }
+  expect(editing.read.value.refusal).toBe(message);
+  editing.change({ ...draft('taken'), args: ['changed'] });
+  const same = editing.check(); pending.at(-1).resolve({ problems: [] }); await same;
+  expect(editing.read.value.refusal).toBe(message);
+  editing.change(draft('Invalid'));
+  const invalid = editing.check(); pending.at(-1).resolve({ problems: [problem] }); await invalid;
+  expect(editing.read.value.refusal).toBe(message);
+  editing.change(draft('available'));
+  const corrected = editing.check(); pending.at(-1).resolve({ problems: [] }); await corrected;
+  expect(editing.read.value.refusal).toBe('');
+  editing.dispose();
+});
 
 test('checks retain the accepted result across reordered responses, failure and draft replacement', async () => {
   const pending = [];

@@ -353,6 +353,8 @@ function editing(definition, initial) {
   let alive = true;
   let revision = 0;
   let saving = 0;
+  let refusedName;
+  const inputName = (s) => (definition.inputName || definition.name)(s);
   const pendingSaves = y(0);
   const patch = (next) => {
     state.value = { ...state.value, ...next };
@@ -424,7 +426,8 @@ function editing(definition, initial) {
     const problems = checkedProblems(answer.json);
     if (problems === undefined)
       return;
-    patch({ checked: snapshot(answer.json), refusal: state.value.refusalAt === "name" && !problems.some((p) => p.sev === "err" && p.field === "name") ? "" : state.value.refusal, problems: snapshot(problems), ...dirty(definition.shape, original(), written()) ? {} : { baseProblems: snapshot(problems) } });
+    const resolvedName = state.value.refusalAt === "name" && inputName(state.value) !== refusedName && !problems.some((p) => p.sev === "err" && (p.field === "name" || p.at === "name"));
+    patch({ checked: snapshot(answer.json), ...resolvedName ? { refusal: "", refusalAt: undefined } : {}, problems: snapshot(problems), ...dirty(definition.shape, original(), written()) ? {} : { baseProblems: snapshot(problems) } });
   }
   async function save(over) {
     if (definition.busySave && pendingSaves.value > 0) {
@@ -434,6 +437,7 @@ function editing(definition, initial) {
     pendingSaves.value++;
     const mine = ++saving;
     const sent = snapshot(state.value);
+    const sentName = inputName(sent);
     const current = revision;
     if (over !== undefined)
       sent.hash = over;
@@ -462,6 +466,7 @@ function editing(definition, initial) {
       if (!alive || mine !== saving)
         return;
       const c = conflictOf(error);
+      refusedName = sentName;
       patch(c ? { conflict: { c } } : { refusal: problemText2(error, "保存できませんでした"), refusalAt: refusalAt(error) });
       return;
     } finally {
@@ -569,6 +574,7 @@ function editProfile(identity, initial) {
     shape: PROFILE,
     written: profileDoc,
     name: (s) => s.saved?.name || s.draft.name || "_",
+    inputName: (s) => s.draft.name,
     check: (s) => ({ place: identity.place, project: identity.project, original: s.saved?.name || "", doc: profileDoc(s.draft) }),
     save: (s) => ({ place: identity.place, project: identity.project, original: s.saved?.name || "", doc: profileDoc(s.draft), hash: s.hash, rename_users: s.rename }),
     remove: (s) => del2("profile", s.saved?.name || s.draft.name, identity.place, s.hash, undefined, identity.project),
