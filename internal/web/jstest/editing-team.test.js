@@ -19,8 +19,8 @@ for (const typed of [false, true]) test(`folder save carries a later name into v
  const pending = later(); serve(() => pending.promise);
  const e = editTeam(id(''), { name: 'sent', team: team(), hash: '', agreement: null, agreementHash: '', how: 'new', seeded: true });
  const saving = e.save('team'); if (typed) e.changeName('later');
- pending.resolve(answer()); await saving;
- expect(e.read.value.name).toBe('sample'); expect(e.read.value.renameDraft).toBe(typed ? 'later' : null);
+ pending.resolve(answer('sent', 'sent')); await saving;
+ expect(e.read.value.name).toBe('sent'); expect(e.read.value.renameDraft).toBe(typed ? 'later' : null);
  expect(e.read.value.fresh).toBe(false); e.dispose();
 });
 test('new and copied folders restore with both files and reject another project or vanished saved file', () => {
