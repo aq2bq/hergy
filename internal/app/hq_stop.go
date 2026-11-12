@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/aq2bq/hergy/internal/ops"
+
 	domainname "github.com/aq2bq/hergy/internal/domain/name"
 
 	"github.com/aq2bq/hergy/internal/i18n"
@@ -72,30 +74,30 @@ type stopTarget struct {
 // names hergy gave its panes.
 func (h *hqRead) stopTargets(env team.Env, one runningTeam, read herdrNow) stopTarget {
 	cat := env.Catalog(source.Disk{})
-	r, buildErr := buildRunningIn(cat, env.ProjectRoot, team.Running{Team: domainname.TeamFromObservation(one.Name.Observation()), Definition: one.Definition}, one.Place.Layer())
+	r, buildErr := ops.BuildRunningIn(cat, env.ProjectRoot, team.Running{Team: domainname.TeamFromObservation(one.Name.Observation()), Definition: one.Definition}, one.Place.Layer())
 	workers := workerNamesOf(read.tabs, one.Name)
 	if buildErr != nil {
-		l := newLauncherWithPort(&resolved{team: team.Team{Name: domainname.TeamFromObservation(one.Name)}}, 30000, io.Discard, h.act.herdrPort()).WithWaitClock(h.stopNow, h.stopPause)
+		l := launcherWithPort(&ops.Resolved{Team: team.Team{Name: domainname.TeamFromObservation(one.Name)}}, 30000, io.Discard, h.act.herdrPort()).WithWaitClock(h.stopNow, h.stopPause)
 		agents := team.MemberAgents(read.tabs, one.Name)
 		return stopTarget{members: seenStrings(agents), workers: seenStrings(workers), close: func(selfPane domainname.PaneID) error {
 			_, err := l.DownByName(agents, selfPane, false)
 			return err
 		}}
 	}
-	l := newLauncherWithPort(r, 30000, io.Discard, h.act.herdrPort()).WithWaitClock(h.stopNow, h.stopPause)
-	members := make([]string, 0, len(r.starts))
-	for _, start := range r.starts {
+	l := launcherWithPort(r, 30000, io.Discard, h.act.herdrPort()).WithWaitClock(h.stopNow, h.stopPause)
+	members := make([]string, 0, len(r.Starts))
+	for _, start := range r.Starts {
 		members = append(members, start.Short.String())
 	}
 	return stopTarget{members: members, workers: seenStrings(workers), close: func(selfPane domainname.PaneID) error {
-		_, err := l.Down(r.starts, selfPane, false)
+		_, err := l.Down(r.Starts, selfPane, false)
 		return err
 	}}
 }
 
 // closeTeam puts one team away through the one answer the confirmation reads.
 func (h *hqRead) closeTeam(env team.Env, one runningTeam, read herdrNow) (web.HQClosed, error) {
-	selfPane := currentPane()
+	selfPane := ops.CurrentPane()
 	target := h.stopTargets(env, one, read)
 	if err := target.close(selfPane); err != nil {
 		return web.HQClosed{}, err

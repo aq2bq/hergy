@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/aq2bq/hergy/internal/ops"
+
 	"github.com/aq2bq/hergy/internal/herdr"
 	"github.com/aq2bq/hergy/internal/launchlog"
 	"github.com/aq2bq/hergy/internal/protocol"
@@ -107,7 +109,7 @@ func TestInitialPromptReceiptOperations(t *testing.T) {
 				case "screen-start":
 					useJapanese(t)
 					env := serveEnv(t)
-					r, err := readDefinition(env.Catalog(source.Disk{}), env.ProjectRoot, "demo", "demo")
+					r, err := ops.ReadDefinition(env.Catalog(source.Disk{}), env.ProjectRoot, "demo", "demo")
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -426,7 +428,7 @@ func TestReceiptLaunchRecords(t *testing.T) {
 					}
 				case "screen-start":
 					env := serveEnv(t)
-					r, err := readDefinition(env.Catalog(source.Disk{}), env.ProjectRoot, "demo", "demo")
+					r, err := ops.ReadDefinition(env.Catalog(source.Disk{}), env.ProjectRoot, "demo", "demo")
 					if err != nil {
 						t.Fatal(err)
 					}

@@ -22,7 +22,7 @@ const modulePath = "github.com/aq2bq/hergy"
 // leaves have no operational dependencies; source uses place, which uses name.
 var leaves = []string{"browser", "domain/name", "domain/place", "i18n", "layout", "scaffold", "source", "version"}
 
-// topLayer is imported by internal/app only. The name is the path under
+// topLayer is imported by internal/app and, during stage C, internal/ops. The name is the path under
 // internal/, so a package nested under another (internal/web/rulesview) is told
 // apart from its parent, which path.Base hid.
 var topLayer = []string{"cheat", "gycli", "herdrcli", "launcher", "spawn", "team", "web"}
@@ -110,6 +110,18 @@ func TestImportDirection(t *testing.T) {
 		}
 	})
 
+	t.Run("ops does not import boundary packages", func(t *testing.T) {
+		for _, f := range files {
+			if packageOf(f) == "ops" {
+				for _, imp := range imports[f] {
+					if imp == "app" || imp == "web" {
+						t.Errorf("%s: ops must not import %s", f, imp)
+					}
+				}
+			}
+		}
+	})
+
 	t.Run("only main imports app", func(t *testing.T) {
 		for _, f := range files {
 			if packageOf(f) != "main" && slices.Contains(imports[f], "app") {
@@ -118,10 +130,10 @@ func TestImportDirection(t *testing.T) {
 		}
 	})
 
-	t.Run("only app imports the top layer", func(t *testing.T) {
+	t.Run("app and ops import operational packages", func(t *testing.T) {
 		for _, f := range files {
 			pkg := packageOf(f)
-			if pkg == "app" || pkg == "main" {
+			if pkg == "app" || pkg == "main" || (pkg == "ops" && !slices.Contains(imports[f], "web")) {
 				continue
 			}
 			for _, imp := range imports[f] {
@@ -136,7 +148,7 @@ func TestImportDirection(t *testing.T) {
 				if strings.HasPrefix(pkg, imp+"/") {
 					continue
 				}
-				t.Errorf("%s: internal/%s is imported by app only, not by %s", f, imp, pkg)
+				t.Errorf("%s: internal/%s is imported by app or ops only, not by %s", f, imp, pkg)
 			}
 		}
 	})

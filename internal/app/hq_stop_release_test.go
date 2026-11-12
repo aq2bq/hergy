@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aq2bq/hergy/internal/ops"
+
 	"github.com/aq2bq/hergy/internal/herdr"
 	"github.com/aq2bq/hergy/internal/protocol"
 	"github.com/aq2bq/hergy/internal/source"
@@ -97,14 +99,14 @@ func TestScreenStopWaitsForNameRelease(t *testing.T) {
 				receiptTeam(t, f)
 				useJapanese(t)
 				env := serveEnv(t)
-				r, err := readDefinition(env.Catalog(source.Disk{}), env.ProjectRoot, "demo", "demo")
+				r, err := ops.ReadDefinition(env.Catalog(source.Disk{}), env.ProjectRoot, "demo", "demo")
 				if err != nil {
 					t.Fatal(err)
 				}
 				p := &stopReleasePort{reads: map[string]int{}, survive: 1}
 				p.snapshot.Workspaces = []herdr.Workspace{{ID: "w1", Label: "demo"}}
 				p.snapshot.Tabs = []protocol.Tab{{ID: "t1", Label: fixtureSeen("demo"), WorkspaceID: "w1"}}
-				for i, start := range r.starts {
+				for i, start := range r.Starts {
 					pane := fmt.Sprintf("old-%d", i)
 					p.snapshot.Panes = append(p.snapshot.Panes, protocol.Pane{ID: fixturePane(pane), Label: fixtureSeen(start.Name.String()), TabID: "t1"})
 					p.snapshot.Agents = append(p.snapshot.Agents, protocol.Agent{Name: fixtureSeen(start.Name.String()), Kind: "claude", Status: "idle", PaneID: fixturePane(pane), TabID: "t1"})

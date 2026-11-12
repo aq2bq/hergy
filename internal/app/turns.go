@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aq2bq/hergy/internal/ops"
+
 	domainname "github.com/aq2bq/hergy/internal/domain/name"
 
 	"github.com/aq2bq/hergy/internal/definition"
@@ -53,7 +55,7 @@ const (
 )
 
 func runTurns(ctx context.Context, env team.Env, opts *options.Options, stdout io.Writer) error {
-	r, err := resolveTeam(env.Catalog(source.Disk{}), env.ProjectRoot, opts)
+	r, err := ops.ResolveTeam(env.Catalog(source.Disk{}), env.ProjectRoot, opts)
 	if err != nil {
 		return err
 	}
@@ -66,26 +68,26 @@ func runTurns(ctx context.Context, env team.Env, opts *options.Options, stdout i
 		return err
 	}
 	if opts.Log {
-		return printTurnsLog(r.team.Name.String(), turns.LogPath(dir, r.team.Name.String()), stdout)
+		return printTurnsLog(r.Team.Name.String(), turns.LogPath(dir, r.Team.Name.String()), stdout)
 	}
-	logFile, err := openTurnsLog(turns.LogPath(dir, r.team.Name.String()))
+	logFile, err := openTurnsLog(turns.LogPath(dir, r.Team.Name.String()))
 	if err != nil {
 		return err
 	}
 	defer func() { _ = logFile.Close() }()
-	w := newTurnWatcher(r.modelTeamName(), r.team.Definition.Graph, h, turns.Path(dir, r.team.Name.String()), &stampWriter{out: logFile, clock: time.Now})
+	w := newTurnWatcher(r.ModelTeamName(), r.Team.Definition.Graph, h, turns.Path(dir, r.Team.Name.String()), &stampWriter{out: logFile, clock: time.Now})
 	w.screen = &screen{out: stdout}
 	defer w.screen.end()
-	w.read = herdrRead
-	w.hirers, w.names = hirersOf(r.team.Name.Observation())
-	w.signals = turns.SignalDir(dir, r.team.Name.String())
-	w.tells = turns.TellDir(dir, r.team.Name.String())
+	w.read = ops.HerdrRead
+	w.hirers, w.names = hirersOf(r.Team.Name.Observation())
+	w.signals = turns.SignalDir(dir, r.Team.Name.String())
+	w.tells = turns.TellDir(dir, r.Team.Name.String())
 	// Tells that waited while no watcher ran are about turns this watcher did
 	// not see: they are dropped, so a member is not asked about a turn long gone.
 	if _, err := turns.TakeTells(w.tells); err != nil {
 		return err
 	}
-	for _, s := range r.starts {
+	for _, s := range r.Starts {
 		if s.Signal.Wired {
 			w.wired[s.Short.String()] = true
 		}

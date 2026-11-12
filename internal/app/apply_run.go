@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/aq2bq/hergy/internal/ops"
+
 	domainname "github.com/aq2bq/hergy/internal/domain/name"
 
 	"github.com/aq2bq/hergy/internal/catalog"
@@ -145,7 +147,7 @@ func (h *hqRead) runApply(ctx context.Context, op *launchOp, selected []plannedM
 			return
 		}
 		cat := env.Catalog(source.Disk{})
-		r, err := buildRunningIn(cat, env.ProjectRoot,
+		r, err := ops.BuildRunningIn(cat, env.ProjectRoot,
 			team.Running{Team: domainname.TeamFromObservation(group[0].team.Name.Observation()), Definition: group[0].team.Definition}, group[0].team.Place.Layer())
 		if err != nil {
 			h.finish(op, "failed", err.Error())
@@ -173,8 +175,8 @@ func (h *hqRead) runApply(ctx context.Context, op *launchOp, selected []plannedM
 }
 
 // applyGroup applies one team's members, and records what they were handed.
-func (h *hqRead) applyGroup(ctx context.Context, op *launchOp, env team.Env, cat *catalog.Catalog, r *resolved, group []plannedMember) error {
-	l := newLauncherWithPort(r, 30000, io.Discard, h.act.herdrPort()).WithContext(ctx).WithoutNextHint()
+func (h *hqRead) applyGroup(ctx context.Context, op *launchOp, env team.Env, cat *catalog.Catalog, r *ops.Resolved, group []plannedMember) error {
+	l := launcherWithPort(r, 30000, io.Discard, h.act.herdrPort()).WithContext(ctx).WithoutNextHint()
 	l.Observe(func(event launcher.Event) { h.observe(op, event) })
 	var starts, restarts, resends []definition.Start
 	for _, member := range group {
@@ -189,7 +191,7 @@ func (h *hqRead) applyGroup(ctx context.Context, op *launchOp, env team.Env, cat
 	}
 	var undelivered []error
 	if len(starts)+len(restarts) > 0 {
-		if err := l.Refresh(append(starts, restarts...), currentPane()); err != nil {
+		if err := l.Refresh(append(starts, restarts...), ops.CurrentPane()); err != nil {
 			if launcher.IsUndelivered(err) {
 				undelivered = append(undelivered, err)
 			} else {

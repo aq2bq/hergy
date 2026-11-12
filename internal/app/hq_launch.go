@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aq2bq/hergy/internal/ops"
+
 	domainplace "github.com/aq2bq/hergy/internal/domain/place"
 
 	"github.com/aq2bq/hergy/internal/definition"
@@ -246,7 +248,7 @@ func (h *hqRead) StartLaunch(in web.HQLaunchIn) (web.HQLaunch, error) {
 	if err != nil {
 		return web.HQLaunch{}, err
 	}
-	release, err := source.LockTeamStart(r.team.Definition.TeamYAML.String())
+	release, err := source.LockTeamStart(r.Team.Definition.TeamYAML.String())
 	if err != nil {
 		return web.HQLaunch{}, hqRefuse(http.StatusConflict, i18n.T("web.rename.busy"))
 	}
@@ -417,7 +419,7 @@ func (h *hqRead) startWorkspace(in web.HQWorkspaceIn, env team.Env) (web.HQWorks
 }
 
 // buildForStart builds the team at run time, from the definition's layer.
-func buildForStart(env team.Env, in web.HQLaunchIn, name string) (*resolved, error) {
+func buildForStart(env team.Env, in web.HQLaunchIn, name string) (*ops.Resolved, error) {
 	cat := env.Catalog(source.Disk{})
 	layer, err := placeLayer(in.Place.String())
 	if err != nil {
@@ -427,7 +429,7 @@ func buildForStart(env team.Env, in web.HQLaunchIn, name string) (*resolved, err
 	if err != nil {
 		return nil, hqRefuse(http.StatusUnprocessableEntity, err.Error())
 	}
-	r, err := buildResolved(cat, env.ProjectRoot, def, name)
+	r, err := ops.BuildResolved(cat, env.ProjectRoot, def, name)
 	if err != nil {
 		return nil, hqRefuse(http.StatusUnprocessableEntity, err.Error())
 	}
@@ -537,10 +539,10 @@ func (h *hqRead) activeLaunch(teamName string) (string, bool) {
 }
 
 // runStart runs one start in the background and keeps its progress.
-func (h *hqRead) runStart(ctx context.Context, op *launchOp, env team.Env, r *resolved, in web.HQLaunchIn, workspace web.HQWorkspace) {
-	l := newLauncherWithPort(r, 30000, io.Discard, h.act.herdrPort()).WithContext(ctx).WithWatcher(watcherCommand(r.team.Name.String(), env.ProjectRoot))
+func (h *hqRead) runStart(ctx context.Context, op *launchOp, env team.Env, r *ops.Resolved, in web.HQLaunchIn, workspace web.HQWorkspace) {
+	l := launcherWithPort(r, 30000, io.Discard, h.act.herdrPort()).WithContext(ctx).WithWatcher(watcherCommand(r.Team.Name.String(), env.ProjectRoot))
 	l.Observe(func(event launcher.Event) { h.observe(op, event) })
-	command := startCommand(in.Definition, r.team.Name.String())
+	command := startCommand(in.Definition, r.Team.Name.String())
 	err := l.BootIn(workspace.ID, command)
 	if errors.Is(err, launcher.ErrCancelled) || ctx.Err() != nil {
 		h.finish(op, "cancelled", "")
@@ -551,7 +553,7 @@ func (h *hqRead) runStart(ctx context.Context, op *launchOp, env team.Env, r *re
 		if label == "" {
 			label = l.WorkspaceLabel()
 		}
-		recordReceivedLaunch(io.Discard, env, r, launchlog.CommandUp, r.starts, l, launchlog.Workspace{Label: label, ID: l.WorkspaceID()})
+		recordReceivedLaunch(io.Discard, env, r, launchlog.CommandUp, r.Starts, l, launchlog.Workspace{Label: label, ID: l.WorkspaceID()})
 	}
 	if err != nil {
 		if launcher.IsUndelivered(err) {
@@ -561,7 +563,7 @@ func (h *hqRead) runStart(ctx context.Context, op *launchOp, env team.Env, r *re
 		failure := l.Failure(err)
 		h.finish(op, "failed", startFailureText(failure,
 			h.projectNameIn(env.ProjectRoot),
-			failedStartCommand(failure, r.team.Name.String(), command)))
+			failedStartCommand(failure, r.Team.Name.String(), command)))
 		return
 	}
 	h.finish(op, "done", "")

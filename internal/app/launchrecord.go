@@ -5,6 +5,8 @@ import (
 	"io"
 	"time"
 
+	"github.com/aq2bq/hergy/internal/ops"
+
 	domainname "github.com/aq2bq/hergy/internal/domain/name"
 	domainplace "github.com/aq2bq/hergy/internal/domain/place"
 
@@ -28,7 +30,7 @@ import (
 // Startup failures, sending failures and cancellation keep no launch record.
 // A hire has its own recordHire, independently of prompt receipt. A record that
 // cannot be written is reported on stderr and does not decide the operation.
-func recordLaunch(stderr io.Writer, env team.Env, r *resolved, command string, members []definition.Start) {
+func recordLaunch(stderr io.Writer, env team.Env, r *ops.Resolved, command string, members []definition.Start) {
 	recordLaunchIn(stderr, env, r, command, members, launchlog.Workspace{})
 }
 
@@ -36,7 +38,7 @@ func recordLaunch(stderr io.Writer, env team.Env, r *resolved, command string, m
 // an empty launch is kept (d-8e2f). The team created by up must remain resolvable
 // by its alias even when nobody received a prompt; other operations create no
 // team and keep no new record when nobody received one.
-func recordReceivedLaunch(stderr io.Writer, env team.Env, r *resolved, command string, members []definition.Start, l *launcher.Launcher, workspace launchlog.Workspace) {
+func recordReceivedLaunch(stderr io.Writer, env team.Env, r *ops.Resolved, command string, members []definition.Start, l *launcher.Launcher, workspace launchlog.Workspace) {
 	var received []definition.Start
 	for _, member := range members {
 		if l.Received(member.Name.String()) {
@@ -51,7 +53,7 @@ func recordReceivedLaunch(stderr io.Writer, env team.Env, r *resolved, command s
 
 // recordLaunchIn writes one launch, naming the workspace its tab was made in
 // (d-73fc). A launch that makes no tab passes the zero workspace.
-func recordLaunchIn(stderr io.Writer, env team.Env, r *resolved, command string, members []definition.Start, workspace launchlog.Workspace) {
+func recordLaunchIn(stderr io.Writer, env team.Env, r *ops.Resolved, command string, members []definition.Start, workspace launchlog.Workspace) {
 	log, err := launchlog.Open()
 	if err == nil {
 		err = writeLaunch(log, env, r, command, members, workspace)
@@ -65,7 +67,7 @@ func recordLaunchIn(stderr io.Writer, env team.Env, r *resolved, command string,
 // worker it added, which member added it, the purpose and the tab (d-b4b9). The
 // activity screen reads it to say "<member> が追加". A line that cannot be
 // written is one line on stderr and nothing else: the worker is already up.
-func recordHire(stderr io.Writer, env team.Env, r *resolved, worker definition.Start) {
+func recordHire(stderr io.Writer, env team.Env, r *ops.Resolved, worker definition.Start) {
 	log, err := launchlog.Open()
 	if err == nil {
 		workerName, _ := domainname.ParseWorkerName(worker.Short.String())
@@ -74,14 +76,14 @@ func recordHire(stderr io.Writer, env team.Env, r *resolved, worker definition.S
 			Command:    launchlog.CommandHire,
 			Hergy:      version.Line(),
 			Project:    env.ProjectRoot.Seen(),
-			Layer:      domainplace.Selection(r.team.Definition.Layer),
-			Definition: r.team.Definition.Name.String(),
-			Team:       r.team.Name.Observation(),
+			Layer:      domainplace.Selection(r.Team.Definition.Layer),
+			Definition: r.Team.Definition.Name.String(),
+			Team:       r.Team.Name.Observation(),
 			Hire: &launchlog.Hire{
 				Worker:  worker.Name.Observation(),
 				From:    worker.From.String(),
 				Purpose: worker.Purpose,
-				Tab:     r.modelTeamName().WorkerTab(workerName),
+				Tab:     r.ModelTeamName().WorkerTab(workerName),
 			},
 		})
 	}
@@ -92,7 +94,7 @@ func recordHire(stderr io.Writer, env team.Env, r *resolved, worker definition.S
 
 // writeLaunch builds one record and appends it. The texts the record points at —
 // prompt bodies before change-reason preambles and the files read — go into blobs/ first.
-func writeLaunch(log launchlog.Log, env team.Env, r *resolved, command string, members []definition.Start, workspace launchlog.Workspace) error {
+func writeLaunch(log launchlog.Log, env team.Env, r *ops.Resolved, command string, members []definition.Start, workspace launchlog.Workspace) error {
 	material, err := teamMaterial(r)
 	if err != nil {
 		return err
@@ -102,22 +104,22 @@ func writeLaunch(log launchlog.Log, env team.Env, r *resolved, command string, m
 		Command:     command,
 		Hergy:       version.Line(),
 		Project:     env.ProjectRoot.Seen(),
-		Layer:       domainplace.Selection(r.team.Definition.Layer),
-		Definition:  r.team.Definition.Name.String(),
-		Team:        r.team.Name.Observation(),
-		TeamYAML:    r.team.Definition.TeamYAML.Project().Seen(),
+		Layer:       domainplace.Selection(r.Team.Definition.Layer),
+		Definition:  r.Team.Definition.Name.String(),
+		Team:        r.Team.Name.Observation(),
+		TeamYAML:    r.Team.Definition.TeamYAML.Project().Seen(),
 		Workspace:   workspace.Label,
 		WorkspaceID: workspace.ID,
 		Hash:        launchlog.Hash(material),
 		// The facts the prompts were built with, so a screen can rebuild them
 		// the way the launch did (C9, spec/43 S1).
-		Executable: executable(),
+		Executable: ops.Executable(),
 		Lang:       i18n.Language(),
 	}
 	// A worker's profile is not a member's: it reaches the next worker hired,
 	// so the record keeps its fingerprint for the apply sheet's note (d-36ef).
-	for _, worker := range r.team.Definition.Graph.Workers {
-		p, ok := r.profiles[worker.Profile]
+	for _, worker := range r.Team.Definition.Graph.Workers {
+		p, ok := r.Profiles[worker.Profile]
 		if !ok {
 			continue
 		}
@@ -168,18 +170,18 @@ func writeLaunch(log launchlog.Log, env team.Env, r *resolved, command string, m
 // this and not over the members one command handed a prompt to, so the same team
 // definition hashes the same across up, refresh and reprompt, and a change to a
 // profile no member reads does not change it.
-func teamMaterial(r *resolved) (launchlog.Material, error) {
-	def := r.team.Definition
+func teamMaterial(r *ops.Resolved) (launchlog.Material, error) {
+	def := r.Team.Definition
 	teamYAML, err := source.Disk{}.Read(source.Doc{Layer: def.Layer, Path: def.TeamYAML.String()})
 	if err != nil {
 		return launchlog.Material{}, err
 	}
 	material := launchlog.Material{
 		TeamYAML: []byte(teamYAML),
-		Members:  make([]launchlog.MaterialMember, 0, len(r.starts)),
+		Members:  make([]launchlog.MaterialMember, 0, len(r.Starts)),
 	}
-	for i := range r.starts {
-		member := &r.starts[i]
+	for i := range r.Starts {
+		member := &r.Starts[i]
 		material.Members = append(material.Members, launchlog.MaterialMember{
 			Kind:   member.Kind,
 			Args:   member.Args,

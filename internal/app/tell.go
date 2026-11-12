@@ -5,6 +5,8 @@ import (
 	"io"
 	"time"
 
+	"github.com/aq2bq/hergy/internal/ops"
+
 	domainname "github.com/aq2bq/hergy/internal/domain/name"
 
 	"github.com/aq2bq/hergy/internal/i18n"
@@ -22,9 +24,9 @@ import (
 // pane as the person's, so the watcher does not ask who it is for (d-e601).
 // --dry prints the message and sends and records nothing.
 func runTell(env team.Env, opts *options.Options, stdout io.Writer) error {
-	resolve := resolveTeam
+	resolve := ops.ResolveTeam
 	if opts.Dry {
-		resolve = resolveTeamDry
+		resolve = ops.ResolveTeamDry
 	}
 	r, err := resolve(env.Catalog(source.Disk{}), env.ProjectRoot, opts)
 	if err != nil {
@@ -36,44 +38,44 @@ func runTell(env team.Env, opts *options.Options, stdout io.Writer) error {
 	if opts.Body == "" {
 		return i18n.Errorf("error.tell_needs_body")
 	}
-	member, err := r.member(opts.Member)
+	member, err := r.Member(opts.Member)
 	if err != nil {
 		return err
 	}
 	from := domainname.Seen{}
 	if opts.From != "" {
-		found, err := r.member(opts.From)
+		found, err := r.Member(opts.From)
 		if err != nil {
 			return i18n.Errorf("error.tell_from_unknown", opts.From)
 		}
 		from = found.Name.Observation()
 	} else if !opts.Dry {
-		from = senderName(r, currentPane())
+		from = senderName(r, ops.CurrentPane())
 	}
 	text := sendText(from.String(), opts.Body)
 	if opts.Dry {
 		fmt.Fprintf(stdout, i18n.T("send.dry"), member.Name.String(), text)
 		return nil
 	}
-	if err := newLauncher(r, opts.Timeout, stdout).Tell(member, text); err != nil {
+	if err := launcherFor(r, opts.Timeout, stdout).Tell(member, text); err != nil {
 		return err
 	}
-	return recordTell(r.team.Name.Observation(), from, domainname.ShortIn(member.Name.Observation(), r.team.Name.Observation()).String())
+	return recordTell(r.Team.Name.Observation(), from, domainname.ShortIn(member.Name.Observation(), r.Team.Name.Observation()).String())
 }
 
 // tellHuman records that the member whose pane hergy runs in (or --from) marked
 // its text as the person's. Nothing is sent: the person reads the pane. From
 // a pane that is no member's there is nothing to mark, and it is refused.
-func tellHuman(r *resolved, opts *options.Options, stdout io.Writer) error {
+func tellHuman(r *ops.Resolved, opts *options.Options, stdout io.Writer) error {
 	from := domainname.Seen{}
 	if opts.From != "" {
-		found, err := r.member(opts.From)
+		found, err := r.Member(opts.From)
 		if err != nil {
 			return i18n.Errorf("error.tell_from_unknown", opts.From)
 		}
 		from = found.Name.Observation()
 	} else if !opts.Dry {
-		from = senderName(r, currentPane())
+		from = senderName(r, ops.CurrentPane())
 	}
 	if opts.Dry {
 		fmt.Fprint(stdout, i18n.T("send.dry_human"))
@@ -82,7 +84,7 @@ func tellHuman(r *resolved, opts *options.Options, stdout io.Writer) error {
 	if from.String() == "" {
 		return i18n.Errorf("error.tell_human_from_person")
 	}
-	if err := recordTell(r.team.Name.Observation(), from, turns.Human); err != nil {
+	if err := recordTell(r.Team.Name.Observation(), from, turns.Human); err != nil {
 		return err
 	}
 	fmt.Fprint(stdout, i18n.T("send.told_human"))

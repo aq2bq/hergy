@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/aq2bq/hergy/internal/ops"
+
 	"github.com/aq2bq/hergy/internal/launchlog"
 	"github.com/aq2bq/hergy/internal/source"
 	"github.com/aq2bq/hergy/internal/web"
@@ -24,11 +26,11 @@ func TestApplySaysHowEachMemberIsPutRight(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	r, err := readDefinition(cat, env.ProjectRoot, "demo", "demo")
+	r, err := ops.ReadDefinition(cat, env.ProjectRoot, "demo", "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeLaunch(log, env, r, launchlog.CommandUp, r.starts, launchlog.Workspace{}); err != nil {
+	if err := writeLaunch(log, env, r, launchlog.CommandUp, r.Starts, launchlog.Workspace{}); err != nil {
 		t.Fatalf("record demo: %v", err)
 	}
 
@@ -88,11 +90,11 @@ func TestApplyLeavesAWorkingMemberAndSaysWhy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	r, err := readDefinition(cat, env.ProjectRoot, "demo", "demo")
+	r, err := ops.ReadDefinition(cat, env.ProjectRoot, "demo", "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeLaunch(log, env, r, launchlog.CommandUp, r.starts, launchlog.Workspace{}); err != nil {
+	if err := writeLaunch(log, env, r, launchlog.CommandUp, r.Starts, launchlog.Workspace{}); err != nil {
 		t.Fatalf("record demo: %v", err)
 	}
 	rolePath := filepath.Join(f.proj, ".hergy", "roles", "lead.md")

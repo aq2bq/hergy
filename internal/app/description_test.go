@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/aq2bq/hergy/internal/ops"
+
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/source"
 )
@@ -201,7 +203,7 @@ func TestADescriptionChangeLeavesThePromptAndTheDriftAlone(t *testing.T) {
 
 	env := serveEnv(t)
 	cat := env.Catalog(source.Disk{})
-	before, err := readDefinition(cat, env.ProjectRoot, "demo", "demo")
+	before, err := ops.ReadDefinition(cat, env.ProjectRoot, "demo", "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -215,17 +217,17 @@ func TestADescriptionChangeLeavesThePromptAndTheDriftAlone(t *testing.T) {
 	path := filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml")
 	text := readFile(t, path)
 	writeFile(t, path, strings.Replace(text, "description: ", "description: 書き直した ", 1))
-	after, err := readDefinition(cat, env.ProjectRoot, "demo", "demo")
+	after, err := ops.ReadDefinition(cat, env.ProjectRoot, "demo", "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if after.team.Definition.Description == before.team.Definition.Description {
-		t.Fatalf("the description did not change: %q", after.team.Definition.Description)
+	if after.Team.Definition.Description == before.Team.Definition.Description {
+		t.Fatalf("the description did not change: %q", after.Team.Definition.Description)
 	}
-	for i := range before.starts {
-		if before.starts[i].Prompt != after.starts[i].Prompt {
+	for i := range before.Starts {
+		if before.Starts[i].Prompt != after.Starts[i].Prompt {
 			t.Errorf("%s's prompt changed with the description:\n--- before ---\n%s\n--- after ---\n%s",
-				before.starts[i].Name.String(), before.starts[i].Prompt, after.starts[i].Prompt)
+				before.Starts[i].Name.String(), before.Starts[i].Prompt, after.Starts[i].Prompt)
 		}
 	}
 

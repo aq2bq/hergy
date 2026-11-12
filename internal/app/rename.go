@@ -6,6 +6,8 @@ import (
 	"slices"
 	"time"
 
+	"github.com/aq2bq/hergy/internal/ops"
+
 	domainplace "github.com/aq2bq/hergy/internal/domain/place"
 
 	"github.com/aq2bq/hergy/internal/i18n"
@@ -29,7 +31,7 @@ func (a *activityRead) CheckDefinitionRename(target domainplace.Project) error {
 	if err != nil {
 		return hqRefuse(http.StatusServiceUnavailable, i18n.T("web.rename.unavailable"))
 	}
-	for _, running := range team.RunningTeams(read.tabs, launchTeams(), read.agentsRead) {
+	for _, running := range team.RunningTeams(read.tabs, ops.LaunchTeams(), read.agentsRead) {
 		record, known := renameLaunch(records, running)
 		if !known || record.TeamYAML.String() == "" {
 			if running.Definition == filepath.Base(filepath.Dir(target.String())) {

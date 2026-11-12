@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aq2bq/hergy/internal/ops"
+
 	domainplace "github.com/aq2bq/hergy/internal/domain/place"
 	"github.com/aq2bq/hergy/internal/launchlog"
 	"github.com/aq2bq/hergy/internal/source"
@@ -27,7 +29,7 @@ func aliasProjectRun(t *testing.T, recordAlias bool) (team.Env, string) {
 		recorded, readPath = alias, f.proj
 	}
 	env := serveEnv(t)
-	r, err := readDefinition(env.Catalog(source.Disk{}), env.ProjectRoot, "demo", "demo-hotfix")
+	r, err := ops.ReadDefinition(env.Catalog(source.Disk{}), env.ProjectRoot, "demo", "demo-hotfix")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -35,7 +37,7 @@ func aliasProjectRun(t *testing.T, recordAlias bool) (team.Env, string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeLaunch(log, env, r, launchlog.CommandUp, r.starts, launchlog.Workspace{}); err != nil {
+	if err := writeLaunch(log, env, r, launchlog.CommandUp, r.Starts, launchlog.Workspace{}); err != nil {
 		t.Fatal(err)
 	}
 	records, err := log.Read()

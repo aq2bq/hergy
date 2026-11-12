@@ -2,6 +2,7 @@ package app
 
 import (
 	domainplace "github.com/aq2bq/hergy/internal/domain/place"
+	"github.com/aq2bq/hergy/internal/ops"
 
 	"time"
 
@@ -139,8 +140,8 @@ func (a *activityRead) planTeam(one *deliveryPlan, running runningTeam, judged a
 		noted[text] = true
 		row.Notes = append(row.Notes, text)
 	}
-	for i := range running.Built.starts {
-		start := running.Built.starts[i]
+	for i := range running.Built.Starts {
+		start := running.Built.Starts[i]
 		node, live := byHerdr[start.Name.String()]
 		if !live {
 			// The definition has the member and no agent of the team is live
@@ -241,7 +242,7 @@ func newestRecord(recorded map[string]launchlog.Record) (launchlog.Record, bool)
 // launch, so the next worker hired from it gets the new engine, while the workers
 // already hired keep theirs (d-36ef). A record written before the worker
 // fingerprints were kept says nothing.
-func workerNotes(record launchlog.Record, r *resolved) []string {
+func workerNotes(record launchlog.Record, r *ops.Resolved) []string {
 	if len(record.Workers) == 0 {
 		return nil
 	}
@@ -250,12 +251,12 @@ func workerNotes(record launchlog.Record, r *resolved) []string {
 		before[worker.From+"/"+worker.Purpose] = worker
 	}
 	var out []string
-	for _, worker := range r.team.Definition.Graph.Workers {
+	for _, worker := range r.Team.Definition.Graph.Workers {
 		was, ok := before[worker.From+"/"+worker.Purpose.String()]
 		if !ok {
 			continue
 		}
-		p, ok := r.profiles[worker.Profile]
+		p, ok := r.Profiles[worker.Profile]
 		if !ok {
 			continue
 		}
@@ -367,23 +368,23 @@ func (a *activityRead) memberChanges(cat *catalog.Catalog, log launchlog.Log, lo
 	if err != nil {
 		return false, nil
 	}
-	node, ok := running.Built.team.Definition.Graph.Member(start.Short.String())
+	node, ok := running.Built.Team.Definition.Graph.Member(start.Short.String())
 	if !ok {
 		return false, nil
 	}
 	run := prompt.Run{
-		Team: domainname.RunningNames(running.Built.team.Name), Executable: record.Executable, Base: record.Project.Project(), Lang: record.Lang,
+		Team: domainname.RunningNames(running.Built.Team.Name), Executable: record.Executable, Base: record.Project.Project(), Lang: record.Lang,
 		Reader: cat.Reader(), Sources: cat, Display: cat.Display,
 	}
 	if run.Executable == "" {
-		run.Executable = executable()
+		run.Executable = ops.Executable()
 	}
 	if run.Base.IsZero() {
 		// The team's own project, not the one serve was started in: a team of
 		// another listed project is built from that project (r-2e49).
 		run.Base = running.Project
 	}
-	built, err := prompt.Member(running.Built.team.Definition, &node, run)
+	built, err := prompt.Member(running.Built.Team.Definition, &node, run)
 	if err != nil {
 		return true, []deliver.Change{{Kind: "prompt", Text: i18n.T("delivery.prompt_changed")}}
 	}
@@ -393,7 +394,7 @@ func (a *activityRead) memberChanges(cat *catalog.Catalog, log launchlog.Log, lo
 	current := start
 	current.Prompt, current.Segments = built.Text, built.Segments
 	current.RoleDoc, current.HasRole, current.Read = built.Role, built.HasRole, built.Read
-	changes := deliver.Compare(running.Built.modelTeamName(), record.Lang, string(old), oldDocs(log, record, recorded, string(old)), current, currentDocs(cat, built))
+	changes := deliver.Compare(running.Built.ModelTeamName(), record.Lang, string(old), oldDocs(log, record, recorded, string(old)), current, currentDocs(cat, built))
 	if len(changes) == 0 {
 		changes = []deliver.Change{{Kind: "prompt", Text: i18n.T("delivery.prompt_changed")}}
 	}

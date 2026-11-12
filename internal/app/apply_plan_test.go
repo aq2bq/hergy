@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/aq2bq/hergy/internal/ops"
+
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/launchlog"
 	"github.com/aq2bq/hergy/internal/source"
@@ -19,7 +21,7 @@ func recordAgain(t *testing.T) {
 	t.Helper()
 	env := serveEnv(t)
 	cat := env.Catalog(source.Disk{})
-	r, err := readDefinition(cat, env.ProjectRoot, "demo", "demo")
+	r, err := ops.ReadDefinition(cat, env.ProjectRoot, "demo", "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -27,7 +29,7 @@ func recordAgain(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeLaunch(log, env, r, launchlog.CommandUp, r.starts, launchlog.Workspace{}); err != nil {
+	if err := writeLaunch(log, env, r, launchlog.CommandUp, r.Starts, launchlog.Workspace{}); err != nil {
 		t.Fatalf("record demo: %v", err)
 	}
 }
