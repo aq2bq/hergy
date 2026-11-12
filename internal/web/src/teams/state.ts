@@ -28,15 +28,14 @@ import type { Positions } from './place';
 import type { CanvasMenu, CanvasTyped } from './canvas/shared';
 
 // ---- 画面が読む形 -------------------------------------------------------
-// Member, Worker and Team are one definition as a row draws and saves it: the
-// same fields the team.yaml holds (api-types' TeamDocument answers them, and
-// cloneTeam makes this from it).
+// Member, Worker and Team are editing's readonly document as a row draws it.
+// teamDocument converts the API reading at the boundary.
 export type Team = import('../lib/editing.js').TeamDocument;
 export type Member = Team['members'][number];
 export type Worker = Team['workers'][number];
 
-// Op is one edit the row holds until it is saved: the kinds applyOps knows, and
-// the words each kind carries (the API's TeamOperation takes the same fields).
+// Op is an action constructed by editing's named operations. The row can keep
+// its history for Undo, but cannot construct a save body from it.
 export type Op = TeamAction;
 
 // HQIsland is the headquarters reading the page carries: the projects, and the
@@ -735,11 +734,6 @@ function itemInGroup(item: DefItem, group: string): DefItem {
   return { ...item, places: {}, effective: place, hidden: [] };
 }
 
-// saveFolder writes a definition that is not there yet, whole (spec-teams B2,
-// B6, C8): its team.yaml and its agreement.md, and, for one made from the
-// scaffold, the layer's role documents and the starter profile. Either tab's
-// 保存 writes the whole folder. The row becomes the saved definition in its
-// place, so the person keeps working on it.
 // doDelete takes one definition's folder out of one place (spec-teams B6): its
 // team.yaml and its agreement.md, and the directory itself when the two files
 // were all it held. Every record of that name is read again from the answer,
