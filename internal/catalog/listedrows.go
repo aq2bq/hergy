@@ -19,6 +19,8 @@ import (
 // profiles.yaml — or, where the file cannot be read, the one row that stands
 // for the file. Both the list answers and the band's numbers are built from
 // ListedRows, and a number is the number of rows: nothing else counts rows.
+// A team folder with files but no team.yaml remains an unreadable row, but is
+// not a definition or an unnamed command's candidate. Empty folders draw no row.
 //
 // 読めない（壊れた・権限の無い）文書の行も、一覧に出して件数に数える（d-17ab、
 // q-a8a3 の答え A）。行を出すかは rowShown の一行が決め、理由は ReadableOf が返す。
@@ -162,7 +164,7 @@ func (c *Catalog) ReadableOf(row ListedRow) (bool, string) {
 
 func (c *Catalog) teamRows(layer string) []ListedRow {
 	dir := c.LayerDir(layer)
-	names := c.teamNames(dir)
+	names := teamRowNames(dir)
 	out := make([]ListedRow, 0, len(names))
 	for _, name := range names {
 		out = append(out, ListedRow{
@@ -171,6 +173,30 @@ func (c *Catalog) teamRows(layer string) []ListedRow {
 		})
 	}
 	return out
+}
+
+// teamRowNames reads child folders each time: their contents can change without
+// changing the parent teams/ directory's version.
+func teamRowNames(dir string) []string {
+	root := filepath.Join(dir, "teams")
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		return nil
+	}
+	var names []string
+	for _, entry := range entries {
+		path := filepath.Join(root, entry.Name())
+		info, err := os.Stat(path)
+		if err != nil || !info.IsDir() {
+			continue
+		}
+		files, err := os.ReadDir(path)
+		// A folder that cannot be read stays a row with its own read error.
+		if len(files) > 0 || (err != nil && !errors.Is(err, os.ErrNotExist)) {
+			names = append(names, entry.Name())
+		}
+	}
+	return names // ReadDir's order is the list's order.
 }
 
 func (c *Catalog) roleRows(layer string) []ListedRow {

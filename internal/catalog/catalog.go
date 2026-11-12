@@ -563,9 +563,9 @@ func (c *Catalog) candidateNames() []string {
 	return names
 }
 
-// teamNames lists nonempty definition folders, including ones whose team.yaml
-// is missing. The contents of a child folder can change without changing the
-// teams/ directory's version, so the flat-directory cache is not used here.
+// teamNames lists definition folders that have a team.yaml. Adding or removing
+// that file does not change the teams/ directory's version, so the
+// flat-directory cache is not used here. ListedRows owns residual folders.
 func (c *Catalog) teamNames(dir string) []string {
 	return teamNames(dir)
 }
@@ -595,25 +595,16 @@ func (c *Catalog) dirNames(dir string, read func() []string) []string {
 }
 
 func teamNames(dir string) []string {
-	root := filepath.Join(dir, "teams")
-	entries, err := os.ReadDir(root)
+	matches, err := filepath.Glob(filepath.Join(dir, "teams", "*", "team.yaml"))
 	if err != nil {
 		return nil
 	}
 	var names []string
-	for _, entry := range entries {
-		path := filepath.Join(root, entry.Name())
-		info, err := os.Stat(path)
-		if err != nil || !info.IsDir() {
-			continue
-		}
-		files, err := os.ReadDir(path)
-		// A folder that cannot be read stays a row with its own read error.
-		if len(files) > 0 || (err != nil && !errors.Is(err, os.ErrNotExist)) {
-			names = append(names, entry.Name())
-		}
+	for _, match := range matches {
+		names = append(names, filepath.Base(filepath.Dir(match)))
 	}
-	return names // ReadDir's order is the list's order.
+	sort.Strings(names)
+	return names
 }
 
 // ProjectProfileFile is the project's own profiles.yaml, the one a team

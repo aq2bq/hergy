@@ -25,6 +25,9 @@ func TestTeamRowsKeepAFileLeftWithoutTeamYAML(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, cat := range []*Catalog{l.catalog(), held} {
+		if definitions := cat.Definitions(); len(definitions) != 0 {
+			t.Errorf("the removed team.yaml is still a definition: %v", definitions)
+		}
 		rows := cat.ShownRows(KindTeam, source.LayerLocal)
 		if len(rows) != 1 || rows[0].Name != "demo" {
 			t.Fatalf("remaining file's rows = %v, want demo", rows)
@@ -53,15 +56,16 @@ func TestTeamRowsNoticeChildFilesWithAnUnchangedParent(t *testing.T) {
 	}
 	held := l.catalog()
 	cases := []struct {
-		file   string
-		remove bool
-		want   []string
+		file        string
+		remove      bool
+		want        []string
+		definitions []string
 	}{
-		{want: []string{}},
-		{file: "notes.txt", want: []string{"demo"}},
-		{file: "notes.txt", remove: true, want: []string{}},
-		{file: "team.yaml", want: []string{"demo"}},
-		{file: "team.yaml", remove: true, want: []string{}},
+		{want: []string{}, definitions: []string{}},
+		{file: "notes.txt", want: []string{"demo"}, definitions: []string{}},
+		{file: "notes.txt", remove: true, want: []string{}, definitions: []string{}},
+		{file: "team.yaml", want: []string{"demo"}, definitions: []string{"demo"}},
+		{file: "team.yaml", remove: true, want: []string{}, definitions: []string{}},
 	}
 	for _, step := range cases {
 		if step.file != "" {
@@ -84,6 +88,13 @@ func TestTeamRowsNoticeChildFilesWithAnUnchangedParent(t *testing.T) {
 			}
 			if !reflect.DeepEqual(names, step.want) {
 				t.Fatalf("after %s remove=%v: rows = %v, want %v", step.file, step.remove, names, step.want)
+			}
+			definitions := []string{}
+			for _, definition := range cat.Definitions() {
+				definitions = append(definitions, definition.Name)
+			}
+			if !reflect.DeepEqual(definitions, step.definitions) {
+				t.Errorf("after %s remove=%v: definitions = %v, want %v", step.file, step.remove, definitions, step.definitions)
 			}
 		}
 	}
