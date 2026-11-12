@@ -10,9 +10,9 @@ import (
 	"github.com/aq2bq/hergy/internal/activity"
 	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/definition"
-	"github.com/aq2bq/hergy/internal/deliver"
 	"github.com/aq2bq/hergy/internal/i18n"
-	"github.com/aq2bq/hergy/internal/launchlog"
+	"github.com/aq2bq/hergy/internal/ops/internal/deliver"
+	"github.com/aq2bq/hergy/internal/ops/internal/launchlog"
 	"github.com/aq2bq/hergy/internal/prompt"
 	"github.com/aq2bq/hergy/internal/source"
 )
@@ -31,7 +31,7 @@ type PlannedMember struct {
 	Start   definition.Start
 	State   string
 	Changed bool
-	Changes []deliver.Change
+	Changes []Change
 	How     ApplyHow
 	WhyNot  string
 }
@@ -103,7 +103,7 @@ func planTeam(one *DeliveryPlan, running RunningTeam, judged activity.Team, byHe
 			}
 			row.Members = append(row.Members, ApplyMember{
 				Name: start.Name.String(), Short: start.Short.String(), Role: start.Role,
-				State: "absent", How: ApplyStart, Changes: []deliver.Change{}, CanApply: true,
+				State: "absent", How: ApplyStart, Changes: []Change{}, CanApply: true,
 			})
 			continue
 		}
@@ -166,7 +166,7 @@ func planTeam(one *DeliveryPlan, running RunningTeam, judged activity.Team, byHe
 		}
 		row.Members = append(row.Members, ApplyMember{
 			Name: hired.Herdr.String(), Short: short, State: hired.State.Slug(),
-			How: ApplyCannot, Changes: []deliver.Change{}, CanApply: false,
+			How: ApplyCannot, Changes: []Change{}, CanApply: false,
 			WhyNot: why,
 		})
 	}
@@ -230,7 +230,7 @@ type memberDrift struct {
 	prompt  bool
 	Start   bool
 	env     bool
-	Changes []deliver.Change
+	Changes []Change
 }
 
 // any says whether hergy has anything to apply to the member.
@@ -278,10 +278,10 @@ func readMemberDrift(cat *catalog.Catalog, log launchlog.Log, logErr error, runn
 		}
 	}
 	if drift.Start {
-		drift.Changes = append(drift.Changes, deliver.Change{Kind: "start", Text: i18n.T("apply.start_changed")})
+		drift.Changes = append(drift.Changes, Change{Kind: "start", Text: i18n.T("apply.start_changed")})
 	}
 	if drift.env {
-		drift.Changes = append(drift.Changes, deliver.Change{Kind: "env", Text: i18n.T("apply.env_changed")})
+		drift.Changes = append(drift.Changes, Change{Kind: "env", Text: i18n.T("apply.env_changed")})
 	}
 	return drift
 }
@@ -308,7 +308,7 @@ func fingerprinted(record launchlog.Record, start definition.Start) bool {
 // documents come from the launch record; the current prompt is built with the
 // facts recorded at that launch, so the comparison is about the definition, not
 // about which hergy or project is reading it now.
-func memberChanges(cat *catalog.Catalog, log launchlog.Log, logErr error, running RunningTeam, start definition.Start, record launchlog.Record, hasRecord bool) (bool, []deliver.Change) {
+func memberChanges(cat *catalog.Catalog, log launchlog.Log, logErr error, running RunningTeam, start definition.Start, record launchlog.Record, hasRecord bool) (bool, []Change) {
 	if !hasRecord || logErr != nil {
 		return false, nil
 	}
@@ -329,7 +329,7 @@ func memberChanges(cat *catalog.Catalog, log launchlog.Log, logErr error, runnin
 		Reader: cat.Reader(), Sources: cat, Display: cat.Display,
 	}
 	if run.Executable == "" {
-		run.Executable = Executable()
+		run.Executable = executable()
 	}
 	if run.Base.IsZero() {
 		// The team's own project, not the one serve was started in: a team of
@@ -338,7 +338,7 @@ func memberChanges(cat *catalog.Catalog, log launchlog.Log, logErr error, runnin
 	}
 	built, err := prompt.Member(running.Built.Team.Definition, &node, run)
 	if err != nil {
-		return true, []deliver.Change{{Kind: "prompt", Text: i18n.T("delivery.prompt_changed")}}
+		return true, []Change{{Kind: "prompt", Text: i18n.T("delivery.prompt_changed")}}
 	}
 	if string(old) == built.Text {
 		return false, nil
@@ -346,9 +346,9 @@ func memberChanges(cat *catalog.Catalog, log launchlog.Log, logErr error, runnin
 	current := start
 	current.Prompt, current.Segments = built.Text, built.Segments
 	current.RoleDoc, current.HasRole, current.Read = built.Role, built.HasRole, built.Read
-	changes := deliver.Compare(running.Built.ModelTeamName(), record.Lang, string(old), OldDocs(log, record, recorded, string(old)), current, currentDocs(cat, built))
+	changes := readChanges(deliver.Compare(running.Built.ModelTeamName(), record.Lang, string(old), oldDocs(log, record, recorded, string(old)), current, currentDocs(cat, built)))
 	if len(changes) == 0 {
-		changes = []deliver.Change{{Kind: "prompt", Text: i18n.T("delivery.prompt_changed")}}
+		changes = []Change{{Kind: "prompt", Text: i18n.T("delivery.prompt_changed")}}
 	}
 	return true, changes
 }
@@ -430,15 +430,15 @@ func currentDocs(cat *catalog.Catalog, built *prompt.Built) []deliver.Doc {
 // (r-a8fa, d-1c07). A working or blocked member is not.
 func sendable(state string) bool { return state == "idle" || state == "handed" }
 
-// DeliveryInput is the current snapshot and the visible project catalogs.
-type DeliveryInput struct {
+// deliveryInput is the current snapshot and the visible project catalogs.
+type deliveryInput struct {
 	Views   []ProjectView
-	Session Session
+	Session session
 	Now     time.Time
 }
 
-// ComputeDelivery calculates drift without depending on a web DTO.
-func ComputeDelivery(in DeliveryInput) DeliveryPlan {
+// computeDelivery calculates drift without depending on a web DTO.
+func computeDelivery(in deliveryInput) DeliveryPlan {
 	one := DeliveryPlan{Apply: ApplyList{Teams: []ApplyTeam{}, Herdr: ReadNote{OK: true}}, Members: map[string]PlannedMember{}}
 	if in.Session.Err != nil {
 		one.Apply.Herdr = ReadNote{Text: in.Session.Err.Error()}
@@ -446,8 +446,8 @@ func ComputeDelivery(in DeliveryInput) DeliveryPlan {
 	}
 	records := latestMemberRecords()
 	log, logErr := launchlog.Open()
-	for _, running := range ReadRunningTeamsIn(in.Views, in.Session, false) {
-		judged := JudgeOf(running, in.Session, in.Now)
+	for _, running := range readRunningTeamsIn(in.Views, in.Session, false) {
+		judged := judgeOf(running, in.Session, in.Now)
 		planTeam(&one, running, judged, byHerdrOf(judged), records, log, logErr)
 	}
 	return one

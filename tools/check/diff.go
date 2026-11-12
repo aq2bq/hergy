@@ -22,10 +22,10 @@ import (
 //     them on every push; a laptop runs them on demand (go run ./tools/check e2e
 //     tests/<spec>...), and diff prints which walks the change selects.
 //   - coverage, vuln: a ratchet over the whole profile, and a network call.
-//   - test's -race and -coverprofile: internal/app's 259 serial tests take 75s
+//   - test's -race and -coverprofile: internal/cli's 259 serial tests take 75s
 //     under -race and 54s without; both flags are CI's. The diff run tests only
 //     the packages that changed, with go test's cache; the packages that depend
-//     on them (internal/app depends on nearly everything) are CI's.
+//     on them (internal/cli depends on nearly everything) are CI's.
 
 // changedPaths returns the paths, from the module root, that differ from the
 // commit the branch shares with its upstream: commits not yet pushed, changes
@@ -216,7 +216,7 @@ func gateNames(gs []gate) string {
 // that embeds or reads it (the locales, the templates, the API's promise, the
 // documents terms_test.go holds to the glossary). A file nothing here names
 // keeps ./..., which go test's cache makes cheap when it holds. The packages
-// that import a changed one (internal/app imports nearly everything, and its
+// that import a changed one (internal/cli imports nearly everything, and its
 // 259 tests take a minute) are CI's. A deleted directory is left out, so go
 // test does not refuse the run.
 func testPackagesFor(paths []string) []string {
@@ -258,7 +258,7 @@ func testPackagesFor(paths []string) []string {
 // Only these CLI presentation files are known not to run in the browser
 // fixtures (which also invoke hergy new). Unknown Go files keep all walks.
 func cliOnly(path string) bool {
-	return strings.HasPrefix(path, "internal/cheat/") || path == "internal/options/help.go" || path == "internal/app/apply_cli.go"
+	return strings.HasPrefix(path, "internal/cheat/") || path == "internal/options/help.go" || path == "internal/cli/apply_cli.go"
 }
 
 // specsFor narrows only screen-owned changes. A nil selection means all specs,

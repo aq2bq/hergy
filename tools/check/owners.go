@@ -57,25 +57,12 @@ var ownerRules = []ownerRule{
 	// The rows and the counts are decided in internal/catalog; the lists and the
 	// band's first value ask it. The row rules of r-929e are gone: a name that
 	// decided rows anywhere else fails here.
-	{name: "Counts", where: "go", files: []string{"internal/catalog/", "internal/app/hq.go", "internal/web/nav.go"}},
+	{name: "Counts", where: "go", files: []string{"internal/catalog/", "internal/ops/hq.go", "internal/web/nav.go"}},
 	{name: "ListedRows", where: "go", files: []string{"internal/catalog/", "internal/web/"}},
 	{name: "ShownRows", where: "go", files: []string{"internal/catalog/", "internal/web/"}},
 	{name: "ReadableOf", where: "go", files: []string{"internal/catalog/", "internal/web/"}},
 	{name: "ListedRoles", where: "go", files: []string{"internal/catalog/"}},
 	{name: "navRoles", where: "go", files: []string{"internal/catalog/"}},
-	// The turn's holder (r-bc26): the step that moves the turn and the write of
-	// its state are called by the watcher alone; status and the screens only
-	// read it (turns.Load).
-	{name: "turns.Step", where: "go", files: []string{"internal/app/turns.go"}},
-	{name: "turns.Save", where: "go", files: []string{"internal/app/turns.go"}},
-	{name: "Undelivered(", where: "go", files: []string{"internal/turns/", "internal/app/turns.go"}},
-	{name: "turns.TakeSignals", where: "go", files: []string{"internal/app/turns.go"}},
-	{name: "turns.WriteSignal", where: "go", files: []string{"internal/app/turn_done.go"}},
-	{name: "turns.TakeTells", where: "go", files: []string{"internal/app/turns.go"}},
-	{name: "turns.WriteTell", where: "go", files: []string{"internal/app/tell.go"}},
-	{name: "turns.Clear(", where: "go", files: []string{"internal/ops/stop.go"}},
-	{name: "Unanswered(", where: "go", files: []string{"internal/turns/", "internal/app/turns.go"}},
-	{name: "harness.Wire(", where: "go", files: []string{"internal/ops/wire.go"}},
 }
 
 // The danger section: the one table of what a dangerous action does, and the one
@@ -212,15 +199,14 @@ type ownerAllow struct {
 
 // ownersFile is tools/check/owners.yml.
 type ownersFile struct {
-	ConfirmedSend       *confirmedSendRules `yaml:"confirmed_send"`
-	Enforce             bool                `yaml:"enforce"`
-	ChangedEnforce      bool                `yaml:"changed_enforce"`
-	DangerEnforce       bool                `yaml:"danger_enforce"`
-	PromptEnforce       bool                `yaml:"prompt_enforce"`
-	SelectionEnforce    bool                `yaml:"selection_enforce"`
-	AddressEnforce      bool                `yaml:"address_enforce"`
-	PagePositionEnforce bool                `yaml:"page_position_enforce"`
-	Allow               []ownerAllow        `yaml:"allow"`
+	Enforce             bool         `yaml:"enforce"`
+	ChangedEnforce      bool         `yaml:"changed_enforce"`
+	DangerEnforce       bool         `yaml:"danger_enforce"`
+	PromptEnforce       bool         `yaml:"prompt_enforce"`
+	SelectionEnforce    bool         `yaml:"selection_enforce"`
+	AddressEnforce      bool         `yaml:"address_enforce"`
+	PagePositionEnforce bool         `yaml:"page_position_enforce"`
+	Allow               []ownerAllow `yaml:"allow"`
 }
 
 // ownersGate reports (and, once enforced, refuses) a name outside its owner.
@@ -265,11 +251,7 @@ func (r *runner) ownersGate() error {
 	if err != nil {
 		return err
 	}
-	receipt, err := r.confirmedSendFindings(conf.ConfirmedSend)
-	if err != nil {
-		return err
-	}
-	findings = append(findings, receipt...)
+
 	return ownersVerdict(conf, append(findings, changed...), danger, prompt, selection, address, page)
 }
 

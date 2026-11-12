@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/aq2bq/hergy/internal/herdr"
+	"github.com/aq2bq/hergy/internal/ops/internal/herdr"
 )
 
 // stopPort stops between herdr calls when the CLI is interrupted. This keeps

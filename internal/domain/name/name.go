@@ -1,371 +1,151 @@
-// Package name owns the shape and composition of hergy's names. It depends only
-// on the standard library; callers translate Problem into their own sentences.
+// Package name exposes checked values; raw observations stay in ops/internal.
 package name
 
-import (
-	"fmt"
-	"strings"
-)
+import inner "github.com/aq2bq/hergy/internal/ops/model/name"
 
-// Kind identifies which naming rule refused a value.
-type Kind string
+// Kind is the shared domain value.
+type Kind = inner.Kind
 
-// The kinds of name whose validation can fail.
-const (
-	Team        Kind = "team"
-	Definition  Kind = "definition"
-	Member      Kind = "member"
-	Worker      Kind = "worker"
-	Role        Kind = "role"
-	Profile     Kind = "profile"
-	PurposeKind Kind = "purpose"
-	Herdr       Kind = "herdr"
-)
+// Team identifies the domain case.
+const Team = inner.Team
 
-// Rule identifies a purpose error without embedding a translated sentence.
-type Rule string
+// Definition identifies the domain case.
+const Definition = inner.Definition
 
-// The reasons a purpose can be refused.
-const (
-	EmptyPurpose     Rule = "empty-purpose"
-	MultiplePurposes Rule = "multiple-purposes"
-)
+// Member identifies the domain case.
+const Member = inner.Member
 
-// Problem reports a refused value without choosing a language or a message.
-type Problem struct {
-	Kind  Kind
-	Value string
-	Max   int
-	Rule  Rule
-}
+// Worker identifies the domain case.
+const Worker = inner.Worker
 
-func (p *Problem) Error() string { return fmt.Sprintf("invalid %s name %q", p.Kind, p.Value) }
+// Role identifies the domain case.
+const Role = inner.Role
 
-func plain(s string, limit int, kind Kind) error {
-	if len(s) == 0 || len(s) > limit || s[0] < 'a' || s[0] > 'z' {
-		return &Problem{Kind: kind, Value: s, Max: limit}
-	}
-	for _, c := range s[1:] {
-		if (c < 'a' || c > 'z') && (c < '0' || c > '9') && c != '_' && c != '-' {
-			return &Problem{Kind: kind, Value: s, Max: limit}
-		}
-	}
-	return nil
-}
+// Profile identifies the domain case.
+const Profile = inner.Profile
 
-// TeamName is a validated team name. Its zero value denotes no name.
-type TeamName struct{ s string }
+// PurposeKind identifies the domain case.
+const PurposeKind = inner.PurposeKind
 
-// NewTeamName checks a newly assigned name (at most 25 characters).
-func NewTeamName(s string) (TeamName, error) {
-	if err := plain(s, 25, Team); err != nil {
-		return TeamName{}, err
-	}
-	return TeamName{s: s}, nil
-}
+// Herdr identifies the domain case.
+const Herdr = inner.Herdr
 
-// ParseTeamName reads an existing name (at most 32 characters).
-func ParseTeamName(s string) (TeamName, error) {
-	if err := plain(s, 32, Team); err != nil {
-		return TeamName{}, err
-	}
-	return TeamName{s: s}, nil
-}
+// Rule is the shared domain value.
+type Rule = inner.Rule
 
-// String returns the unchanged stored spelling.
-func (n TeamName) String() string { return n.s }
+// EmptyPurpose identifies the domain case.
+const EmptyPurpose = inner.EmptyPurpose
 
-// MarshalText preserves the string representation in saved records and JSON.
-func (n TeamName) MarshalText() ([]byte, error) { return []byte(n.s), nil }
+// MultiplePurposes identifies the domain case.
+const MultiplePurposes = inner.MultiplePurposes
 
-// UnmarshalText reads the stored spelling. An empty stored value denotes absence.
-func (n *TeamName) UnmarshalText(text []byte) error {
-	s := string(text)
-	if s == "" {
-		*n = TeamName{}
-		return nil
-	}
-	parsed, err := ParseTeamName(s)
-	if err != nil {
-		return err
-	}
-	*n = parsed
-	return nil
-}
+// Problem is the shared domain value.
+type Problem = inner.Problem
 
-// DefinitionName identifies an existing definition directory. Its zero value denotes no name.
-type DefinitionName struct{ s string }
+// TeamName is the shared domain value.
+type TeamName = inner.TeamName
 
-// NewDefinitionName checks a newly assigned name (at most 25 characters).
-func NewDefinitionName(s string) (DefinitionName, error) {
-	if err := plain(s, 25, Definition); err != nil {
-		return DefinitionName{}, err
-	}
-	return DefinitionName{s: s}, nil
-}
+// NewTeamName uses the domain constructor or derivation.
+func NewTeamName(s string) (TeamName, error) { return inner.NewTeamName(s) }
 
-// ParseDefinitionName preserves an existing directory name, without narrowing the reader's accepted names.
-func ParseDefinitionName(s string) (DefinitionName, error) {
-	return DefinitionName{s: s}, nil
-}
+// ParseTeamName uses the domain constructor or derivation.
+func ParseTeamName(s string) (TeamName, error) { return inner.ParseTeamName(s) }
 
-// String returns the unchanged stored spelling.
-func (n DefinitionName) String() string { return n.s }
+// DefinitionName is the shared domain value.
+type DefinitionName = inner.DefinitionName
 
-// MarshalText preserves the string representation in saved records and JSON.
-func (n DefinitionName) MarshalText() ([]byte, error) { return []byte(n.s), nil }
+// NewDefinitionName uses the domain constructor or derivation.
+func NewDefinitionName(s string) (DefinitionName, error) { return inner.NewDefinitionName(s) }
 
-// UnmarshalText reads the stored spelling. An empty stored value denotes absence.
-func (n *DefinitionName) UnmarshalText(text []byte) error {
-	s := string(text)
-	if s == "" {
-		*n = DefinitionName{}
-		return nil
-	}
-	parsed, err := ParseDefinitionName(s)
-	if err != nil {
-		return err
-	}
-	*n = parsed
-	return nil
-}
+// ParseDefinitionName uses the domain constructor or derivation.
+func ParseDefinitionName(s string) (DefinitionName, error) { return inner.ParseDefinitionName(s) }
 
-// MemberName is a validated member name. Its zero value denotes no name.
-type MemberName struct{ s string }
+// MemberName is the shared domain value.
+type MemberName = inner.MemberName
 
-// ParseMemberName reads an existing name (at most 32 characters).
-func ParseMemberName(s string) (MemberName, error) {
-	if err := plain(s, 32, Member); err != nil {
-		return MemberName{}, err
-	}
-	return MemberName{s: s}, nil
-}
+// ParseMemberName uses the domain constructor or derivation.
+func ParseMemberName(s string) (MemberName, error) { return inner.ParseMemberName(s) }
 
-// String returns the unchanged stored spelling.
-func (n MemberName) String() string { return n.s }
+// WorkerName is the shared domain value.
+type WorkerName = inner.WorkerName
 
-// MarshalText preserves the string representation in saved records and JSON.
-func (n MemberName) MarshalText() ([]byte, error) { return []byte(n.s), nil }
+// ParseWorkerName uses the domain constructor or derivation.
+func ParseWorkerName(s string) (WorkerName, error) { return inner.ParseWorkerName(s) }
 
-// UnmarshalText reads the stored spelling. An empty stored value denotes absence.
-func (n *MemberName) UnmarshalText(text []byte) error {
-	s := string(text)
-	if s == "" {
-		*n = MemberName{}
-		return nil
-	}
-	parsed, err := ParseMemberName(s)
-	if err != nil {
-		return err
-	}
-	*n = parsed
-	return nil
-}
+// RoleName is the shared domain value.
+type RoleName = inner.RoleName
 
-// WorkerName is a validated worker name. Its zero value denotes no name.
-type WorkerName struct{ s string }
+// ParseRoleName uses the domain constructor or derivation.
+func ParseRoleName(s string) (RoleName, error) { return inner.ParseRoleName(s) }
 
-// ParseWorkerName reads an existing name (at most 32 characters).
-func ParseWorkerName(s string) (WorkerName, error) {
-	if err := plain(s, 32, Worker); err != nil {
-		return WorkerName{}, err
-	}
-	return WorkerName{s: s}, nil
-}
+// ProfileName is the shared domain value.
+type ProfileName = inner.ProfileName
 
-// String returns the unchanged stored spelling.
-func (n WorkerName) String() string { return n.s }
+// ParseProfileName uses the domain constructor or derivation.
+func ParseProfileName(s string) (ProfileName, error) { return inner.ParseProfileName(s) }
 
-// MarshalText preserves the string representation in saved records and JSON.
-func (n WorkerName) MarshalText() ([]byte, error) { return []byte(n.s), nil }
+// Purpose is the shared domain value.
+type Purpose = inner.Purpose
 
-// UnmarshalText reads the stored spelling. An empty stored value denotes absence.
-func (n *WorkerName) UnmarshalText(text []byte) error {
-	s := string(text)
-	if s == "" {
-		*n = WorkerName{}
-		return nil
-	}
-	parsed, err := ParseWorkerName(s)
-	if err != nil {
-		return err
-	}
-	*n = parsed
-	return nil
-}
+// ParsePurpose uses the domain constructor or derivation.
+func ParsePurpose(s string) (Purpose, error) { return inner.ParsePurpose(s) }
 
-// RoleName is a validated role name. Its zero value denotes no name.
-type RoleName struct{ s string }
+// HerdrName is the shared domain value.
+type HerdrName = inner.HerdrName
 
-// ParseRoleName reads an existing name (at most 32 characters).
-func ParseRoleName(s string) (RoleName, error) {
-	if err := plain(s, 32, Role); err != nil {
-		return RoleName{}, err
-	}
-	return RoleName{s: s}, nil
-}
+// ParseWorkerTab uses the domain constructor or derivation.
+func ParseWorkerTab(label string) (TeamName, WorkerName, bool) { return inner.ParseWorkerTab(label) }
 
-// String returns the unchanged stored spelling.
-func (n RoleName) String() string { return n.s }
+// Naming is the shared domain value.
+type Naming = inner.Naming
 
-// MarshalText preserves the string representation in saved records and JSON.
-func (n RoleName) MarshalText() ([]byte, error) { return []byte(n.s), nil }
+// RunningNames uses the domain constructor or derivation.
+func RunningNames(team TeamRef) Naming { return inner.RunningNames(team) }
 
-// UnmarshalText reads the stored spelling. An empty stored value denotes absence.
-func (n *RoleName) UnmarshalText(text []byte) error {
-	s := string(text)
-	if s == "" {
-		*n = RoleName{}
-		return nil
-	}
-	parsed, err := ParseRoleName(s)
-	if err != nil {
-		return err
-	}
-	*n = parsed
-	return nil
-}
+// DefinitionNames uses the domain constructor or derivation.
+func DefinitionNames(definition DefinitionName) Naming { return inner.DefinitionNames(definition) }
 
-// ProfileName is a validated profile name. Its zero value denotes no name.
-type ProfileName struct{ s string }
+// NamingSet is the shared domain value.
+type NamingSet = inner.NamingSet
 
-// ParseProfileName reads an existing name (at most 32 characters).
-func ParseProfileName(s string) (ProfileName, error) {
-	if err := plain(s, 32, Profile); err != nil {
-		return ProfileName{}, err
-	}
-	return ProfileName{s: s}, nil
-}
+// Target is the shared domain value.
+type Target = inner.Target
 
-// String returns the unchanged stored spelling.
-func (n ProfileName) String() string { return n.s }
+// Seen is the shared domain value.
+type Seen = inner.Seen
 
-// MarshalText preserves the string representation in saved records and JSON.
-func (n ProfileName) MarshalText() ([]byte, error) { return []byte(n.s), nil }
+// PaneName is the shared domain value.
+type PaneName = inner.PaneName
 
-// UnmarshalText reads the stored spelling. An empty stored value denotes absence.
-func (n *ProfileName) UnmarshalText(text []byte) error {
-	s := string(text)
-	if s == "" {
-		*n = ProfileName{}
-		return nil
-	}
-	parsed, err := ParseProfileName(s)
-	if err != nil {
-		return err
-	}
-	*n = parsed
-	return nil
-}
+// Resolve uses the domain constructor or derivation.
+func Resolve(raw Seen, teams []Seen) (team, short Seen, ok bool) { return inner.Resolve(raw, teams) }
 
-// Purpose is a validated purposekind name. Its zero value denotes no name.
-type Purpose struct{ s string }
+// ObservedWorker is the shared domain value.
+type ObservedWorker = inner.ObservedWorker
 
-// ParsePurpose reads an existing name.
-func ParsePurpose(s string) (Purpose, error) {
-	if err := purposeProblem(s); err != nil {
-		return Purpose{}, err
-	}
-	return Purpose{s: s}, nil
-}
+// PaneLabel is the shared domain value.
+type PaneLabel = inner.PaneLabel
 
-// String returns the unchanged stored spelling.
-func (n Purpose) String() string { return n.s }
+// ShortIn uses the domain constructor or derivation.
+func ShortIn(raw, team Seen) Seen { return inner.ShortIn(raw, team) }
 
-// MarshalText preserves the string representation in saved records and JSON.
-func (n Purpose) MarshalText() ([]byte, error) { return []byte(n.s), nil }
+// BelongsTo uses the domain constructor or derivation.
+func BelongsTo(raw, team Seen) bool { return inner.BelongsTo(raw, team) }
 
-// UnmarshalText reads the stored spelling. An empty stored value denotes absence.
-func (n *Purpose) UnmarshalText(text []byte) error {
-	s := string(text)
-	if s == "" {
-		*n = Purpose{}
-		return nil
-	}
-	parsed, err := ParsePurpose(s)
-	if err != nil {
-		return err
-	}
-	*n = parsed
-	return nil
-}
+// IsWorkerTab uses the domain constructor or derivation.
+func IsWorkerTab(label, team Seen) bool { return inner.IsWorkerTab(label, team) }
 
-// HerdrName is a validated herdr name. Its zero value denotes no name.
-type HerdrName struct{ s string }
+// TeamRef is the shared domain value.
+type TeamRef = inner.TeamRef
 
-// String returns the unchanged stored spelling.
-func (n HerdrName) String() string { return n.s }
+// TeamFromObservation uses the domain constructor or derivation.
+func TeamFromObservation(seen Seen) TeamRef { return inner.TeamFromObservation(seen) }
 
-// MarshalText preserves the string representation in saved records and JSON.
-func (n HerdrName) MarshalText() ([]byte, error) { return []byte(n.s), nil }
+// ShortName is the shared domain value.
+type ShortName = inner.ShortName
 
-// UnmarshalText reads the stored spelling. An empty stored value denotes absence.
-func (n *HerdrName) UnmarshalText(text []byte) error {
-	s := string(text)
-	if s == "" {
-		*n = HerdrName{}
-		return nil
-	}
-	if err := plain(s, 32, Herdr); err != nil {
-		return err
-	}
-	*n = HerdrName{s: s}
-	return nil
-}
+// CheckRenameSource uses the domain constructor or derivation.
+func CheckRenameSource(raw string) error { return inner.CheckRenameSource(raw) }
 
-// A purpose keeps its spelling, including spaces. Commas mean more than one
-// purpose (d-37ac, n-b7de); the definition reader has always refused those.
-func purposeProblem(s string) error {
-	if strings.TrimSpace(s) == "" {
-		return &Problem{Kind: PurposeKind, Value: s, Rule: EmptyPurpose}
-	}
-	if strings.ContainsAny(s, ",、") {
-		return &Problem{Kind: PurposeKind, Value: s, Rule: MultiplePurposes}
-	}
-	return nil
-}
-
-// Member constructs the herdr name of a member, checking the composed length.
-func (n TeamName) Member(member MemberName) (HerdrName, error) {
-	return n.compose(member.s)
-}
-
-// Worker constructs the herdr name of a hired worker.
-func (n TeamName) Worker(worker WorkerName) (HerdrName, error) {
-	return n.compose(worker.s)
-}
-
-// Watcher constructs the name of the team's turn watcher.
-func (n TeamName) Watcher() PaneName { return PaneName{s: targetSpelling(n.s, "turns")} }
-
-func (n TeamName) compose(short string) (HerdrName, error) {
-	s := targetSpelling(n.s, short)
-	if err := plain(s, 32, Herdr); err != nil {
-		return HerdrName{}, err
-	}
-	if n.s == "" || short == "" {
-		return HerdrName{}, &Problem{Kind: Herdr, Value: s, Max: 32}
-	}
-	return HerdrName{s: s}, nil
-}
-
-// WorkerTab labels the separate tab of one hired worker.
-func (n TeamName) WorkerTab(worker WorkerName) Seen { return Seen{s: workerLabel(n.s, worker.s)} }
-
-// ParseWorkerTab reads a complete worker tab label, rather than a prefix.
-func ParseWorkerTab(label string) (TeamName, WorkerName, bool) {
-	observed, ok := (Seen{s: label}).WorkerTab()
-	if !ok {
-		return TeamName{}, WorkerName{}, false
-	}
-	team, worker := observed.Team().String(), observed.Short().String()
-	t, err := ParseTeamName(team)
-	if err != nil {
-		return TeamName{}, WorkerName{}, false
-	}
-	w, err := ParseWorkerName(worker)
-	if err != nil {
-		return TeamName{}, WorkerName{}, false
-	}
-	return t, w, true
-}
+// PaneID is the shared domain value.
+type PaneID = inner.PaneID

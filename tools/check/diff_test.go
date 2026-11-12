@@ -73,14 +73,14 @@ func TestACommittedBranchWithNoUpstreamStillSelectsItsChange(t *testing.T) {
 	git("add", ".")
 	git("commit", "-qm", "base")
 	git("switch", "-c", "wip/no-upstream")
-	tree(t, r.root, map[string]string{"internal/app/serve.go": "package app\n"})
+	tree(t, r.root, map[string]string{"internal/cli/serve.go": "package app\n"})
 	git("add", ".")
 	git("commit", "-qm", "change")
 	paths, err := r.changedPaths()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Contains(paths, "internal/app/serve.go") {
+	if !slices.Contains(paths, "internal/cli/serve.go") {
 		t.Fatalf("changedPaths = %v, want the committed change", paths)
 	}
 }
@@ -88,7 +88,7 @@ func TestACommittedBranchWithNoUpstreamStillSelectsItsChange(t *testing.T) {
 // TestLocalGatesLeaveTheRepositorysCostToCI: the diff run keeps the gates whose
 // cost is the change's and leaves e2e, coverage and vuln to CI, in the table's order.
 func TestLocalGatesLeaveTheRepositorysCostToCI(t *testing.T) {
-	here, later := localGates(gatesFor([]string{"internal/app/serve.go"}))
+	here, later := localGates(gatesFor([]string{"internal/cli/serve.go"}))
 	if got := gateNames(here); got != "fmt tidy fix lint arch test owners deadcode" {
 		t.Errorf("here = %q", got)
 	}

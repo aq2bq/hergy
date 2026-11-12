@@ -73,8 +73,12 @@ func TestDefinitionPrefersLocalOverGlobal(t *testing.T) {
 				t.Errorf("Layer = %q, want %q", def.Layer, tc.wantLayer)
 			}
 			wantPath := filepath.Join(l.dir(tc.wantLayer), "teams", "t", "team.yaml")
-			if def.TeamYAML.String() != wantPath {
-				t.Errorf("TeamYAML = %q, want %q", def.TeamYAML, wantPath)
+			canonicalPath, err := filepath.EvalSymlinks(wantPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if def.TeamYAML.String() != canonicalPath {
+				t.Errorf("TeamYAML = %q, want %q", def.TeamYAML, canonicalPath)
 			}
 			if def.Dir != filepath.Dir(wantPath) {
 				t.Errorf("Dir = %q, want %q", def.Dir, filepath.Dir(wantPath))

@@ -1,6 +1,6 @@
 // Package newteam writes a team definition's folder: the definition's own files,
 // the layer's role documents a starter team reads, and the starter profile in
-// the layer's profiles.yaml. hergy new (internal/app) and the team screen
+// the layer's profiles.yaml. hergy new (internal/cli) and the team screen
 // (internal/web) both call it, so the two cannot drift about what making a team
 // definition writes, or where (spec-teams C8, K2, K5, I7).
 package newteam

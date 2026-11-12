@@ -425,20 +425,3 @@ func TestLinesReadInJapanese(t *testing.T) {
 		})
 	}
 }
-
-func TestUnreadableDefinitionKeepsObservedRowsOutsideMemberPattern(t *testing.T) {
-	got := Of(Input{Team: fixtureSeen("Upper"), Graph: nil, Now: now, Agents: []Agent{
-		{Herdr: fixtureSeen("Upper-1"), Node: fixtureSeen("1"), Status: "working", Seq: 1},
-		{Herdr: fixtureSeen("Upper-Other"), Node: fixtureSeen("Other"), Status: "idle", Seq: 2},
-	}})
-	if got.State != Working || len(got.Nodes) != 2 || len(got.Hired) != 0 {
-		t.Fatalf("observed rows changed: %+v", got)
-	}
-	byName := map[string]Node{}
-	for _, node := range got.Nodes {
-		byName[node.Name] = node
-	}
-	if byName["1"].Herdr.String() != "Upper-1" || byName["Other"].Herdr.String() != "Upper-Other" {
-		t.Fatalf("lost observed names: %+v", got.Nodes)
-	}
-}

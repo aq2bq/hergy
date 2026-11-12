@@ -6,14 +6,14 @@ import (
 	"strings"
 
 	"github.com/aq2bq/hergy/internal/i18n"
-	"github.com/aq2bq/hergy/internal/launchlog"
 	"github.com/aq2bq/hergy/internal/migrate"
+	"github.com/aq2bq/hergy/internal/ops/internal/launchlog"
 )
 
-// OldDocs uses the previous member's reading, never the current role assignment.
+// oldDocs uses the previous member's reading, never the current role assignment.
 // Old records lack this list: their generated identity identifies the role,
 // while custom templates can be matched against the historical rendered text.
-func OldDocs(log launchlog.Log, record launchlog.Record, member launchlog.Member, oldPrompt string) map[string]string {
+func oldDocs(log launchlog.Log, record launchlog.Record, member launchlog.Member, oldPrompt string) map[string]string {
 	out := make(map[string]string)
 	role := previousRole(record, member, oldPrompt)
 	for _, doc := range record.Docs {

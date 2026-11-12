@@ -1,0 +1,521 @@
+package ops
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"net/http"
+	"path/filepath"
+	"sort"
+	"strings"
+	"time"
+
+	domainplace "github.com/aq2bq/hergy/internal/domain/place"
+
+	"github.com/aq2bq/hergy/internal/definition"
+	domainname "github.com/aq2bq/hergy/internal/domain/name"
+	"github.com/aq2bq/hergy/internal/i18n"
+	"github.com/aq2bq/hergy/internal/projectinput"
+	"github.com/aq2bq/hergy/internal/source"
+)
+
+// This file starts a team from the screens: the options the start sheet draws,
+// the start itself in the background, its progress and its startup question, and
+// giving it up (d-73fc, d-d589, spec 5 章). A start does what hergy up does —
+// the same tab, members, prompts and launch record — with the workspace chosen
+// rather than taken from the calling pane.
+
+// LaunchOptions is GET /api/hq/launch/options.
+func (h *hqRead) LaunchOptions(input domainplace.Input, definitionName, place string) (HQLaunchOptions, error) {
+	layer, err := placeLayer(place)
+	if err != nil {
+		return HQLaunchOptions{}, err
+	}
+	if input == "" && place == source.LayerGlobal {
+		return h.globalOptions(definitionName), nil
+	}
+	project, err := projectinput.Read(input)
+	if err != nil {
+		return HQLaunchOptions{}, hqRefuse(http.StatusUnprocessableEntity, err.Error())
+	}
+	env, err := h.projectEnv(project)
+	if err != nil {
+		return HQLaunchOptions{}, err
+	}
+	cat := env.Catalog(h.act.fileReader())
+	def, err := cat.Definition(definitionName, layer)
+	if err != nil {
+		return HQLaunchOptions{}, hqRefuse(http.StatusUnprocessableEntity, err.Error())
+	}
+	read := h.act.readHerdr(h.act.clock())
+	out := HQLaunchOptions{
+		Definition: definitionName, Place: place, Description: def.Description,
+		Project:          &HQRef{Path: env.ProjectRoot, Name: h.projectNameIn(env.ProjectRoot), Display: h.act.env.DisplayPath(env.ProjectRoot.String())},
+		Members:          memberOptions(def),
+		Clash:            clashesIn(read, h.act, definitionName, env.ProjectRoot),
+		SuggestedName:    definitionName + "-" + h.projectNameIn(env.ProjectRoot),
+		NewWorkspaceName: definitionName,
+		Workspaces:       h.workspaceChoices(read, cat.TeamPath(definitionName, layer), env.ProjectRoot),
+	}
+	if layer == source.LayerGlobal {
+		out.Projects = h.projectChoices(definitionName)
+	}
+	out.LastWorkspace = h.lastWorkspaceOf(read, cat.TeamPath(definitionName, layer))
+	return out, nil
+}
+
+// placeLayer is the layer a screen's place names: the project's own layer, or
+// the global one. A screen reads "project" and "global"; the model calls the
+// first "local" (source.LayerLocal).
+func placeLayer(place string) (string, error) {
+	switch place {
+	case "project", source.LayerLocal:
+		return domainplace.Selection(place).Layer(), nil
+	case source.LayerGlobal:
+		return domainplace.Selection(place).Layer(), nil
+	default:
+		return "", hqRefuse(http.StatusUnprocessableEntity, i18n.T("error.project_place"))
+	}
+}
+
+// globalOptions is the start sheet before a global definition's project is
+// chosen: the projects that can take it. A project that defines the same name
+// itself cannot (spec 5 章). The description is read from the global definition
+// itself, so the sheet names the case the team is meant for before a project is
+// picked (d-5f55).
+func (h *hqRead) globalOptions(definitionName string) HQLaunchOptions {
+	out := HQLaunchOptions{
+		Definition: definitionName, Place: source.LayerGlobal,
+		Members: []HQMember{}, Clash: []HQClash{}, Workspaces: []HQWorkspaceChoice{},
+		SuggestedName: definitionName, NewWorkspaceName: definitionName,
+		Projects: h.projectChoices(definitionName),
+	}
+	if def, err := h.act.env.Catalog(h.act.fileReader()).Definition(definitionName, source.LayerGlobal); err == nil && def != nil {
+		out.Description = def.Description
+	}
+	return out
+}
+
+// projectChoices is the projects a global definition can be started in: one that
+// defines the same name itself cannot (spec 5 章). The reason sentence is what
+// the sheet writes beside a project that cannot take it.
+func (h *hqRead) projectChoices(definitionName string) []HQLaunchProject {
+	out := []HQLaunchProject{}
+	for _, project := range h.shownProjects() {
+		env, err := h.act.envAt(project.Path)
+		if err != nil {
+			continue
+		}
+		cat := env.Catalog(h.act.fileReader())
+		one := HQLaunchProject{Path: project.Path, Name: project.Name, Available: true}
+		if cat.HoldsDefinition(definitionName, source.LayerLocal) {
+			one.Available = false
+			one.Reason = i18n.Tf("web.hq.project_shadows", project.Name, project.Name, definitionName)
+		}
+		out = append(out, one)
+	}
+	return out
+}
+
+// shownProjects is the projects the headquarters shows: the listed ones, or the
+// project serve started in when the config names none.
+func (h *hqRead) shownProjects() []HQProject {
+	projects, err := h.Projects()
+	if err != nil {
+		return nil
+	}
+	if projects.Mode == "current" {
+		return []HQProject{projects.Current}
+	}
+	out := make([]HQProject, 0, len(projects.Projects))
+	for _, one := range projects.Projects {
+		if one.Listed {
+			out = append(out, one)
+		}
+	}
+	return out
+}
+
+// memberOptions is a definition's members, as the start sheet names them.
+func memberOptions(def *definition.Definition) []HQMember {
+	if def == nil || def.Graph == nil {
+		return []HQMember{}
+	}
+	out := make([]HQMember, 0, len(def.Graph.Members))
+	for _, member := range def.Graph.Members {
+		out = append(out, HQMember{Name: member.Name.String(), Herdr: domainname.DefinitionNames(def.Name).Member(member.Name)})
+	}
+	return out
+}
+
+// clashesIn is the running teams already using one name, read from the Herdr
+// snapshot the caller just made: a clash is a decision, so it uses current state
+// (r-b7e1).
+func clashesIn(read herdrNow, act *Reader, name string, _ domainplace.Project) []HQClash {
+	out := []HQClash{}
+	if read.err != nil {
+		return out
+	}
+	for _, one := range act.teamsOf(read) {
+		if one.Name.String() == name {
+			out = append(out, HQClash{Team: one.Name.String(), Project: one.Project})
+		}
+	}
+	return out
+}
+
+// workspaceChoices is the start sheet's workspaces in the order spec 5 章 gives:
+// the one it last ran in, the ones starting with the project's name, the other
+// free ones, and the ones with a team (which cannot be chosen).
+func (h *hqRead) workspaceChoices(read herdrNow, teamYAML domainplace.Project, project domainplace.Project) []HQWorkspaceChoice {
+	last := h.lastWorkspaceOf(read, teamYAML)
+	busy := map[string]runningTeam{}
+	for _, one := range h.act.teamsOf(read) {
+		if one.WorkspaceID != "" {
+			busy[one.WorkspaceID] = one
+		}
+	}
+	prefix := filepath.Base(project.String())
+	choices := make([]HQWorkspaceChoice, 0, len(read.spaces))
+	for _, space := range read.spaces {
+		choice := HQWorkspaceChoice{
+			HQWorkspace: HQWorkspace{ID: space.ID, Label: space.Label, Focused: space.Focused},
+		}
+		if one, taken := busy[space.ID]; taken {
+			choice.Team, choice.TeamProject = one.Name.String(), one.Project
+			choice.Why = "busy"
+			choices = append(choices, choice)
+			continue
+		}
+		choice.Selectable = true
+		switch {
+		case last != nil && last.ID == space.ID:
+			choice.Why = "last"
+		case strings.HasPrefix(space.Label, prefix):
+			choice.Why = "project"
+		default:
+			choice.Why = "free"
+		}
+		choices = append(choices, choice)
+	}
+	rank := map[string]int{"last": 0, "project": 1, "free": 2, "busy": 3}
+	sort.SliceStable(choices, func(i, j int) bool {
+		if rank[choices[i].Why] != rank[choices[j].Why] {
+			return rank[choices[i].Why] < rank[choices[j].Why]
+		}
+		return choices[i].Label < choices[j].Label
+	})
+	return choices
+}
+
+// projectEnv is one project the headquarters may act on.
+func (h *hqRead) projectEnv(want domainplace.Project) (Environment, error) {
+	allowed, err := h.allowedProjects()
+	if err != nil {
+		return Environment{}, hqError(err)
+	}
+	if !h.isListedProject(allowed, want) {
+		return Environment{}, hqRefuse(http.StatusUnprocessableEntity, i18n.T("web.error.project_unknown"))
+	}
+	return h.act.envAt(want)
+}
+
+// StartLaunch is POST /api/hq/launch: the start is checked here, and goes on in
+// the background. The answer is the state the polling reads.
+func (h *hqRead) StartLaunch(in HQLaunchIn) (HQLaunch, error) {
+	env, err := h.startProjectEnv(in.Project)
+	if err != nil {
+		return HQLaunch{}, err
+	}
+	if _, err := placeLayer(in.Place.String()); err != nil {
+		return HQLaunch{}, err
+	}
+	ctx, cancel := context.WithCancel(h.context())
+	type answer struct {
+		launch HQLaunch
+		err    error
+	}
+	ready := make(chan answer, 1)
+	go func() {
+		defer cancel()
+		var op *launchOp
+		input := h.startInput(env, in)
+		input.Observe = func(event Event) {
+			if event.Start != nil {
+				start := event.Start
+				r := start.Resolved
+				op = h.newOp(HQLaunch{Action: ActionLaunch, Team: r.Team.Name.String(), Definition: r.Team.Definition.Name.String(), Place: in.Place.String(),
+					Project: env.ProjectRoot, ProjectName: h.projectNameIn(env.ProjectRoot), Workspace: HQWorkspace{ID: start.Workspace.ID, Label: start.Workspace.Label},
+					Tab: HQTab{Label: r.Team.Name.String()}, Phase: "starting", Steps: []HQLaunchStep{}})
+				op.mu.Lock()
+				op.cancel = cancel
+				op.stepLocked("stage", i18n.T("progress.stage.creating_tab"))
+				op.mu.Unlock()
+				ready <- answer{launch: op.snapshot()}
+			}
+			if op != nil && event.Progress != nil {
+				h.observe(op, *event.Progress)
+			}
+		}
+		_, err := StartTeam(ctx, input)
+		if op == nil {
+			ready <- answer{err: hqOperationError(err)}
+			return
+		}
+		h.finishOperation(ctx, op, err)
+	}()
+	result := <-ready
+	return result.launch, result.err
+}
+
+func (h *hqRead) startInput(env Environment, in HQLaunchIn) StartInput {
+	definition, _ := domainname.ParseDefinitionName(in.Definition)
+	return StartInput{Env: env, Definition: definition, Name: in.Name, Place: in.Place,
+		Workspace: WorkspaceInput{ID: in.Workspace.ID, New: in.Workspace.New}, ProjectName: h.projectNameIn(env.ProjectRoot), Timeout: 30000, Port: h.act.herdrPort(), Locks: h.locks}
+}
+
+func (h *hqRead) finishOperation(ctx context.Context, op *launchOp, err error) {
+	if ctx.Err() != nil || errors.Is(err, context.Canceled) {
+		h.finish(op, "cancelled", "")
+		return
+	}
+	if err != nil {
+		h.finish(op, "failed", err.Error())
+		return
+	}
+	h.finish(op, "done", "")
+}
+
+// startProjectEnv is a project a start may run in: one config.yaml lists, or the
+// project serve started in when the config lists none. A start is the
+// headquarters acting on a listed project, not a way to reach any directory.
+func (h *hqRead) startProjectEnv(input domainplace.Input) (Environment, error) {
+	paths, present, err := h.listedProjects()
+	if err != nil {
+		return Environment{}, hqError(err)
+	}
+	if !present {
+		return h.projectEnv(h.act.env.ProjectRoot)
+	}
+	want, err := projectinput.Read(input)
+	if err != nil {
+		return Environment{}, hqRefuse(http.StatusUnprocessableEntity, err.Error())
+	}
+	if !h.isListedProject(paths, want) {
+		return Environment{}, hqRefuse(http.StatusUnprocessableEntity, i18n.T("web.error.project_unknown"))
+	}
+	return h.act.envAt(want)
+}
+
+// startName and startWorkspace are read-only operation adapters used by the
+// start sheet. StartTeam repeats their preconditions under its start lock.
+func (h *hqRead) startName(in HQLaunchIn, env Environment) (string, error) {
+	name, err := checkStartName(h.startInput(env, in))
+	return name, hqOperationError(err)
+}
+func (h *hqRead) startWorkspace(in HQWorkspaceIn, env Environment) (HQWorkspace, error) {
+	workspace, err := chooseWorkspace(env, WorkspaceInput{ID: in.ID, New: in.New}, h.act.herdrPort())
+	return HQWorkspace{ID: workspace.ID, Label: workspace.Label}, hqOperationError(err)
+}
+
+// context is the serve's own lifetime, or a background one for a reading built
+// by a test.
+func (h *hqRead) context() context.Context {
+	if h.act.ctx != nil {
+		return h.act.ctx
+	}
+	return context.Background()
+}
+
+// newOp stores one start.
+func (h *hqRead) newOp(launch HQLaunch) *launchOp {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.seq++
+	launch.ID = fmt.Sprintf("l-%d", h.seq)
+	op := &launchOp{launch: launch}
+	h.ops[launch.ID] = op
+	h.order = append(h.order, launch.ID)
+	h.forgetOld()
+	return op
+}
+
+// forgetOld drops the starts that ended long ago: the polling of a closed sheet
+// is the only reader, and the memory is not a record (api.md 4).
+func (h *hqRead) forgetOld() {
+	cut := time.Now().Add(-10 * time.Minute)
+	kept := h.order[:0]
+	for _, id := range h.order {
+		op := h.ops[id]
+		op.mu.Lock()
+		old := !op.finished.IsZero() && op.finished.Before(cut)
+		op.mu.Unlock()
+		if old {
+			delete(h.ops, id)
+			continue
+		}
+		kept = append(kept, id)
+	}
+	h.order = kept
+}
+
+// snapshot is one start as it is now.
+func (op *launchOp) snapshot() HQLaunch {
+	op.mu.Lock()
+	defer op.mu.Unlock()
+	out := op.launch
+	out.Steps = append([]HQLaunchStep{}, op.launch.Steps...)
+	return out
+}
+
+// LaunchState is GET /api/hq/launches/{id}.
+func (h *hqRead) LaunchState(id string) (HQLaunch, bool) {
+	h.mu.Lock()
+	op, ok := h.ops[id]
+	h.mu.Unlock()
+	if !ok {
+		return HQLaunch{}, false
+	}
+	return op.snapshot(), true
+}
+
+// CancelLaunch is DELETE /api/hq/launches/{id}: stop waiting, leave the tab and
+// panes for down to put away, as Ctrl-C does on the command line.
+func (h *hqRead) CancelLaunch(id string) (HQLaunch, bool) {
+	h.mu.Lock()
+	op, ok := h.ops[id]
+	h.mu.Unlock()
+	if !ok {
+		return HQLaunch{}, false
+	}
+	op.mu.Lock()
+	if op.launch.Phase == "starting" || op.launch.Phase == "awaiting" {
+		if op.cancel != nil {
+			op.cancel()
+		}
+		op.launch.Phase = "cancelled"
+		op.launch.Waiting = nil
+		op.finished = time.Now()
+	}
+	out := op.launch
+	out.Steps = append([]HQLaunchStep{}, op.launch.Steps...)
+	op.mu.Unlock()
+	return out, true
+}
+
+// activeLaunch is the start this serve is carrying out for one team, if any.
+func (h *hqRead) activeLaunch(teamName string) (string, bool) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	for _, id := range h.order {
+		op := h.ops[id]
+		op.mu.Lock()
+		match := (PendingLaunch{Team: op.launch.Team, Teams: op.teams, Phase: op.launch.Phase}).ActiveFor(teamName)
+		op.mu.Unlock()
+		if match {
+			return id, true
+		}
+	}
+	return "", false
+}
+
+// runStart runs one start in the background and keeps its progress.
+func (h *hqRead) runStart(ctx context.Context, op *launchOp, env Environment, _ *Resolved, in HQLaunchIn, workspace HQWorkspace) {
+	input := h.startInput(env, in)
+	input.Workspace = WorkspaceInput{ID: workspace.ID}
+	input.Observe = func(event Event) {
+		if event.Progress != nil {
+			h.observe(op, *event.Progress)
+		}
+	}
+	_, err := StartTeam(ctx, input)
+	h.finishOperation(ctx, op, err)
+}
+
+// startCommand is the hergy up the start is the same as, made from the
+// definition and the name it runs under. A startup question and its progress use
+// the one function, so the two never name a different command (r-b7e1).
+
+// subject is what a launch's last line is about: the team a start booted, or the
+// members a refresh started (r-5d1a). Both read 起動しました, as hergy calls it.
+func (op *launchOp) subject() string {
+	if op.launch.Action == ActionRefresh || op.launch.Action == ActionApply {
+		return strings.Join(op.launch.Members, i18n.T("list.separator"))
+	}
+	return op.launch.Team
+}
+
+// wayOn is the command that goes on after a startup question, as the answer names
+// it: the start of the team, or the start of the member that was being started
+// (r-5d1a).
+func (op *launchOp) wayOn(member string) string {
+	switch op.launch.Action {
+	case ActionRefresh:
+		return i18n.Tf("web.hq.raise_command", member)
+	case ActionApply:
+		return i18n.Tf("web.apply.command", member)
+	}
+	return startCommand(op.launch.Definition, op.launch.Team)
+}
+
+// observe writes one step of the start, and where a startup question waits.
+func (h *hqRead) observe(op *launchOp, event Progress) {
+	op.mu.Lock()
+	if op.launch.Phase == "cancelled" || op.launch.Phase == "done" || op.launch.Phase == "failed" {
+		op.mu.Unlock()
+		return
+	}
+	if event.TabID != "" && op.launch.Tab.ID != event.TabID {
+		op.launch.Tab.ID = event.TabID
+	}
+	if event.Waiting != nil {
+		op.launch.Phase = "awaiting"
+		op.launch.Waiting = &HQWaiting{
+			Member: event.Waiting.Member, Herdr: event.Waiting.Herdr,
+			Workspace: event.Waiting.Workspace, Tab: event.Waiting.Tab,
+			Pane: event.Waiting.Pane,
+		}
+		op.launch.Waiting.Command = op.wayOn(event.Waiting.Member)
+	} else if op.launch.Phase == "awaiting" {
+		op.launch.Phase = "starting"
+		op.launch.Waiting = nil
+	}
+	if event.CreatedTab != "" {
+		op.stepLocked("done", i18n.Tf("web.hq.tab_created", event.CreatedTab))
+	}
+	if event.CreatedPanes > 0 {
+		op.stepLocked("done", i18n.Tf("web.hq.panes_created", event.CreatedPanes))
+	}
+	if event.Stage != "" {
+		op.stepLocked("stage", event.Stage)
+	}
+	if event.State == i18n.T("progress.mark.bootstrap_submitted") && event.Member != "" {
+		op.stepLocked("member", i18n.Tf("web.hq.member_started", event.Member))
+	}
+	op.mu.Unlock()
+}
+
+// stepLocked appends one line unless it is the one it just wrote.
+func (op *launchOp) stepLocked(kind, text string) {
+	if n := len(op.launch.Steps); n > 0 && op.launch.Steps[n-1].Text == text {
+		return
+	}
+	op.launch.Steps = append(op.launch.Steps, HQLaunchStep{At: time.Now().Format(time.RFC3339), Kind: kind, Text: text})
+}
+
+// finish sets a start's last state, unless it was given up already (r-b7e1).
+func (h *hqRead) finish(op *launchOp, phase, reason string) {
+	op.mu.Lock()
+	if op.launch.Phase == "cancelled" {
+		op.mu.Unlock()
+		return
+	}
+	op.launch.Phase = phase
+	op.launch.Error = reason
+	op.launch.Waiting = nil
+	op.finished = time.Now()
+	if phase == "done" {
+		op.stepLocked("done", i18n.Tf("web.hq.started", op.subject()))
+	}
+	op.mu.Unlock()
+}

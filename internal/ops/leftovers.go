@@ -8,9 +8,9 @@ import (
 
 	domainname "github.com/aq2bq/hergy/internal/domain/name"
 
-	"github.com/aq2bq/hergy/internal/launchlog"
-	"github.com/aq2bq/hergy/internal/protocol"
-	"github.com/aq2bq/hergy/internal/team"
+	"github.com/aq2bq/hergy/internal/ops/internal/launchlog"
+	"github.com/aq2bq/hergy/internal/ops/internal/protocol"
+	"github.com/aq2bq/hergy/internal/ops/internal/team"
 )
 
 // workerNamesOf is the herdr names of one team's workers, by their tabs.
@@ -81,7 +81,7 @@ func workerLeftovers(projectRoot domainplace.Project, teamName, herdrName string
 // teamStartedAt is when hergy last started this team in this project: the newest
 // up line of the launch record for that team and project.
 func teamStartedAt(projectRoot domainplace.Project, teamName string) (time.Time, bool) {
-	records, ok := readLaunchRecords()
+	records, ok := availableLaunchRecords()
 	if !ok {
 		return time.Time{}, false
 	}
@@ -101,7 +101,7 @@ func teamStartedAt(projectRoot domainplace.Project, teamName string) (time.Time,
 // that named it. A worker hired before hergy wrote hire lines has no line, and
 // its team's start is the earliest time it can have been hired.
 func workerHiredAt(projectRoot domainplace.Project, teamName, herdrName string) (time.Time, bool) {
-	records, ok := readLaunchRecords()
+	records, ok := availableLaunchRecords()
 	if !ok {
 		return time.Time{}, false
 	}
@@ -135,7 +135,7 @@ func recordTime(record launchlog.Record) (time.Time, bool) {
 
 // readLaunchRecords is this machine's launch record. A record hergy cannot read
 // is no record: the list then falls back to where the panes stood.
-func readLaunchRecords() ([]launchlog.Record, bool) {
+func availableLaunchRecords() ([]launchlog.Record, bool) {
 	log, err := launchlog.Open()
 	if err != nil {
 		return nil, false
@@ -145,4 +145,27 @@ func readLaunchRecords() ([]launchlog.Record, bool) {
 		return nil, false
 	}
 	return records, true
+}
+
+// TeamIdentity is the observed identity and source of a running team.
+type TeamIdentity team.Running
+
+// Worktree is the retained git worktree a person may inspect after stopping.
+type Worktree team.Worktree
+
+// Leftovers is a read-only list of retained worktrees and stashes.
+type Leftovers struct {
+	Worktrees []Worktree
+	Stashes   int
+}
+
+// Empty reports whether the stop left no worktree or stash.
+func (l Leftovers) Empty() bool { return len(l.Worktrees) == 0 && l.Stashes == 0 }
+func readLeftovers(project domainplace.Project, since time.Time, dirs []domainplace.Seen) Leftovers {
+	raw := team.GitLeftovers(project, since, dirs)
+	out := Leftovers{Stashes: raw.Stashes}
+	for _, w := range raw.Worktrees {
+		out.Worktrees = append(out.Worktrees, Worktree(w))
+	}
+	return out
 }

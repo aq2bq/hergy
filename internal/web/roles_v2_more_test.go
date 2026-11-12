@@ -8,8 +8,8 @@ import (
 	"testing"
 
 	"github.com/aq2bq/hergy/internal/i18n"
+	"github.com/aq2bq/hergy/internal/ops"
 	"github.com/aq2bq/hergy/internal/source"
-	"github.com/aq2bq/hergy/internal/team"
 )
 
 // rbFixtureRoles copies the role screen's real-scale fixture (testdata/roles-v2)
@@ -159,7 +159,7 @@ func rbHomeServer(t *testing.T) (*Server, *fixture) {
 	t.Setenv("HOME", home)
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
 	t.Chdir(proj)
-	env, err := team.NewEnv()
+	env, err := ops.NewEnvironment()
 	if err != nil {
 		t.Fatal(err)
 	}

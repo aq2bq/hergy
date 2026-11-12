@@ -10,11 +10,11 @@ func TestApplySelectionPoliciesDeduplicateAndRetainPartialRemainder(t *testing.T
 	plan := DeliveryPlan{Apply: ApplyList{Teams: []ApplyTeam{{Team: "demo", Members: []ApplyMember{{Name: "demo-a", Short: "a"}, {Name: "demo-b", Short: "b"}}}}}, Members: map[string]PlannedMember{
 		"demo-a": {Changed: true, How: ApplyStart}, "demo-b": {Changed: true, How: ApplyCannot, WhyNot: "working"},
 	}}
-	strict, err := SelectApply(plan, ApplySelectionInput{Policy: RequireWholeSelection, Names: []string{"demo-a", "demo-a", "demo-b", "demo-b"}})
+	strict, err := selectApply(plan, ApplySelectionInput{Policy: RequireWholeSelection, Names: []string{"demo-a", "demo-a", "demo-b", "demo-b"}})
 	if err != nil || len(strict.Selected) != 1 || len(strict.Refusals) != 1 {
 		t.Fatalf("strict: %+v, %v", strict, err)
 	}
-	partial, err := SelectApply(plan, ApplySelectionInput{Policy: ContinueAvailable})
+	partial, err := selectApply(plan, ApplySelectionInput{Policy: ContinueAvailable})
 	if err != nil || len(partial.Selected) != 1 || len(partial.Remaining) != 1 || len(partial.Refusals) != 0 {
 		t.Fatalf("partial: %+v, %v", partial, err)
 	}

@@ -34,8 +34,8 @@ type ApplySelection struct {
 	Refusals  []string
 }
 
-// SelectApply resolves names and removes duplicate recipients before execution.
-func SelectApply(plan DeliveryPlan, in ApplySelectionInput) (ApplySelection, error) {
+// selectApply resolves names and removes duplicate recipients before execution.
+func selectApply(plan DeliveryPlan, in ApplySelectionInput) (ApplySelection, error) {
 	if in.Policy == RequireWholeSelection {
 		return selectWhole(plan, in), nil
 	}
@@ -118,8 +118,8 @@ func plannedByName(plan DeliveryPlan, name string) (PlannedMember, bool) {
 	return PlannedMember{}, false
 }
 
-// GroupByTeam preserves the selected order within each team's single execution.
-func GroupByTeam(members []PlannedMember) [][]PlannedMember {
+// groupByTeam preserves the selected order within each team's single execution.
+func groupByTeam(members []PlannedMember) [][]PlannedMember {
 	var out [][]PlannedMember
 	at := map[string]int{}
 	for _, member := range members {
@@ -137,8 +137,11 @@ func GroupByTeam(members []PlannedMember) [][]PlannedMember {
 // Teams is the complete set reserved and cancelled by this selection.
 func (s ApplySelection) Teams() []string {
 	var out []string
-	for _, group := range GroupByTeam(s.Selected) {
+	for _, group := range groupByTeam(s.Selected) {
 		out = append(out, group[0].Team.Name.String())
 	}
 	return out
 }
+
+// Groups reads the selected members grouped in their execution order.
+func (s ApplySelection) Groups() [][]PlannedMember { return groupByTeam(s.Selected) }

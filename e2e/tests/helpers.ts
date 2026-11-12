@@ -1,5 +1,5 @@
 // The waits every act in these walks goes through, and the words the screen says
-// about time: internal/app's e2e harness (e2e_harness_test.go: e2eReady, e2eRead,
+// about time: internal/cli's e2e harness (e2e_harness_test.go: e2eReady, e2eRead,
 // e2eWait, e2ePressWhenEnabled, r-3c41) and internal/activity's text.go, written
 // again for the browser.
 //
@@ -135,7 +135,7 @@ async function attempt(page: Page, what: string, script: string, want: string): 
 // is found by the script the walk names it with, and the press is the element's
 // own click — or, for a point or a line of the teams figure, a mouse event that
 // bubbles to the panel's one listener, because an SVG element has no click() of
-// its own (internal/app/e2e_teams_test.go e2eTeamsClick).
+// its own (internal/cli/e2e_teams_test.go e2eTeamsClick).
 export async function press(page: Page, find: string): Promise<void> {
   await ready(page);
   const script =

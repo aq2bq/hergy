@@ -3,7 +3,7 @@
 // and a name the server may refuse beside the name's own field.
 //
 // The answers are the test's, so what the sheet makes of them is what is read;
-// the server's own check is TestStartNameFollowsUpAs (internal/app/hq_test.go).
+// the server's own check is TestStartNameFollowsUpAs (internal/ops/hq_test.go).
 import { expect, test } from 'bun:test';
 import { layout, serve, settle, type } from './page.js';
 import { h, render } from '../src/lib/preact.js';

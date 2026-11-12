@@ -7,18 +7,21 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aq2bq/hergy/internal/team"
+	"github.com/aq2bq/hergy/internal/ops/internal/team"
 
 	domainname "github.com/aq2bq/hergy/internal/domain/name"
-	"github.com/aq2bq/hergy/internal/herdr"
 	"github.com/aq2bq/hergy/internal/i18n"
-	"github.com/aq2bq/hergy/internal/screenlog"
-	"github.com/aq2bq/hergy/internal/status"
-	"github.com/aq2bq/hergy/internal/turns"
+	"github.com/aq2bq/hergy/internal/ops/internal/herdr"
+	"github.com/aq2bq/hergy/internal/ops/internal/screenlog"
+	"github.com/aq2bq/hergy/internal/ops/internal/status"
+	"github.com/aq2bq/hergy/internal/ops/internal/turns"
 )
 
 // StatusRow is one member or worker observed by the status operation.
-type StatusRow = status.Row
+type StatusRow status.Row
+
+// Text returns the shared status wording for this read row.
+func (r StatusRow) Text() string { return status.Row(r).Text() }
 
 // StatusField is an already-resolved turn label and value.
 type StatusField struct{ Label, Value string }
@@ -44,7 +47,7 @@ func Status(ctx context.Context, in StatusInput) ([]TeamStatus, error) {
 	if in.Team.String() != "" {
 		r, err := resolveMember(in.MemberInput, false)
 		if err != nil {
-			read := ReadSession(in.Port)
+			read := readSession(in.Port)
 			if isRunningTeam(read, in.Team.String()) {
 				return nil, errors.New(err.Error() + "\n" + i18n.Tf("status.can_down", in.Team.String()))
 			}
@@ -58,11 +61,11 @@ func Status(ctx context.Context, in StatusInput) ([]TeamStatus, error) {
 		result.Turn, result.NoWatcher = turnStatus(one.Name, in.Port)
 		return []TeamStatus{result}, nil
 	}
-	read := ReadSession(in.Port)
+	read := readSession(in.Port)
 	if read.Err != nil {
 		return nil, read.Err
 	}
-	running := ReadRunningTeams(in.Env, read)
+	running := readRunningTeams(in.Env, read)
 	out := make([]TeamStatus, 0, len(running))
 	for _, one := range running {
 		result, err := statusTeam(ctx, in, one)
@@ -73,8 +76,8 @@ func Status(ctx context.Context, in StatusInput) ([]TeamStatus, error) {
 	}
 	return out, nil
 }
-func isRunningTeam(read Session, name string) bool {
-	_, ok := team.FindRunning(team.RunningTeams(read.Tabs, LaunchTeams(), read.AgentsRead), name)
+func isRunningTeam(read session, name string) bool {
+	_, ok := team.FindRunning(team.RunningTeams(read.Tabs, launchTeams(), read.AgentsRead), name)
 	return ok
 }
 func statusTeam(ctx context.Context, in StatusInput, one RunningTeam) (TeamStatus, error) {
@@ -87,7 +90,9 @@ func statusTeam(ctx context.Context, in StatusInput, one RunningTeam) (TeamStatu
 		return out, err
 	}
 	markStatusScreens(rows, in.Now)
-	out.Rows = rows
+	for _, row := range rows {
+		out.Rows = append(out.Rows, StatusRow(row))
+	}
 	out.Members, out.Workers = status.Counts(rows)
 	out.Judgement = status.Judge(rows).Text()
 	return out, nil

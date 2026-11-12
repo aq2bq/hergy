@@ -1,8 +1,8 @@
 package ops
 
 import (
-	"github.com/aq2bq/hergy/internal/deliver"
 	domainplace "github.com/aq2bq/hergy/internal/domain/place"
+	"github.com/aq2bq/hergy/internal/ops/internal/deliver"
 )
 
 // ApplyHow is the closed set of operations selected by definition drift.
@@ -42,8 +42,22 @@ type ApplyTeam struct {
 type ApplyMember struct {
 	Name, Short, Role, State string
 	How                      ApplyHow
-	Changes                  []deliver.Change
+	Changes                  []Change
 	CanApply                 bool
 	WhyNot                   string
 	ConversationLost         bool
+}
+
+// Change is one difference in the prompt a member would read.
+type Change deliver.Change
+
+func readChanges(raw []deliver.Change) []Change {
+	if raw == nil {
+		return nil
+	}
+	out := make([]Change, len(raw))
+	for i, c := range raw {
+		out[i] = Change(c)
+	}
+	return out
 }

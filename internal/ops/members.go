@@ -8,19 +8,19 @@ import (
 
 	"github.com/aq2bq/hergy/internal/definition"
 	domainname "github.com/aq2bq/hergy/internal/domain/name"
-	"github.com/aq2bq/hergy/internal/herdr"
 	"github.com/aq2bq/hergy/internal/i18n"
-	"github.com/aq2bq/hergy/internal/launcher"
-	"github.com/aq2bq/hergy/internal/launchlog"
+	"github.com/aq2bq/hergy/internal/ops/internal/herdr"
+	"github.com/aq2bq/hergy/internal/ops/internal/launcher"
+	"github.com/aq2bq/hergy/internal/ops/internal/launchlog"
+	"github.com/aq2bq/hergy/internal/ops/internal/spawn"
+	"github.com/aq2bq/hergy/internal/ops/internal/team"
 	"github.com/aq2bq/hergy/internal/options"
 	"github.com/aq2bq/hergy/internal/source"
-	"github.com/aq2bq/hergy/internal/spawn"
-	"github.com/aq2bq/hergy/internal/team"
 )
 
 // MemberInput is an unresolved CLI member selection with an execution policy.
 type MemberInput struct {
-	Env                      team.Env
+	Env                      Environment
 	Team                     options.Input
 	Member                   string
 	All, Dry                 bool
@@ -39,13 +39,13 @@ type MemberResult struct {
 func resolveMember(in MemberInput, dryRead bool) (*Resolved, error) {
 	cat := in.Env.Catalog(source.Disk{})
 	if dryRead {
-		return ResolveTeamDry(cat, in.Env.ProjectRoot, &options.Options{Team: in.Team})
+		return resolveTeamDry(cat, in.Env.ProjectRoot, &options.Options{Team: in.Team})
 	}
-	read := ReadSession(in.Port)
+	read := readSession(in.Port)
 	if read.Err != nil {
 		return nil, read.Err
 	}
-	running := team.RunningTeams(read.Tabs, LaunchTeams(), read.AgentsRead)
+	running := team.RunningTeams(read.Tabs, launchTeams(), read.AgentsRead)
 	names := make([]domainname.TeamRef, len(running))
 	for i, one := range running {
 		names[i] = one.Team
@@ -53,7 +53,7 @@ func resolveMember(in MemberInput, dryRead bool) (*Resolved, error) {
 	var inferred domainname.Seen
 	if in.Team.String() == "" && len(running) > 1 && CurrentPane() != "" {
 		if agent, err := herdr.New(portOrDefault(in.Port)).Agent(CurrentPane()); err == nil {
-			inferred = TeamOfAgent(running, agent.Name)
+			inferred = teamOfAgent(running, agent.Name)
 		}
 	}
 	selected, err := in.Team.ResolveTeam(names, inferred)
@@ -61,7 +61,7 @@ func resolveMember(in MemberInput, dryRead bool) (*Resolved, error) {
 		return nil, err
 	}
 	one, _ := team.FindRunning(running, selected.String())
-	return BuildRunning(cat, in.Env.ProjectRoot, one)
+	return buildRunning(cat, in.Env.ProjectRoot, one)
 }
 
 func memberPlan(in MemberInput, mode string, dryRead bool) (*Plan, error) {
@@ -126,7 +126,7 @@ func Refresh(ctx context.Context, in MemberInput) (MemberResult, error) {
 	l := operationLauncher(ctx, r, in.Timeout, in.Port, in.Observe)
 	err = execute(ctx, l, in.Observe, nil, func() error { return l.Refresh(plan.Members, CurrentPane()) })
 	if ctx.Err() == nil && (err == nil || launcher.IsUndelivered(err)) {
-		warning(in.Observe, RecordReceivedLaunch(in.Env, r, launchlog.CommandRefresh, plan.Members, l, launchlog.Workspace{}))
+		warning(in.Observe, recordReceivedLaunch(in.Env, r, launchlog.CommandRefresh, plan.Members, l, launchlog.Workspace{}))
 	}
 	return out, err
 }
@@ -152,10 +152,10 @@ func Reprompt(ctx context.Context, in MemberInput) (MemberResult, error) {
 	}
 	emit(in.Observe, Event{Plan: plan})
 	l := operationLauncher(ctx, r, in.Timeout, in.Port, in.Observe)
-	sent := PromptsToResend(in.Env.Catalog(source.Disk{}), in.Env.ProjectRoot, r, plan.Members)
+	sent := promptsToResend(in.Env.Catalog(source.Disk{}), in.Env.ProjectRoot, r, plan.Members)
 	err = execute(ctx, l, in.Observe, nil, func() error { return l.Reprompt(sent) })
 	if ctx.Err() == nil && (err == nil || launcher.IsUndelivered(err)) {
-		warning(in.Observe, RecordReceivedLaunch(in.Env, r, launchlog.CommandReprompt, plan.Members, l, launchlog.Workspace{}))
+		warning(in.Observe, recordReceivedLaunch(in.Env, r, launchlog.CommandReprompt, plan.Members, l, launchlog.Workspace{}))
 	}
 	return out, err
 }
@@ -180,8 +180,8 @@ func Hire(ctx context.Context, in HireInput) (MemberResult, error) {
 	if err != nil {
 		return out, err
 	}
-	WireStart(worker, r.Team.Name.String())
-	for _, note := range SignalNotes([]definition.Start{*worker}) {
+	wireStart(worker, r.Team.Name.String())
+	for _, note := range signalNotes([]definition.Start{*worker}) {
 		emit(in.Observe, Event{Text: note})
 	}
 	out.Plan = &Plan{Resolved: r, Members: []definition.Start{*worker}, Mode: "spawn"}
@@ -195,7 +195,7 @@ func Hire(ctx context.Context, in HireInput) (MemberResult, error) {
 	l := operationLauncher(ctx, r, in.Timeout, in.Port, in.Observe)
 	err = execute(ctx, l, in.Observe, nil, func() error { return l.Hire(worker, in.Task) })
 	if ctx.Err() == nil && (err == nil || launcher.IsUndelivered(err)) {
-		warning(in.Observe, RecordHire(in.Env, r, *worker))
+		warning(in.Observe, recordHire(in.Env, r, *worker))
 	}
 	return out, err
 }
@@ -215,9 +215,9 @@ func Nudge(ctx context.Context, in MemberInput, body string) error {
 	}
 	var from domainname.Seen
 	if !in.Dry {
-		from = SenderName(r, CurrentPane(), in.Port)
+		from = senderName(r, CurrentPane(), in.Port)
 	}
-	text := SendText(from.String(), body)
+	text := sendText(from.String(), body)
 	if in.Dry {
 		emit(in.Observe, Event{Text: i18n.Tf("send.dry", member.Name.String(), text)})
 		return nil
@@ -282,16 +282,16 @@ func Focus(ctx context.Context, input FocusInput) error {
 	return operationLauncher(ctx, r, in.Timeout, in.Port, in.Observe).Focus(member)
 }
 
-// SendText formats the common sender prefix, including messages sent by tell.
-func SendText(from, body string) string {
+// sendText formats the common sender prefix, including messages sent by tell.
+func sendText(from, body string) string {
 	if from == "" {
 		from = i18n.T("send.who_human")
 	}
 	return i18n.Tf("send.from", from) + " " + body
 }
 
-// SenderName reads the sender from a pane and matches it against resolved members.
-func SenderName(r *Resolved, pane domainname.PaneID, port Port) domainname.Seen {
+// senderName reads the sender from a pane and matches it against resolved members.
+func senderName(r *Resolved, pane domainname.PaneID, port Port) domainname.Seen {
 	if pane == "" {
 		return domainname.Seen{}
 	}
@@ -308,13 +308,13 @@ func SenderName(r *Resolved, pane domainname.PaneID, port Port) domainname.Seen 
 }
 
 func focusLive(in FocusInput) error {
-	read := ReadSession(in.Port)
+	read := readSession(in.Port)
 	if read.Err == nil {
-		for _, one := range ReadRunningTeamsIn(in.Views, read, false) {
+		for _, one := range readRunningTeamsIn(in.Views, read, false) {
 			if one.Name.String() != in.TeamName {
 				continue
 			}
-			for _, node := range JudgeOf(one, read, time.Now()).Nodes {
+			for _, node := range judgeOf(one, read, time.Now()).Nodes {
 				if node.Herdr.String() != in.Member || node.State.Slug() == "absent" {
 					continue
 				}

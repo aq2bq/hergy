@@ -5,7 +5,7 @@ import (
 
 	domainplace "github.com/aq2bq/hergy/internal/domain/place"
 
-	"github.com/aq2bq/hergy/internal/deliver"
+	"github.com/aq2bq/hergy/internal/ops"
 )
 
 // This file is GET /api/apply: the drift between a saved definition and the
@@ -27,8 +27,7 @@ const (
 )
 
 // Applier is the reading behind the band's count and the sheet that applies a
-// saved definition to the teams running from it. The app's activity reading
-// implements it; a server built without one answers nothing to apply.
+// saved definition to the teams running from it. FromOps adapts the operation reading to it; a server built without one answers nothing to apply.
 type Applier interface {
 	// Apply is the drift of every running team, by member, and the count the
 	// band shows.
@@ -74,15 +73,15 @@ type ApplyTeam struct {
 // WhyNot says why it cannot when it cannot. ConversationLost says applying this
 // member ends the conversation it holds.
 type ApplyMember struct {
-	Name             string           `json:"name"`
-	Short            string           `json:"short"`
-	Role             string           `json:"role"`
-	State            string           `json:"state"`
-	How              string           `json:"how"`
-	Changes          []deliver.Change `json:"changes"`
-	CanApply         bool             `json:"can_apply"`
-	WhyNot           string           `json:"why_not,omitempty"`
-	ConversationLost bool             `json:"conversation_lost"`
+	Name             string       `json:"name"`
+	Short            string       `json:"short"`
+	Role             string       `json:"role"`
+	State            string       `json:"state"`
+	How              string       `json:"how"`
+	Changes          []ops.Change `json:"changes"`
+	CanApply         bool         `json:"can_apply"`
+	WhyNot           string       `json:"why_not,omitempty"`
+	ConversationLost bool         `json:"conversation_lost"`
 }
 
 // apiApply is POST /api/apply: the drift is applied to the selected members. The
