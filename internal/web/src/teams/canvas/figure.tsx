@@ -44,7 +44,7 @@ export function frameOf(r: Rec): Frame {
 }
 
 export function Figure({ r }: { r: Rec }) {
-  const t = r.draft.value, s = r.saved.value, p = layoutOf(r), sel = pickOf(r), issues = teamIssues(r) || [];
+  const t = r.draft.value, changes = r.editing.changes.value, p = layoutOf(r), sel = pickOf(r), issues = teamIssues(r) || [];
   const { boxes, vx, vy, vw, vh } = frameOf(r);
   const ids = ['human', ...t.members.map((m) => m.name)];
   const mi = dkey(r).replace(/[^A-Za-z0-9_-]/g, '_');
@@ -62,7 +62,7 @@ export function Figure({ r }: { r: Rec }) {
     if (!p[a] || !p[b]) return '';
     const p1 = edgePt(p[a], boxes[a], p[b]), p2 = edgePt(p[b], boxes[b], p[a]);
     const fwd = hasTurn(t, a, b), back = hasTurn(t, b, a);
-    const isNew = (fwd && !hasTurn(s, a, b)) || (back && !hasTurn(s, b, a));
+    const isNew = changes.turns.some((t) => t.added && (t.from === a && t.to === b || t.from === b && t.to === a));
     const mk = selE === k ? 'a' : isNew ? 'c' : 'n';
     const route = routeEdge(p1, p2, p, boxes);
     const dd = route.map((point, i) => `${i ? 'L' : 'M'}${point[0].toFixed(1)},${point[1].toFixed(1)}`).join(' ');
@@ -82,7 +82,6 @@ export function Figure({ r }: { r: Rec }) {
     return <path class="cv-e wk" d={routeEdge(p1, p2, p, boxes).map((point, i) => `${i ? 'L' : 'M'}${point[0].toFixed(1)},${point[1].toFixed(1)}`).join(' ')}></path>;
   });
 
-  const savedNames = new Set(s.members.map((m) => m.name));
   const node = (id: string) => {
     const b = boxes[id], x = p[id][0], y = p[id][1], mine = sel && sel.type === 'node' && sel.id === id;
     const is = issues.filter((m) => m.node === id);
@@ -95,8 +94,9 @@ export function Figure({ r }: { r: Rec }) {
         </g>
       );
     }
-    const m = memberOf(t, id), sm = s.members.find((z) => z.name === id);
-    const cls = !savedNames.has(id) ? ' new' : m && sm && (sm.role !== m.role || sm.profile !== m.profile) ? ' chg' : '';
+    const m = memberOf(t, id);
+    const mark = changes.members[id];
+    const cls = mark === 'new' ? ' new' : mark === 'changed' ? ' chg' : '';
     return (
       <g class={'cv-n member' + cls + (mine ? ' sel' : '') + (is.some((m) => m.sev === 'err') ? ' err' : '')} data-cv-n={id} transform={`translate(${x.toFixed(1)},${y.toFixed(1)})`} tabindex={0} role="button" aria-label={id}>
         <rect x={-b.w / 2} y={-b.h / 2} width={b.w} height={b.h} rx={6}></rect>
@@ -106,11 +106,10 @@ export function Figure({ r }: { r: Rec }) {
       </g>
     );
   };
-  const wexists = new Set(s.workers.map((w) => w.from + '\u0000' + w.purpose));
   const wnode = (w: Worker, i: number) => {
     const b = boxes['w' + i], x = p['w' + i][0], y = p['w' + i][1], mine = sel && sel.type === 'worker' && sel.i === i, is = issues.filter((m) => m.worker === i);
     return (
-      <g class={'cv-n worker' + (wexists.has(w.from + '\u0000' + w.purpose) ? '' : ' new') + (mine ? ' sel' : '') + (is.some((m) => m.sev === 'err') ? ' err' : '')} data-cv-w={i} transform={`translate(${x.toFixed(1)},${y.toFixed(1)})`} tabindex={0} role="button" aria-label={`${w.from} の ${w.purpose || '（目的）'}`}>
+      <g class={'cv-n worker' + (changes.workers[i]?.added ? ' new' : '') + (mine ? ' sel' : '') + (is.some((m) => m.sev === 'err') ? ' err' : '')} data-cv-w={i} transform={`translate(${x.toFixed(1)},${y.toFixed(1)})`} tabindex={0} role="button" aria-label={`${w.from} の ${w.purpose || '（目的）'}`}>
         <rect x={-b.w / 2} y={-b.h / 2} width={b.w} height={b.h} rx={5}></rect>
         <text class="nm" x={0} y={-2} text-anchor="middle">{w.purpose || '（目的）'}</text>
         <text class="rl" x={0} y={13} text-anchor="middle">{w.profile}</text>

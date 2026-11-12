@@ -5,6 +5,8 @@ import { signal, computed } from './preact.js';
 import { resource } from './resource.js';
 import { check as apiCheck, save as apiSave, del as apiDel, problemText, Refusal, type Kind, type Request, type Answer, type RawAnswer, type Schemas } from './api.js';
 import { conflictOf, type Conflict } from './conflict.js';
+import { roleCheckData, type RoleCheckData } from './role-check.js';
+import { resourceIdentity, type ResourceIdentity, type ResourceKind, type ResourceName } from './resource-identity.js';
 type Field<T> = { key: string; label: string; get: (v: T) => unknown };
 type Shape<T> = { fields: Field<T>[] };
 
@@ -134,8 +136,6 @@ function profileFlags(saved: ProfileWritten | null, draft: ProfileWritten, reada
   return out;
 }
 
-import { roleCheckData, type RoleCheckData } from './role-check.js';
-import { resourceIdentity, type ResourceIdentity, type ResourceKind, type ResourceName } from './resource-identity.js';
 
 declare const requestBrand: unique symbol;
 export type EditedRequest<K extends Kind, A extends 'check' | 'save'> = Readonly<{
@@ -652,7 +652,51 @@ type TeamOptions = { name: string; fresh: boolean; how: string; base: ResourceId
 export type TeamCarry = { actions: TeamAction[]; folder: TeamOptions; team: CompleteCarry<TeamDocument>; agreement: CompleteCarry<RoleDraft>; teamYaml: CompleteCarry<string>; agreementYaml: CompleteCarry<string> };
 type TeamInitial = { name: string; team: TeamInput; hash: string; agreement: RoleDraft | null; agreementHash: string; teamText?: string; agreementText?: string;
   teamPath?: string; agreementPath?: string; how?: string; base?: ResourceIdentity<'team'> | null; seeded?: boolean; readable?: boolean; draftId?: string; agreementDraftId?: string };
+export type TeamChanges = ReadonlyDeep<{
+  members: Record<string, '' | 'new' | 'changed'>;
+  workers: { from: string; purpose: string; added: boolean }[];
+  turns: { from: string; to: string; added: boolean }[];
+  list: ['a' | 'c' | 'd', string][];
+}>;
+function teamChanges(s: ReadonlyDeep<TeamDocument>, t: ReadonlyDeep<TeamDocument>): TeamChanges {
+  const out: ['a' | 'c' | 'd', string][] = [];
+  const hasTurn = (team: ReadonlyDeep<TeamDocument>, from: string, to: string) => team.turns.some(([a, b]) => a === from && b === to);
+  const nodeName = (name: string) => name === 'human' ? '人間' : name;
+  const sm = new Map(s.members.map((m) => [m.name, m])), cm = new Map(t.members.map((m) => [m.name, m]));
+  if (s.description !== t.description) out.push(['c', `説明: ${t.description}`]);
+  cm.forEach((m, n) => {
+    if (!sm.has(n)) out.push(['a', `メンバー ${n}（${m.role} · ${m.profile}）`]);
+    else {
+      const o = sm.get(n);
+      if (o && o.role !== m.role) out.push(['c', `${n} のロール ${o.role} → ${m.role}`]);
+      if (o && o.profile !== m.profile) out.push(['c', `${n} のプロファイル ${o.profile} → ${m.profile}`]);
+    }
+  });
+  sm.forEach((_m, n) => { if (!cm.has(n)) out.push(['d', `メンバー ${n}`]); });
+  const sw = new Map(s.workers.map((w) => [w.from + '\u0000' + w.purpose, w])), cw = new Map(t.workers.map((w) => [w.from + '\u0000' + w.purpose, w]));
+  cw.forEach((w, k) => {
+    if (!sw.has(k)) out.push(['a', `ワーカー ${w.purpose || '（目的）'}（${w.from} · ${w.profile}）`]);
+    else {
+      const o = sw.get(k);
+      if (o && (o.purpose !== w.purpose || o.profile !== w.profile || o.from !== w.from)) out.push(['c', `ワーカー ${w.purpose || '（目的）'}（${w.from} · ${w.profile}）`]);
+    }
+  });
+  sw.forEach((w, k) => { if (!cw.has(k)) out.push(['d', `ワーカー ${w.purpose || '（目的）'}`]); });
+  t.turns.forEach(([a, b]) => { if (!hasTurn(s, a, b)) out.push(['a', `ターン ${nodeName(a)} → ${nodeName(b)}`]); });
+  s.turns.forEach(([a, b]) => { if (!hasTurn(t, a, b)) out.push(['d', `ターン ${nodeName(a)} → ${nodeName(b)}`]); });
+  return {
+    members: Object.fromEntries([...new Set(t.members.map((m) => m.name))].map((name) => {
+      const m = t.members.find((one) => one.name === name)!;
+      const before = s.members.find((one) => one.name === name);
+      return [m.name, !before ? 'new' : before.role !== m.role || before.profile !== m.profile ? 'changed' : ''];
+    })),
+    workers: t.workers.map((w) => ({ from: w.from, purpose: w.purpose, added: !s.workers.some((one) => one.from === w.from && one.purpose === w.purpose) })),
+    turns: t.turns.map(([from, to]) => ({ from, to, added: !hasTurn(s, from, to) })),
+    list: out,
+  };
+}
 export type TeamEditing = {
+  readonly changes: { readonly value: TeamChanges };
   readonly read: { readonly value: ReadonlyDeep<TeamOptions> };
   readonly team: Editing<'team', TeamDocument, TeamDocument>;
   readonly agreement: Editing<'team', RoleDraft, { text: string }>;
@@ -780,7 +824,7 @@ export function editTeam(identity: ResourceIdentity<'team'>, input: TeamInitial)
     return team.read.value.problems.filter((p) => p.sev === 'err' && !(p.at || p.field || '').startsWith('node:') && !before.has(p.text));
   });
   const take = (): TeamCarry => snapshot({ actions: operations(team.read.value), folder: meta.value, team: team.take(), agreement: agreement.take(), teamYaml: teamYaml.take(), agreementYaml: agreementYaml.take() });
-  return { read: computed(() => snapshot(meta.value)), team: { ...team, save: () => save('team'), overwrite: () => save('team', true), readConflict: () => recover('team'), undoConflict: () => recover('team', true) }, agreement: { ...agreement, save: () => save('agreement'), overwrite: () => save('agreement', true), readConflict: () => recover('agreement'), undoConflict: () => recover('agreement', true) }, teamYaml: rawEditor(teamYaml, 'team'), agreementYaml: rawEditor(agreementYaml, 'agreement'),
+  return { changes: computed(() => teamChanges(team.read.value.saved || initialTeam, team.read.value.draft)), read: computed(() => snapshot(meta.value)), team: { ...team, save: () => save('team'), overwrite: () => save('team', true), readConflict: () => recover('team'), undoConflict: () => recover('team', true) }, agreement: { ...agreement, save: () => save('agreement'), overwrite: () => save('agreement', true), readConflict: () => recover('agreement'), undoConflict: () => recover('agreement', true) }, teamYaml: rawEditor(teamYaml, 'team'), agreementYaml: rawEditor(agreementYaml, 'agreement'),
     operations: computed(() => operations(team.read.value)),
     validation: computed(() => (team.read.value.checked || {}) as Answer<'team', 'check'>), agreementValidation: computed(() => (agreement.read.value.checked || {}) as Answer<'team', 'check'>),
     grew, agreementBlocked: computed(() => { const s = agreement.read.value; const before = new Set(s.baseProblems.filter((p) => p.sev === 'err').map((p) => p.text)); return !s.saved && !s.draft.text || !agreement.dirty.value || s.problems.some((p) => p.sev === 'err' && (!s.saved || !before.has(p.text))); }),

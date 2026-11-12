@@ -68,3 +68,25 @@ void setCount;
 // @ts-expect-error nav no longer exports count writers
 import { setActivity } from './nav.js';
 void setActivity;
+
+import type { RoleAssignments } from './editing.js';
+import type { RuleDocProps } from './ruledoc.js';
+declare const assignments: RoleAssignments;
+if (false) {
+ // @ts-expect-error comparison answers are readonly
+ assignments.rows.value[0].changed = true;
+ const oldProps: RuleDocProps = { hasName: false, row: {saved: null, draft: {name: '', title: '', text: ''}}, heading: {kind: 'チーム定義', name: 'core'}, issues: [], onDraft: () => {},
+  // @ts-expect-error RuleDoc has no old mutation callback
+  onChange: () => {},
+ };
+ void oldProps;
+}
+
+import type { TeamEditing } from './editing.js';
+declare const teamEditor: TeamEditing;
+if (false) {
+ // @ts-expect-error figure marks cannot be written by the drawing
+ teamEditor.changes.value.members.lead = 'new';
+ // @ts-expect-error the change list is readonly
+ teamEditor.changes.value.list.push(['c', 'outside']);
+}
