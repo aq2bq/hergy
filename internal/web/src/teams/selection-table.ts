@@ -11,7 +11,7 @@ export type PickHow = 'press' | 'let' | 'reset' | 'field' | 'side' | 'yaml';
 // SideRule is one row of the table: an event (and, when it matters, the thing it
 // picked) and where the right column goes from here. 'keep' keeps the column the
 // row started at; 'pressed' takes the column of the heading the person pressed.
-export type SideRule = { how: PickHow; what?: PickWhat[]; side: 'keep' | 'pressed' | Side };
+export type SideRule = { readonly how: PickHow; readonly what?: readonly PickWhat[]; readonly side: 'keep' | 'pressed' | Side };
 export const SIDE_RULES: ReadonlyArray<SideRule> = [
   { how: 'press', what: ['member', 'worker', 'human'], side: 'keep' },
   { how: 'press', what: ['edge'], side: 'attr' },

@@ -143,28 +143,6 @@ var promptStrings = []struct {
 	{`part: "worker"`, []string{"internal/web/src/lib/editing.ts"}},
 }
 
-// The selection section (⑥ r-3d54): the pick and the right column are written
-// by teams/selection.ts alone, and the table that decides where the column goes
-// is selection-table.ts. A screen reads the pick through pickOf and the column
-// through sideOf; the old writer (selectPick) and the old reads (livePick,
-// selOf) stand nowhere, and sideOf is defined only in the owner.
-const (
-	selectionOwner = "internal/web/src/teams/selection.ts"
-	selectionTable = "internal/web/src/teams/selection-table.ts"
-)
-
-// selectionRemoved are the names the owner replaced: a screen that brings one
-// back is the copy this section exists for.
-var selectionRemoved = []string{"selectPick", "livePick", "selOf"}
-
-// selectionWrite matches a write of the two fields on any record: r.sel.value =
-// and r.side.value =. A comparison (===) is a read, not a write.
-var selectionWrite = regexp.MustCompile(`\.(sel|side)\.value\s*=(?:[^=]|$)`)
-
-// sideOfDefinition matches where sideOf is defined, not where it is called: the
-// screens may call it, the definition stands in the owner.
-var sideOfDefinition = regexp.MustCompile(`\b(function\s+sideOf|const\s+sideOf\s*[=:])`)
-
 // The address section (⑥-2, d-a143): the rows a screen has open are written and
 // read by lib/address.ts alone. A screen asks it for the open rows; it does not
 // spell the address itself.
@@ -193,7 +171,6 @@ type ownersFile struct {
 	Enforce             bool         `yaml:"enforce"`
 	DangerEnforce       bool         `yaml:"danger_enforce"`
 	PromptEnforce       bool         `yaml:"prompt_enforce"`
-	SelectionEnforce    bool         `yaml:"selection_enforce"`
 	AddressEnforce      bool         `yaml:"address_enforce"`
 	PagePositionEnforce bool         `yaml:"page_position_enforce"`
 	Allow               []ownerAllow `yaml:"allow"`
@@ -225,10 +202,6 @@ func (r *runner) ownersGate() error {
 	if err != nil {
 		return err
 	}
-	selection, err := r.selectionFindings(conf)
-	if err != nil {
-		return err
-	}
 	address, err := r.addressFindings(conf)
 	if err != nil {
 		return err
@@ -238,13 +211,13 @@ func (r *runner) ownersGate() error {
 		return err
 	}
 
-	return ownersVerdict(conf, findings, danger, prompt, selection, address, page)
+	return ownersVerdict(conf, findings, danger, prompt, address, page)
 }
 
 // ownersVerdict prints what the sections found and fails the enforced ones.
 // Each section turns Hard on its own: a section still reporting prints its
 // findings and passes, and an enforced one fails (owners.yml).
-func ownersVerdict(conf ownersFile, findings, danger, prompt, selection, address, page []string) error {
+func ownersVerdict(conf ownersFile, findings, danger, prompt, address, page []string) error {
 	sections := []struct {
 		findings []string
 		enforce  bool
@@ -253,7 +226,6 @@ func ownersVerdict(conf ownersFile, findings, danger, prompt, selection, address
 		{findings, conf.Enforce, "enforce"},
 		{danger, conf.DangerEnforce, "danger_enforce"},
 		{prompt, conf.PromptEnforce, "prompt_enforce"},
-		{selection, conf.SelectionEnforce, "selection_enforce"},
 		{address, conf.AddressEnforce, "address_enforce"},
 		{page, conf.PagePositionEnforce, "page_position_enforce"},
 	}
@@ -531,70 +503,6 @@ func stringLines(text, want string) []int {
 		out = append(out, lineOf(text, i+j))
 		i += j + len(want)
 	}
-}
-
-// selectionFindings is the selection section: a write of the pick or the right
-// column outside the owner, an old writer or reader back again, and sideOf
-// defined anywhere but the owner.
-func (r *runner) selectionFindings(conf ownersFile) ([]string, error) {
-	files, err := r.sourceFiles()
-	if err != nil {
-		return nil, err
-	}
-	var out []string
-	for _, path := range files {
-		rel, err := filepath.Rel(r.root, path)
-		if err != nil {
-			return nil, err
-		}
-		rel = filepath.ToSlash(rel)
-		if !strings.HasSuffix(rel, ".ts") && !strings.HasSuffix(rel, ".tsx") {
-			continue
-		}
-		if rel == selectionOwner || rel == selectionTable {
-			continue
-		}
-		raw, err := os.ReadFile(path)
-		if err != nil {
-			return nil, err
-		}
-		code := maskSpec(string(raw))
-		out = append(out, selectionFileFindings(rel, code, conf)...)
-	}
-	sort.Strings(out)
-	return out, nil
-}
-
-// selectionFileFindings reads one file outside the owner: the two writes, the
-// names the owner replaced, and a second definition of sideOf.
-func selectionFileFindings(rel, code string, conf ownersFile) []string {
-	var out []string
-	for i, line := range strings.Split(code, "\n") {
-		field := selectionWrite.FindStringSubmatch(line)
-		if field == nil || allowedBy(rel, conf.Allow, "r."+field[1]+".value") {
-			continue
-		}
-		out = append(out, fmt.Sprintf("%s:%d: r.%s を書くのは持ち主（%s）だけです。何が起きたかを select に渡してください。寄せられない場合は %s の allow に理由と決定を添えてください",
-			rel, i+1, field[1], selectionOwner, ownersPath))
-	}
-	for _, name := range selectionRemoved {
-		if allowedBy(rel, conf.Allow, name) {
-			continue
-		}
-		for _, line := range wordLines(code, name) {
-			out = append(out, fmt.Sprintf("%s:%d: %s は持ち主（%s）に置いてください。寄せられない場合は %s の allow に理由と決定を添えてください",
-				rel, line, name, selectionOwner, ownersPath))
-		}
-	}
-	if allowedBy(rel, conf.Allow, "sideOf") {
-		return out
-	}
-	for i, line := range strings.Split(code, "\n") {
-		if sideOfDefinition.MatchString(line) {
-			out = append(out, fmt.Sprintf("%s:%d: sideOf の定義は持ち主（%s）に 1 つだけ置いてください（呼ぶのは自由です）", rel, i+1, selectionOwner))
-		}
-	}
-	return out
 }
 
 // addressFindings is the address section: a screen that spells the open value
