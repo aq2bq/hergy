@@ -10,7 +10,6 @@ import (
 	"github.com/aq2bq/hergy/internal/definition"
 	domainname "github.com/aq2bq/hergy/internal/domain/name"
 	"github.com/aq2bq/hergy/internal/i18n"
-	"github.com/aq2bq/hergy/internal/prompt"
 	"github.com/aq2bq/hergy/internal/source"
 )
 
@@ -21,7 +20,7 @@ type apiRenamePreview struct {
 }
 
 func (s *Server) renamePreview(old, next, place string) (*apiRenamePreview, *apiErr) {
-	_, oldErr := domainname.ParseDefinitionName(old)
+	oldErr := domainname.CheckRenameSource(old)
 	_, nextErr := domainname.NewDefinitionName(next)
 	if oldErr != nil || nextErr != nil || old == next {
 		return nil, refuseAt("name", i18n.T("web.rename.name"))
@@ -142,8 +141,8 @@ func (s *Server) renameTeam(old string, in apiIn) (any, *apiErr) {
 		return nil, refuse(http.StatusUnprocessableEntity, err.Error())
 	}
 	for i := range def.Graph.Members {
-		if _, err := prompt.MemberName(*in.RenameTo, &def.Graph.Members[i]); err != nil {
-			return nil, refuseAt("name", err.Error())
+		if _, err := domainname.MemberForInput(*in.RenameTo, def.Graph.Members[i].Name); err != nil {
+			return nil, refuseAt("name", i18n.Tf("error.herdr_name_pattern", domainname.PreviewName(*in.RenameTo, def.Graph.Members[i].Name.String())))
 		}
 	}
 	if err := moveDefinition(oldPath, newPath, in.Hash, text, edited); err != nil {

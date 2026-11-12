@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/prompt"
 	"github.com/aq2bq/hergy/internal/source"
 )
@@ -244,4 +245,18 @@ func TestWorkerPreviewUsesTheRunningNameAndTheDraft(t *testing.T) {
 			t.Error("the preview does not carry the draft's role and purpose")
 		}
 	})
+}
+
+func TestWorkerPromptChecksShortNameOnlyOutsidePreview(t *testing.T) {
+	f := newFixture(t)
+	for _, preview := range []bool{false, true} {
+		doc, _ := json.Marshal(map[string]any{"name": "1", "purpose": "試作", "task": "作る", "from": "lead", "preview": preview})
+		_, refusal := (apiTeam{s: f.server(t)}).checkWorkerPrompt(apiIn{Name: "demo", Place: "project", Hash: source.Hash(readFile(t, f.teamYAML())), Doc: doc})
+		if preview && refusal != nil {
+			t.Fatalf("preview: %v", refusal)
+		}
+		if !preview && (refusal == nil || refusal.Text != i18n.T("error.worker_name_pattern")) {
+			t.Fatalf("normal: %+v", refusal)
+		}
+	}
 }

@@ -6,6 +6,8 @@ import (
 	"os"
 	"time"
 
+	domainname "github.com/aq2bq/hergy/internal/domain/name"
+
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/source"
 	"github.com/aq2bq/hergy/internal/team"
@@ -71,7 +73,7 @@ type stopTarget struct {
 // names hergy gave its panes.
 func (h *hqRead) stopTargets(env team.Env, one runningTeam, read herdrNow) stopTarget {
 	cat := env.Catalog(source.Disk{})
-	r, buildErr := buildRunningIn(cat, env.ProjectRoot, team.Running{Team: one.Name, Definition: one.Definition}, one.Place)
+	r, buildErr := buildRunningIn(cat, env.ProjectRoot, team.Running{Team: domainname.TeamFromObservation(domainname.Observe(one.Name)), Definition: one.Definition}, one.Place)
 	workers := workerNamesOf(read.tabs, one.Name)
 	if buildErr != nil {
 		l := newLauncherWithPort(&resolved{team: team.Team{Name: one.Name}}, 30000, io.Discard, h.act.herdrPort()).WithWaitClock(h.stopNow, h.stopPause)
@@ -84,7 +86,7 @@ func (h *hqRead) stopTargets(env team.Env, one runningTeam, read herdrNow) stopT
 	l := newLauncherWithPort(r, 30000, io.Discard, h.act.herdrPort()).WithWaitClock(h.stopNow, h.stopPause)
 	members := make([]string, 0, len(r.starts))
 	for _, start := range r.starts {
-		members = append(members, start.Short)
+		members = append(members, start.Short.String())
 	}
 	return stopTarget{members: members, workers: workers, close: func(selfPane string) error {
 		_, err := l.Down(r.starts, selfPane, false)
@@ -136,9 +138,6 @@ func hqLeftoversOf(left team.Leftovers) web.HQLeftovers {
 
 // workerOf is the worker name a tab label carries ("worker:<team>/<worker>").
 func workerOf(label, teamName string) (string, bool) {
-	prefix := "worker:" + teamName + "/"
-	if len(label) <= len(prefix) || label[:len(prefix)] != prefix {
-		return "", false
-	}
-	return label[len(prefix):], true
+	short, ok := domainname.WorkerShort(domainname.Observe(label), domainname.Observe(teamName))
+	return short.String(), ok && short.String() != ""
 }

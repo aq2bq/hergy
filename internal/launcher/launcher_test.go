@@ -132,7 +132,7 @@ func notFound(args []string) error {
 
 func agentObject(agent protocol.Agent) map[string]any {
 	return map[string]any{
-		"name": agent.Name, "agent": agent.Kind,
+		"name": agent.Name.String(), "agent": agent.Kind,
 		"agent_status": agent.Status, "pane_id": agent.PaneID,
 		"tab_id": agent.TabID, "terminal_title_stripped": agent.Title,
 	}
@@ -159,13 +159,13 @@ func (p *fakePort) JSON(args ...string) (map[string]any, error) {
 	case slices.Equal(args, []string{"tab", "list"}):
 		tabs := make([]any, 0, len(p.tabs))
 		for _, tab := range p.tabs {
-			tabs = append(tabs, map[string]any{"tab_id": tab.ID, "label": tab.Label})
+			tabs = append(tabs, map[string]any{"tab_id": tab.ID, "label": tab.Label.String()})
 		}
 		return map[string]any{"tabs": tabs}, nil
 	case slices.Equal(args, []string{"pane", "list"}):
 		panes := make([]any, 0, len(p.panes))
 		for _, pane := range p.panes {
-			panes = append(panes, map[string]any{"pane_id": pane.ID, "label": pane.Label, "tab_id": pane.TabID})
+			panes = append(panes, map[string]any{"pane_id": pane.ID, "label": pane.Label.String(), "tab_id": pane.TabID})
 		}
 		return map[string]any{"panes": panes}, nil
 	case len(args) == 3 && args[0] == "pane" && args[1] == "close":
@@ -186,19 +186,19 @@ func (p *fakePort) JSON(args ...string) (map[string]any, error) {
 		return map[string]any{"pane": map[string]any{"pane_id": pane}}, nil
 	case len(args) == 3 && args[0] == "agent" && args[1] == "get":
 		target := args[2]
-		if agent, ok := p.findAgent(target); ok && p.startedBlocked[agent.Name] {
+		if agent, ok := p.findAgent(target); ok && p.startedBlocked[agent.Name.String()] {
 			switch {
 			case agent.Status == "blocked" && p.onStartupGet != nil:
-				p.onStartupGet(agent.Name)
+				p.onStartupGet(agent.Name.String())
 			case agent.Status != "blocked" && p.onSettleGet != nil:
-				p.onSettleGet(agent.Name)
+				p.onSettleGet(agent.Name.String())
 			}
 		}
 		if p.onAgentGet != nil {
 			p.onAgentGet(target)
 		}
 		agent, ok := p.findAgent(target)
-		if !ok || p.gone[agent.Name] {
+		if !ok || p.gone[agent.Name.String()] {
 			return nil, notFound(args)
 		}
 		return map[string]any{"agent": agentObject(agent)}, nil
@@ -232,7 +232,7 @@ func (p *fakePort) JSON(args ...string) (map[string]any, error) {
 			// The agent is live, and it asks a human a question while it starts:
 			// herdr refuses the start as not ready, and keeps the agent.
 			p.agents[name] = protocol.Agent{
-				Name: name, Kind: argValue(args, "--kind"), Status: "blocked",
+				Name: fixtureSeen(name), Kind: argValue(args, "--kind"), Status: "blocked",
 				PaneID: argValue(args, "--pane"), TabID: p.startupTab,
 			}
 			if p.startedBlocked == nil {
@@ -245,7 +245,7 @@ func (p *fakePort) JSON(args ...string) (map[string]any, error) {
 			return nil, err
 		}
 		p.agents[name] = protocol.Agent{
-			Name: name, Kind: argValue(args, "--kind"),
+			Name: fixtureSeen(name), Kind: argValue(args, "--kind"),
 			Status: "idle", PaneID: argValue(args, "--pane"),
 		}
 		delete(p.gone, name)
@@ -295,7 +295,7 @@ func downLauncherFor(t *testing.T, port *fakePort, team string, members ...strin
 	t.Helper()
 	list := make([]definition.Start, len(members))
 	for i, name := range members {
-		list[i] = definition.Start{Name: name, Short: name, Role: "role", Kind: "claude"}
+		list[i] = definition.Start{Name: fixtureHerdrName(name), Short: fixtureShortName(name), Role: "role", Kind: "claude"}
 	}
 	out := &bytes.Buffer{}
 	return New(list, team, t.TempDir(), herdr.New(port), 30000, out), out
@@ -303,9 +303,9 @@ func downLauncherFor(t *testing.T, port *fakePort, team string, members ...strin
 
 func TestDownClosesItsOwnPaneLast(t *testing.T) {
 	port := &fakePort{live: []protocol.Agent{
-		{Name: "a", Kind: "claude", Status: "idle", PaneID: "p1"},
-		{Name: "b", Kind: "claude", Status: "idle", PaneID: "own"},
-		{Name: "c", Kind: "claude", Status: "idle", PaneID: "p3"},
+		{Name: fixtureSeen("a"), Kind: "claude", Status: "idle", PaneID: "p1"},
+		{Name: fixtureSeen("b"), Kind: "claude", Status: "idle", PaneID: "own"},
+		{Name: fixtureSeen("c"), Kind: "claude", Status: "idle", PaneID: "p3"},
 	}}
 	l, _ := downLauncher(t, port, "a", "b", "c")
 	members := l.starts
@@ -324,7 +324,7 @@ func TestDownClosesItsOwnPaneLast(t *testing.T) {
 
 func TestDownSkipsAMemberThatIsNotLive(t *testing.T) {
 	port := &fakePort{live: []protocol.Agent{
-		{Name: "a", Kind: "claude", Status: "idle", PaneID: "p1"},
+		{Name: fixtureSeen("a"), Kind: "claude", Status: "idle", PaneID: "p1"},
 	}}
 	l, out := downLauncher(t, port, "a", "b")
 	members := l.starts
@@ -342,8 +342,8 @@ func TestDownSkipsAMemberThatIsNotLive(t *testing.T) {
 
 func TestDownDryClosesNothing(t *testing.T) {
 	port := &fakePort{live: []protocol.Agent{
-		{Name: "a", Kind: "claude", Status: "idle", PaneID: "p1"},
-		{Name: "b", Kind: "claude", Status: "idle", PaneID: "p2"},
+		{Name: fixtureSeen("a"), Kind: "claude", Status: "idle", PaneID: "p1"},
+		{Name: fixtureSeen("b"), Kind: "claude", Status: "idle", PaneID: "p2"},
 	}}
 	l, out := downLauncher(t, port, "a", "b")
 	members := l.starts
@@ -384,17 +384,17 @@ func TestDownWithNobodyLiveClosesNothing(t *testing.T) {
 func TestDownClosesTheTeamsHiredWorkers(t *testing.T) {
 	port := &fakePort{
 		live: []protocol.Agent{
-			{Name: "dev-lead", Kind: "claude", Status: "idle", PaneID: "p-lead", TabID: "t-team"},
-			{Name: "dev-worker", Kind: "claude", Status: "idle", PaneID: "p-worker", TabID: "t-team"},
-			{Name: "dev-w1", Kind: "claude", Status: "idle", PaneID: "p-w1", TabID: "t-w1"},
-			{Name: "dev-w2", Kind: "claude", Status: "idle", PaneID: "p-w2", TabID: "t-w2"},
-			{Name: "dev-x-w1", Kind: "claude", Status: "idle", PaneID: "p-x1", TabID: "t-x1"},
+			{Name: fixtureSeen("dev-lead"), Kind: "claude", Status: "idle", PaneID: "p-lead", TabID: "t-team"},
+			{Name: fixtureSeen("dev-worker"), Kind: "claude", Status: "idle", PaneID: "p-worker", TabID: "t-team"},
+			{Name: fixtureSeen("dev-w1"), Kind: "claude", Status: "idle", PaneID: "p-w1", TabID: "t-w1"},
+			{Name: fixtureSeen("dev-w2"), Kind: "claude", Status: "idle", PaneID: "p-w2", TabID: "t-w2"},
+			{Name: fixtureSeen("dev-x-w1"), Kind: "claude", Status: "idle", PaneID: "p-x1", TabID: "t-x1"},
 		},
 		tabs: []protocol.Tab{
-			{ID: "t-team", Label: "team:dev"},
-			{ID: "t-w1", Label: "worker:dev/w1"},
-			{ID: "t-w2", Label: "worker:dev/w2"},
-			{ID: "t-x1", Label: "worker:dev-x/w1"},
+			{ID: "t-team", Label: fixtureSeen("team:dev")},
+			{ID: "t-w1", Label: fixtureSeen("worker:dev/w1")},
+			{ID: "t-w2", Label: fixtureSeen("worker:dev/w2")},
+			{ID: "t-x1", Label: fixtureSeen("worker:dev-x/w1")},
 		},
 	}
 	l, out := downLauncherFor(t, port, "dev", "dev-lead", "dev-worker")
@@ -423,12 +423,12 @@ func TestDownClosesTheTeamsHiredWorkers(t *testing.T) {
 func TestDownAsClosesOnlyThatTeamsWorkers(t *testing.T) {
 	port := &fakePort{
 		live: []protocol.Agent{
-			{Name: "dev-w1", Kind: "claude", Status: "idle", PaneID: "p-dev", TabID: "t-dev"},
-			{Name: "dev2-w1", Kind: "claude", Status: "idle", PaneID: "p-dev2", TabID: "t-dev2"},
+			{Name: fixtureSeen("dev-w1"), Kind: "claude", Status: "idle", PaneID: "p-dev", TabID: "t-dev"},
+			{Name: fixtureSeen("dev2-w1"), Kind: "claude", Status: "idle", PaneID: "p-dev2", TabID: "t-dev2"},
 		},
 		tabs: []protocol.Tab{
-			{ID: "t-dev", Label: "worker:dev/w1"},
-			{ID: "t-dev2", Label: "worker:dev2/w1"},
+			{ID: "t-dev", Label: fixtureSeen("worker:dev/w1")},
+			{ID: "t-dev2", Label: fixtureSeen("worker:dev2/w1")},
 		},
 	}
 	l, out := downLauncherFor(t, port, "dev2", "dev2-lead", "dev2-worker")
@@ -450,12 +450,12 @@ func TestDownAsClosesOnlyThatTeamsWorkers(t *testing.T) {
 func TestDownDryPlansTheWorkers(t *testing.T) {
 	port := &fakePort{
 		live: []protocol.Agent{
-			{Name: "dev-lead", Kind: "claude", Status: "idle", PaneID: "p-lead", TabID: "t-team"},
-			{Name: "dev-w1", Kind: "claude", Status: "idle", PaneID: "p-w1", TabID: "t-w1"},
+			{Name: fixtureSeen("dev-lead"), Kind: "claude", Status: "idle", PaneID: "p-lead", TabID: "t-team"},
+			{Name: fixtureSeen("dev-w1"), Kind: "claude", Status: "idle", PaneID: "p-w1", TabID: "t-w1"},
 		},
 		tabs: []protocol.Tab{
-			{ID: "t-team", Label: "team:dev"},
-			{ID: "t-w1", Label: "worker:dev/w1"},
+			{ID: "t-team", Label: fixtureSeen("team:dev")},
+			{ID: "t-w1", Label: fixtureSeen("worker:dev/w1")},
 		},
 	}
 	l, out := downLauncherFor(t, port, "dev", "dev-lead", "dev-worker")
@@ -487,12 +487,12 @@ func TestDownDryPlansTheWorkers(t *testing.T) {
 func TestDownClosesAWorkersOwnPaneLast(t *testing.T) {
 	port := &fakePort{
 		live: []protocol.Agent{
-			{Name: "dev-lead", Kind: "claude", Status: "idle", PaneID: "p-lead", TabID: "t-team"},
-			{Name: "dev-w1", Kind: "claude", Status: "idle", PaneID: "own", TabID: "t-w1"},
+			{Name: fixtureSeen("dev-lead"), Kind: "claude", Status: "idle", PaneID: "p-lead", TabID: "t-team"},
+			{Name: fixtureSeen("dev-w1"), Kind: "claude", Status: "idle", PaneID: "own", TabID: "t-w1"},
 		},
 		tabs: []protocol.Tab{
-			{ID: "t-team", Label: "team:dev"},
-			{ID: "t-w1", Label: "worker:dev/w1"},
+			{ID: "t-team", Label: fixtureSeen("team:dev")},
+			{ID: "t-w1", Label: fixtureSeen("worker:dev/w1")},
 		},
 	}
 	l, out := downLauncherFor(t, port, "dev", "dev-lead")
@@ -514,12 +514,12 @@ func TestDownClosesAWorkersOwnPaneLast(t *testing.T) {
 func TestStatusRowsMembersThenWorkers(t *testing.T) {
 	port := &fakePort{
 		live: []protocol.Agent{
-			{Name: "dev-lead", Kind: "claude", Status: "working", PaneID: "p-lead", TabID: "t-team", Title: "#42 の報告を待っている"},
-			{Name: "dev-w1", Kind: "claude", Status: "blocked", PaneID: "p-w1", TabID: "t-w1", Title: "依存の更新を入れてよいか聞いている"},
+			{Name: fixtureSeen("dev-lead"), Kind: "claude", Status: "working", PaneID: "p-lead", TabID: "t-team", Title: "#42 の報告を待っている"},
+			{Name: fixtureSeen("dev-w1"), Kind: "claude", Status: "blocked", PaneID: "p-w1", TabID: "t-w1", Title: "依存の更新を入れてよいか聞いている"},
 		},
 		tabs: []protocol.Tab{
-			{ID: "t-team", Label: "team:dev"},
-			{ID: "t-w1", Label: "worker:dev/w1"},
+			{ID: "t-team", Label: fixtureSeen("team:dev")},
+			{ID: "t-w1", Label: fixtureSeen("worker:dev/w1")},
 		},
 	}
 	l, _ := downLauncherFor(t, port, "dev", "dev-lead", "dev-worker")
@@ -552,7 +552,7 @@ func TestRefreshStartsAMemberThatIsNotLive(t *testing.T) {
 	port := &fakePort{
 		agents:  map[string]protocol.Agent{},
 		gone:    map[string]bool{},
-		panes:   []protocol.Pane{{ID: "p1", Label: "team-lead"}},
+		panes:   []protocol.Pane{{ID: "p1", Label: fixtureSeen("team-lead")}},
 		process: map[string][2]int{"p1": {900, 900}},
 	}
 	l, out := downLauncher(t, port, "team-lead")
@@ -583,17 +583,17 @@ func TestRefreshStartsAMemberThatIsNotLive(t *testing.T) {
 func addablePort() *fakePort {
 	return &fakePort{
 		agents: map[string]protocol.Agent{
-			"demo-lead": {Name: "demo-lead", Kind: "claude", Status: "idle", PaneID: "p1", TabID: "t1"},
+			"demo-lead": {Name: fixtureSeen("demo-lead"), Kind: "claude", Status: "idle", PaneID: "p1", TabID: "t1"},
 		},
 		gone:    map[string]bool{},
 		process: map[string][2]int{"p1": {4242, 900}},
 		panes: []protocol.Pane{
-			{ID: "px", Label: "other-lead", TabID: "t9"},
-			{ID: "p1", Label: "demo-lead", TabID: "t1"},
+			{ID: "px", Label: fixtureSeen("other-lead"), TabID: "t9"},
+			{ID: "p1", Label: fixtureSeen("demo-lead"), TabID: "t1"},
 		},
 		tabs: []protocol.Tab{
-			{ID: "t9", Label: "other"},
-			{ID: "t1", Label: "demo"},
+			{ID: "t9", Label: fixtureSeen("other")},
+			{ID: "t1", Label: fixtureSeen("demo")},
 		},
 	}
 }
@@ -792,7 +792,7 @@ func TestRefreshRefusesAMemberWhosePaneIsBusy(t *testing.T) {
 	port := &fakePort{
 		agents:  map[string]protocol.Agent{},
 		gone:    map[string]bool{},
-		panes:   []protocol.Pane{{ID: "p1", Label: "team-lead"}},
+		panes:   []protocol.Pane{{ID: "p1", Label: fixtureSeen("team-lead")}},
 		process: map[string][2]int{"p1": {4242, 900}},
 	}
 	l, _ := downLauncher(t, port, "team-lead")
@@ -813,7 +813,7 @@ func TestRefreshRefusesItsOwnPaneForADeadMember(t *testing.T) {
 	port := &fakePort{
 		agents: map[string]protocol.Agent{},
 		gone:   map[string]bool{},
-		panes:  []protocol.Pane{{ID: "own", Label: "team-lead"}},
+		panes:  []protocol.Pane{{ID: "own", Label: fixtureSeen("team-lead")}},
 	}
 	l, _ := downLauncher(t, port, "team-lead")
 	members := l.starts
@@ -832,10 +832,10 @@ func TestRefreshRefusesItsOwnPaneForADeadMember(t *testing.T) {
 func TestRefreshAllChecksEveryoneBeforeStarting(t *testing.T) {
 	port := &fakePort{
 		agents: map[string]protocol.Agent{
-			"team-lead": {Name: "team-lead", Kind: "claude", Status: "working", PaneID: "p1"},
+			"team-lead": {Name: fixtureSeen("team-lead"), Kind: "claude", Status: "working", PaneID: "p1"},
 		},
 		gone:    map[string]bool{},
-		panes:   []protocol.Pane{{ID: "p2", Label: "team-worker"}},
+		panes:   []protocol.Pane{{ID: "p2", Label: fixtureSeen("team-worker")}},
 		process: map[string][2]int{"p2": {900, 900}},
 	}
 	l, _ := downLauncher(t, port, "team-lead", "team-worker")
@@ -856,7 +856,7 @@ func TestRefreshDryAcceptsADeadMember(t *testing.T) {
 	port := &fakePort{
 		agents:  map[string]protocol.Agent{},
 		gone:    map[string]bool{},
-		panes:   []protocol.Pane{{ID: "p1", Label: "team-lead"}},
+		panes:   []protocol.Pane{{ID: "p1", Label: fixtureSeen("team-lead")}},
 		process: map[string][2]int{"p1": {900, 900}},
 	}
 	l, _ := downLauncher(t, port, "team-lead")
@@ -880,7 +880,7 @@ func TestRefreshDryAcceptsADeadMember(t *testing.T) {
 func TestRefreshRestartsInPlaceInOrder(t *testing.T) {
 	port := &fakePort{
 		agents: map[string]protocol.Agent{
-			"team-lead": {Name: "team-lead", Kind: "claude", Status: "idle", PaneID: "p1"},
+			"team-lead": {Name: fixtureSeen("team-lead"), Kind: "claude", Status: "idle", PaneID: "p1"},
 		},
 		gone:    map[string]bool{},
 		process: map[string][2]int{"p1": {4242, 900}},
@@ -918,7 +918,7 @@ func TestRefreshRestartsInPlaceInOrder(t *testing.T) {
 func TestRefreshStopsNothingWhenAMemberIsWorking(t *testing.T) {
 	port := &fakePort{
 		agents: map[string]protocol.Agent{
-			"team-lead": {Name: "team-lead", Kind: "claude", Status: "working", PaneID: "p1"},
+			"team-lead": {Name: fixtureSeen("team-lead"), Kind: "claude", Status: "working", PaneID: "p1"},
 		},
 		gone: map[string]bool{},
 	}
@@ -943,8 +943,8 @@ func TestRefreshStopsNothingWhenAMemberIsWorking(t *testing.T) {
 func TestRefreshAllStopsNothingWhenAnyIsWorking(t *testing.T) {
 	port := &fakePort{
 		agents: map[string]protocol.Agent{
-			"team-lead":   {Name: "team-lead", Kind: "claude", Status: "idle", PaneID: "p1"},
-			"team-worker": {Name: "team-worker", Kind: "claude", Status: "working", PaneID: "p2"},
+			"team-lead":   {Name: fixtureSeen("team-lead"), Kind: "claude", Status: "idle", PaneID: "p1"},
+			"team-worker": {Name: fixtureSeen("team-worker"), Kind: "claude", Status: "working", PaneID: "p2"},
 		},
 		gone: map[string]bool{},
 	}
@@ -966,7 +966,7 @@ func TestRefreshAllStopsNothingWhenAnyIsWorking(t *testing.T) {
 func TestRefreshTimesOutWhenTheAgentNeverGoes(t *testing.T) {
 	port := &fakePort{
 		agents: map[string]protocol.Agent{
-			"team-lead": {Name: "team-lead", Kind: "claude", Status: "idle", PaneID: "p1"},
+			"team-lead": {Name: fixtureSeen("team-lead"), Kind: "claude", Status: "idle", PaneID: "p1"},
 		},
 		gone:    map[string]bool{},
 		process: map[string][2]int{"p1": {4242, 900}},
@@ -994,7 +994,7 @@ func TestRefreshTimesOutWhenTheAgentNeverGoes(t *testing.T) {
 func TestRefreshDoesNotStopTheShell(t *testing.T) {
 	port := &fakePort{
 		agents: map[string]protocol.Agent{
-			"team-lead": {Name: "team-lead", Kind: "claude", Status: "idle", PaneID: "p1"},
+			"team-lead": {Name: fixtureSeen("team-lead"), Kind: "claude", Status: "idle", PaneID: "p1"},
 		},
 		gone:    map[string]bool{},
 		process: map[string][2]int{"p1": {900, 900}},
@@ -1020,7 +1020,7 @@ func TestRefreshDoesNotStopTheShell(t *testing.T) {
 func TestRepromptOnlyPrompts(t *testing.T) {
 	port := &fakePort{
 		agents: map[string]protocol.Agent{
-			"team-lead": {Name: "team-lead", Kind: "claude", Status: "idle", PaneID: "p1"},
+			"team-lead": {Name: fixtureSeen("team-lead"), Kind: "claude", Status: "idle", PaneID: "p1"},
 		},
 		gone: map[string]bool{},
 	}
@@ -1051,7 +1051,7 @@ func TestRepromptOnlyPrompts(t *testing.T) {
 func TestRefreshRefusesItsOwnPane(t *testing.T) {
 	port := &fakePort{
 		agents: map[string]protocol.Agent{
-			"team-lead": {Name: "team-lead", Kind: "claude", Status: "idle", PaneID: "own"},
+			"team-lead": {Name: fixtureSeen("team-lead"), Kind: "claude", Status: "idle", PaneID: "own"},
 		},
 		gone:    map[string]bool{},
 		process: map[string][2]int{"own": {4242, 900}},
@@ -1077,8 +1077,8 @@ func TestRefreshRefusesItsOwnPane(t *testing.T) {
 func TestRefreshAllRefusesWhenSelfIsIncluded(t *testing.T) {
 	port := &fakePort{
 		agents: map[string]protocol.Agent{
-			"team-lead":   {Name: "team-lead", Kind: "claude", Status: "idle", PaneID: "p1"},
-			"team-worker": {Name: "team-worker", Kind: "claude", Status: "idle", PaneID: "own"},
+			"team-lead":   {Name: fixtureSeen("team-lead"), Kind: "claude", Status: "idle", PaneID: "p1"},
+			"team-worker": {Name: fixtureSeen("team-worker"), Kind: "claude", Status: "idle", PaneID: "own"},
 		},
 		gone: map[string]bool{},
 	}
@@ -1103,7 +1103,7 @@ func TestRefreshAllRefusesWhenSelfIsIncluded(t *testing.T) {
 func TestRefreshDryShowsTheSameRefusal(t *testing.T) {
 	port := &fakePort{
 		agents: map[string]protocol.Agent{
-			"team-lead": {Name: "team-lead", Kind: "claude", Status: "idle", PaneID: "own"},
+			"team-lead": {Name: fixtureSeen("team-lead"), Kind: "claude", Status: "idle", PaneID: "own"},
 		},
 		gone:    map[string]bool{},
 		process: map[string][2]int{"own": {4242, 900}},
@@ -1128,7 +1128,7 @@ func TestRefreshDryShowsTheSameRefusal(t *testing.T) {
 func TestRefreshRechecksBeforeStopping(t *testing.T) {
 	port := &fakePort{
 		agents: map[string]protocol.Agent{
-			"team-lead": {Name: "team-lead", Kind: "claude", Status: "idle", PaneID: "p1"},
+			"team-lead": {Name: fixtureSeen("team-lead"), Kind: "claude", Status: "idle", PaneID: "p1"},
 		},
 		gone:    map[string]bool{},
 		process: map[string][2]int{"p1": {4242, 900}},
@@ -1166,16 +1166,16 @@ func TestRefreshRechecksBeforeStopping(t *testing.T) {
 func TestDownByNameClosesWhatTheTeamStarted(t *testing.T) {
 	port := &fakePort{
 		live: []protocol.Agent{
-			{Name: "qw2-m", Kind: "codex", Status: "blocked", PaneID: "p-m", TabID: "t-team"},
-			{Name: "qw2-w1", Kind: "codex", Status: "idle", PaneID: "p-w1", TabID: "t-w1"},
-			{Name: "qw-other", Kind: "claude", Status: "idle", PaneID: "p-other", TabID: "t-other"},
-			{Name: "notes-m", Kind: "claude", Status: "idle", PaneID: "p-notes", TabID: "t-notes"},
+			{Name: fixtureSeen("qw2-m"), Kind: "codex", Status: "blocked", PaneID: "p-m", TabID: "t-team"},
+			{Name: fixtureSeen("qw2-w1"), Kind: "codex", Status: "idle", PaneID: "p-w1", TabID: "t-w1"},
+			{Name: fixtureSeen("qw-other"), Kind: "claude", Status: "idle", PaneID: "p-other", TabID: "t-other"},
+			{Name: fixtureSeen("notes-m"), Kind: "claude", Status: "idle", PaneID: "p-notes", TabID: "t-notes"},
 		},
 		tabs: []protocol.Tab{
-			{ID: "t-team", Label: "qw2"},
-			{ID: "t-w1", Label: "worker:qw2/w1"},
-			{ID: "t-other", Label: "team:qw@qw"},
-			{ID: "t-notes", Label: "notes"},
+			{ID: "t-team", Label: fixtureSeen("qw2")},
+			{ID: "t-w1", Label: fixtureSeen("worker:qw2/w1")},
+			{ID: "t-other", Label: fixtureSeen("team:qw@qw")},
+			{ID: "t-notes", Label: fixtureSeen("notes")},
 		},
 	}
 	l, out := downLauncherFor(t, port, "qw2")
@@ -1204,8 +1204,8 @@ func TestDownByNameClosesWhatTheTeamStarted(t *testing.T) {
 // was found.
 func TestDownByNameHoldsTheOwnPaneBack(t *testing.T) {
 	port := &fakePort{live: []protocol.Agent{
-		{Name: "qw2-a", Kind: "codex", Status: "idle", PaneID: "p1"},
-		{Name: "qw2-b", Kind: "codex", Status: "idle", PaneID: "own"},
+		{Name: fixtureSeen("qw2-a"), Kind: "codex", Status: "idle", PaneID: "p1"},
+		{Name: fixtureSeen("qw2-b"), Kind: "codex", Status: "idle", PaneID: "own"},
 	}}
 	l, out := downLauncherFor(t, port, "qw2")
 	if _, err := l.DownByName([]string{"qw2-a", "qw2-b"}, "own", false); err != nil {
@@ -1223,7 +1223,7 @@ func TestDownByNameHoldsTheOwnPaneBack(t *testing.T) {
 // timeout is named whole — the agent, the wait, and the member a person refreshes
 // — rather than with an unfilled placeholder in the command to run (r-bac8).
 func TestWaitGoneSaysWhichMemberToRefresh(t *testing.T) {
-	agent := protocol.Agent{Name: "core-lead", Kind: "claude", Status: "idle", PaneID: "p1"}
+	agent := protocol.Agent{Name: fixtureSeen("core-lead"), Kind: "claude", Status: "idle", PaneID: "p1"}
 	port := &fakePort{
 		live:   []protocol.Agent{agent},
 		agents: map[string]protocol.Agent{"core-lead": agent},

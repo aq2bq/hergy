@@ -5,11 +5,12 @@ import (
 	"io"
 	"time"
 
+	domainname "github.com/aq2bq/hergy/internal/domain/name"
+
 	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/launcher"
 	"github.com/aq2bq/hergy/internal/launchlog"
-	"github.com/aq2bq/hergy/internal/protocol"
 	"github.com/aq2bq/hergy/internal/source"
 	"github.com/aq2bq/hergy/internal/team"
 	"github.com/aq2bq/hergy/internal/version"
@@ -37,7 +38,7 @@ func recordLaunch(stderr io.Writer, env team.Env, r *resolved, command string, m
 func recordReceivedLaunch(stderr io.Writer, env team.Env, r *resolved, command string, members []definition.Start, l *launcher.Launcher, workspace launchlog.Workspace) {
 	var received []definition.Start
 	for _, member := range members {
-		if l.Received(member.Name) {
+		if l.Received(member.Name.String()) {
 			received = append(received, member)
 		}
 	}
@@ -72,13 +73,13 @@ func recordHire(stderr io.Writer, env team.Env, r *resolved, worker definition.S
 			Hergy:      version.Line(),
 			Project:    env.ProjectRoot,
 			Layer:      r.team.Definition.Layer,
-			Definition: r.team.Definition.Name,
+			Definition: r.team.Definition.Name.String(),
 			Team:       r.team.Name,
 			Hire: &launchlog.Hire{
-				Worker:  worker.Name,
-				From:    worker.From,
+				Worker:  worker.Name.String(),
+				From:    worker.From.String(),
 				Purpose: worker.Purpose,
-				Tab:     protocol.WorkerTabPrefix(r.team.Name) + worker.Short,
+				Tab:     domainname.Observe(r.team.Name).WorkerLabel(domainname.Observe(worker.Short.String())).String(),
 			},
 		})
 	}
@@ -100,7 +101,7 @@ func writeLaunch(log launchlog.Log, env team.Env, r *resolved, command string, m
 		Hergy:       version.Line(),
 		Project:     env.ProjectRoot,
 		Layer:       r.team.Definition.Layer,
-		Definition:  r.team.Definition.Name,
+		Definition:  r.team.Definition.Name.String(),
 		Team:        r.team.Name,
 		TeamYAML:    r.team.Definition.TeamYAML,
 		Workspace:   workspace.Label,
@@ -139,8 +140,8 @@ func writeLaunch(log launchlog.Log, env team.Env, r *resolved, command string, m
 		}
 		rec.Members = append(rec.Members, launchlog.Member{
 			Docs:   paths,
-			Name:   member.Name,
-			Short:  member.Short,
+			Name:   member.Name.String(),
+			Short:  member.Short.String(),
 			Prompt: hash,
 			Start:  launchlog.StartFingerprint(member.Kind, member.Args),
 			Env:    launchlog.EnvFingerprint(member.Env),

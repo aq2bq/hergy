@@ -900,7 +900,7 @@ func TestSharedAgreementIsNotReadAndStops(t *testing.T) {
 			}
 			for _, start := range r.starts {
 				if sharedID.MatchString(start.Prompt) || strings.Contains(start.Prompt, "全員が読む") {
-					t.Errorf("%s's prompt carries the shared agreement:\n%s", start.Name, start.Prompt)
+					t.Errorf("%s's prompt carries the shared agreement:\n%s", start.Name.String(), start.Prompt)
 				}
 			}
 

@@ -4,6 +4,8 @@ import (
 	"path/filepath"
 	"time"
 
+	domainname "github.com/aq2bq/hergy/internal/domain/name"
+
 	"github.com/aq2bq/hergy/internal/activity"
 	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/definition"
@@ -138,20 +140,20 @@ func (a *activityRead) planTeam(one *deliveryPlan, running runningTeam, judged a
 	}
 	for i := range running.Built.starts {
 		start := running.Built.starts[i]
-		node, live := byHerdr[start.Name]
+		node, live := byHerdr[start.Name.String()]
 		if !live {
 			// The definition has the member and no agent of the team is live
 			// for it: hergy starts it (d-36ef).
-			one.members[start.Name] = plannedMember{
+			one.members[start.Name.String()] = plannedMember{
 				team: running, start: start, state: "absent", changed: true, how: web.ApplyStart,
 			}
 			row.Members = append(row.Members, web.ApplyMember{
-				Name: start.Name, Short: start.Short, Role: start.Role,
+				Name: start.Name.String(), Short: start.Short.String(), Role: start.Role,
 				State: "absent", How: web.ApplyStart, Changes: []deliver.Change{}, CanApply: true,
 			})
 			continue
 		}
-		record, hasRecord := recorded[start.Name]
+		record, hasRecord := recorded[start.Name.String()]
 		if hasRecord && !fingerprinted(record, start) {
 			oldRecord = true
 		}
@@ -162,9 +164,9 @@ func (a *activityRead) planTeam(one *deliveryPlan, running runningTeam, judged a
 			changed: drift.any(), changes: drift.changes, how: drift.how(state),
 		}
 		if !planned.canApply() {
-			planned.whyNot = drift.whyNot(start.Short)
+			planned.whyNot = drift.whyNot(start.Short.String())
 		}
-		one.members[start.Name] = planned
+		one.members[start.Name.String()] = planned
 		for _, change := range drift.changes {
 			if change.Kind == "worker_profile" {
 				addNote(i18n.Tf("apply.note_worker", change.Worker))
@@ -174,12 +176,12 @@ func (a *activityRead) planTeam(one *deliveryPlan, running runningTeam, judged a
 			continue
 		}
 		applied := web.ApplyMember{
-			Name: start.Name, Short: start.Short, Role: start.Role,
+			Name: start.Name.String(), Short: start.Short.String(), Role: start.Role,
 			State: state, How: drift.how(state), Changes: drift.changes,
 			CanApply: drift.canApply(state), ConversationLost: drift.how(state) == web.ApplyRestart,
 		}
 		if !applied.CanApply {
-			applied.WhyNot = drift.whyNot(start.Short)
+			applied.WhyNot = drift.whyNot(start.Short.String())
 		}
 		row.Members = append(row.Members, applied)
 	}
@@ -202,7 +204,7 @@ func (a *activityRead) planTeam(one *deliveryPlan, running runningTeam, judged a
 		if _, was := recorded[hired.Herdr]; !was {
 			continue
 		}
-		short := shortMember(hired.Herdr, running.Name)
+		short := domainname.ShortIn(domainname.Observe(hired.Herdr), domainname.Observe(running.Name)).String()
 		why := i18n.Tf("apply.refused_removed", short)
 		one.members[hired.Herdr] = plannedMember{
 			team: running, state: hired.State.Slug(), changed: true,
@@ -334,7 +336,7 @@ func (a *activityRead) memberDrift(cat *catalog.Catalog, log launchlog.Log, logE
 // then by short name.
 func recordedMemberOf(record launchlog.Record, start definition.Start) (launchlog.Member, bool) {
 	for i := range record.Members {
-		if record.Members[i].Name == start.Name || record.Members[i].Short == start.Short {
+		if record.Members[i].Name == start.Name.String() || record.Members[i].Short == start.Short.String() {
 			return record.Members[i], true
 		}
 	}
@@ -364,7 +366,7 @@ func (a *activityRead) memberChanges(cat *catalog.Catalog, log launchlog.Log, lo
 	if err != nil {
 		return false, nil
 	}
-	node, ok := running.Built.team.Definition.Graph.Member(start.Short)
+	node, ok := running.Built.team.Definition.Graph.Member(start.Short.String())
 	if !ok {
 		return false, nil
 	}
@@ -390,7 +392,7 @@ func (a *activityRead) memberChanges(cat *catalog.Catalog, log launchlog.Log, lo
 	current := start
 	current.Prompt, current.Segments = built.Text, built.Segments
 	current.RoleDoc, current.HasRole, current.Read = built.Role, built.HasRole, built.Read
-	changes := deliver.Compare(record.Lang, string(old), oldDocs(log, record, recorded, string(old)), current, currentDocs(cat, built))
+	changes := deliver.Compare(running.Built.modelTeamName(), record.Lang, string(old), oldDocs(log, record, recorded, string(old)), current, currentDocs(cat, built))
 	if len(changes) == 0 {
 		changes = []deliver.Change{{Kind: "prompt", Text: i18n.T("delivery.prompt_changed")}}
 	}

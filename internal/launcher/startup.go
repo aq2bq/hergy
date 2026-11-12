@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"time"
 
+	domainname "github.com/aq2bq/hergy/internal/domain/name"
+
 	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/herdr"
 	"github.com/aq2bq/hergy/internal/i18n"
@@ -37,7 +39,7 @@ type StartupNext struct {
 func NextUp(team, up string) StartupNext {
 	return StartupNext{
 		Line: func(member *definition.Start, tab string) string {
-			return i18n.Tf("launcher.startup_next_up", tab, member.Name, team, up)
+			return i18n.Tf("launcher.startup_next_up", tab, member.Name.String(), team, up)
 		},
 		Command: func(*definition.Start) string {
 			return i18n.Tf("launcher.startup_command_up", team, up)
@@ -51,7 +53,7 @@ func NextUp(team, up string) StartupNext {
 func NextHire() StartupNext {
 	return StartupNext{
 		Line: func(member *definition.Start, tab string) string {
-			return i18n.Tf("launcher.startup_next_hire", tab, member.Name)
+			return i18n.Tf("launcher.startup_next_hire", tab, member.Name.String())
 		},
 		Command: func(*definition.Start) string {
 			return i18n.T("launcher.startup_command_hire")
@@ -63,10 +65,10 @@ func NextHire() StartupNext {
 func NextRefresh() StartupNext {
 	return StartupNext{
 		Line: func(member *definition.Start, tab string) string {
-			return i18n.Tf("launcher.startup_next_refresh", tab, member.Name)
+			return i18n.Tf("launcher.startup_next_refresh", tab, member.Name.String())
 		},
 		Command: func(member *definition.Start) string {
-			return i18n.Tf("launcher.startup_command_refresh", member.Name)
+			return i18n.Tf("launcher.startup_command_refresh", member.Name.String())
 		},
 	}
 }
@@ -93,9 +95,9 @@ const startupSettleFor = time.Second
 // tabLabel is the label hergy gave the member's tab; a refresh passes none,
 // because hergy makes no tab for it, and herdr's own label is read instead.
 func (l *Launcher) awaitStartup(member *definition.Start, next StartupNext, tabLabel string) error {
-	name := member.Name
+	name := member.Name.String()
 	command := next.Command(member)
-	agent, err := l.herdr.Agent(name)
+	agent, err := l.herdr.Agent(member.Name)
 	if err != nil {
 		if protocol.ErrorCode(err) == herdr.AgentNotFound {
 			return l.endedStartup(member, command)
@@ -133,7 +135,7 @@ func (l *Launcher) awaitStartup(member *definition.Start, next StartupNext, tabL
 			// It stopped asking. Read it again once it has had time to settle: a
 			// member that is really ready is still there, and one that ended
 			// with the question is gone.
-			ready, settleErr := l.settleStartup(name)
+			ready, settleErr := l.settleStartup(member.Name)
 			switch {
 			case settleErr != nil && protocol.ErrorCode(settleErr) == herdr.AgentNotFound:
 				return l.endedStartup(member, command)
@@ -145,12 +147,12 @@ func (l *Launcher) awaitStartup(member *definition.Start, next StartupNext, tabL
 			}
 			// A second question in a row (the trust of a folder, then the import
 			// of a parent's CLAUDE.md): wait for its answer.
-			agent, err = l.herdr.Agent(name)
+			agent, err = l.herdr.Agent(member.Name)
 		default:
 			if err := l.sleeping(startupWatchStep); err != nil {
 				return err
 			}
-			agent, err = l.herdr.Agent(name)
+			agent, err = l.herdr.Agent(member.Name)
 		}
 	}
 }
@@ -158,7 +160,7 @@ func (l *Launcher) awaitStartup(member *definition.Start, next StartupNext, tabL
 // settleStartup reads a member once more after it stopped asking, and answers
 // whether it takes input. A member that asks again answers false, and a member
 // herdr no longer knows answers agent_not_found: the caller reads that as an end.
-func (l *Launcher) settleStartup(name string) (bool, error) {
+func (l *Launcher) settleStartup(name domainname.HerdrName) (bool, error) {
 	if err := l.sleeping(startupSettleFor); err != nil {
 		return false, err
 	}
@@ -177,7 +179,7 @@ func (l *Launcher) labelOfTab(id string) (string, error) {
 	}
 	for _, tab := range tabs {
 		if tab.ID == id {
-			return tab.Label, nil
+			return tab.Label.String(), nil
 		}
 	}
 	return "", nil
@@ -197,9 +199,9 @@ func tabNamed(label, id string) string {
 // wait is over, so the report says where the start stopped rather than that the
 // member still waits, and the error names the way on.
 func (l *Launcher) endedStartup(member *definition.Start, command string) error {
-	l.stage(i18n.Tf("progress.stage.starting", member.Name))
-	l.mark(member.Name, i18n.T("progress.mark.start_requested"))
-	return i18n.Errorf("error.startup_ended", member.Name, member.Kind, command)
+	l.stage(i18n.Tf("progress.stage.starting", member.Name.String()))
+	l.mark(member.Name.String(), i18n.T("progress.mark.start_requested"))
+	return i18n.Errorf("error.startup_ended", member.Name.String(), member.Kind, command)
 }
 
 // waitOn records the line an interrupt prints while hergy waits on a member's

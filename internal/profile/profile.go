@@ -22,11 +22,6 @@ import (
 	"github.com/aq2bq/hergy/internal/i18n"
 )
 
-// NamePattern remains for composed names and unchecked drafts until their raw
-// input is separated from validated names. Profile and member name checks use
-// domain/name; this compatibility boundary must keep its existing acceptance.
-var NamePattern = regexp.MustCompile(`^[a-z][a-z0-9_-]{0,31}$`)
-
 // kindPattern is the shape of a profile's kind: the agent hergy starts.
 var kindPattern = regexp.MustCompile(`^[a-z][a-z0-9_-]*$`)
 

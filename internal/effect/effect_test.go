@@ -169,9 +169,9 @@ func TestOfTurnRemovalMovesOnlyTheMemberThatHandsIt(t *testing.T) {
 	run := l.run(t)
 	for i := range before.Graph.Members {
 		bm := before.Graph.Members[i]
-		am, ok := after.Graph.Member(bm.Name)
+		am, ok := after.Graph.Member(bm.Name.String())
 		if !ok {
-			t.Fatalf("%s is not in the after definition", bm.Name)
+			t.Fatalf("%s is not in the after definition", bm.Name.String())
 		}
 		bt, err := prompt.Member(before, &bm, run)
 		if err != nil {
@@ -181,11 +181,11 @@ func TestOfTurnRemovalMovesOnlyTheMemberThatHandsIt(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if bm.Name == "lead" && bt.Text == at.Text {
+		if bm.Name.String() == "lead" && bt.Text == at.Text {
 			t.Errorf("lead's prompt did not move")
 		}
-		if bm.Name != "lead" && bt.Text != at.Text {
-			t.Errorf("%s's prompt moved, but no Change says so", bm.Name)
+		if bm.Name.String() != "lead" && bt.Text != at.Text {
+			t.Errorf("%s's prompt moved, but no Change says so", bm.Name.String())
 		}
 	}
 	leadTurns := prompt.TurnsNote("", prompt.TurnsOf(after, "lead", "demo"))
@@ -630,7 +630,7 @@ func launchedHashes(t *testing.T, l layer, def *definition.Definition) map[strin
 		if err != nil {
 			t.Fatal(err)
 		}
-		out[member.Name] = source.Hash(built.Text)
+		out[member.Name.String()] = source.Hash(built.Text)
 	}
 	return out
 }

@@ -15,7 +15,6 @@ func TestPlainNames(t *testing.T) {
 		"new team":       func(s string) error { _, e := name.NewTeamName(s); return e },
 		"team":           func(s string) error { _, e := name.ParseTeamName(s); return e },
 		"new definition": func(s string) error { _, e := name.NewDefinitionName(s); return e },
-		"definition":     func(s string) error { _, e := name.ParseDefinitionName(s); return e },
 		"member":         func(s string) error { _, e := name.ParseMemberName(s); return e },
 		"worker":         func(s string) error { _, e := name.ParseWorkerName(s); return e },
 		"role":           func(s string) error { _, e := name.ParseRoleName(s); return e },
@@ -69,18 +68,18 @@ func TestHerdrCompositionAndResolution(t *testing.T) {
 	if err != nil || w.String() != "a-b-build" {
 		t.Fatalf("worker: %v, %v", w, err)
 	}
-	watcher, err := ab.Watcher()
-	if err != nil || watcher.String() != "a-b-turns" {
-		t.Fatalf("watcher: %v, %v", watcher, err)
+	watcher := ab.Watcher()
+	if watcher.String() != "a-b-turns" {
+		t.Fatal(watcher)
 	}
-	for _, teams := range [][]name.TeamName{{a, ab}, {ab, a}} {
-		team, short, ok := name.ResolveHerdr(h.String(), teams)
-		if !ok || team != ab || short != "c-d" {
+	for _, teams := range [][]name.Seen{{name.Observe(a.String()), name.Observe(ab.String())}, {name.Observe(ab.String()), name.Observe(a.String())}} {
+		team, short, ok := name.Resolve(name.Observe(h.String()), teams)
+		if !ok || team.String() != ab.String() || short.String() != "c-d" {
 			t.Errorf("resolved: %v %q %v", team, short, ok)
 		}
 	}
 	for _, value := range []string{"a", "other-lead", "A-lead"} {
-		if _, _, ok := name.ResolveHerdr(value, []name.TeamName{a, ab}); ok {
+		if _, _, ok := name.Resolve(name.Observe(value), []name.Seen{name.Observe(a.String()), name.Observe(ab.String())}); ok {
 			t.Errorf("resolved %q", value)
 		}
 	}
@@ -163,20 +162,57 @@ func TestSavedStrings(t *testing.T) {
 	}
 }
 
-func TestResolveHerdrKeepsUnmatchedObservation(t *testing.T) {
+func TestResolveKeepsUnmatchedObservation(t *testing.T) {
 	team, _ := name.ParseTeamName("demo")
-	for _, raw := range []string{"other-lead", "human", ""} {
-		owner, short, ok := name.ResolveHerdr(raw, []name.TeamName{team})
-		if ok || owner.String() != "" || short != raw {
+	for _, raw := range []string{"other-lead", "human", "", "demo-"} {
+		owner, short, ok := name.Resolve(name.Observe(raw), []name.Seen{name.Observe(team.String())})
+		if ok || owner.String() != "" || short.String() != raw {
 			t.Errorf("%q: %v %q %v", raw, owner, short, ok)
 		}
 	}
 	// Observed labels retain the old permissive reading; validation happens when
 	// assigning names, not when deciding which team's existing pane to display.
-	for _, raw := range []string{"demo-", "demo-1", "demo-" + strings.Repeat("a", 32)} {
-		owner, short, ok := name.ResolveHerdr(raw, []name.TeamName{team})
-		if !ok || owner != team || short != strings.TrimPrefix(raw, "demo-") {
+	for _, raw := range []string{"demo-1", "demo-" + strings.Repeat("a", 32)} {
+		owner, short, ok := name.Resolve(name.Observe(raw), []name.Seen{name.Observe(team.String())})
+		if !ok || owner.String() != team.String() || short.String() != strings.TrimPrefix(raw, "demo-") {
 			t.Errorf("%q: %v %q %v", raw, owner, short, ok)
 		}
+	}
+}
+
+func TestExistingDefinitionNamesKeepDirectorySpelling(t *testing.T) {
+	for _, raw := range []string{"Upper", strings.Repeat("a", 33), ""} {
+		n, err := name.ParseDefinitionName(raw)
+		if err != nil || n.String() != raw {
+			t.Fatalf("%q: %v %v", raw, n, err)
+		}
+	}
+}
+
+func TestObservedNamesKeepLegacyTargets(t *testing.T) {
+	for _, raw := range []string{"Upper-worker", "legacy-1", "a-" + strings.Repeat("b", 40)} {
+		var target name.Target = name.Observe(raw)
+		if target.String() != raw {
+			t.Fatal(target)
+		}
+	}
+	for _, raw := range []string{"worker:Upper/1", "worker:team/a/b"} {
+		observed := name.Observe(raw)
+		team, short, ok := observed.WorkerTab()
+		if !ok || team.WorkerLabel(short) != observed {
+			t.Fatalf("lost legacy label %q", raw)
+		}
+	}
+	team := name.TeamFromObservation(name.Observe("Upper"))
+	if _, ok := team.Model(); ok || team.Observation().String() != "Upper" {
+		t.Fatal(team)
+	}
+	checked := name.TeamFromObservation(name.Observe("demo"))
+	if model, ok := checked.Model(); !ok || model.String() != "demo" {
+		t.Fatal(checked)
+	}
+	long, _ := name.ParseTeamName(strings.Repeat("a", 32))
+	if got := long.Watcher().String(); got != strings.Repeat("a", 32)+"-turns" {
+		t.Fatal(got)
 	}
 }

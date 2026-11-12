@@ -5,6 +5,8 @@ import (
 	"slices"
 	"strings"
 
+	domainname "github.com/aq2bq/hergy/internal/domain/name"
+
 	"github.com/aq2bq/hergy/internal/protocol"
 )
 
@@ -12,7 +14,7 @@ import (
 // what its tab is labelled), the team definition it was booted from, and the
 // project the launch record it was read from names, when the record names one.
 type Running struct {
-	Team       string
+	Team       domainname.TeamRef
 	Definition string
 	Project    string
 }
@@ -79,7 +81,7 @@ func RunningTeams(tabs []Tab, launches []Launch, agentsRead bool) []Running {
 			continue
 		}
 		seen[name] = true
-		out = append(out, Running{Team: name, Definition: definition, Project: project})
+		out = append(out, Running{Team: domainname.TeamFromObservation(domainname.Observe(name)), Definition: definition, Project: project})
 	}
 	return out
 }
@@ -132,7 +134,7 @@ func (l *launches) forTab(name string, tab Tab) (Launch, bool) {
 func namedPaneDirs(name string, tab Tab) []string {
 	var out []string
 	for i, pane := range tab.Panes {
-		if !protocol.NamedForTeam(name, pane) || i >= len(tab.PaneDirs) {
+		if !domainname.BelongsTo(domainname.Observe(pane), domainname.Observe(name)) || i >= len(tab.PaneDirs) {
 			continue
 		}
 		out = append(out, tab.PaneDirs[i])
@@ -192,12 +194,12 @@ func runningOf(tab Tab, known *launches, agentsRead bool) (name, definition, pro
 // the same label.
 func HoldsMember(tab Tab, name string) bool {
 	for _, agent := range tab.Agents {
-		if protocol.NamedForTeam(name, agent) {
+		if domainname.BelongsTo(domainname.Observe(agent), domainname.Observe(name)) {
 			return true
 		}
 	}
 	for _, pane := range tab.Panes {
-		if protocol.NamedForTeam(name, pane) {
+		if domainname.BelongsTo(domainname.Observe(pane), domainname.Observe(name)) {
 			return true
 		}
 	}
@@ -217,7 +219,7 @@ func MemberAgents(tabs []Tab, name string) []string {
 			continue
 		}
 		for _, agent := range tab.Agents {
-			if protocol.NamedForTeam(name, agent) {
+			if domainname.BelongsTo(domainname.Observe(agent), domainname.Observe(name)) {
 				out = append(out, agent)
 			}
 		}
@@ -234,7 +236,7 @@ func MemberPanes(tabs []Tab, name string) []string {
 			continue
 		}
 		for _, pane := range tab.Panes {
-			if protocol.NamedForTeam(name, pane) {
+			if domainname.BelongsTo(domainname.Observe(pane), domainname.Observe(name)) {
 				out = append(out, pane)
 			}
 		}
@@ -261,7 +263,7 @@ func splitTeamLabel(rest string) (teamName, definition string, ok bool) {
 // FindRunning returns the running team with this name.
 func FindRunning(running []Running, name string) (Running, bool) {
 	for _, team := range running {
-		if team.Team == name {
+		if team.Team.String() == name {
 			return team, true
 		}
 	}
@@ -272,7 +274,7 @@ func FindRunning(running []Running, name string) (Running, bool) {
 func RunningNames(running []Running) []string {
 	names := make([]string, len(running))
 	for i, team := range running {
-		names[i] = team.Team
+		names[i] = team.Team.String()
 	}
 	return names
 }

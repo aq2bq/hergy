@@ -52,7 +52,7 @@ func memberNodeID(name string) definition.NodeID {
 // builder -> lead, lead -> human.
 func starterGraph() *definition.Graph {
 	e := func(a, b definition.NodeID) definition.Edge { return definition.Edge{From: a, To: b} }
-	return definition.NewGraph([]definition.MemberNode{{Name: "lead"}, {Name: "builder"}}, nil, []definition.Edge{
+	return definition.NewGraph([]definition.MemberNode{{Name: fixtureMemberName("lead")}, {Name: fixtureMemberName("builder")}}, nil, []definition.Edge{
 		e(humanNodeID(), memberNodeID("lead")), e(memberNodeID("lead"), memberNodeID("builder")),
 		e(memberNodeID("builder"), memberNodeID("lead")), e(memberNodeID("lead"), humanNodeID()),
 	})
@@ -90,12 +90,12 @@ func newTurnsFixture(t *testing.T) *turnsFixture {
 
 func (f *turnsFixture) set(name, status string, seq int) {
 	for i := range f.agents {
-		if f.agents[i].Name == name {
+		if f.agents[i].Name.String() == name {
 			f.agents[i].Status, f.agents[i].Seq = status, seq
 			return
 		}
 	}
-	f.agents = append(f.agents, protocol.Agent{Name: name, Status: status, Seq: seq, TabID: "t1"})
+	f.agents = append(f.agents, protocol.Agent{Name: fixtureSeen(name), Status: status, Seq: seq, TabID: "t1"})
 }
 
 // tell records a hergy tell the way the command does, from a member or the

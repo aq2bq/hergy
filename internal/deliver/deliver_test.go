@@ -25,7 +25,7 @@ func TestCompareReadsRulesTurnsAndWorkers(t *testing.T) {
 	nowDoc := "- 新しい本文。\n- 足した本文。\n"
 	oldPrompt := "## Team agreements\n\n" + oldDoc + "\n## ターンを渡す相手\nあなたがターンを渡す相手:\n- demo-reviewer（ロール reviewer）\n"
 	current := definition.Start{
-		Name: "demo-lead", Short: "lead", Role: "lead", Prompt: "new prompt",
+		Name: fixtureMemberTarget("demo", "lead"), Short: fixtureShortName("lead"), Role: "lead", Prompt: "new prompt",
 		Segments: []definition.PromptSegment{
 			{Kind: "team_rules", Text: "\n" + nowDoc, Origin: definition.PromptOrigin{Path: "demo/agreement.md"}},
 			{Kind: "turns", Text: "\n## ターンを渡す相手\nあなたがターンを渡す相手:\n- demo-builder（ロール builder）\n"},
@@ -34,7 +34,7 @@ func TestCompareReadsRulesTurnsAndWorkers(t *testing.T) {
 		Turns:   []string{"demo-builder"},
 		Workers: []definition.WorkerNode{{From: "lead", Purpose: testPurpose("校正"), Profile: "cheap"}},
 	}
-	changes := Compare("ja", oldPrompt, map[string]string{
+	changes := Compare(fixtureDemoTeam(), "ja", oldPrompt, map[string]string{
 		".hergy/teams/demo/agreement.md": oldDoc,
 	}, current, []Doc{{
 		Path: ".hergy/teams/demo/agreement.md", Display: "demo/agreement.md", Text: nowDoc,
@@ -58,10 +58,10 @@ func TestCompareReadsRulesTurnsAndWorkers(t *testing.T) {
 
 func TestCompareIsEmptyForTheSamePrompt(t *testing.T) {
 	current := definition.Start{Prompt: "same"}
-	if changes := Compare("ja", "same", nil, current, nil); len(changes) != 0 {
+	if changes := Compare(fixtureDemoTeam(), "ja", "same", nil, current, nil); len(changes) != 0 {
 		t.Errorf("changes = %+v, want none", changes)
 	}
-	if changes := Compare("ja", "", nil, current, nil); len(changes) != 1 || changes[0].Kind != "no_record" {
+	if changes := Compare(fixtureDemoTeam(), "ja", "", nil, current, nil); len(changes) != 1 || changes[0].Kind != "no_record" {
 		t.Errorf("no record = %+v, want the no_record change", changes)
 	}
 }
@@ -95,7 +95,7 @@ func TestCompareReadsOnlyTheTurnItemsOfTheOldNote(t *testing.T) {
 		"- 人間（ターンを渡したら、止まって人の答えを待つ）\n" +
 		"- lead: demo-lead\n- builder: demo-builder（あなた）\n"
 	current := definition.Start{
-		Name: "demo-builder", Short: "builder", Prompt: "new prompt",
+		Name: fixtureMemberTarget("demo", "builder"), Short: fixtureShortName("builder"), Prompt: "new prompt",
 		Segments: []definition.PromptSegment{{
 			Kind: "turns",
 			Text: "\n## ターンを渡す相手\nあなたがターンを渡す相手:\n- demo-checker（ロール builder）\n" +
@@ -103,7 +103,7 @@ func TestCompareReadsOnlyTheTurnItemsOfTheOldNote(t *testing.T) {
 		}},
 		Turns: []string{"demo-checker", "human"},
 	}
-	changes := Compare("ja", oldPrompt, nil, current, nil)
+	changes := Compare(fixtureDemoTeam(), "ja", oldPrompt, nil, current, nil)
 	var turns []string
 	for _, change := range changes {
 		if change.Kind == "turn" {
@@ -149,7 +149,7 @@ func TestProseChangesIncludeEmptyDeletedAndLegacyDocuments(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := Compare("ja", "previous prompt", tc.old, definition.Start{Prompt: "next prompt"}, tc.docs)
+			got := Compare(fixtureDemoTeam(), "ja", "previous prompt", tc.old, definition.Start{Prompt: "next prompt"}, tc.docs)
 			if len(got) != 1 || got[0].Kind != "document" {
 				t.Fatalf("changes: %+v", got)
 			}

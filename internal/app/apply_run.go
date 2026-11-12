@@ -8,6 +8,8 @@ import (
 	"os"
 	"strings"
 
+	domainname "github.com/aq2bq/hergy/internal/domain/name"
+
 	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/i18n"
@@ -126,7 +128,7 @@ func applyLaunch(selected []plannedMember) web.HQLaunch {
 func shortsOfStarts(members []plannedMember) []string {
 	out := make([]string, 0, len(members))
 	for _, member := range members {
-		out = append(out, member.start.Short)
+		out = append(out, member.start.Short.String())
 	}
 	return out
 }
@@ -145,7 +147,7 @@ func (h *hqRead) runApply(ctx context.Context, op *launchOp, selected []plannedM
 		}
 		cat := env.Catalog(source.Disk{})
 		r, err := buildRunningIn(cat, env.ProjectRoot,
-			team.Running{Team: group[0].team.Name, Definition: group[0].team.Definition}, group[0].team.Place)
+			team.Running{Team: domainname.TeamFromObservation(domainname.Observe(group[0].team.Name)), Definition: group[0].team.Definition}, group[0].team.Place)
 		if err != nil {
 			h.finish(op, "failed", err.Error())
 			return
@@ -218,7 +220,7 @@ func (h *hqRead) applyGroup(ctx context.Context, op *launchOp, env team.Env, cat
 	all := make([]definition.Start, 0, len(group))
 	for _, member := range group {
 		all = append(all, member.start)
-		if !l.Received(member.start.Name) {
+		if !l.Received(member.start.Name.String()) {
 			continue
 		}
 		h.stepApplied(op, member)
@@ -237,7 +239,7 @@ func (h *hqRead) stepApplied(op *launchOp, member plannedMember) {
 		key = "apply.progress_restart"
 	}
 	op.mu.Lock()
-	op.stepLocked("member", i18n.Tf(key, member.start.Short))
+	op.stepLocked("member", i18n.Tf(key, member.start.Short.String()))
 	op.mu.Unlock()
 }
 

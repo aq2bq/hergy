@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	domainname "github.com/aq2bq/hergy/internal/domain/name"
+
 	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/protocol"
 )
@@ -54,7 +56,7 @@ func TestStartRetriesWhileThePaneIsBusy(t *testing.T) {
 		}
 		return map[string]any{}, nil
 	}
-	member := &definition.Start{Name: "worker", Kind: "claude", Args: []string{"--flag"}}
+	member := &definition.Start{Name: fixtureHerdrName("worker"), Kind: "claude", Args: []string{"--flag"}}
 
 	if err := New(port).Start(member, "p1", 30000); err != nil {
 		t.Fatalf("Start: %v", err)
@@ -74,7 +76,7 @@ func TestStartGivesUpAfterTheTimeout(t *testing.T) {
 	port := &fakePort{reply: alwaysReply(herdrFailure("agent_pane_busy"))}
 
 	start := time.Now()
-	err := New(port).Start(&definition.Start{Name: "worker", Kind: "claude"}, "p1", timeoutMS)
+	err := New(port).Start(&definition.Start{Name: fixtureHerdrName("worker"), Kind: "claude"}, "p1", timeoutMS)
 	elapsed := time.Since(start)
 
 	if err == nil {
@@ -97,7 +99,7 @@ func TestStartGivesUpAfterTheTimeout(t *testing.T) {
 func TestStartDoesNotRetryAnotherError(t *testing.T) {
 	port := &fakePort{reply: alwaysReply(herdrFailure("agent_kind_unknown"))}
 
-	err := New(port).Start(&definition.Start{Name: "worker", Kind: "claude"}, "p1", 30000)
+	err := New(port).Start(&definition.Start{Name: fixtureHerdrName("worker"), Kind: "claude"}, "p1", 30000)
 
 	if err == nil {
 		t.Fatal("Start returned no error")
@@ -123,7 +125,7 @@ func TestFindPaneReadsTheLabel(t *testing.T) {
 		}}, nil
 	}}
 
-	got, err := New(port).FindPane("team-lead")
+	got, err := New(port).FindPane(domainname.Observe("team-lead"))
 	if err != nil {
 		t.Fatalf("FindPane: %v", err)
 	}
@@ -131,7 +133,7 @@ func TestFindPaneReadsTheLabel(t *testing.T) {
 		t.Fatalf("FindPane = %q, want p1", got)
 	}
 
-	got, err = New(port).FindPane("nobody")
+	got, err = New(port).FindPane(domainname.Observe("nobody"))
 	if err != nil {
 		t.Fatalf("FindPane(nobody): %v", err)
 	}
@@ -172,7 +174,7 @@ func TestPaneProcessInfoReadsTheGroupAndShell(t *testing.T) {
 func TestFocusSendsTheTarget(t *testing.T) {
 	port := &fakePort{}
 	port.reply = alwaysReply(nil)
-	if err := New(port).Focus("p-lead"); err != nil {
+	if err := New(port).Focus(domainname.Observe("p-lead")); err != nil {
 		t.Fatalf("Focus: %v", err)
 	}
 	if want := []string{"agent", "focus", "p-lead"}; !slices.Equal(port.calls[0], want) {
@@ -182,7 +184,7 @@ func TestFocusSendsTheTarget(t *testing.T) {
 	port.reply = func(int, []string) (map[string]any, error) {
 		return nil, herdrFailure("agent_not_found")
 	}
-	err := New(port).Focus("gone")
+	err := New(port).Focus(domainname.Observe("gone"))
 	if protocol.ErrorCode(err) != "agent_not_found" {
 		t.Fatalf("Focus error = %v, want agent_not_found", err)
 	}

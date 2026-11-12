@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"path/filepath"
 
+	domainname "github.com/aq2bq/hergy/internal/domain/name"
+
 	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/check"
 	"github.com/aq2bq/hergy/internal/definition"
@@ -239,13 +241,13 @@ func promptWorkerText(team string, def *definition.Definition, worker *apiWorker
 		return nil, err
 	}
 	built, err := prompt.Worker(prompt.WorkerInput{
-		Team: team, Lead: team + "-" + lead.Name, LeadRole: lead.Role,
-		Purpose: worker.Purpose, Name: team + "-" + worker.Name, Task: worker.Task,
+		Team: team, Lead: domainname.PreviewName(team, lead.Name.String()), LeadRole: lead.Role,
+		Purpose: worker.Purpose, Name: domainname.PreviewName(team, worker.Name), Task: worker.Task,
 	})
 	if err != nil {
 		return nil, err
 	}
-	return &promptText{Name: team + "-" + worker.Name, Text: built.Text, Segments: built.Segments}, nil
+	return &promptText{Name: domainname.PreviewName(team, worker.Name), Text: built.Text, Segments: built.Segments}, nil
 }
 
 // promptMemberTexts builds every member's text, or the one the caller named. A
@@ -258,15 +260,15 @@ func promptMemberTexts(team, project string, overlay *catalog.Catalog, def *defi
 	var out []promptText
 	for i := range def.Graph.Members {
 		node := &def.Graph.Members[i]
-		if member != "" && node.Name != member {
+		if member != "" && node.Name.String() != member {
 			continue
 		}
 		built, err := prompt.Member(def, node, run)
 		if err != nil {
-			failures[node.Name] = err
+			failures[node.Name.String()] = err
 			continue
 		}
-		out = append(out, promptText{Name: node.Name, Text: built.Text, Segments: built.Segments})
+		out = append(out, promptText{Name: node.Name.String(), Text: built.Text, Segments: built.Segments})
 	}
 	return out
 }

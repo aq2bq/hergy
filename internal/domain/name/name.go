@@ -93,7 +93,7 @@ func (n *TeamName) UnmarshalText(text []byte) error {
 	return nil
 }
 
-// DefinitionName is a validated definition name. Its zero value denotes no name.
+// DefinitionName identifies an existing definition directory. Its zero value denotes no name.
 type DefinitionName struct{ s string }
 
 // NewDefinitionName checks a newly assigned name (at most 25 characters).
@@ -104,11 +104,8 @@ func NewDefinitionName(s string) (DefinitionName, error) {
 	return DefinitionName{s: s}, nil
 }
 
-// ParseDefinitionName reads an existing name (at most 32 characters).
+// ParseDefinitionName preserves an existing directory name, without narrowing the reader's accepted names.
 func ParseDefinitionName(s string) (DefinitionName, error) {
-	if err := plain(s, 32, Definition); err != nil {
-		return DefinitionName{}, err
-	}
 	return DefinitionName{s: s}, nil
 }
 
@@ -339,10 +336,10 @@ func (n TeamName) Worker(worker WorkerName) (HerdrName, error) {
 }
 
 // Watcher constructs the name of the team's turn watcher.
-func (n TeamName) Watcher() (HerdrName, error) { return n.compose("turns") }
+func (n TeamName) Watcher() PaneName { return PaneName{s: targetSpelling(n.s, "turns")} }
 
 func (n TeamName) compose(short string) (HerdrName, error) {
-	s := n.s + "-" + short
+	s := targetSpelling(n.s, short)
 	if err := plain(s, 32, Herdr); err != nil {
 		return HerdrName{}, err
 	}
@@ -353,18 +350,15 @@ func (n TeamName) compose(short string) (HerdrName, error) {
 }
 
 // WorkerTab labels the separate tab of one hired worker.
-func (n TeamName) WorkerTab(worker WorkerName) string { return "worker:" + n.s + "/" + worker.s }
+func (n TeamName) WorkerTab(worker WorkerName) string { return workerLabel(n.s, worker.s) }
 
 // ParseWorkerTab reads a complete worker tab label, rather than a prefix.
 func ParseWorkerTab(label string) (TeamName, WorkerName, bool) {
-	rest, ok := strings.CutPrefix(label, "worker:")
+	teamSeen, workerSeen, ok := Observe(label).WorkerTab()
 	if !ok {
 		return TeamName{}, WorkerName{}, false
 	}
-	team, worker, ok := strings.Cut(rest, "/")
-	if !ok {
-		return TeamName{}, WorkerName{}, false
-	}
+	team, worker := teamSeen.String(), workerSeen.String()
 	t, err := ParseTeamName(team)
 	if err != nil {
 		return TeamName{}, WorkerName{}, false
@@ -374,22 +368,4 @@ func ParseWorkerTab(label string) (TeamName, WorkerName, bool) {
 		return TeamName{}, WorkerName{}, false
 	}
 	return t, w, true
-}
-
-// ResolveHerdr resolves an observed herdr name against the running teams. The
-// longest matching team wins: a-b-lead belongs to a-b rather than a. Both
-// components may contain dashes, so there is no context-free inverse. This reads
-// observations without constructing a validated HerdrName. If no team matches,
-// the second result keeps raw unchanged for callers that display observations.
-func ResolveHerdr(raw string, teams []TeamName) (TeamName, string, bool) {
-	var best TeamName
-	for _, team := range teams {
-		if team.s != "" && len(team.s) > len(best.s) && strings.HasPrefix(raw, team.s+"-") {
-			best = team
-		}
-	}
-	if best.s == "" {
-		return TeamName{}, raw, false
-	}
-	return best, raw[len(best.s)+1:], true
 }

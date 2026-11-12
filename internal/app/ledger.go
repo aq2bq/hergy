@@ -68,8 +68,8 @@ func (c *ledgerCheck) load() {
 // (--as). A record belongs to the definition it read, so the team.yaml path is
 // what a record is matched by, the way launchlog.Latest matches one (M1).
 func teamNames(def *definition.Definition) []string {
-	names := []string{def.Name}
-	seen := map[string]bool{def.Name: true}
+	names := []string{def.Name.String()}
+	seen := map[string]bool{def.Name.String(): true}
 	log, err := launchlog.Open()
 	if err != nil {
 		return names

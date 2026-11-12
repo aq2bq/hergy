@@ -551,7 +551,7 @@ func setClock(t *testing.T, at time.Time) {
 // command while several teams run does not name its team; its herdr name does
 // (r-103d).
 func TestTeamOfAgentNamesTheTeamAMemberBelongsTo(t *testing.T) {
-	running := []team.Running{{Team: "sig"}, {Team: "hergy-dev"}}
+	running := []team.Running{{Team: fixtureRunningTeam("sig")}, {Team: fixtureRunningTeam("hergy-dev")}}
 	if got := teamOfAgent(running, "hergy-dev-spec"); got != "hergy-dev" {
 		t.Errorf("hergy-dev-spec: %q, want hergy-dev", got)
 	}
@@ -560,5 +560,16 @@ func TestTeamOfAgentNamesTheTeamAMemberBelongsTo(t *testing.T) {
 	}
 	if got := teamOfAgent(running, "other-lead"); got != "" {
 		t.Errorf("other-lead: %q, want none", got)
+	}
+}
+
+func TestTeamOfAgentChoosesLongestNameRegardlessOfOrder(t *testing.T) {
+	for _, running := range [][]team.Running{
+		{{Team: fixtureRunningTeam("a")}, {Team: fixtureRunningTeam("a-b")}},
+		{{Team: fixtureRunningTeam("a-b")}, {Team: fixtureRunningTeam("a")}},
+	} {
+		if got := teamOfAgent(running, "a-b-c-d"); got != "a-b" {
+			t.Fatalf("got %q", got)
+		}
 	}
 }

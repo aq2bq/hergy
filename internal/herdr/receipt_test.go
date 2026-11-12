@@ -4,6 +4,8 @@ import (
 	"slices"
 	"testing"
 
+	domainname "github.com/aq2bq/hergy/internal/domain/name"
+
 	"github.com/aq2bq/hergy/internal/protocol"
 )
 
@@ -31,7 +33,7 @@ func TestConfirmPrompt(t *testing.T) {
 				}
 				return map[string]any{}, nil
 			}
-			err := New(port).ConfirmPrompt("recipient", "identical text")
+			err := New(port).ConfirmPrompt(domainname.Observe("recipient"), "identical text")
 			if protocol.ErrorCode(err) != tc.failure {
 				t.Fatalf("last answer=%v, want %s", err, tc.failure)
 			}

@@ -20,6 +20,8 @@ import (
 	"strings"
 	"testing"
 
+	domainname "github.com/aq2bq/hergy/internal/domain/name"
+
 	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/i18n"
@@ -143,8 +145,8 @@ func TestReadHandsBackADefinitionWhoseTurnsCannotHold(t *testing.T) {
 	if def == nil || def.Graph == nil {
 		t.Fatalf("the definition came back as %v, want it with its graph, for the parts a change moves", def)
 	}
-	if def.Name != "t" {
-		t.Errorf("the definition came back named %q, want t", def.Name)
+	if def.Name.String() != "t" {
+		t.Errorf("the definition came back named %q, want t", def.Name.String())
 	}
 	b := definition.NodeID{Kind: definition.KindMember, Name: "b"}
 	if _, ok := def.Graph.Member("b"); !ok {
@@ -185,9 +187,9 @@ func startsOf(def *definition.Definition, runName string, l layer, profiles map[
 	out := make([]definition.Start, 0, len(def.Graph.Members))
 	for i := range def.Graph.Members {
 		node := &def.Graph.Members[i]
-		herdr := runName + "-" + node.Name
-		if !profile.NamePattern.MatchString(herdr) {
-			return nil, i18n.Errorf("error.herdr_name_pattern", herdr)
+		herdr, nameErr := domainname.MemberForInput(runName, node.Name)
+		if nameErr != nil {
+			return nil, i18n.Errorf("error.herdr_name_pattern", domainname.PreviewName(runName, node.Name.String()))
 		}
 		text, err := prompt.Member(def, node, run)
 		if err != nil {
@@ -195,7 +197,7 @@ func startsOf(def *definition.Definition, runName string, l layer, profiles map[
 		}
 		value := profiles[node.Profile]
 		out = append(out, definition.Start{
-			Name: herdr, Short: node.Name, Role: node.Role, Profile: node.Profile,
+			Name: herdr, Short: node.Name.Short(), Role: node.Role, Profile: node.Profile,
 			Kind: value.Kind, Args: value.Args, Env: value.Env, Cwd: node.Cwd,
 			Prompt: text.Text, RoleDoc: text.Role, HasRole: text.HasRole, Read: text.Read,
 		})
@@ -691,11 +693,11 @@ func TestMemberNameGetsTheTeamPrefix(t *testing.T) {
 		t.Fatal(err)
 	}
 	member := got.starts[0]
-	if member.Short != "lead" {
-		t.Errorf("Short = %q, want %q", member.Short, "lead")
+	if member.Short.String() != "lead" {
+		t.Errorf("Short = %q, want %q", member.Short.String(), "lead")
 	}
-	if member.Name != "t-lead" {
-		t.Errorf("Name = %q, want %q", member.Name, "t-lead")
+	if member.Name.String() != "t-lead" {
+		t.Errorf("Name = %q, want %q", member.Name.String(), "t-lead")
 	}
 }
 
@@ -706,11 +708,11 @@ func TestMemberNameTakesTheRunName(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.starts[0].Name != "dev2-lead" {
-		t.Errorf("Name = %q, want %q", got.starts[0].Name, "dev2-lead")
+	if got.starts[0].Name.String() != "dev2-lead" {
+		t.Errorf("Name = %q, want %q", got.starts[0].Name.String(), "dev2-lead")
 	}
-	if got.starts[0].Short != "lead" {
-		t.Errorf("Short = %q, want %q", got.starts[0].Short, "lead")
+	if got.starts[0].Short.String() != "lead" {
+		t.Errorf("Short = %q, want %q", got.starts[0].Short.String(), "lead")
 	}
 }
 

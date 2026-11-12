@@ -14,6 +14,8 @@ import (
 	"syscall"
 	"time"
 
+	domainname "github.com/aq2bq/hergy/internal/domain/name"
+
 	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/herdr"
 	"github.com/aq2bq/hergy/internal/i18n"
@@ -233,7 +235,7 @@ const (
 
 // WatcherPane is the name of the pane a team's watcher runs in: "<team>-turns",
 // named for the team like a member's pane, so down closes it with the rest.
-func WatcherPane(team string) string { return team + "-turns" }
+func WatcherPane(team string) domainname.PaneName { return domainname.Observe(team).Watcher() }
 
 // startWatcher cuts the strip under the first member's pane, names it, and runs
 // the watcher there. The strip keeps the project's directory and the member's
@@ -352,30 +354,30 @@ func (l *Launcher) Reprompt(members []definition.Start) error {
 	}
 	// Resolve every selected name before sending anything; never prompt a working agent.
 	for _, member := range members {
-		l.stage(i18n.Tf("progress.stage.checking", member.Name))
+		l.stage(i18n.Tf("progress.stage.checking", member.Name.String()))
 		agent, err := l.herdr.Agent(member.Name)
 		if err != nil {
 			return err
 		}
-		if err := agent.Check(member.Name, member.Kind); err != nil {
+		if err := agent.Check(member.Name.String(), member.Kind); err != nil {
 			return err
 		}
 		if agent.PaneID == "" {
-			return i18n.Errorf("error.missing_pane_id", member.Name)
+			return i18n.Errorf("error.missing_pane_id", member.Name.String())
 		}
-		l.place(member.Name, agent.PaneID)
+		l.place(member.Name.String(), agent.PaneID)
 	}
 	var undelivered []error
 	var received []string
 	for i := range members {
 		member := &members[i]
-		pane := l.paneOf(member.Name)
-		l.stage(i18n.Tf("progress.stage.rechecking", member.Name))
-		agent, err := l.herdr.Agent(pane)
+		pane := l.paneOf(member.Name.String())
+		l.stage(i18n.Tf("progress.stage.rechecking", member.Name.String()))
+		agent, err := l.herdr.Agent(domainname.Observe(pane))
 		if err != nil {
 			return err
 		}
-		if err := agent.Check(member.Name, member.Kind); err != nil {
+		if err := agent.Check(member.Name.String(), member.Kind); err != nil {
 			return err
 		}
 		if err := l.submit(member, pane); err != nil {
@@ -385,7 +387,7 @@ func (l *Launcher) Reprompt(members []definition.Start) error {
 			undelivered = append(undelivered, err)
 			continue
 		}
-		received = append(received, member.Name)
+		received = append(received, member.Name.String())
 	}
 	if len(received) > 0 {
 		fmt.Fprintf(l.out, i18n.T("launcher.reprompt_submitted"), strings.Join(received, ", "))
@@ -433,7 +435,7 @@ func (l *Launcher) Refresh(members []definition.Start, selfPane string) error {
 				undelivered = append(undelivered, err)
 				continue
 			}
-			restarted = append(restarted, target.member.Name)
+			restarted = append(restarted, target.member.Name.String())
 			continue
 		}
 		if err := l.addMember(target.member, from, layout.Direction(depth), tab.label); err != nil {
@@ -444,9 +446,9 @@ func (l *Launcher) Refresh(members []definition.Start, selfPane string) error {
 		}
 		// The member added before is the pane the next one is split from, so a
 		// second new member does not halve the pane the team was using.
-		from, depth = l.paneOf(target.member.Name), depth+1
-		if l.Received(target.member.Name) {
-			added = append(added, target.member.Name)
+		from, depth = l.paneOf(target.member.Name.String()), depth+1
+		if l.Received(target.member.Name.String()) {
+			added = append(added, target.member.Name.String())
 		}
 	}
 	if len(restarted) > 0 {
@@ -488,7 +490,7 @@ func (l *Launcher) RefreshDry(members []definition.Start, selfPane string) (NewP
 	plan := NewPanes{}
 	for _, target := range targets {
 		if target.makesPane() {
-			plan.Members = append(plan.Members, target.member.Name)
+			plan.Members = append(plan.Members, target.member.Name.String())
 		}
 	}
 	return plan, nil
@@ -507,16 +509,16 @@ func (l *Launcher) Status(members []definition.Start) ([]status.Row, error) {
 	}
 	states := make(map[string]protocol.Agent, len(agents))
 	for _, agent := range agents {
-		if agent.Name == "" {
+		if agent.Name.String() == "" {
 			continue
 		}
-		if _, ok := states[agent.Name]; !ok {
-			states[agent.Name] = agent
+		if _, ok := states[agent.Name.String()]; !ok {
+			states[agent.Name.String()] = agent
 		}
 	}
 	rows := make([]status.Row, 0, len(members))
 	for _, member := range members {
-		agent, live := states[member.Name]
+		agent, live := states[member.Name.String()]
 		// A member with no live agent still carries the role it reads and the
 		// engine its settings name: the WebUI shows them while nothing runs.
 		kind := agent.Kind
@@ -524,7 +526,7 @@ func (l *Launcher) Status(members []definition.Start) ([]status.Row, error) {
 			kind = member.Kind
 		}
 		row := status.Row{
-			Name: member.Name, State: agent.Status, Live: live,
+			Name: member.Name.String(), State: agent.Status, Live: live,
 			Title: agent.Title, PaneID: agent.PaneID,
 			Role: member.Role, Kind: kind,
 		}
@@ -543,9 +545,9 @@ func (l *Launcher) Status(members []definition.Start) ([]status.Row, error) {
 		return nil, err
 	}
 	for _, worker := range workers {
-		agent := states[worker.Name]
+		agent := states[worker.Name.String()]
 		rows = append(rows, status.Row{
-			Name: worker.Name, State: agent.Status, Live: true, Worker: true,
+			Name: worker.Name.String(), State: agent.Status, Live: true, Worker: true,
 			Title: agent.Title, PaneID: agent.PaneID, Kind: agent.Kind,
 		})
 	}
@@ -561,7 +563,7 @@ func (l *Launcher) Focus(member *definition.Start) error {
 	if err := l.herdr.Focus(member.Name); err != nil {
 		return err
 	}
-	fmt.Fprintf(l.out, i18n.T("focus.focused"), member.Name)
+	fmt.Fprintf(l.out, i18n.T("focus.focused"), member.Name.String())
 	return nil
 }
 
@@ -577,12 +579,12 @@ func (l *Launcher) Nudge(member *definition.Start, text string) error {
 		return err
 	}
 	if agent.Status != "idle" && agent.Status != "done" {
-		return i18n.Errorf("error.nudge_busy", member.Name, agent.Status)
+		return i18n.Errorf("error.nudge_busy", member.Name.String(), agent.Status)
 	}
 	if err := l.herdr.Prompt(member.Name, text); err != nil {
 		return err
 	}
-	fmt.Fprintf(l.out, i18n.T("send.sent"), member.Name, text)
+	fmt.Fprintf(l.out, i18n.T("send.sent"), member.Name.String(), text)
 	return nil
 }
 
@@ -596,7 +598,7 @@ func (l *Launcher) Tell(member *definition.Start, text string) error {
 	if err := l.herdr.Prompt(member.Name, text); err != nil {
 		return err
 	}
-	fmt.Fprintf(l.out, i18n.T("send.sent"), member.Name, text)
+	fmt.Fprintf(l.out, i18n.T("send.sent"), member.Name.String(), text)
 	return nil
 }
 
@@ -622,26 +624,26 @@ func (l *Launcher) Stop(member *definition.Start, selfPane string) (stopped bool
 		return false, err
 	}
 	if selfPane != "" && agent.PaneID == selfPane {
-		return false, i18n.Errorf("error.stop_self", member.Name)
+		return false, i18n.Errorf("error.stop_self", member.Name.String())
 	}
 	if agent.Status != "working" {
-		fmt.Fprintf(l.out, i18n.T("stop.not_working"), member.Name, agent.Status)
+		fmt.Fprintf(l.out, i18n.T("stop.not_working"), member.Name.String(), agent.Status)
 		return false, nil
 	}
 	for range stopTries {
 		if err := l.herdr.SendKeys(member.Name, "esc"); err != nil {
 			return false, err
 		}
-		stopped, err := l.stoppedByNow(member.Name)
+		stopped, err := l.stoppedByNow(member.Name.String())
 		if err != nil {
 			return false, err
 		}
 		if stopped {
-			fmt.Fprintf(l.out, i18n.T("stop.stopped"), member.Name)
+			fmt.Fprintf(l.out, i18n.T("stop.stopped"), member.Name.String())
 			return true, nil
 		}
 	}
-	return false, StopNotStopped{Member: member.Name}
+	return false, StopNotStopped{Member: member.Name.String()}
 }
 
 // stopTries is how many escs Stop sends at most before it says the turn did not
@@ -673,7 +675,7 @@ func (e StopNotStopped) Error() string {
 func (l *Launcher) stoppedByNow(name string) (bool, error) {
 	deadline := time.Now().Add(stopWatchFor)
 	for {
-		agent, err := l.herdr.Agent(name)
+		agent, err := l.herdr.Agent(domainname.Observe(name))
 		switch {
 		case err == nil && agent.Status != "working":
 			return true, nil
@@ -723,7 +725,7 @@ func (l *Launcher) checkTargets(members []definition.Start, selfPane string) ([]
 	targets := make([]refreshTarget, 0, len(members))
 	for i := range members {
 		member := &members[i]
-		l.stage(i18n.Tf("progress.stage.checking", member.Name))
+		l.stage(i18n.Tf("progress.stage.checking", member.Name.String()))
 		agent, err := l.herdr.Agent(member.Name)
 		if err != nil {
 			if protocol.ErrorCode(err) != herdr.AgentNotFound {
@@ -738,16 +740,16 @@ func (l *Launcher) checkTargets(members []definition.Start, selfPane string) ([]
 		}
 		// No kind check here: the settings were just read again, and the live
 		// agent still runs the kind those settings had before the edit.
-		if err := agent.CheckLive(member.Name); err != nil {
+		if err := agent.CheckLive(member.Name.String()); err != nil {
 			return nil, teamTab{}, err
 		}
 		if agent.PaneID == "" {
-			return nil, teamTab{}, i18n.Errorf("error.missing_pane_id", member.Name)
+			return nil, teamTab{}, i18n.Errorf("error.missing_pane_id", member.Name.String())
 		}
 		if selfPane != "" && agent.PaneID == selfPane {
-			return nil, teamTab{}, i18n.Errorf("error.refresh_self", member.Name)
+			return nil, teamTab{}, i18n.Errorf("error.refresh_self", member.Name.String())
 		}
-		l.place(member.Name, agent.PaneID)
+		l.place(member.Name.String(), agent.PaneID)
 		targets = append(targets, refreshTarget{member: member, pane: agent.PaneID, live: true})
 	}
 	for _, target := range targets {
@@ -777,16 +779,16 @@ func (l *Launcher) deadTarget(member *definition.Start, selfPane string) (refres
 		return refreshTarget{member: member}, nil
 	}
 	if selfPane != "" && pane == selfPane {
-		return refreshTarget{}, i18n.Errorf("error.refresh_self", member.Name)
+		return refreshTarget{}, i18n.Errorf("error.refresh_self", member.Name.String())
 	}
 	info, err := l.herdr.PaneProcessInfo(pane)
 	if err != nil {
 		return refreshTarget{}, err
 	}
 	if info.Pgid != info.ShellPID {
-		return refreshTarget{}, i18n.Errorf("error.refresh_pane_busy", member.Name, pane)
+		return refreshTarget{}, i18n.Errorf("error.refresh_pane_busy", member.Name.String(), pane)
 	}
-	l.place(member.Name, pane)
+	l.place(member.Name.String(), pane)
 	return refreshTarget{member: member, pane: pane, live: false}, nil
 }
 
@@ -800,7 +802,7 @@ func (l *Launcher) teamTab(member *definition.Start) (teamTab, error) {
 		return teamTab{}, err
 	}
 	for _, tab := range tabs {
-		if !protocol.NamesTeam(tab.Label, l.team) {
+		if !protocol.NamesTeam(tab.Label.String(), l.team) {
 			continue
 		}
 		panes, err := l.herdr.Panes()
@@ -809,11 +811,11 @@ func (l *Launcher) teamTab(member *definition.Start) (teamTab, error) {
 		}
 		for _, pane := range panes {
 			if pane.TabID == tab.ID {
-				return teamTab{id: tab.ID, label: tab.Label, from: pane.ID}, nil
+				return teamTab{id: tab.ID, label: tab.Label.String(), from: pane.ID}, nil
 			}
 		}
 	}
-	return teamTab{}, i18n.Errorf("error.refresh_no_pane", member.Name)
+	return teamTab{}, i18n.Errorf("error.refresh_no_pane", member.Name.String())
 }
 
 // addMember makes one member's pane in the team's tab and starts the member in it,
@@ -825,7 +827,7 @@ func (l *Launcher) addMember(member *definition.Start, from, direction, tabLabel
 	if err := l.splitPane(from, member, direction); err != nil {
 		return err
 	}
-	if err := l.namePane(member.Name); err != nil {
+	if err := l.namePane(member.Name.String()); err != nil {
 		return err
 	}
 	return l.start(member, NextRefresh(), tabLabel)
@@ -840,15 +842,15 @@ func (l *Launcher) restart(target refreshTarget, next StartupNext) error {
 		// Check once more, right before stopping: time passed since the first
 		// check (with --all, the earlier members' restarts), and the member may
 		// have started working again. This is the same second look reprompt takes.
-		l.stage(i18n.Tf("progress.stage.rechecking", member.Name))
-		agent, err := l.herdr.Agent(pane)
+		l.stage(i18n.Tf("progress.stage.rechecking", member.Name.String()))
+		agent, err := l.herdr.Agent(domainname.Observe(pane))
 		if err != nil {
 			return err
 		}
-		if err := agent.CheckLive(member.Name); err != nil {
+		if err := agent.CheckLive(member.Name.String()); err != nil {
 			return err
 		}
-		l.stage(i18n.Tf("progress.stage.stopping", member.Name))
+		l.stage(i18n.Tf("progress.stage.stopping", member.Name.String()))
 		info, err := l.herdr.PaneProcessInfo(pane)
 		if err != nil {
 			return err
@@ -857,11 +859,13 @@ func (l *Launcher) restart(target refreshTarget, next StartupNext) error {
 		// itself; there is nothing to stop.
 		if info.Pgid != info.ShellPID {
 			if err := l.kill(info.Pgid); err != nil {
-				return i18n.Errorf("error.kill_failed", member.Name, err)
+				return i18n.Errorf("error.kill_failed", member.Name.String(), err)
 			}
 		}
-		l.stage(i18n.Tf("progress.stage.waiting", member.Name))
-		if err := l.waitGone([]string{member.Name}, func([]string) error { return i18n.Errorf("error.agent_not_gone", member.Name, l.timeout, member.Name) }); err != nil {
+		l.stage(i18n.Tf("progress.stage.waiting", member.Name.String()))
+		if err := l.waitGone([]string{member.Name.String()}, func([]string) error {
+			return i18n.Errorf("error.agent_not_gone", member.Name.String(), l.timeout, member.Name.String())
+		}); err != nil {
 			return err
 		}
 	}
@@ -878,7 +882,7 @@ func (l *Launcher) waitGone(names []string, timeoutError func([]string) error) e
 	for len(remaining) > 0 {
 		next := remaining[:0]
 		for _, name := range remaining {
-			_, err := l.herdr.Agent(name)
+			_, err := l.herdr.Agent(domainname.Observe(name))
 			if err != nil {
 				if protocol.ErrorCode(err) == herdr.AgentNotFound {
 					continue
@@ -914,17 +918,17 @@ func (l *Launcher) WithWaitClock(now func() time.Time, pause func(time.Duration)
 
 // Hire starts one worker in a tab of its own, so the team layout stays as booted.
 func (l *Launcher) Hire(worker *definition.Start, task string) error {
-	l.progress = progress.Start([]string{worker.Name})
+	l.progress = progress.Start([]string{worker.Name.String()})
 	workspace, err := l.preflight([]definition.Start{*worker})
 	if err != nil {
 		return err
 	}
-	label := workerTabLabel(l.team, worker.Short)
+	label := workerTabLabel(l.team, worker.Short.String())
 	pane, err := l.createTab(workspace, worker, label)
 	if err != nil {
 		return err
 	}
-	l.mark(worker.Name, i18n.T("progress.mark.pane_created"))
+	l.mark(worker.Name.String(), i18n.T("progress.mark.pane_created"))
 	if err := l.herdr.Rename(pane, worker.Name); err != nil {
 		return err
 	}
@@ -934,7 +938,7 @@ func (l *Launcher) Hire(worker *definition.Start, task string) error {
 		}
 		return err
 	}
-	fmt.Fprintf(l.out, i18n.T("launcher.hired"), worker.Name, l.tabID())
+	fmt.Fprintf(l.out, i18n.T("launcher.hired"), worker.Name.String(), l.tabID())
 	return nil
 }
 
@@ -992,20 +996,20 @@ func (l *Launcher) Down(members []definition.Start, selfPane string, dry bool) (
 	targets := make([]downTarget, 0, len(members)+len(workers)+len(named))
 	absent := 0
 	for _, member := range members {
-		pane, live := panes[member.Name]
+		pane, live := panes[member.Name.String()]
 		if pane == "" {
-			pane = byName[member.Name]
+			pane = byName[member.Name.String()]
 		}
 		if pane == "" {
 			absent++
 			if dry {
-				fmt.Fprint(l.out, i18n.Tf("down.would_skip", member.Name))
+				fmt.Fprint(l.out, i18n.Tf("down.would_skip", member.Name.String()))
 			} else {
-				fmt.Fprint(l.out, i18n.Tf("down.skipped", member.Name))
+				fmt.Fprint(l.out, i18n.Tf("down.skipped", member.Name.String()))
 			}
 			continue
 		}
-		targets = append(targets, downTarget{name: member.Name, pane: pane, stopped: !live})
+		targets = append(targets, downTarget{name: member.Name.String(), pane: pane, stopped: !live})
 	}
 	targets = append(targets, workers...)
 	targets = append(targets, named...)
@@ -1022,11 +1026,12 @@ func (l *Launcher) DownWorker(label, selfPane string, dry bool) (int, error) {
 			return 0, err
 		}
 	}
-	short, ok := strings.CutPrefix(label, protocol.WorkerTabPrefix(l.team))
+	shortSeen, ok := domainname.WorkerShort(domainname.Observe(label), domainname.Observe(l.team))
+	short := shortSeen.String()
 	if !ok || short == "" {
 		return 0, i18n.Errorf("error.worker_not_running", label)
 	}
-	name := l.team + "-" + short
+	name := domainname.Observe(l.team).WithShort(shortSeen).String()
 	tabs, err := l.herdr.Tabs()
 	if err != nil {
 		return 0, err
@@ -1094,9 +1099,9 @@ func (l *Launcher) workerPanesIn(tabID, name string) (targets []downTarget, othe
 	}
 	inPane := make(map[string]string, len(agents))
 	for _, agent := range agents {
-		if agent.Name != "" && agent.PaneID != "" {
+		if agent.Name.String() != "" && agent.PaneID != "" {
 			if _, ok := inPane[agent.PaneID]; !ok {
-				inPane[agent.PaneID] = agent.Name
+				inPane[agent.PaneID] = agent.Name.String()
 			}
 		}
 	}
@@ -1104,7 +1109,7 @@ func (l *Launcher) workerPanesIn(tabID, name string) (targets []downTarget, othe
 		if pane.TabID != tabID {
 			continue
 		}
-		owner := pane.Label
+		owner := pane.Label.String()
 		if owner == "" {
 			owner = inPane[pane.ID]
 		}
@@ -1145,7 +1150,7 @@ func (l *Launcher) closeWorkerTab(tab protocol.Tab, name string, others int, dry
 // tabOf finds one tab by the label it carries.
 func tabOf(tabs []protocol.Tab, label string) (protocol.Tab, bool) {
 	for _, tab := range tabs {
-		if tab.Label == label {
+		if tab.Label.String() == label {
 			return tab, true
 		}
 	}
@@ -1308,7 +1313,9 @@ func (l *Launcher) closeTargets(targets []downTarget, selfPane string, absent in
 }
 
 // workerTabLabel is the label of one worker's tab: "worker:<team>/<worker>".
-func workerTabLabel(name, short string) string { return protocol.WorkerTabPrefix(name) + short }
+func workerTabLabel(name, short string) string {
+	return domainname.Observe(name).WorkerLabel(domainname.Observe(short)).String()
+}
 
 // workerAgents lists the live agents in this team's own worker tabs: a tab whose
 // label starts with "worker:<team>/". It leaves another team's workers alone.
@@ -1319,15 +1326,15 @@ func (l *Launcher) workerAgents(agents []protocol.Agent) ([]protocol.Agent, erro
 	}
 	labels := make(map[string]string, len(tabs))
 	for _, tab := range tabs {
-		labels[tab.ID] = tab.Label
+		labels[tab.ID] = tab.Label.String()
 	}
-	prefix := protocol.WorkerTabPrefix(l.team)
+	workerTeam := domainname.Observe(l.team)
 	var out []protocol.Agent
 	for _, agent := range agents {
-		if agent.Name == "" || agent.PaneID == "" || agent.TabID == "" {
+		if agent.Name.String() == "" || agent.PaneID == "" || agent.TabID == "" {
 			continue
 		}
-		if !strings.HasPrefix(labels[agent.TabID], prefix) {
+		if !domainname.IsWorkerTab(domainname.Observe(labels[agent.TabID]), workerTeam) {
 			continue
 		}
 		out = append(out, agent)
@@ -1346,7 +1353,7 @@ func (l *Launcher) workerTargets(agents []protocol.Agent) ([]downTarget, error) 
 	}
 	targets := make([]downTarget, 0, len(workers))
 	for _, agent := range workers {
-		targets = append(targets, downTarget{name: agent.Name, pane: agent.PaneID, worker: true})
+		targets = append(targets, downTarget{name: agent.Name.String(), pane: agent.PaneID, worker: true})
 	}
 	return targets, nil
 }
@@ -1363,10 +1370,10 @@ func (l *Launcher) namedTargets(teamName string, agents []protocol.Agent) ([]dow
 		return nil, err
 	}
 	own := make(map[string]string, len(tabs))
-	prefix := protocol.WorkerTabPrefix(teamName)
+	workerTeam := domainname.Observe(teamName)
 	for _, tab := range tabs {
-		if protocol.NamesTeam(tab.Label, teamName) || strings.HasPrefix(tab.Label, prefix) {
-			own[tab.ID] = tab.Label
+		if protocol.NamesTeam(tab.Label.String(), teamName) || domainname.IsWorkerTab(tab.Label, workerTeam) {
+			own[tab.ID] = tab.Label.String()
 		}
 	}
 	if len(own) == 0 {
@@ -1383,11 +1390,11 @@ func (l *Launcher) namedTargets(teamName string, agents []protocol.Agent) ([]dow
 	}
 	inPane := make(map[string]string, len(agents))
 	for _, agent := range agents {
-		if agent.Name == "" || agent.PaneID == "" {
+		if agent.Name.String() == "" || agent.PaneID == "" {
 			continue
 		}
 		if _, ok := inPane[agent.PaneID]; !ok {
-			inPane[agent.PaneID] = agent.Name
+			inPane[agent.PaneID] = agent.Name.String()
 		}
 	}
 	targets := make([]downTarget, 0, len(panes))
@@ -1396,15 +1403,15 @@ func (l *Launcher) namedTargets(teamName string, agents []protocol.Agent) ([]dow
 		if !mine {
 			continue
 		}
-		name := pane.Label
-		if !protocol.NamedForTeam(teamName, name) {
-			if name = inPane[pane.ID]; !protocol.NamedForTeam(teamName, name) {
+		name := pane.Label.String()
+		if !domainname.BelongsTo(domainname.Observe(name), domainname.Observe(teamName)) {
+			if name = inPane[pane.ID]; !domainname.BelongsTo(domainname.Observe(name), domainname.Observe(teamName)) {
 				continue
 			}
 		}
 		targets = append(targets, downTarget{
 			name: name, pane: pane.ID,
-			worker:  strings.HasPrefix(label, prefix),
+			worker:  domainname.IsWorkerTab(domainname.Observe(label), workerTeam),
 			stopped: inPane[pane.ID] == "",
 		})
 	}
@@ -1451,11 +1458,11 @@ func (l *Launcher) closePane(target downTarget, dry bool) error {
 func panesOf(agents []protocol.Agent) map[string]string {
 	panes := make(map[string]string, len(agents))
 	for _, agent := range agents {
-		if agent.Name == "" || agent.PaneID == "" {
+		if agent.Name.String() == "" || agent.PaneID == "" {
 			continue
 		}
-		if _, ok := panes[agent.Name]; !ok {
-			panes[agent.Name] = agent.PaneID
+		if _, ok := panes[agent.Name.String()]; !ok {
+			panes[agent.Name.String()] = agent.PaneID
 		}
 	}
 	return panes
@@ -1569,7 +1576,7 @@ func (l *Launcher) createTab(workspace string, first *definition.Start, label st
 	if err != nil {
 		return "", err
 	}
-	l.place(first.Name, root)
+	l.place(first.Name.String(), root)
 	l.notify(Event{CreatedTab: label, Workspace: l.workspace})
 	return root, nil
 }
@@ -1594,7 +1601,7 @@ func (l *Launcher) splitPane(source string, member *definition.Start, direction 
 	if err != nil {
 		return err
 	}
-	l.place(member.Name, pane)
+	l.place(member.Name.String(), pane)
 	return nil
 }
 
@@ -1602,16 +1609,16 @@ func (l *Launcher) splitPane(source string, member *definition.Start, direction 
 // on its pane when its agent is not live.
 func (l *Launcher) namePane(member string) error {
 	l.mark(member, i18n.T("progress.mark.pane_created"))
-	return l.herdr.Rename(l.paneOf(member), member)
+	return l.herdr.Rename(l.paneOf(member), domainname.Observe(member))
 }
 
 func (l *Launcher) start(member *definition.Start, next StartupNext, tabLabel string) error {
-	l.stage(i18n.Tf("progress.stage.starting", member.Name))
+	l.stage(i18n.Tf("progress.stage.starting", member.Name.String()))
 	l.mu.Lock()
-	l.failedMember = member.Name
+	l.failedMember = member.Name.String()
 	l.mu.Unlock()
-	l.mark(member.Name, i18n.T("progress.mark.start_requested"))
-	if err := l.herdr.Start(member, l.paneOf(member.Name), l.timeout); err != nil {
+	l.mark(member.Name.String(), i18n.T("progress.mark.start_requested"))
+	if err := l.herdr.Start(member, l.paneOf(member.Name.String()), l.timeout); err != nil {
 		// A member that asks a human a question while it starts is waited on,
 		// not reported: herdr calls it not ready, and the person answers in the
 		// pane (d-d589).
@@ -1622,30 +1629,30 @@ func (l *Launcher) start(member *definition.Start, next StartupNext, tabLabel st
 			return err
 		}
 	}
-	l.mark(member.Name, i18n.T("progress.mark.ready"))
-	if err := l.submit(member, member.Name); err != nil {
+	l.mark(member.Name.String(), i18n.T("progress.mark.ready"))
+	if err := l.submit(member, member.Name.String()); err != nil {
 		return err
 	}
 	l.mu.Lock()
-	l.started = append(l.started, member.Name)
+	l.started = append(l.started, member.Name.String())
 	l.mu.Unlock()
 	return nil
 }
 
 func (l *Launcher) submit(member *definition.Start, target string) error {
-	l.stage(i18n.Tf("progress.stage.submitting", member.Name))
-	l.mark(member.Name, i18n.T("progress.mark.prompt_requested"))
-	if err := l.herdr.ConfirmPrompt(target, member.Prompt); err != nil {
+	l.stage(i18n.Tf("progress.stage.submitting", member.Name.String()))
+	l.mark(member.Name.String(), i18n.T("progress.mark.prompt_requested"))
+	if err := l.herdr.ConfirmPrompt(domainname.Observe(target), member.Prompt); err != nil {
 		switch protocol.ErrorCode(err) {
 		case "agent_prompt_stalled", "timeout", "agent_blocked":
-			l.mark(member.Name, i18n.T("progress.mark.bootstrap_undelivered"))
-			return &Undelivered{Name: member.Name, Pane: l.paneOf(member.Name), Recovery: repromptRetry(l.project, l.team, member.Name), Cause: err}
+			l.mark(member.Name.String(), i18n.T("progress.mark.bootstrap_undelivered"))
+			return &Undelivered{Name: member.Name.String(), Pane: l.paneOf(member.Name.String()), Recovery: repromptRetry(l.project, l.team, member.Name.String()), Cause: err}
 		default:
 			return err
 		}
 	}
-	l.mark(member.Name, i18n.T("progress.mark.bootstrap_submitted"))
-	fmt.Fprintf(l.out, i18n.T("launcher.submitted"), member.Name, l.paneOf(member.Name))
+	l.mark(member.Name.String(), i18n.T("progress.mark.bootstrap_submitted"))
+	fmt.Fprintf(l.out, i18n.T("launcher.submitted"), member.Name.String(), l.paneOf(member.Name.String()))
 	return nil
 }
 
@@ -1681,17 +1688,17 @@ func (l *Launcher) waitingAt(member *definition.Start, tabLabel, tabID string) {
 		return
 	}
 	l.observe(Event{
-		Stage:     i18n.Tf("progress.stage.awaiting", member.Name),
-		Member:    member.Name,
-		Pane:      l.paneOf(member.Name),
+		Stage:     i18n.Tf("progress.stage.awaiting", member.Name.String()),
+		Member:    member.Name.String(),
+		Pane:      l.paneOf(member.Name.String()),
 		TabID:     tabID,
 		Workspace: l.workspace,
 		Waiting: &Waiting{
-			Member: member.Name, Herdr: member.Name,
+			Member: member.Name.String(), Herdr: member.Name.String(),
 			// The pane is named as a person reads it on the screen, not herdr's
 			// pane id: the row the question stands on names the same place the
 			// activity screen does (r-5b96 audit 9).
-			Workspace: l.wsLabel, Tab: tabLabel, Pane: member.Name,
+			Workspace: l.wsLabel, Tab: tabLabel, Pane: member.Name.String(),
 		},
 	})
 }
@@ -1735,7 +1742,7 @@ func (l *Launcher) tabID() string {
 func namesOf(members []definition.Start) []string {
 	names := make([]string, len(members))
 	for i, member := range members {
-		names[i] = member.Name
+		names[i] = member.Name.String()
 	}
 	return names
 }
@@ -1745,7 +1752,7 @@ func namesOf(members []definition.Start) []string {
 // command-line member names (the short member name) resolve.
 func (l *Launcher) lookup(name string) (*definition.Start, error) {
 	for i := range l.starts {
-		if l.starts[i].Name == name || l.starts[i].Short == name {
+		if l.starts[i].Name.String() == name || l.starts[i].Short.String() == name {
 			return &l.starts[i], nil
 		}
 	}

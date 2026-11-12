@@ -56,17 +56,17 @@ func TestPreviousDocumentsBelongToTheirReader(t *testing.T) {
 				}
 				current := definition.Start{Prompt: prompt + "new roster", Segments: []definition.PromptSegment{{Kind: "roster", Text: "new roster"}}}
 				docs := []deliver.Doc{{Path: "/roles/" + role + ".md", Display: role + ".md", Text: now}}
-				got := deliver.Compare("en", prompt, old, current, docs)
+				got := deliver.Compare(fixtureTeamName("demo"), "en", prompt, old, current, docs)
 				if len(got) != 1 || got[0].Kind != "roster" {
 					t.Fatalf("unchanged documents: %+v", got)
 				}
 				docs[0].Text += "Changed.\n"
-				got = deliver.Compare("en", prompt, old, current, docs)
+				got = deliver.Compare(fixtureTeamName("demo"), "en", prompt, old, current, docs)
 				if len(got) != 2 || got[0].Document != role+".md" || strings.Contains(got[0].Text, ".yaml") {
 					t.Fatalf("changed document: %+v", got)
 				}
 				// Switching roles must retain the old role as a removed reading.
-				got = deliver.Compare("en", prompt, old, current, []deliver.Doc{{Path: "/roles/third.md", Display: "third.md", Text: "New role.\n"}})
+				got = deliver.Compare(fixtureTeamName("demo"), "en", prompt, old, current, []deliver.Doc{{Path: "/roles/third.md", Display: "third.md", Text: "New role.\n"}})
 				if len(got) != 3 || got[1].Document != "/roles/"+role+".md" {
 					t.Fatalf("role switch: %+v", got)
 				}
@@ -109,7 +109,7 @@ func TestRosterChangeHasNoOtherMembersDocumentsOnEitherDeliveryPath(t *testing.T
 	}
 	resent := promptsToResend(cat, env.ProjectRoot, r, r.starts)
 	for _, member := range resent {
-		if member.Short == "lead" && strings.Contains(strings.Split(member.Prompt, "You are ")[0], "builder.md") {
+		if member.Short.String() == "lead" && strings.Contains(strings.Split(member.Prompt, "You are ")[0], "builder.md") {
 			t.Fatalf("reprompt leaked peer document: %s", member.Prompt)
 		}
 	}
@@ -146,7 +146,7 @@ func TestRosterChangeHasNoOtherMembersDocumentsOnEitherDeliveryPath(t *testing.T
 			}
 		}
 		for i, member := range resent {
-			if row.Name == member.Name && member.Prompt != deliver.Preamble(row.Changes)+r.starts[i].Prompt {
+			if row.Name == member.Name.String() && member.Prompt != deliver.Preamble(row.Changes)+r.starts[i].Prompt {
 				t.Fatalf("reprompt differs for %s", row.Name)
 			}
 		}

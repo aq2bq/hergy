@@ -40,11 +40,11 @@ func printSignalNotes(out io.Writer, starts []definition.Start) {
 	for _, s := range starts {
 		switch s.Signal.Skipped {
 		case harness.SkippedArgs:
-			_, _ = io.WriteString(out, i18n.Tf("launcher.signal_skipped_args", s.Short, s.Kind))
+			_, _ = io.WriteString(out, i18n.Tf("launcher.signal_skipped_args", s.Short.String(), s.Kind))
 		case harness.SkippedEnv:
-			_, _ = io.WriteString(out, i18n.Tf("launcher.signal_skipped_env", s.Short))
+			_, _ = io.WriteString(out, i18n.Tf("launcher.signal_skipped_env", s.Short.String()))
 		case harness.SkippedStandalone:
-			_, _ = io.WriteString(out, i18n.Tf("launcher.signal_skipped_standalone", s.Short))
+			_, _ = io.WriteString(out, i18n.Tf("launcher.signal_skipped_standalone", s.Short.String()))
 		}
 	}
 }

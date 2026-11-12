@@ -6,6 +6,8 @@ import (
 	"os"
 	"time"
 
+	domainname "github.com/aq2bq/hergy/internal/domain/name"
+
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/options"
 	"github.com/aq2bq/hergy/internal/screenlog"
@@ -45,19 +47,19 @@ func runTell(env team.Env, opts *options.Options, stdout io.Writer) error {
 		if err != nil {
 			return i18n.Errorf("error.tell_from_unknown", opts.From)
 		}
-		from = found.Name
+		from = found.Name.String()
 	} else if !opts.Dry {
 		from = senderName(r, os.Getenv("HERDR_PANE_ID"))
 	}
 	text := sendText(from, opts.Body)
 	if opts.Dry {
-		fmt.Fprintf(stdout, i18n.T("send.dry"), member.Name, text)
+		fmt.Fprintf(stdout, i18n.T("send.dry"), member.Name.String(), text)
 		return nil
 	}
 	if err := newLauncher(r, opts.Timeout, stdout).Tell(member, text); err != nil {
 		return err
 	}
-	return recordTell(r.team.Name, from, shortMember(member.Name, r.team.Name))
+	return recordTell(r.team.Name, from, domainname.ShortIn(domainname.Observe(member.Name.String()), domainname.Observe(r.team.Name)).String())
 }
 
 // tellHuman records that the member whose pane hergy runs in (or --from) marked
@@ -70,7 +72,7 @@ func tellHuman(r *resolved, opts *options.Options, stdout io.Writer) error {
 		if err != nil {
 			return i18n.Errorf("error.tell_from_unknown", opts.From)
 		}
-		from = found.Name
+		from = found.Name.String()
 	} else if !opts.Dry {
 		from = senderName(r, os.Getenv("HERDR_PANE_ID"))
 	}
@@ -99,7 +101,7 @@ func recordTell(teamName, fromHerdr, to string) error {
 	}
 	from := ""
 	if fromHerdr != "" {
-		from = shortMember(fromHerdr, teamName)
+		from = domainname.ShortIn(domainname.Observe(fromHerdr), domainname.Observe(teamName)).String()
 	}
 	return turns.WriteTell(turns.TellDir(dir, teamName), turns.Tell{From: from, To: to, At: time.Now()})
 }

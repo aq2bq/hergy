@@ -68,7 +68,7 @@ func (g *Graph) Node(id NodeID) (Node, bool) {
 // Member is the member node with this name, and whether the graph holds it.
 func (g *Graph) Member(name string) (MemberNode, bool) {
 	for _, member := range g.Members {
-		if member.Name == name {
+		if member.Name.String() == name {
 			return member, true
 		}
 	}
@@ -250,7 +250,7 @@ func (g *Graph) reachableFrom(start NodeID) map[NodeID]bool {
 func (g *Graph) exampleReached(fromHuman map[NodeID]bool, about NodeID) string {
 	for _, member := range g.Members {
 		if member.ID() != about && fromHuman[member.ID()] {
-			return member.Name
+			return member.Name.String()
 		}
 	}
 	return g.Human.ID().String()
@@ -262,7 +262,7 @@ func (g *Graph) exampleReached(fromHuman map[NodeID]bool, about NodeID) string {
 func (g *Graph) exampleReturning(about NodeID) string {
 	for _, member := range g.Members {
 		if member.ID() != about && g.reachableFrom(member.ID())[g.Human.ID()] {
-			return member.Name
+			return member.Name.String()
 		}
 	}
 	return g.Human.ID().String()
@@ -275,7 +275,7 @@ func (g *Graph) exampleReturning(about NodeID) string {
 func (g *Graph) exampleTarget(about NodeID) string {
 	for _, member := range g.Members {
 		if member.ID() != about {
-			return member.Name
+			return member.Name.String()
 		}
 	}
 	return g.Human.ID().String()

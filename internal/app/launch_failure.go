@@ -41,7 +41,7 @@ func startFailureText(f launcher.StartFailure, project, command string) string {
 func applyFixCommand(group []plannedMember) string {
 	names := make([]string, 0, len(group))
 	for _, member := range group {
-		names = append(names, member.start.Short)
+		names = append(names, member.start.Short.String())
 	}
 	return i18n.Tf("web.apply.command", strings.Join(names, " "))
 }

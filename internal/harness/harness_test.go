@@ -19,7 +19,7 @@ func here(t *testing.T) Here {
 
 // TestWireClaudePassesAStopHookAndLeavesAProfileWithSettingsAlone
 func TestWireClaudePassesAStopHook(t *testing.T) {
-	s := &definition.Start{Short: "lead", Kind: "claude", Args: []string{"--model", "opus"}, Env: map[string]string{"GY_ACTOR": "demo-lead"}}
+	s := &definition.Start{Short: fixtureShortName("lead"), Kind: "claude", Args: []string{"--model", "opus"}, Env: map[string]string{"GY_ACTOR": "demo-lead"}}
 	Wire(s, "demo", here(t))
 	if !s.Signal.Wired || len(s.Signal.Args) != 2 || s.Signal.Args[0] != "--settings" {
 		t.Fatalf("Signal = %+v, want --settings <json>", s.Signal)
@@ -34,7 +34,7 @@ func TestWireClaudePassesAStopHook(t *testing.T) {
 	if got := s.PaneEnv(); len(got) != 1 || got["GY_ACTOR"] != "demo-lead" {
 		t.Errorf("PaneEnv = %v, want the profile's alone", got)
 	}
-	own := &definition.Start{Short: "lead", Kind: "claude", Args: []string{"--settings", "{}"}}
+	own := &definition.Start{Short: fixtureShortName("lead"), Kind: "claude", Args: []string{"--settings", "{}"}}
 	Wire(own, "demo", here(t))
 	if own.Signal.Wired || own.Signal.Skipped != SkippedArgs {
 		t.Errorf("a profile with its own --settings: %+v, want skipped for args", own.Signal)
@@ -48,7 +48,7 @@ func TestWireCodexPassesNotifyAndKeepsThePersons(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(h.CodexHome, "config.toml"), []byte("model = \"x\"\nnotify = [\"/Apps/Notify.app/notify\", \"turn-ended\"]\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	s := &definition.Start{Short: "dev", Kind: "codex", Args: []string{"-m", "gpt"}}
+	s := &definition.Start{Short: fixtureShortName("dev"), Kind: "codex", Args: []string{"-m", "gpt"}}
 	Wire(s, "demo", h)
 	if !s.Signal.Wired || len(s.Signal.Args) != 2 || s.Signal.Args[0] != "-c" {
 		t.Fatalf("Signal = %+v", s.Signal)
@@ -60,12 +60,12 @@ func TestWireCodexPassesNotifyAndKeepsThePersons(t *testing.T) {
 		t.Errorf("then = %q, want the person's notify", s.Signal.Env[EnvNotifyThen])
 	}
 	// No config.toml, or no notify in it: nothing to chain.
-	bare := &definition.Start{Short: "dev", Kind: "codex"}
+	bare := &definition.Start{Short: fixtureShortName("dev"), Kind: "codex"}
 	Wire(bare, "demo", Here{Bin: "hergy", CodexHome: t.TempDir()})
 	if !bare.Signal.Wired || len(bare.Signal.Env) != 0 {
 		t.Errorf("without a notify: %+v, want wired with no env", bare.Signal)
 	}
-	own := &definition.Start{Short: "dev", Kind: "codex", Args: []string{"-c", "notify=[\"x\"]"}}
+	own := &definition.Start{Short: fixtureShortName("dev"), Kind: "codex", Args: []string{"-c", "notify=[\"x\"]"}}
 	Wire(own, "demo", h)
 	if own.Signal.Wired || own.Signal.Skipped != SkippedArgs {
 		t.Errorf("a profile with its own notify: %+v", own.Signal)
@@ -77,7 +77,7 @@ func TestWireOpencodePointsAtThePluginOnlyWhenStandalone(t *testing.T) {
 	h := here(t)
 	// The profile's own inline config (its model) is kept, with hergy's plugin
 	// directory added to its plugins.
-	s := &definition.Start{Short: "spec", Kind: "opencode", Args: []string{"--standalone"}, Env: map[string]string{"GY_ACTOR": "demo-spec", EnvConfigContent: `{"model":"opencode-go/x","plugins":["other"]}`}}
+	s := &definition.Start{Short: fixtureShortName("spec"), Kind: "opencode", Args: []string{"--standalone"}, Env: map[string]string{"GY_ACTOR": "demo-spec", EnvConfigContent: `{"model":"opencode-go/x","plugins":["other"]}`}}
 	Wire(s, "demo", h)
 	if !s.Signal.Wired || len(s.Signal.Args) != 0 {
 		t.Fatalf("Signal = %+v, want env only", s.Signal)
@@ -97,22 +97,22 @@ func TestWireOpencodePointsAtThePluginOnlyWhenStandalone(t *testing.T) {
 		t.Error("OPENCODE_CONFIG_DIR is set, which would replace the person's global directory")
 	}
 	// No inline config in the profile: hergy's plugin alone.
-	bare := &definition.Start{Short: "spec", Kind: "opencode", Args: []string{"--standalone"}}
+	bare := &definition.Start{Short: fixtureShortName("spec"), Kind: "opencode", Args: []string{"--standalone"}}
 	Wire(bare, "demo", h)
 	if bare.Signal.Env[EnvConfigContent] != `{"plugins":["`+PluginDir(h.StateDir)+`"]}` {
 		t.Errorf("bare OPENCODE_CONFIG_CONTENT = %q", bare.Signal.Env[EnvConfigContent])
 	}
-	shared := &definition.Start{Short: "spec", Kind: "opencode"}
+	shared := &definition.Start{Short: fixtureShortName("spec"), Kind: "opencode"}
 	Wire(shared, "demo", h)
 	if shared.Signal.Wired || shared.Signal.Skipped != SkippedStandalone {
 		t.Errorf("without --standalone: %+v", shared.Signal)
 	}
-	own := &definition.Start{Short: "spec", Kind: "opencode", Args: []string{"--standalone"}, Env: map[string]string{EnvConfigContent: "not json"}}
+	own := &definition.Start{Short: fixtureShortName("spec"), Kind: "opencode", Args: []string{"--standalone"}, Env: map[string]string{EnvConfigContent: "not json"}}
 	Wire(own, "demo", h)
 	if own.Signal.Wired || own.Signal.Skipped != SkippedEnv {
 		t.Errorf("with an inline config hergy cannot add to: %+v", own.Signal)
 	}
-	other := &definition.Start{Short: "g", Kind: "gemini"}
+	other := &definition.Start{Short: fixtureShortName("g"), Kind: "gemini"}
 	Wire(other, "demo", h)
 	if other.Signal.Wired || other.Signal.Skipped != SkippedKind {
 		t.Errorf("a harness without a signal: %+v", other.Signal)

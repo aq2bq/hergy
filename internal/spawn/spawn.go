@@ -20,15 +20,16 @@ import (
 // names the hiring member; empty means the one member whose workers: name this
 // purpose (d-6f03).
 func Plan(team string, starts []definition.Start, profiles map[string]profile.Profile, name, purpose, task, from string) (*definition.Start, error) {
-	if _, err := domainname.ParseWorkerName(name); err != nil {
+	workerName, err := domainname.ParseWorkerName(name)
+	if err != nil {
 		return nil, i18n.Errorf("error.worker_name_pattern")
 	}
-	herdrName := team + "-" + name
-	if !profile.NamePattern.MatchString(herdrName) {
-		return nil, i18n.Errorf("error.herdr_name_pattern", herdrName)
+	herdrName, err := domainname.WorkerForInput(team, workerName)
+	if err != nil {
+		return nil, i18n.Errorf("error.herdr_name_pattern", domainname.PreviewName(team, name))
 	}
 	for i := range starts {
-		if starts[i].Short == name || starts[i].Name == name {
+		if starts[i].Short.String() == name || starts[i].Name.String() == name {
 			return nil, i18n.Errorf("error.worker_exists", name)
 		}
 	}
@@ -41,7 +42,7 @@ func Plan(team string, starts []definition.Start, profiles map[string]profile.Pr
 	// the one that entry pairs it with.
 	chosen, ok := profileFor(lead.Workers, purpose)
 	if !ok {
-		return nil, i18n.Errorf("error.hire_purpose_outside", lead.Short, purpose, availablePurposes(lead.Workers))
+		return nil, i18n.Errorf("error.hire_purpose_outside", lead.Short.String(), purpose, availablePurposes(lead.Workers))
 	}
 	profileValue, ok := profiles[chosen]
 	if !ok {
@@ -49,22 +50,23 @@ func Plan(team string, starts []definition.Start, profiles map[string]profile.Pr
 	}
 
 	built, err := prompt.Worker(prompt.WorkerInput{
-		Team: team, Lead: lead.Name, LeadRole: lead.Role,
-		Purpose: purpose, Name: herdrName, Task: task,
+		Team: team, Lead: lead.Name.String(), LeadRole: lead.Role,
+		Purpose: purpose, Name: herdrName.String(), Task: task,
 	})
 	if err != nil {
 		return nil, err
 	}
 
+	fromMember, _ := domainname.ParseMemberName(lead.Short.String())
 	worker := &definition.Start{
 		Name:     herdrName,
-		Short:    name,
-		From:     lead.Short,
+		Short:    workerName.Short(),
+		From:     fromMember,
 		Purpose:  purpose,
 		Role:     i18n.Tf("role.worker", purpose),
 		Kind:     profileValue.Kind,
 		Args:     profileValue.Args,
-		Env:      profile.PaneEnv(profileValue.Env, herdrName),
+		Env:      profile.PaneEnv(profileValue.Env, herdrName.String()),
 		Cwd:      lead.Cwd,
 		Prompt:   built.Text,
 		Segments: built.Segments,
@@ -86,7 +88,7 @@ func hiringMember(starts []definition.Start, purpose, from string) (*definition.
 // name.
 func lookup(starts []definition.Start, name string) (*definition.Start, error) {
 	for i := range starts {
-		if starts[i].Name == name || starts[i].Short == name {
+		if starts[i].Name.String() == name || starts[i].Short.String() == name {
 			return &starts[i], nil
 		}
 	}
@@ -108,7 +110,7 @@ func defaultLead(starts []definition.Start, purpose string) (*definition.Start, 
 	default:
 		names := make([]string, len(candidates))
 		for i, candidate := range candidates {
-			names[i] = candidate.Short
+			names[i] = candidate.Short.String()
 		}
 		return nil, i18n.Errorf("error.from_required_many", strings.Join(names, i18n.T("list.separator")))
 	}
@@ -125,7 +127,7 @@ func hirings(starts []definition.Start) string {
 		if len(starts[i].Workers) == 0 {
 			continue
 		}
-		parts = append(parts, i18n.Tf("hire.member_purposes", starts[i].Short, availablePurposes(starts[i].Workers)))
+		parts = append(parts, i18n.Tf("hire.member_purposes", starts[i].Short.String(), availablePurposes(starts[i].Workers)))
 	}
 	if len(parts) == 0 {
 		return i18n.T("value.none")

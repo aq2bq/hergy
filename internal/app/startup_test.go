@@ -83,7 +83,7 @@ func TestBootInterruptedWhileWaitingOnAQuestion(t *testing.T) {
 	inJapanese(t)
 	log := f.blockedStartHerdr(t)
 	starts := []definition.Start{{
-		Name: "demo-lead", Short: "lead", Role: "lead", Kind: "claude",
+		Name: fixtureHerdrName("demo-lead"), Short: fixtureShortName("lead"), Role: "lead", Kind: "claude",
 		Prompt: "read the role document", Cwd: f.proj,
 	}}
 	var out lockedBuffer

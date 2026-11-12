@@ -5,6 +5,8 @@ import (
 	"slices"
 	"strings"
 
+	domainname "github.com/aq2bq/hergy/internal/domain/name"
+
 	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/i18n"
 )
@@ -77,16 +79,15 @@ func LedgerFindings(def *definition.Definition, teams []string, writes []LedgerW
 // with a member "b-lead"; a name that is no member of the definition is another
 // team's writer, or an older way of writing one, and is not this team's.
 func teamWriter(def *definition.Definition, teams []string, actor string) (string, string, bool) {
-	best := ""
-	for _, team := range teams {
-		if strings.HasPrefix(actor, team+"-") && len(team) > len(best) {
-			best = team
-		}
+	known := make([]domainname.Seen, len(teams))
+	for i, team := range teams {
+		known[i] = domainname.Observe(team)
 	}
-	if best == "" {
+	owner, short, ok := domainname.Resolve(domainname.Observe(actor), known)
+	if !ok {
 		return "", "", false
 	}
-	member := actor[len(best)+1:]
+	best, member := owner.String(), short.String()
 	if !hasMember(def, member) {
 		return "", "", false
 	}
@@ -106,7 +107,7 @@ func asksOutsideTeam(def *definition.Definition, teams []string, node string, de
 	}
 	for _, team := range teams {
 		for i := range def.Graph.Members {
-			if who == team+"-"+def.Graph.Members[i].Name {
+			if who == domainname.PreviewName(team, def.Graph.Members[i].Name.String()) {
 				return false, nil
 			}
 		}
@@ -140,7 +141,7 @@ func hasLedgerRule(def *definition.Definition, write string) bool {
 // hasMember reports whether a name is one of the definition's member names.
 func hasMember(def *definition.Definition, name string) bool {
 	for i := range def.Graph.Members {
-		if def.Graph.Members[i].Name == name {
+		if def.Graph.Members[i].Name.String() == name {
 			return true
 		}
 	}

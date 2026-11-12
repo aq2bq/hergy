@@ -34,11 +34,11 @@ func blockedRefresh(t *testing.T, answer, settle func(port *fakePort, name strin
 	t.Helper()
 	port := &fakePort{
 		agents: map[string]protocol.Agent{
-			"team-lead": {Name: "team-lead", Kind: "claude", Status: "idle", PaneID: "p1", TabID: "t7"},
+			"team-lead": {Name: fixtureSeen("team-lead"), Kind: "claude", Status: "idle", PaneID: "p1", TabID: "t7"},
 		},
 		gone:           map[string]bool{},
 		process:        map[string][2]int{"p1": {4242, 900}},
-		tabs:           []protocol.Tab{{ID: "t7", Label: "team"}},
+		tabs:           []protocol.Tab{{ID: "t7", Label: fixtureSeen("team")}},
 		startupBlocked: map[string]bool{"team-lead": true},
 		startupTab:     "t7",
 	}
@@ -171,8 +171,8 @@ func TestStartupQuestionThatEndsTheAgentIsAFailure(t *testing.T) {
 // say how to go on from their own kind of member, in both languages. The ended
 // message and the line an interrupt prints are these same words.
 func TestStartupNextNamesTheWayOnForEachCommand(t *testing.T) {
-	member := &definition.Start{Name: "demo-lead", Kind: "claude"}
-	worker := &definition.Start{Name: "demo-w1", Kind: "claude"}
+	member := &definition.Start{Name: fixtureHerdrName("demo-lead"), Kind: "claude"}
+	worker := &definition.Start{Name: fixtureHerdrName("demo-w1"), Kind: "claude"}
 	cases := []struct {
 		name    string
 		lang    string

@@ -193,7 +193,7 @@ func TestDefinitionWithNoNamePicksTheOneOrNamesTheCandidates(t *testing.T) {
 	l := newLayers(t)
 	l.writeTeam(t, source.LayerLocal, "one")
 	def, err := l.catalog().Definition("", "")
-	if err != nil || def.Name != "one" {
+	if err != nil || def.Name.String() != "one" {
 		t.Fatalf("Definition(\"\") = %v, %v; want the one project definition", def, err)
 	}
 

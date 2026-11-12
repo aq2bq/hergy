@@ -170,7 +170,7 @@ func TestShowPrintsTheLedger(t *testing.T) {
 func TestTeamNamesAddsTheNamesTheRecordShows(t *testing.T) {
 	f := newFixture(t)
 	def := &definition.Definition{
-		Name:     "demo",
+		Name:     fixtureDefinitionName("demo"),
 		TeamYAML: filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml"),
 	}
 	log, err := launchlog.Open()

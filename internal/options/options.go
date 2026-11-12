@@ -68,8 +68,10 @@ const (
 type Options struct {
 	Kind Kind
 
-	Team   string // up/show/new: a team definition name; down/status/refresh/reprompt/hire/focus/nudge/stop/tell: a team name
-	Member string // refresh/reprompt/focus/nudge/stop positional, and tell's target
+	Definition Input  // up/show/new: an unresolved definition word
+	Team       Input  // an unresolved running-team word
+	Target     Input  // down: an unresolved team or worker word
+	Member     string // refresh/reprompt/focus/nudge/stop positional, and tell's target
 	// Members are the members apply acts on, by short member name or herdr
 	// name; none means every member with drift.
 	Members []string
@@ -216,7 +218,7 @@ func assignPositionals(o *Options, positionals []string) error {
 			return i18n.Errorf("error.too_many_args", positionals)
 		}
 		if len(positionals) == 1 {
-			o.Team = positionals[0]
+			o.assignSelection(positionals[0])
 		}
 	case Refresh, Reprompt:
 		if len(positionals) > 1 {
@@ -238,7 +240,7 @@ func assignPositionals(o *Options, positionals []string) error {
 		if len(positionals) < 2 || len(positionals) > 3 {
 			return i18n.Errorf("error.turn_done_needs_names")
 		}
-		o.Team, o.Member = positionals[0], positionals[1]
+		o.Team, o.Member = Input{raw: positionals[0]}, positionals[1]
 		if len(positionals) == 3 {
 			o.Body = positionals[2]
 		}
@@ -362,11 +364,11 @@ func validateKind(o *Options) error {
 	case Hire:
 		return validateHire(o)
 	case Show:
-		if o.Team == "" {
+		if o.Definition.String() == "" {
 			return i18n.Errorf("error.show_needs_team")
 		}
 	case New:
-		if o.Team == "" {
+		if o.Definition.String() == "" {
 			return i18n.Errorf("error.new_needs_name")
 		}
 	default:
@@ -388,4 +390,16 @@ func validateHire(o *Options) error {
 		return i18n.Errorf("error.hire_needs_flags", strings.Join(missing, ", "))
 	}
 	return nil
+}
+
+// assignSelection keeps the command's unresolved meanings in separate fields.
+func (o *Options) assignSelection(raw string) {
+	switch o.Kind {
+	case Up, Show, New:
+		o.Definition = Input{raw: raw}
+	case Down:
+		o.Target = Input{raw: raw}
+	default:
+		o.Team = Input{raw: raw}
+	}
 }

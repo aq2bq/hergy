@@ -1,7 +1,7 @@
 package check
 
 import (
-	"strings"
+	domainname "github.com/aq2bq/hergy/internal/domain/name"
 
 	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/definition"
@@ -112,7 +112,7 @@ func effectLines(team string, before, after effect.View, changes []effect.Change
 		lines = append(lines, EffectLine{Member: member, Part: part, Removed: removed, Added: added})
 	}
 	for _, change := range changes {
-		member := team + "-" + change.Member
+		member := domainname.PreviewName(team, change.Member)
 		for _, part := range change.Parts {
 			switch part.Part {
 			case effect.Turns:
@@ -151,10 +151,10 @@ func turnEffectLines(team string, names []effect.Named) []string {
 // herdrName is a member's herdr name from the short name effect names it by. A
 // name that already carries the team's prefix stands as it is.
 func herdrName(team, member string) string {
-	if strings.HasPrefix(member, team+"-") {
+	if domainname.BelongsTo(domainname.Observe(member), domainname.Observe(team)) {
 		return member
 	}
-	return team + "-" + member
+	return domainname.PreviewName(team, member)
 }
 
 // workerEffectLines is the "ワーカーの追加" lines of a change, exactly the prompt's

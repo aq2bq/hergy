@@ -225,7 +225,7 @@ func TestADescriptionChangeLeavesThePromptAndTheDriftAlone(t *testing.T) {
 	for i := range before.starts {
 		if before.starts[i].Prompt != after.starts[i].Prompt {
 			t.Errorf("%s's prompt changed with the description:\n--- before ---\n%s\n--- after ---\n%s",
-				before.starts[i].Name, before.starts[i].Prompt, after.starts[i].Prompt)
+				before.starts[i].Name.String(), before.starts[i].Prompt, after.starts[i].Prompt)
 		}
 	}
 

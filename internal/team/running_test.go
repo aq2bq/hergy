@@ -36,11 +36,11 @@ func TestRunningTeamsReadsTheLabelTheMembersAndTheRecord(t *testing.T) {
 		{ID: "t13", Label: "new", Agents: []string{"new-lead"}},             // seen twice: kept once
 	}
 	want := []Running{
-		{Team: "new", Definition: "newdef"},
-		{Team: "legacy", Definition: "old"},
-		{Team: "bare", Definition: "bare"},
-		{Team: "dup", Definition: "second"},
-		{Team: "byagent", Definition: "byagent"},
+		{Team: fixtureRunningTeam("new"), Definition: "newdef"},
+		{Team: fixtureRunningTeam("legacy"), Definition: "old"},
+		{Team: fixtureRunningTeam("bare"), Definition: "bare"},
+		{Team: fixtureRunningTeam("dup"), Definition: "second"},
+		{Team: fixtureRunningTeam("byagent"), Definition: "byagent"},
 	}
 	got := RunningTeams(tabs, launches, true)
 	if !reflect.DeepEqual(got, want) {
@@ -55,7 +55,7 @@ func TestRunningTeamsReadsTheLabelTheMembersAndTheRecord(t *testing.T) {
 func TestRunningTeamsFallsBackToTheRecordWithoutAgents(t *testing.T) {
 	launches := []Launch{{Team: "stopped", Definition: "stopped-def"}}
 	tabs := []Tab{{ID: "t1", Label: "stopped"}, {ID: "t2", Label: "notes"}}
-	want := []Running{{Team: "stopped", Definition: "stopped-def"}}
+	want := []Running{{Team: fixtureRunningTeam("stopped"), Definition: "stopped-def"}}
 	if got := RunningTeams(tabs, launches, false); !reflect.DeepEqual(got, want) {
 		t.Errorf("RunningTeams without agents = %+v, want %+v", got, want)
 	}
@@ -71,8 +71,8 @@ func TestRunningTeamsFallsBackToTheRecordWithoutAgents(t *testing.T) {
 func TestRunningTeamsWithoutARecordReadsTheOlderLabels(t *testing.T) {
 	got := RunningTeams([]Tab{{Label: "team:demo@demo"}, {Label: "team:bare"}, {Label: "demo"}, {Label: "notes"}}, nil, true)
 	want := []Running{
-		{Team: "demo", Definition: "demo"},
-		{Team: "bare", Definition: "bare"},
+		{Team: fixtureRunningTeam("demo"), Definition: "demo"},
+		{Team: fixtureRunningTeam("bare"), Definition: "bare"},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("RunningTeams = %+v, want %+v", got, want)
@@ -80,7 +80,7 @@ func TestRunningTeamsWithoutARecordReadsTheOlderLabels(t *testing.T) {
 }
 
 func TestFindRunningAndNames(t *testing.T) {
-	running := []Running{{Team: "a", Definition: "x"}, {Team: "b", Definition: "y"}}
+	running := []Running{{Team: fixtureRunningTeam("a"), Definition: "x"}, {Team: fixtureRunningTeam("b"), Definition: "y"}}
 	if got, ok := FindRunning(running, "b"); !ok || got.Definition != "y" {
 		t.Errorf("FindRunning(b) = %+v, %v", got, ok)
 	}
@@ -124,7 +124,7 @@ func TestRunningTeamsFindsATeamByItsNamedPane(t *testing.T) {
 		{ID: "t3", Label: "worker:half/deps", Panes: []string{"half-deps"}},
 	}
 	got := RunningTeams(tabs, []Launch{{Team: "half", Definition: "halfdef"}}, true)
-	want := []Running{{Team: "half", Definition: "halfdef"}}
+	want := []Running{{Team: fixtureRunningTeam("half"), Definition: "halfdef"}}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("RunningTeams = %+v, want %+v", got, want)
 	}
@@ -149,7 +149,7 @@ func TestRunningTeamsReadsTheRecordOfTheProjectItsPanesStandIn(t *testing.T) {
 		PaneDirs: []string{"/work/alpha"},
 	}}
 	got := RunningTeams(tabs, launches, true)
-	want := []Running{{Team: "core", Definition: "alpha-core", Project: "/work/alpha"}}
+	want := []Running{{Team: fixtureRunningTeam("core"), Definition: "alpha-core", Project: "/work/alpha"}}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("RunningTeams = %+v, want %+v", got, want)
 	}
@@ -162,7 +162,7 @@ func TestRunningTeamsReadsTheRecordOfTheProjectItsPanesStandIn(t *testing.T) {
 		Panes:    []string{"core-lead"},
 		PaneDirs: []string{"/work/gamma"},
 	}}
-	want = []Running{{Team: "core", Definition: "core"}}
+	want = []Running{{Team: fixtureRunningTeam("core"), Definition: "core"}}
 	if got := RunningTeams(other, launches, true); !reflect.DeepEqual(got, want) {
 		t.Fatalf("RunningTeams = %+v, want %+v", got, want)
 	}

@@ -10,6 +10,8 @@ import (
 	"sync"
 	"time"
 
+	domainname "github.com/aq2bq/hergy/internal/domain/name"
+
 	"github.com/aq2bq/hergy/internal/activity"
 	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/definition"
@@ -107,11 +109,11 @@ func readRunningTeamsIn(views []projectView, read herdrNow, lenient bool) []runn
 			continue
 		}
 		one := runningTeam{
-			Name: entry.Team, Definition: entry.Definition,
+			Name: entry.Team.String(), Definition: entry.Definition,
 			Project: view.Path, ProjectName: view.Name, Catalog: view.Cat,
 			Place: recorded.Layer,
 		}
-		if tab, found := teamTab(read.tabs, entry.Team); found {
+		if tab, found := teamTab(read.tabs, entry.Team.String()); found {
 			one.TabID = tab.ID
 			one.WorkspaceID = tab.WorkspaceID
 			one.WorkspaceLabel = workspaceLabel(read.spaces, tab.WorkspaceID)
@@ -145,12 +147,12 @@ func projectOf(entry team.Running, records launchRecords, views []projectView, t
 	if entry.Project != "" {
 		for _, view := range views {
 			if samePath(entry.Project, view.Path) {
-				record, _ := records.at(view.Path, entry.Team)
+				record, _ := records.at(view.Path, entry.Team.String())
 				return view, record, true
 			}
 		}
 		if lenient && len(views) == 1 {
-			record, _ := records.at(views[0].Path, entry.Team)
+			record, _ := records.at(views[0].Path, entry.Team.String())
 			return views[0], record, true
 		}
 		return projectView{}, launchlog.Record{}, false
@@ -160,8 +162,8 @@ func projectOf(entry team.Running, records launchRecords, views []projectView, t
 	// work runs in, and another project's team is not taken for this one's
 	// (d-73fc).
 	for _, view := range views {
-		if panesIn(view.Path, tabs, entry.Team) {
-			record, _ := records.at(view.Path, entry.Team)
+		if panesIn(view.Path, tabs, entry.Team.String()) {
+			record, _ := records.at(view.Path, entry.Team.String())
 			return view, record, true
 		}
 	}
@@ -186,7 +188,7 @@ func panesIn(project string, tabs []team.Tab, name string) bool {
 			continue
 		}
 		for i, pane := range tab.Panes {
-			if !protocol.NamedForTeam(name, pane) || i >= len(tab.PaneDirs) {
+			if !domainname.BelongsTo(domainname.Observe(pane), domainname.Observe(name)) || i >= len(tab.PaneDirs) {
 				continue
 			}
 			if rel, err := filepath.Rel(project, tab.PaneDirs[i]); err == nil &&
@@ -440,10 +442,10 @@ func (a *activityRead) readHerdr(now time.Time) herdrNow {
 func watchedAgents(agents []protocol.Agent) []activity.Agent {
 	out := make([]activity.Agent, 0, len(agents))
 	for _, agent := range agents {
-		if agent.Name == "" {
+		if agent.Name.String() == "" {
 			continue
 		}
-		out = append(out, activity.Agent{Herdr: agent.Name, Status: agent.Status, Seq: agent.Seq})
+		out = append(out, activity.Agent{Herdr: agent.Name.String(), Status: agent.Status, Seq: agent.Seq})
 	}
 	return out
 }
@@ -594,7 +596,7 @@ func judgeOf(one runningTeam, read herdrNow, now time.Time) activity.Team {
 		// is made of the team's live agents alone: the row and the right-hand
 		// column then name the members that are really there, by the short name
 		// hergy gave them, rather than showing nothing at all (2.2).
-		graph = definition.NewGraph(membersOf(agents), nil, nil)
+		graph = nil
 	}
 	return activity.Of(activity.Input{
 		Team:   one.Name,
@@ -605,21 +607,6 @@ func judgeOf(one runningTeam, read herdrNow, now time.Time) activity.Team {
 	})
 }
 
-// membersOf is the live agents as members of a graph, for a team definition that
-// does not read: their short names are all the definition the screen can name
-// (2.2). A graph made this way holds no turn, so the team can only read as
-// working or stopped — which is what 2.2 says a definition that does not read
-// can be told apart.
-func membersOf(agents []activity.Agent) []definition.MemberNode {
-	out := make([]definition.MemberNode, 0, len(agents))
-	for _, agent := range agents {
-		if agent.Node != "" {
-			out = append(out, definition.MemberNode{Name: agent.Node})
-		}
-	}
-	return out
-}
-
 // agentsOf is one team's live agents as the judgement reads them: the name herdr
 // knows each by, the node it stands for when the graph names it, its state and
 // its state_change_seq.
@@ -628,8 +615,8 @@ func agentsOf(read herdrNow, name string) []activity.Agent {
 	out := make([]activity.Agent, 0, len(live))
 	for _, agent := range live {
 		out = append(out, activity.Agent{
-			Herdr:  agent.Name,
-			Node:   shortMember(agent.Name, name),
+			Herdr:  agent.Name.String(),
+			Node:   domainname.ShortIn(agent.Name, domainname.Observe(name)).String(),
 			Status: agent.Status,
 			Seq:    agent.Seq,
 		})
@@ -647,9 +634,9 @@ func teamAgents(tabs []team.Tab, agents []protocol.Agent, name string) []protoco
 	for _, agent := range team.MemberAgents(tabs, name) {
 		wanted[agent] = true
 	}
-	prefix := "worker:" + name + "/"
+	workerTeam := domainname.Observe(name)
 	for _, tab := range tabs {
-		if !strings.HasPrefix(tab.Label, prefix) {
+		if !domainname.IsWorkerTab(domainname.Observe(tab.Label), workerTeam) {
 			continue
 		}
 		for _, agent := range tab.Agents {
@@ -658,18 +645,11 @@ func teamAgents(tabs []team.Tab, agents []protocol.Agent, name string) []protoco
 	}
 	out := make([]protocol.Agent, 0, len(wanted))
 	for _, agent := range agents {
-		if agent.Name != "" && wanted[agent.Name] {
+		if agent.Name.String() != "" && wanted[agent.Name.String()] {
 			out = append(out, agent)
 		}
 	}
 	return out
-}
-
-// shortMember is a member's short name: the herdr name with the team's own prefix
-// taken off ("lead" for "core-lead"). A name that does not carry the prefix is
-// left as it is.
-func shortMember(herdrName, teamName string) string {
-	return strings.TrimPrefix(herdrName, teamName+"-")
 }
 
 // itemOf is one row of the list as the boundary writes it (spec-activity 3).
@@ -801,7 +781,7 @@ func (a *activityRead) One(name string) (web.ActivityDoc, bool) {
 	} else {
 		// A definition that does not read leaves the live agents as the only
 		// members known (2.2), so they stand in the right-hand column.
-		graph = definition.NewGraph(membersOf(agents), nil, nil)
+		graph = nil
 	}
 	in := activity.Input{Team: one.Name, Graph: graph, Agents: agents, Seen: read.seen, Now: now}
 	t := activity.Of(in)
@@ -831,7 +811,7 @@ func (a *activityRead) One(name string) (web.ActivityDoc, bool) {
 	titles := map[string]string{}
 	for _, agent := range read.agents {
 		if agent.Title != "" {
-			titles[agent.Name] = agent.Title
+			titles[agent.Name.String()] = agent.Title
 		}
 	}
 	doc := web.ActivityDoc{
@@ -977,7 +957,7 @@ func docHired(t activity.Team, teamName string, now time.Time, titles, from map[
 	out := make([]web.ActivityNode, 0, len(t.Hired))
 	for _, hired := range t.Hired {
 		out = append(out, web.ActivityNode{
-			Name:  shortMember(hired.Herdr, teamName),
+			Name:  domainname.ShortIn(domainname.Observe(hired.Herdr), domainname.Observe(teamName)).String(),
 			Herdr: hired.Herdr,
 			State: hired.State.Slug(),
 			At:    activity.Clock(now, hired.At),
@@ -1020,7 +1000,7 @@ func hireSources(project, teamName string) map[string]string {
 // its one-line question (herdr agent read --source detection). An error leaves
 // that line empty.
 func (a *activityRead) herdrPane(name string) (string, error) {
-	return herdr.New(a.herdrPort()).Read(name)
+	return herdr.New(a.herdrPort()).Read(domainname.Observe(name))
 }
 
 // FocusMember rechecks membership before moving focus; it never answers a prompt.
@@ -1029,7 +1009,7 @@ func (a *activityRead) FocusMember(teamName, member string) error {
 	if ok {
 		for _, node := range doc.Nodes {
 			if node.Herdr == member && node.State != "absent" {
-				if err := herdr.New(a.herdrPort()).Focus(member); err != nil {
+				if err := herdr.New(a.herdrPort()).Focus(domainname.Observe(member)); err != nil {
 					return &web.HQError{Status: 500, Text: i18n.T("web.activity.focus_failed")}
 				}
 				return nil

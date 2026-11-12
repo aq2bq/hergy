@@ -176,7 +176,7 @@ func TestTEAMS_M4_ThePreviewIsThePromptsAgreementPart(t *testing.T) {
 	// part compared here.
 	var lead *definition.MemberNode
 	for i := range def.Graph.Members {
-		if def.Graph.Members[i].Name == "lead" {
+		if def.Graph.Members[i].Name.String() == "lead" {
 			lead = &def.Graph.Members[i]
 		}
 	}

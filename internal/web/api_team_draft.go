@@ -177,7 +177,7 @@ func (s *Server) t2StarterFindings(row t2DraftRow, cat *catalog.Catalog, def *de
 							// The save writes this role document; it is not missing.
 							continue
 						}
-						finding.Text = t2ChooseRole(member.Name, roles)
+						finding.Text = t2ChooseRole(member.Name.String(), roles)
 					}
 				}
 			}
@@ -189,7 +189,7 @@ func (s *Server) t2StarterFindings(row t2DraftRow, cat *catalog.Catalog, def *de
 				// The person picks a profile where the member stands, so the
 				// sentence says which profiles are there rather than how to
 				// write the file (d-86b1).
-				finding.Text = t2ChooseProfile(member.Name, profiles)
+				finding.Text = t2ChooseProfile(member.Name.String(), profiles)
 			}
 		}
 		out = append(out, finding)

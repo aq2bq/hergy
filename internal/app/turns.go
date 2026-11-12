@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	domainname "github.com/aq2bq/hergy/internal/domain/name"
+
 	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/herdr"
 	"github.com/aq2bq/hergy/internal/herdrcli"
@@ -85,7 +87,7 @@ func runTurns(ctx context.Context, env team.Env, opts *options.Options, stdout i
 	}
 	for _, s := range r.starts {
 		if s.Signal.Wired {
-			w.wired[s.Short] = true
+			w.wired[s.Short.String()] = true
 		}
 	}
 	if err := w.load(); err != nil {
@@ -146,7 +148,7 @@ func hirersOf(teamName string) map[string]string {
 		if record.Team != teamName || !record.IsHire() || record.Hire == nil {
 			continue
 		}
-		out[shortMember(record.Hire.Worker, teamName)] = record.Hire.From
+		out[domainname.ShortIn(domainname.Observe(record.Hire.Worker), domainname.Observe(teamName)).String()] = record.Hire.From
 	}
 	return out
 }
@@ -272,8 +274,8 @@ type snapshot struct {
 func (w *turnWatcher) observe(live []protocol.Agent) []turns.Agent {
 	out := make([]turns.Agent, 0, len(live))
 	for _, agent := range live {
-		short := shortMember(agent.Name, w.team)
-		w.names[short] = agent.Name
+		short := domainname.ShortIn(agent.Name, domainname.Observe(w.team)).String()
+		w.names[short] = agent.Name.String()
 		out = append(out, turns.Agent{Name: short, Hirer: w.hirers[short], Status: agent.Status, Seq: agent.Seq})
 	}
 	return out
@@ -292,7 +294,7 @@ func (w *turnWatcher) remember(now []turns.Agent) {
 		if waiting, ok := w.state.Waiting[a.Name]; ok && waiting.Seq == a.Seq {
 			continue // this stop's text is still to be read, once its signal comes or not
 		}
-		if text, err := w.herdr.ReadRecent(w.names[a.Name], paneLines); err == nil {
+		if text, err := w.herdr.ReadRecent(domainname.Observe(w.names[a.Name]), paneLines); err == nil {
 			w.snaps[a.Name] = snapshot{seq: a.Seq, text: text}
 		}
 	}
@@ -301,7 +303,7 @@ func (w *turnWatcher) remember(now []turns.Agent) {
 // wrote is what one agent wrote in its pane during the turn that just ended:
 // the pane now, past where it stood at the agent's last stop.
 func (w *turnWatcher) wrote(short string) string {
-	text, err := w.herdr.ReadRecent(w.names[short], paneLines)
+	text, err := w.herdr.ReadRecent(domainname.Observe(w.names[short]), paneLines)
 	if err != nil {
 		return ""
 	}
@@ -367,9 +369,9 @@ func waitingText(waiting []string) string {
 // be put (the member is blocked, or never starts) leaves the turn with the
 // human, saying why.
 func (w *turnWatcher) ask(action turns.Action, route string) {
-	target := w.names[action.To]
-	if target == "" {
-		target = w.team + "-" + action.To
+	target := domainname.Observe(w.names[action.To])
+	if target.String() == "" {
+		target = domainname.Observe(w.team).WithShort(domainname.Observe(action.To))
 	}
 	cands := append(append([]string(nil), action.Candidates...), i18n.T("send.who_human"), i18n.T("turns.nobody"))
 	text := i18n.Tf("turns.question", waitingText(action.Waiting), strings.Join(cands, i18n.T("turns.or")))
@@ -404,9 +406,9 @@ func (w *turnWatcher) deliver(action turns.Action, route string) {
 		route = i18n.Tf("turns.route_answer", route)
 	}
 	text := w.handoffText(action.Messages)
-	target := w.names[action.To]
-	if target == "" {
-		target = w.team + "-" + action.To
+	target := domainname.Observe(w.names[action.To])
+	if target.String() == "" {
+		target = domainname.Observe(w.team).WithShort(domainname.Observe(action.To))
 	}
 	err := w.herdr.ConfirmPrompt(target, text)
 	if err == nil {

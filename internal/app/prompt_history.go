@@ -4,6 +4,8 @@ import (
 	"path/filepath"
 	"slices"
 
+	domainname "github.com/aq2bq/hergy/internal/domain/name"
+
 	"github.com/aq2bq/hergy/internal/launchlog"
 )
 
@@ -28,7 +30,7 @@ func lastPromptRecord(records []launchlog.Record, project, path, definition, tea
 			continue
 		}
 		for _, m := range r.Members {
-			if m.Name == team+"-"+member {
+			if m.Name == domainname.PreviewName(team, member) {
 				return r, m, true
 			}
 		}

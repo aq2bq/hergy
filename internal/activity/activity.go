@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/aq2bq/hergy/internal/definition"
+	domainname "github.com/aq2bq/hergy/internal/domain/name"
 	"github.com/aq2bq/hergy/internal/i18n"
 )
 
@@ -378,20 +379,24 @@ type live struct {
 // livesOf is the live agents, the graph's members first (in the graph's order,
 // the way the figure reads), then the agents with no node.
 func livesOf(in Input) []live {
+	members := memberNames(in)
 	byNode := map[string]Agent{}
 	var others []Agent
 	for _, agent := range in.Agents {
-		if _, ok := in.Graph.Member(agent.Node); ok {
+		if slices.Contains(members, domainname.Observe(agent.Node)) {
 			byNode[agent.Node] = agent
 			continue
 		}
 		others = append(others, agent)
 	}
-	lives := make([]live, 0, len(in.Graph.Members)+len(others))
-	for i := range in.Graph.Members {
-		member := &in.Graph.Members[i]
-		l := live{name: member.Name, state: Absent, human: handsToHuman(in.Graph, member.Name)}
-		if agent, ok := byNode[member.Name]; ok {
+	lives := make([]live, 0, len(members)+len(others))
+	for _, member := range members {
+		human := false
+		if in.Graph != nil {
+			human = handsToHuman(in.Graph, member.String())
+		}
+		l := live{name: member.String(), state: Absent, human: human}
+		if agent, ok := byNode[member.String()]; ok {
 			l.herdr, l.seq, l.state = agent.Herdr, agent.Seq, stateOf(agent.Status)
 			l.at, l.lower = atOf(l.state, in.Seen, agent.Herdr)
 		}
@@ -445,12 +450,12 @@ func nodesOf(in Input, lives []live) []Node {
 	for _, l := range lives {
 		state[l.name] = l
 	}
-	nodes := make([]Node, 0, len(in.Graph.Members))
-	for i := range in.Graph.Members {
-		member := &in.Graph.Members[i]
-		l := state[member.Name]
+	members := memberNames(in)
+	nodes := make([]Node, 0, len(members))
+	for _, member := range members {
+		l := state[member.String()]
 		nodes = append(nodes, Node{
-			Name: member.Name, Human: l.human, State: l.state, Herdr: l.herdr, Seq: l.seq, At: l.at, Lower: l.lower,
+			Name: member.String(), Human: l.human, State: l.state, Herdr: l.herdr, Seq: l.seq, At: l.at, Lower: l.lower,
 		})
 	}
 	slices.SortStableFunc(nodes, stopOrder)
@@ -626,4 +631,22 @@ func markLower(text string, lower bool) string {
 		return text
 	}
 	return i18n.Tf("activity.or_more", text)
+}
+
+// memberNames keeps unreadable definitions as observations rather than inventing
+// MemberNodes. A nil graph means the only known rows are the observed agents.
+func memberNames(in Input) []domainname.Seen {
+	var out []domainname.Seen
+	if in.Graph == nil {
+		for _, agent := range in.Agents {
+			if agent.Node != "" {
+				out = append(out, domainname.Observe(agent.Node))
+			}
+		}
+		return out
+	}
+	for _, member := range in.Graph.Members {
+		out = append(out, domainname.Observe(member.Name.String()))
+	}
+	return out
 }

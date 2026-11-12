@@ -19,7 +19,7 @@ func edge(from, to definition.NodeID) definition.Edge { return definition.Edge{F
 // and dev, dev to spec alone (r-bc26 の実例).
 func ring() *definition.Graph {
 	return definition.NewGraph(
-		[]definition.MemberNode{{Name: "lead"}, {Name: "spec"}, {Name: "dev"}},
+		[]definition.MemberNode{{Name: fixtureMemberName("lead")}, {Name: fixtureMemberName("spec")}, {Name: fixtureMemberName("dev")}},
 		[]definition.WorkerNode{{From: "spec", Purpose: testPurpose("開発"), Profile: "ds4f"}},
 		[]definition.Edge{
 			edge(humanID(), member("lead")), edge(member("lead"), humanID()), edge(member("lead"), member("spec")),

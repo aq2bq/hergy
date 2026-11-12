@@ -188,13 +188,13 @@ func (s *Server) carryFindings(carry *t2Carry, chosen t2Chosen, def *definition.
 				if chosen.Roles[member.Role] {
 					continue
 				}
-				finding.Text = tf("error.role_to_carry", member.Name, member.Role, place, dir, place)
+				finding.Text = tf("error.role_to_carry", member.Name.String(), member.Role, place, dir, place)
 			}
 			if strings.HasSuffix(finding.Field, ".profile") && carry.holdsProfile(member.Profile) {
 				if chosen.Profiles[member.Profile] {
 					continue
 				}
-				finding.Text = tf("error.profile_to_carry", member.Name, member.Profile, place, dir, place)
+				finding.Text = tf("error.profile_to_carry", member.Name.String(), member.Profile, place, dir, place)
 			}
 		}
 		if i, ok := t2WorkerIndex(finding.Field); ok && i < len(def.Graph.Workers) {

@@ -72,7 +72,7 @@ var (
 	flagDir = &Flag{Name: "dir", Short: "C", Value: text("<dir>", "<ディレクトリ>"),
 		Set: setsValue(func(o *Options, v string) { o.Dir = v })}
 	flagTeam = &Flag{Name: "team", Value: text("<team>", "<チーム名>"),
-		Set: setsValue(func(o *Options, v string) { o.Team = v })}
+		Set: setsValue(func(o *Options, v string) { o.Team = Input{raw: v} })}
 	flagAs = &Flag{Name: "as", Value: text("<team>", "<チーム名>"),
 		Set: setsValue(func(o *Options, v string) { o.As = v })}
 	flagPurpose = &Flag{Name: "purpose", Value: text("<purpose>", "<目的>"),

@@ -11,13 +11,14 @@ import (
 	"strconv"
 	"strings"
 
+	domainname "github.com/aq2bq/hergy/internal/domain/name"
+
 	"go.yaml.in/yaml/v3"
 
 	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/check"
 	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/i18n"
-	"github.com/aq2bq/hergy/internal/profile"
 	"github.com/aq2bq/hergy/internal/source"
 )
 
@@ -265,7 +266,7 @@ func (s *Server) t2DocWithAgree(def *definition.Definition, agree *apiTeamAgree)
 	out.Description = def.Description
 	for i := range def.Graph.Members {
 		member := &def.Graph.Members[i]
-		out.Members = append(out.Members, apiTeamMember{Name: member.Name, Role: member.Role, Profile: member.Profile})
+		out.Members = append(out.Members, apiTeamMember{Name: member.Name.String(), Role: member.Role, Profile: member.Profile})
 	}
 	for _, w := range def.Graph.Workers {
 		out.Workers = append(out.Workers, apiTeamWorker{From: w.From, Purpose: w.Purpose.String(), Profile: w.Profile})
@@ -308,7 +309,7 @@ func (s *Server) buildSummaryOf(name, layer string, def *definition.Definition) 
 		out.Description = def.Description
 		out.Workers = len(def.Graph.Workers)
 		for _, m := range def.Graph.Members {
-			out.Members = append(out.Members, apiTeamMember{Name: m.Name, Role: m.Role, Profile: m.Profile})
+			out.Members = append(out.Members, apiTeamMember{Name: m.Name.String(), Role: m.Role, Profile: m.Profile})
 		}
 	}
 	// The same size and budget the figure's check answers (d-00a9, r-2f83): a
@@ -566,11 +567,16 @@ func (k apiTeam) checkWorkerPrompt(in apiIn) (any, *apiErr) {
 	if built.DefErr != nil {
 		return nil, refuse(http.StatusUnprocessableEntity, built.DefErr.Error())
 	}
-	herdr := built.Names.Team + "-" + body.Name
-	// The hire's own naming rule stands as it was; a preview's placeholders are
-	// not a name anyone is hired under (r-933c).
-	if !body.Preview && !profile.NamePattern.MatchString(herdr) {
-		return nil, refuse(http.StatusUnprocessableEntity, i18n.Tf("error.herdr_name_pattern", herdr))
+	// Preview placeholders remain display values. Only a real hire's prompt
+	// confirmation constructs the same checked worker target as spawn.Plan.
+	if !body.Preview {
+		workerName, err := domainname.ParseWorkerName(body.Name)
+		if err != nil {
+			return nil, refuse(http.StatusUnprocessableEntity, i18n.T("error.worker_name_pattern"))
+		}
+		if _, err := domainname.WorkerForInput(built.Names.Team, workerName); err != nil {
+			return nil, refuse(http.StatusUnprocessableEntity, i18n.Tf("error.herdr_name_pattern", domainname.PreviewName(built.Names.Team, body.Name)))
+		}
 	}
 	if built.WorkerErr != nil {
 		return nil, refuse(http.StatusUnprocessableEntity, built.WorkerErr.Error())
@@ -591,7 +597,7 @@ func t2HiringMember(def *definition.Definition, purpose, from string) (*definiti
 	if from != "" {
 		for i := range def.Graph.Members {
 			member := &def.Graph.Members[i]
-			if member.Name == from || def.Name+"-"+member.Name == from {
+			if member.Name.String() == from || domainname.PreviewName(def.Name.String(), member.Name.String()) == from {
 				return member, nil
 			}
 		}
@@ -601,8 +607,8 @@ func t2HiringMember(def *definition.Definition, purpose, from string) (*definiti
 	for i := range def.Graph.Members {
 		member := &def.Graph.Members[i]
 		for _, worker := range def.Graph.Workers {
-			if worker.From == member.Name && worker.Purpose.String() == purpose {
-				names = append(names, member.Name)
+			if worker.From == member.Name.String() && worker.Purpose.String() == purpose {
+				names = append(names, member.Name.String())
 				break
 			}
 		}
@@ -612,7 +618,7 @@ func t2HiringMember(def *definition.Definition, purpose, from string) (*definiti
 		return nil, i18n.Errorf("error.worker_prompt_none", purpose)
 	case 1:
 		for i := range def.Graph.Members {
-			if def.Graph.Members[i].Name == names[0] {
+			if def.Graph.Members[i].Name.String() == names[0] {
 				return &def.Graph.Members[i], nil
 			}
 		}

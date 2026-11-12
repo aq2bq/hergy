@@ -45,9 +45,9 @@ func hireRetry(project, team string, worker *definition.Start, task string) stri
 	purposeSetup, purposeWord := recoveryWord(worker.Purpose, "purpose")
 	taskSetup, taskWord := recoveryWord(task, "task")
 	return projectSetup + purposeSetup + taskSetup +
-		"hergy down " + worker.Name + " -C " + projectWord + " && hergy hire " + worker.Short +
+		"hergy down " + worker.Name.String() + " -C " + projectWord + " && hergy hire " + worker.Short.String() +
 		" --team " + team + " -C " + projectWord + " --purpose " + purposeWord +
-		" --task " + taskWord + " --from " + worker.From
+		" --task " + taskWord + " --from " + worker.From.String()
 }
 
 func repromptRetry(project, team, member string) string {

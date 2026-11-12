@@ -6,8 +6,9 @@ import (
 	"io"
 	"path/filepath"
 	"sort"
-	"strings"
 	"time"
+
+	domainname "github.com/aq2bq/hergy/internal/domain/name"
 
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/launchlog"
@@ -43,7 +44,7 @@ func workerNamesOf(tabs []team.Tab, teamName string) []string {
 	var out []string
 	for _, tab := range tabs {
 		if short, ok := workerOf(tab.Label, teamName); ok {
-			out = append(out, teamName+"-"+short)
+			out = append(out, domainname.Observe(teamName).WithShort(domainname.Observe(short)).String())
 		}
 	}
 	sort.Strings(out)
@@ -55,10 +56,10 @@ func workerNamesOf(tabs []team.Tab, teamName string) []string {
 // It is read before the panes close, so the worktrees are known afterwards
 // (r-b65e).
 func teamPaneDirs(tabs []team.Tab, name string) []string {
-	prefix := protocol.WorkerTabPrefix(name)
+	workerTeam := domainname.Observe(name)
 	var dirs []string
 	for _, tab := range tabs {
-		if !protocol.NamesTeam(tab.Label, name) && !strings.HasPrefix(tab.Label, prefix) {
+		if !protocol.NamesTeam(tab.Label, name) && !domainname.IsWorkerTab(domainname.Observe(tab.Label), workerTeam) {
 			continue
 		}
 		dirs = append(dirs, tab.PaneDirs...)

@@ -151,7 +151,7 @@ func (out *apiRoleContext) addUses(cat *catalog.Catalog, path, project, label, p
 			use := apiRoleUse{Project: project, ProjectName: label, Place: defPlace, Name: listing.Name, Members: []string{}}
 			for _, m := range def.Graph.Members {
 				if m.Role == out.Name {
-					use.Members = append(use.Members, m.Name)
+					use.Members = append(use.Members, m.Name.String())
 				}
 			}
 			if len(use.Members) > 0 {

@@ -8,6 +8,8 @@ import (
 	"io"
 	"os"
 
+	domainname "github.com/aq2bq/hergy/internal/domain/name"
+
 	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/launcher"
@@ -77,7 +79,7 @@ func plannedByName(plan deliveryPlan, name string) (plannedMember, bool) {
 		return member, true
 	}
 	for _, member := range plan.members {
-		if member.start.Short == name {
+		if member.start.Short.String() == name {
 			return member, true
 		}
 	}
@@ -136,13 +138,13 @@ func chooseApply(plan deliveryPlan, opts *options.Options) ([]plannedMember, []c
 		if !member.changed {
 			return nil, nil, i18n.Errorf("apply.no_change", name)
 		}
-		named[member.start.Name] = true
-		named[member.start.Short] = true
+		named[member.start.Name.String()] = true
+		named[member.start.Short.String()] = true
 	}
 	var selected []plannedMember
 	var remaining []chosen
 	for _, row := range plan.apply.Teams {
-		if opts.Team != "" && row.Team != opts.Team {
+		if opts.Team.String() != "" && row.Team != opts.Team.String() {
 			continue
 		}
 		for _, shown := range row.Members {
@@ -159,7 +161,7 @@ func chooseApply(plan deliveryPlan, opts *options.Options) ([]plannedMember, []c
 			}
 			why := member.whyNot
 			if why == "" {
-				why = i18n.Tf("apply.refused_state", member.start.Short)
+				why = i18n.Tf("apply.refused_state", member.start.Short.String())
 			}
 			remaining = append(remaining, chosen{member: member, whyLeft: why})
 		}
@@ -192,7 +194,7 @@ func applyTeamNow(ctx context.Context, env team.Env, group []plannedMember, time
 	}
 	cat := projectEnv.Catalog(source.Disk{})
 	r, err := buildRunningIn(cat, projectEnv.ProjectRoot,
-		team.Running{Team: group[0].team.Name, Definition: group[0].team.Definition}, group[0].team.Place)
+		team.Running{Team: domainname.TeamFromObservation(domainname.Observe(group[0].team.Name)), Definition: group[0].team.Definition}, group[0].team.Place)
 	if err != nil {
 		return err
 	}
@@ -224,10 +226,10 @@ func applyTeamNow(ctx context.Context, env team.Env, group []plannedMember, time
 	all := make([]definition.Start, 0, len(group))
 	for _, member := range group {
 		all = append(all, member.start)
-		if !l.Received(member.start.Name) {
+		if !l.Received(member.start.Name.String()) {
 			continue
 		}
-		fmt.Fprintf(stdout, "%s\n", i18n.Tf("apply.applied", member.start.Short, applyHowWord(member.how)))
+		fmt.Fprintf(stdout, "%s\n", i18n.Tf("apply.applied", member.start.Short.String(), applyHowWord(member.how)))
 	}
 	recordReceivedLaunch(stderr, projectEnv, r, launchlog.CommandApply, all, l, launchlog.Workspace{})
 	return errors.Join(undelivered...)
@@ -300,7 +302,7 @@ func printApplyPlan(stdout io.Writer, plan deliveryPlan, selected []plannedMembe
 				byTeam[member.team.Name] = index
 			}
 			shown := web.ApplyMember{
-				Name: member.start.Name, Short: member.start.Short, Role: member.start.Role,
+				Name: member.start.Name.String(), Short: member.start.Short.String(), Role: member.start.Role,
 				State: member.state, How: member.how, Changes: member.changes,
 				CanApply: member.canApply(), WhyNot: member.whyNot,
 				ConversationLost: member.how == web.ApplyRestart,
@@ -336,7 +338,7 @@ func printApplyPlan(stdout io.Writer, plan deliveryPlan, selected []plannedMembe
 			fmt.Fprintf(stdout, "  %s\n", note)
 		}
 		for _, member := range group {
-			fmt.Fprintf(stdout, "  %s: %s\n", member.start.Short, applyPlanWord(member.how))
+			fmt.Fprintf(stdout, "  %s: %s\n", member.start.Short.String(), applyPlanWord(member.how))
 			for _, change := range member.changes {
 				fmt.Fprintf(stdout, "    - %s\n", change.Text)
 			}
@@ -364,7 +366,7 @@ func printApplyPlan(stdout io.Writer, plan deliveryPlan, selected []plannedMembe
 // printRemaining is the members that stay, with the sentence saying why.
 func printRemaining(stdout io.Writer, remaining []chosen) {
 	for _, one := range remaining {
-		fmt.Fprintf(stdout, "%s\n", i18n.Tf("apply.left", one.member.start.Short, one.whyLeft))
+		fmt.Fprintf(stdout, "%s\n", i18n.Tf("apply.left", one.member.start.Short.String(), one.whyLeft))
 	}
 }
 

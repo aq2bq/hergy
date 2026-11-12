@@ -162,8 +162,8 @@ func TestReadWithNoNameIsTheOneDefinition(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Name != "only" {
-		t.Errorf("Read(\"\") = %q, want the single definition", got.Name)
+	if got.Name.String() != "only" {
+		t.Errorf("Read(\"\") = %q, want the single definition", got.Name.String())
 	}
 	l.writeFullTeam(t, source.LayerLocal, "second", "another description")
 	if _, err := l.catalog().Read(""); err == nil {

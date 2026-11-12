@@ -16,15 +16,15 @@ import (
 // until get reports their disappearance. No herdr or harness is started.
 func releaseLauncher(t *testing.T, survive int) (*Launcher, *fakePort, *time.Duration) {
 	t.Helper()
-	base := &fakePort{agents: map[string]protocol.Agent{}, gone: map[string]bool{}, tabs: []protocol.Tab{{ID: "t1", Label: "demo"}}}
+	base := &fakePort{agents: map[string]protocol.Agent{}, gone: map[string]bool{}, tabs: []protocol.Tab{{ID: "t1", Label: fixtureSeen("demo")}}}
 	starts := []definition.Start{}
 	for i, name := range []string{"demo-a", "demo-b"} {
 		pane := []string{"p1", "p2"}[i]
-		a := protocol.Agent{Name: name, PaneID: pane, TabID: "t1", Status: "idle", Kind: "claude"}
+		a := protocol.Agent{Name: fixtureSeen(name), PaneID: pane, TabID: "t1", Status: "idle", Kind: "claude"}
 		base.agents[name] = a
 		base.live = append(base.live, a)
-		base.panes = append(base.panes, protocol.Pane{ID: pane, TabID: "t1", Label: name})
-		starts = append(starts, definition.Start{Name: name, Short: strings.TrimPrefix(name, "demo-"), Kind: "claude", Cwd: t.TempDir(), Prompt: "hello"})
+		base.panes = append(base.panes, protocol.Pane{ID: pane, TabID: "t1", Label: fixtureSeen(name)})
+		starts = append(starts, definition.Start{Name: fixtureHerdrName(name), Short: fixtureShortName(strings.TrimPrefix(name, "demo-")), Kind: "claude", Cwd: t.TempDir(), Prompt: "hello"})
 	}
 	reads := map[string]int{}
 	base.onAgentGet = func(name string) {
@@ -37,7 +37,7 @@ func releaseLauncher(t *testing.T, survive int) (*Launcher, *fakePort, *time.Dur
 			return
 		}
 		delete(base.agents, name)
-		base.live = slices.DeleteFunc(base.live, func(a protocol.Agent) bool { return a.Name == name })
+		base.live = slices.DeleteFunc(base.live, func(a protocol.Agent) bool { return a.Name.String() == name })
 	}
 	l := New(starts, "demo", t.TempDir(), herdr.New(&receiptPort{fakePort: base}), 400, io.Discard)
 	elapsed := new(time.Duration)
@@ -148,11 +148,11 @@ func TestTeamDownWaitsForWorkersAndNamedPanes(t *testing.T) {
 	for _, path := range []string{"Down", "DownByName", "DownStopped"} {
 		t.Run(path, func(t *testing.T) {
 			l, p, elapsed := releaseLauncher(t, 1)
-			p.tabs = append(p.tabs, protocol.Tab{ID: "tw", Label: "worker:demo/research"})
-			worker := protocol.Agent{Name: "demo-research", PaneID: "pw", TabID: "tw", Status: "idle", Kind: "claude"}
-			p.agents[worker.Name] = worker
+			p.tabs = append(p.tabs, protocol.Tab{ID: "tw", Label: fixtureSeen("worker:demo/research")})
+			worker := protocol.Agent{Name: fixtureSeen("demo-research"), PaneID: "pw", TabID: "tw", Status: "idle", Kind: "claude"}
+			p.agents[worker.Name.String()] = worker
 			p.live = append(p.live, worker)
-			p.panes = append(p.panes, protocol.Pane{ID: "pw", TabID: "tw", Label: worker.Name}, protocol.Pane{ID: "orphan", TabID: "t1", Label: "demo-ended"})
+			p.panes = append(p.panes, protocol.Pane{ID: "pw", TabID: "tw", Label: worker.Name}, protocol.Pane{ID: "orphan", TabID: "t1", Label: fixtureSeen("demo-ended")})
 			if _, err := downPath(l, path, "", false); err != nil {
 				t.Fatal(err)
 			}
@@ -170,7 +170,7 @@ func TestTeamDownReportsOnlyNamesStillPresent(t *testing.T) {
 	p.onAgentGet = func(name string) {
 		if name == "demo-a" && *elapsed >= 200*time.Millisecond {
 			delete(p.agents, name)
-			p.live = slices.DeleteFunc(p.live, func(a protocol.Agent) bool { return a.Name == name })
+			p.live = slices.DeleteFunc(p.live, func(a protocol.Agent) bool { return a.Name.String() == name })
 		}
 		original(name)
 	}

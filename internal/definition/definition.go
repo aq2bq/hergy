@@ -19,7 +19,7 @@ import (
 // files in it.
 type Definition struct {
 	// Name is the directory name under teams/.
-	Name string
+	Name domainname.DefinitionName
 	// Description is one line: which case the team is meant for (d-5f55). It is
 	// required, and the team's behaviour does not read it.
 	Description string
@@ -55,7 +55,7 @@ type Definition struct {
 // engine it runs (its profile) and the prompt it is handed are projections of
 // the definition and the catalog, not fields of the frame.
 type MemberNode struct {
-	Name    string // the short name team.yaml writes
+	Name    domainname.MemberName // the short name team.yaml writes
 	Role    string
 	Profile string
 	Cwd     string
@@ -66,7 +66,7 @@ type MemberNode struct {
 }
 
 // ID is the node's identity in the graph: a member is its name.
-func (m MemberNode) ID() NodeID { return NodeID{Kind: KindMember, Name: m.Name} }
+func (m MemberNode) ID() NodeID { return NodeID{Kind: KindMember, Name: m.Name.String()} }
 
 // WorkerNode is one worker a member may hire: the purpose it is hired for and
 // the profile it runs. Its identity is the member that hires it and the purpose

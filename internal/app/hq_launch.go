@@ -17,7 +17,6 @@ import (
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/launcher"
 	"github.com/aq2bq/hergy/internal/launchlog"
-	"github.com/aq2bq/hergy/internal/protocol"
 	"github.com/aq2bq/hergy/internal/source"
 	"github.com/aq2bq/hergy/internal/team"
 	"github.com/aq2bq/hergy/internal/web"
@@ -143,7 +142,7 @@ func memberOptions(def *definition.Definition) []web.HQMember {
 	}
 	out := make([]web.HQMember, 0, len(def.Graph.Members))
 	for _, member := range def.Graph.Members {
-		out = append(out, web.HQMember{Name: member.Name, Herdr: def.Name + "-" + member.Name})
+		out = append(out, web.HQMember{Name: member.Name.String(), Herdr: domainname.PreviewName(def.Name.String(), member.Name.String())})
 	}
 	return out
 }
@@ -358,13 +357,15 @@ func (h *hqRead) nameRunning(name string) bool {
 	if read.err != nil {
 		return false
 	}
+	known := []domainname.Seen{domainname.Observe(name)}
 	for _, one := range h.act.teamsOf(read) {
+		known = append(known, domainname.Observe(one.Name))
 		if one.Name == name {
 			return true
 		}
 	}
 	for _, agent := range read.agents {
-		if protocol.NamedForTeam(name, agent.Name) {
+		if owner, _, ok := domainname.Resolve(agent.Name, known); ok && owner.String() == name {
 			return true
 		}
 	}

@@ -13,9 +13,9 @@ import (
 // the rules a test writes.
 func ledgerDef(rules ...definition.Ledger) *definition.Definition {
 	return &definition.Definition{
-		Name: "hergy-dev",
+		Name: fixtureDefinitionName("hergy-dev"),
 		Graph: &definition.Graph{
-			Members: []definition.MemberNode{{Name: "lead"}, {Name: "designer"}},
+			Members: []definition.MemberNode{{Name: fixtureMemberName("lead")}, {Name: fixtureMemberName("designer")}},
 		},
 		Ledger: rules,
 	}

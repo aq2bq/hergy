@@ -4,6 +4,8 @@ import (
 	"path/filepath"
 	"time"
 
+	domainname "github.com/aq2bq/hergy/internal/domain/name"
+
 	"github.com/aq2bq/hergy/internal/activity"
 	"github.com/aq2bq/hergy/internal/herdr"
 	"github.com/aq2bq/hergy/internal/i18n"
@@ -71,8 +73,8 @@ func (h *hqRead) runningOf(one runningTeam, read herdrNow, now time.Time) web.HQ
 	}
 	for _, hired := range judged.Hired {
 		out.Workers = append(out.Workers, web.HQWorker{
-			Name: shortMember(hired.Herdr, teamName),
-			Tab:  protocolWorkerTab(teamName, shortMember(hired.Herdr, teamName)),
+			Name: domainname.ShortIn(domainname.Observe(hired.Herdr), domainname.Observe(teamName)).String(),
+			Tab:  protocolWorkerTab(teamName, domainname.ShortIn(domainname.Observe(hired.Herdr), domainname.Observe(teamName)).String()),
 			Live: hired.Herdr != "",
 		})
 	}
@@ -89,7 +91,7 @@ func apiPlaceOf(layer string) string {
 
 // protocolWorkerTab is the label hergy gives one worker's tab.
 func protocolWorkerTab(teamName, worker string) string {
-	return "worker:" + teamName + "/" + worker
+	return domainname.Observe(teamName).WorkerLabel(domainname.Observe(worker)).String()
 }
 
 // Workspaces is GET /api/hq/workspaces: herdr's workspaces, the team in each, and

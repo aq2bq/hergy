@@ -9,12 +9,13 @@ import (
 	"strconv"
 	"strings"
 
+	domainname "github.com/aq2bq/hergy/internal/domain/name"
 	"github.com/aq2bq/hergy/internal/i18n"
 )
 
 // Agent is a live agent as Herdr reports it.
 type Agent struct {
-	Name   string
+	Name   domainname.Seen
 	Kind   string
 	Status string
 	PaneID string
@@ -31,7 +32,7 @@ type Agent struct {
 // Check verifies the live agent still is the member the config describes, and
 // is not in the middle of work.
 func (a Agent) Check(name, kind string) error {
-	if a.Name != name || a.Kind != kind {
+	if a.Name.String() != name || a.Kind != kind {
 		return i18n.Errorf("error.live_mismatch", name)
 	}
 	return a.CheckLive(name)
@@ -42,7 +43,7 @@ func (a Agent) Check(name, kind string) error {
 // the live agent is still running the kind those settings had before an edit;
 // requiring the new kind here would block the very refresh that applies it.
 func (a Agent) CheckLive(name string) error {
-	if a.Name != name {
+	if a.Name.String() != name {
 		return i18n.Errorf("error.live_name_mismatch", name)
 	}
 	if a.Status != "idle" && a.Status != "done" {
@@ -54,7 +55,8 @@ func (a Agent) CheckLive(name string) error {
 // AgentFrom builds an Agent from a Herdr agent object.
 func AgentFrom(object map[string]any) Agent {
 	agent := Agent{}
-	agent.Name, _ = object["name"].(string)
+	rawName, _ := object["name"].(string)
+	agent.Name = domainname.Observe(rawName)
 	agent.Kind, _ = object["agent"].(string)
 	agent.Status, _ = object["agent_status"].(string)
 	agent.PaneID, _ = object["pane_id"].(string)
@@ -93,7 +95,7 @@ func seqOf(value any) int {
 // Tab is one live tab as Herdr reports it.
 type Tab struct {
 	ID    string
-	Label string
+	Label domainname.Seen
 	// WorkspaceID is the workspace the tab stands in. The headquarters names
 	// the workspace a running team is in (d-73fc).
 	WorkspaceID string
@@ -103,7 +105,8 @@ type Tab struct {
 func TabFrom(object map[string]any) Tab {
 	tab := Tab{}
 	tab.ID, _ = object["tab_id"].(string)
-	tab.Label, _ = object["label"].(string)
+	rawLabel, _ := object["label"].(string)
+	tab.Label = domainname.Observe(rawLabel)
 	tab.WorkspaceID, _ = object["workspace_id"].(string)
 	return tab
 }
@@ -112,7 +115,7 @@ func TabFrom(object map[string]any) Tab {
 // and TabID is the tab the pane is in.
 type Pane struct {
 	ID    string
-	Label string
+	Label domainname.Seen
 	TabID string
 	// Cwd is the directory the pane stands in. The headquarters reads it to tell
 	// an unrecorded team's project: a tab and its named panes are in the project
@@ -126,22 +129,11 @@ type Pane struct {
 func PaneFrom(object map[string]any) Pane {
 	pane := Pane{}
 	pane.ID, _ = object["pane_id"].(string)
-	pane.Label, _ = object["label"].(string)
+	rawLabel, _ := object["label"].(string)
+	pane.Label = domainname.Observe(rawLabel)
 	pane.TabID, _ = object["tab_id"].(string)
 	pane.Cwd, _ = object["cwd"].(string)
 	return pane
-}
-
-// WorkerTabPrefix is how the label of one team's worker tabs starts:
-// "worker:<team>/". hergy puts each hired worker in a tab of its own.
-func WorkerTabPrefix(teamName string) string { return "worker:" + teamName + "/" }
-
-// NamedForTeam reports whether a herdr name is one hergy gave a member, a worker
-// or an agent of this team: it starts with the team's name and a dash,
-// "<team>-<name>". A pane hergy did not name has no name at all, which is how down
-// tells hergy's panes from a person's (d-da92).
-func NamedForTeam(teamName, herdrName string) bool {
-	return strings.HasPrefix(herdrName, teamName+"-")
 }
 
 // NamesTeam reports whether a tab label stands for one team: the team's name

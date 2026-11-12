@@ -3,6 +3,8 @@ package check
 import (
 	"path/filepath"
 
+	domainname "github.com/aq2bq/hergy/internal/domain/name"
+
 	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/definition"
 )
@@ -56,7 +58,7 @@ func agreementReaders(def *definition.Definition) []RoleReader {
 	out := make([]RoleReader, 0, len(def.Graph.Members))
 	for i := range def.Graph.Members {
 		member := &def.Graph.Members[i]
-		out = append(out, RoleReader{Definition: def.Name, Member: def.Name + "-" + member.Name})
+		out = append(out, RoleReader{Definition: def.Name.String(), Member: domainname.PreviewName(def.Name.String(), member.Name.String())})
 	}
 	return out
 }

@@ -26,6 +26,8 @@ import (
 	"strings"
 	"time"
 
+	domainname "github.com/aq2bq/hergy/internal/domain/name"
+
 	"github.com/aq2bq/hergy/internal/definition"
 )
 
@@ -731,7 +733,7 @@ func answerIn(text, team string, cands []string) string {
 	var hits []string
 	lower := strings.ToLower(text)
 	for _, cand := range cands {
-		if namesWord(lower, strings.ToLower(cand)) || (team != "" && namesWord(lower, strings.ToLower(team+"-"+cand))) {
+		if namesWord(lower, strings.ToLower(cand)) || (team != "" && namesWord(lower, strings.ToLower(domainname.PreviewName(team, cand)))) {
 			hits = append(hits, cand)
 		}
 	}

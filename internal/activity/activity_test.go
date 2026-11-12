@@ -36,7 +36,7 @@ func idOf(name string) definition.NodeID {
 func graphOf(members []string, turns ...[2]string) *definition.Graph {
 	nodes := make([]definition.MemberNode, 0, len(members))
 	for _, name := range members {
-		nodes = append(nodes, definition.MemberNode{Name: name, Role: name, Profile: "claude"})
+		nodes = append(nodes, definition.MemberNode{Name: fixtureMemberName(name), Role: name, Profile: "claude"})
 	}
 	edges := make([]definition.Edge, 0, len(turns))
 	for _, turn := range turns {

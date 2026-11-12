@@ -24,20 +24,20 @@ func Undelivered(launched map[string]string, now View) []Change {
 	}
 	team := now.Run.Team
 	if team == "" {
-		team = now.Def.Name
+		team = now.Def.Name.String()
 	}
 	now.Run.Team = team
 	var out []Change
 	for i := range now.Def.Graph.Members {
 		member := &now.Def.Graph.Members[i]
-		was, ok := launched[member.Name]
+		was, ok := launched[member.Name.String()]
 		if !ok {
 			continue
 		}
 		if promptHash(now.Def, member, now.Run) == was {
 			continue
 		}
-		out = append(out, Change{Member: member.Name, Definition: now.Def.Name})
+		out = append(out, Change{Member: member.Name.String(), Definition: now.Def.Name.String()})
 	}
 	return out
 }

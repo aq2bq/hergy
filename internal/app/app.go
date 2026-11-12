@@ -235,7 +235,7 @@ func readDefinition(cat *catalog.Catalog, base, name, runName string) (*resolved
 		return nil, err
 	}
 	if runName == "" {
-		runName = def.Name
+		runName = def.Name.String()
 	}
 	return buildResolved(cat, base, def, runName)
 }
@@ -289,9 +289,9 @@ func startsOf(cat *catalog.Catalog, def *definition.Definition, runName, base st
 		// herdr sees the member as "<team>-<member>"; the name is checked where
 		// the same name is written into the prompt, so the projection and the
 		// check refuse it in one place.
-		herdr, err := prompt.MemberName(runName, node)
+		herdr, err := domainname.MemberForInput(runName, node.Name)
 		if err != nil {
-			return nil, err
+			return nil, i18n.Errorf("error.herdr_name_pattern", domainname.PreviewName(runName, node.Name.String()))
 		}
 		built, err := prompt.Member(def, node, run)
 		if err != nil {
@@ -307,20 +307,20 @@ func startsOf(cat *catalog.Catalog, def *definition.Definition, runName, base st
 		}
 		starts = append(starts, definition.Start{
 			Name:     herdr,
-			Short:    node.Name,
+			Short:    node.Name.Short(),
 			Role:     node.Role,
 			Profile:  node.Profile,
 			Kind:     value.Kind,
 			Args:     value.Args,
-			Env:      profile.PaneEnv(value.Env, herdr),
+			Env:      profile.PaneEnv(value.Env, herdr.String()),
 			Cwd:      node.Cwd,
 			Prompt:   built.Text,
 			Segments: built.Segments,
 			RoleDoc:  built.Role,
 			HasRole:  built.HasRole,
 			Read:     built.Read,
-			Workers:  workersOf(def, node.Name),
-			Turns:    turnsOf(def, node.Name),
+			Workers:  workersOf(def, node.Name.String()),
+			Turns:    turnsOf(def, node.Name.String()),
 		})
 		wireStart(&starts[len(starts)-1], runName)
 	}
@@ -356,7 +356,7 @@ func workersOf(def *definition.Definition, member string) []definition.WorkerNod
 // name.
 func (r *resolved) member(name string) (*definition.Start, error) {
 	for i := range r.starts {
-		if r.starts[i].Name == name || r.starts[i].Short == name {
+		if r.starts[i].Name.String() == name || r.starts[i].Short.String() == name {
 			return &r.starts[i], nil
 		}
 	}
@@ -390,6 +390,13 @@ func (r *resolved) usesProfiles() bool {
 	return r.profilesYAML != "" && (len(r.starts) > 0 || len(r.team.Definition.Graph.Workers) > 0)
 }
 
+// modelTeamName is the boundary from the existing operation read model to a
+// checked name. A resolved team's starts have already passed MemberForInput.
+func (r *resolved) modelTeamName() domainname.TeamName {
+	model, _ := domainname.ParseTeamName(r.team.Name)
+	return model
+}
+
 // resolveTeam finds a running team by its team name (down, status, refresh,
 // reprompt, hire) and builds the team definition it was booted from. An empty
 // name picks the one running team, or stops and names the candidates.
@@ -398,14 +405,19 @@ func resolveTeam(cat *catalog.Catalog, base string, opts *options.Options) (*res
 	if err != nil {
 		return nil, err
 	}
-	name := opts.Team
-	if name == "" && len(running) > 1 {
-		name = teamOfPane(running, os.Getenv("HERDR_PANE_ID"))
+	var inferred domainname.Seen
+	if opts.Team.String() == "" && len(running) > 1 {
+		inferred = domainname.Observe(teamOfPane(running, os.Getenv("HERDR_PANE_ID")))
 	}
-	chosen, err := pickTeam(running, name)
+	names := make([]domainname.TeamRef, len(running))
+	for i, one := range running {
+		names[i] = one.Team
+	}
+	selected, err := opts.Team.ResolveTeam(names, inferred)
 	if err != nil {
 		return nil, err
 	}
+	chosen, _ := team.FindRunning(running, selected.String())
 	return buildRunning(cat, base, chosen)
 }
 
@@ -416,21 +428,24 @@ func teamOfPane(running []team.Running, selfPane string) string {
 	if selfPane == "" {
 		return ""
 	}
-	agent, err := herdr.New(herdrcli.New(os.Getenv("HERGY_HERDR"))).Agent(selfPane)
+	agent, err := herdr.New(herdrcli.New(os.Getenv("HERGY_HERDR"))).Agent(domainname.Observe(selfPane))
 	if err != nil {
 		return ""
 	}
-	return teamOfAgent(running, agent.Name)
+	return teamOfAgent(running, agent.Name.String())
 }
 
 // teamOfAgent is the running team an agent's herdr name belongs to, or "".
 func teamOfAgent(running []team.Running, agentName string) string {
-	for _, one := range running {
-		if protocol.NamedForTeam(one.Team, agentName) {
-			return one.Team
-		}
+	known := make([]domainname.Seen, len(running))
+	for i, one := range running {
+		known[i] = domainname.Observe(one.Team.String())
 	}
-	return ""
+	teamName, _, ok := domainname.Resolve(domainname.Observe(agentName), known)
+	if !ok {
+		return ""
+	}
+	return teamName.String()
 }
 
 // resolveTeamDry finds the team a hire --dry plans for without reading herdr, so
@@ -441,7 +456,7 @@ func teamOfAgent(running []team.Running, agentName string) string {
 // nothing else is: herdr is not read to choose.
 func resolveTeamDry(cat *catalog.Catalog, base string, opts *options.Options) (*resolved, error) {
 	recorded := recordedDefinitions(base)
-	name := opts.Team
+	name := opts.Team.String()
 	if name == "" {
 		if len(recorded) != 1 {
 			return nil, dryTeamError(recorded)
@@ -452,7 +467,7 @@ func resolveTeamDry(cat *catalog.Catalog, base string, opts *options.Options) (*
 	if one, ok := recorded[name]; ok {
 		definition = one
 	}
-	return buildRunning(cat, base, team.Running{Team: name, Definition: definition})
+	return buildRunning(cat, base, team.Running{Team: domainname.TeamFromObservation(domainname.Observe(name)), Definition: definition})
 }
 
 // recordedDefinitions is the newest launch of each team name this project has
@@ -506,7 +521,7 @@ func buildRunningIn(cat *catalog.Catalog, base string, running team.Running, lay
 	if err != nil {
 		return nil, err
 	}
-	return buildResolved(cat, base, def, running.Team)
+	return buildResolved(cat, base, def, running.Team.String())
 }
 
 // runningTeams reads herdr's tabs and this machine's launch record, and returns
@@ -602,45 +617,26 @@ func herdrAgents() ([]protocol.Agent, error) {
 func teamTabs(tabs []protocol.Tab, agents []protocol.Agent, panes []protocol.Pane) []team.Tab {
 	inTab := map[string][]string{}
 	for _, agent := range agents {
-		if agent.Name != "" && agent.TabID != "" {
-			inTab[agent.TabID] = append(inTab[agent.TabID], agent.Name)
+		if agent.Name.String() != "" && agent.TabID != "" {
+			inTab[agent.TabID] = append(inTab[agent.TabID], agent.Name.String())
 		}
 	}
 	panesInTab := map[string][]string{}
 	dirsInTab := map[string][]string{}
 	for _, pane := range panes {
-		if pane.Label != "" && pane.TabID != "" {
-			panesInTab[pane.TabID] = append(panesInTab[pane.TabID], pane.Label)
+		if pane.Label.String() != "" && pane.TabID != "" {
+			panesInTab[pane.TabID] = append(panesInTab[pane.TabID], pane.Label.String())
 			dirsInTab[pane.TabID] = append(dirsInTab[pane.TabID], pane.Cwd)
 		}
 	}
 	out := make([]team.Tab, 0, len(tabs))
 	for _, tab := range tabs {
 		out = append(out, team.Tab{
-			ID: tab.ID, Label: tab.Label, WorkspaceID: tab.WorkspaceID,
+			ID: tab.ID, Label: tab.Label.String(), WorkspaceID: tab.WorkspaceID,
 			Agents: inTab[tab.ID], Panes: panesInTab[tab.ID], PaneDirs: dirsInTab[tab.ID],
 		})
 	}
 	return out
-}
-
-// pickTeam is the omitted-argument rule for a team command: the one running
-// team, or a stop that names the candidates.
-func pickTeam(running []team.Running, name string) (team.Running, error) {
-	if name != "" {
-		if chosen, ok := team.FindRunning(running, name); ok {
-			return chosen, nil
-		}
-		return team.Running{}, teamNotRunning(name)
-	}
-	switch len(running) {
-	case 1:
-		return running[0], nil
-	case 0:
-		return team.Running{}, i18n.Errorf("error.no_running_teams")
-	default:
-		return team.Running{}, runningCandidates(running)
-	}
 }
 
 // downWorker is one worker hergy down closes on its own: the team it belongs to,
@@ -659,20 +655,17 @@ type downWorker struct {
 func runningWorkersOf(tabs []team.Tab, running []team.Running) []downWorker {
 	live := make(map[string]bool, len(running))
 	for _, one := range running {
-		live[one.Team] = true
+		live[one.Team.String()] = true
 	}
 	var out []downWorker
 	for _, tab := range tabs {
-		rest, ok := strings.CutPrefix(tab.Label, "worker:")
-		if !ok {
+		teamSeen, shortSeen, ok := domainname.Observe(tab.Label).WorkerTab()
+		if !ok || !live[teamSeen.String()] {
 			continue
 		}
-		teamName, short, ok := strings.Cut(rest, "/")
-		if !ok || teamName == "" || short == "" || !live[teamName] {
-			continue
-		}
+		teamName, short := teamSeen.String(), shortSeen.String()
 		out = append(out, downWorker{
-			Team: teamName, Short: short, Herdr: teamName + "-" + short, Label: tab.Label,
+			Team: teamName, Short: short, Herdr: domainname.Observe(teamName).WithShort(domainname.Observe(short)).String(), Label: tab.Label,
 		})
 	}
 	return out
@@ -682,51 +675,29 @@ func runningWorkersOf(tabs []team.Tab, running []team.Running) []downWorker {
 // carries the name, one worker of a running team, by its short name or its herdr
 // name. A name that is both is refused, naming both, and so is a short name two
 // teams' workers carry (d-fa05).
-func pickDown(running []team.Running, tabs []team.Tab, name string) (team.Running, *downWorker, error) {
-	if name == "" {
-		chosen, err := pickTeam(running, "")
-		return chosen, nil, err
+func pickDown(running []team.Running, tabs []team.Tab, input options.Input) (team.Running, *downWorker, error) {
+	teams := make([]domainname.Seen, len(running))
+	for i, one := range running {
+		teams[i] = domainname.Observe(one.Team.String())
 	}
-	chosen, isTeam := team.FindRunning(running, name)
-	var matched []downWorker
+	var workers []options.Worker
 	for _, worker := range runningWorkersOf(tabs, running) {
-		if worker.Short == name || worker.Herdr == name {
-			matched = append(matched, worker)
-		}
+		workers = append(workers, options.Worker{Team: domainname.Observe(worker.Team), Short: domainname.Observe(worker.Short), Herdr: domainname.Observe(worker.Herdr), Label: domainname.Observe(worker.Label)})
 	}
-	switch {
-	case isTeam && len(matched) > 0:
-		return team.Running{}, nil, i18n.Errorf("error.down_both", name, chosen.Team, matched[0].Herdr)
-	case isTeam:
-		return chosen, nil, nil
-	case len(matched) == 1:
-		return team.Running{}, &matched[0], nil
-	case len(matched) > 1:
-		names := make([]string, 0, len(matched))
-		for _, one := range matched {
-			names = append(names, one.Herdr)
-		}
-		return team.Running{}, nil, i18n.Errorf("error.worker_ambiguous", name, strings.Join(names, i18n.T("list.separator")))
+	choice, err := input.ResolveDown(teams, workers)
+	if err != nil {
+		return team.Running{}, nil, err
+	}
+	switch chosen := choice.(type) {
+	case options.DownTeam:
+		one, _ := team.FindRunning(running, chosen.Team.String())
+		return one, nil, nil
+	case options.DownWorker:
+		worker := chosen.Worker
+		return team.Running{}, &downWorker{Team: worker.Team.String(), Short: worker.Short.String(), Herdr: worker.Herdr.String(), Label: worker.Label.String()}, nil
 	default:
-		return team.Running{}, nil, errors.New(i18n.Tf("error.down_not_found", name) + "\n" + i18n.Tf("next", "status"))
+		panic("unreachable down choice")
 	}
-}
-
-// teamNotRunning is the error for a team name with no tab.
-func teamNotRunning(name string) error {
-	var b strings.Builder
-	fmt.Fprint(&b, i18n.Tf("error.team_not_running", name))
-	fmt.Fprintf(&b, "\n%s", i18n.Tf("next", "status"))
-	return errors.New(b.String())
-}
-
-// runningCandidates lists the teams that are running and stops.
-func runningCandidates(running []team.Running) error {
-	names := team.RunningNames(running)
-	var b strings.Builder
-	fmt.Fprint(&b, i18n.Tf("error.need_running_team", strings.Join(names, i18n.T("list.separator"))))
-	fmt.Fprintf(&b, "\n%s", i18n.Tf("next", "status"))
-	return errors.New(b.String())
 }
 
 func runLs(env team.Env, stdout io.Writer) error {
@@ -735,7 +706,7 @@ func runLs(env team.Env, stdout io.Writer) error {
 	running := map[string][]string{}
 	if tabs, agentsRead, err := herdrTabs(); err == nil {
 		for _, team := range team.RunningTeams(tabs, launchTeams(), agentsRead) {
-			running[team.Definition] = append(running[team.Definition], team.Team)
+			running[team.Definition] = append(running[team.Definition], team.Team.String())
 		}
 	}
 	shown := 0
@@ -767,7 +738,7 @@ func runLs(env team.Env, stdout io.Writer) error {
 
 func runShow(env team.Env, opts *options.Options, stdout io.Writer) error {
 	cat := env.Catalog(source.Disk{})
-	r, err := readDefinition(cat, env.ProjectRoot, opts.Team, opts.As)
+	r, err := readDefinition(cat, env.ProjectRoot, opts.Definition.DefinitionName().String(), opts.As)
 	if err != nil {
 		return err
 	}
@@ -814,7 +785,7 @@ func agreementDocs(r *resolved) []source.Doc {
 // already in the layer is left as it is. The files themselves come from the
 // embedded scaffold for the language in use.
 func runNew(env team.Env, opts *options.Options, stdout io.Writer) error {
-	name := opts.Team
+	name := opts.Definition.String()
 	if _, err := domainname.NewDefinitionName(name); err != nil {
 		return i18n.Errorf("error.new_name_pattern", name)
 	}
@@ -1310,7 +1281,7 @@ func validateTeam(cat *catalog.Catalog, base, name, layer string) (*resolved, er
 	if err != nil {
 		return nil, err
 	}
-	return buildResolved(cat, base, def, def.Name)
+	return buildResolved(cat, base, def, def.Name.String())
 }
 
 func isFile(path string) bool {
@@ -1342,12 +1313,12 @@ func runUp(ctx context.Context, env team.Env, opts *options.Options, stdout, std
 	if err := sharedAgreementStops(cat); err != nil {
 		return err
 	}
-	r, err := readDefinition(cat, env.ProjectRoot, opts.Team, opts.As)
+	r, err := readDefinition(cat, env.ProjectRoot, opts.Definition.DefinitionName().String(), opts.As)
 	if err != nil {
 		return err
 	}
 	if opts.Dry {
-		return dryPlan(stdout, env, r, "boot", r.starts, opts, "up "+r.team.Definition.Name+asSuffix(opts))
+		return dryPlan(stdout, env, r, "boot", r.starts, opts, "up "+r.team.Definition.Name.String()+asSuffix(opts))
 	}
 	release, err := source.LockTeamStart(r.team.Definition.TeamYAML)
 	if err != nil {
@@ -1355,7 +1326,7 @@ func runUp(ctx context.Context, env team.Env, opts *options.Options, stdout, std
 	}
 	defer release()
 	// A rename may have finished after the first read, before this lock.
-	r, err = readDefinition(env.Catalog(source.Disk{}), env.ProjectRoot, opts.Team, opts.As)
+	r, err = readDefinition(env.Catalog(source.Disk{}), env.ProjectRoot, opts.Definition.DefinitionName().String(), opts.As)
 	if err != nil {
 		return err
 	}
@@ -1394,11 +1365,11 @@ func runDown(ctx context.Context, env team.Env, opts *options.Options, stdout, s
 		return err
 	}
 	running := team.RunningTeams(tabs, launchTeams(), agentsRead)
-	chosen, worker, err := pickDown(running, tabs, opts.Team)
+	chosen, worker, err := pickDown(running, tabs, opts.Target)
 	if err != nil {
 		// A name a running team carries is refused here (it is also a worker's),
 		// rather than read as a stopped team by the tab it has (d-fa05).
-		if _, isTeam := team.FindRunning(running, opts.Team); isTeam {
+		if _, isTeam := team.FindRunning(running, opts.Target.String()); isTeam {
 			return err
 		}
 		// A team that stopped before any agent ran — a boot cut short at a startup
@@ -1421,12 +1392,12 @@ func runDown(ctx context.Context, env team.Env, opts *options.Options, stdout, s
 		}
 		return downOneWorker(ctx, opts, *worker, projectRoot, dirs, owner, stdout, stderr)
 	}
-	if !hasLiveMemberAgent(chosen.Team) && hasNamedPane(chosen.Team) {
+	if !hasLiveMemberAgent(chosen.Team.String(), running) && hasNamedPane(chosen.Team.String()) {
 		// A team d-da92 now finds by its named panes alone prints what a stopped
 		// team always printed: the command's words do not change with the wider
 		// team (d-73fc keeps hergy down's behaviour). A tab with no named pane is
 		// the ordinary case of a team whose members ended, and keeps its header.
-		return downNoAgents(ctx, opts, env.ProjectRoot, chosen.Team, stdout, stderr)
+		return downNoAgents(ctx, opts, env.ProjectRoot, chosen.Team.String(), stdout, stderr)
 	}
 	r, buildErr := buildRunning(cat, env.ProjectRoot, chosen)
 	if buildErr != nil {
@@ -1441,15 +1412,15 @@ func runDown(ctx context.Context, env team.Env, opts *options.Options, stdout, s
 	if chosen.Project != "" {
 		projectRoot = chosen.Project
 	}
-	dirs := teamPaneDirs(tabs, chosen.Team)
-	owner := teamLeftovers(projectRoot, chosen.Team)
+	dirs := teamPaneDirs(tabs, chosen.Team.String())
+	owner := teamLeftovers(projectRoot, chosen.Team.String())
 	if opts.JSON {
 		members := make([]string, 0, len(r.starts))
 		for _, start := range r.starts {
-			members = append(members, start.Name)
+			members = append(members, start.Name.String())
 		}
 		return writeDownPlan(stdout, downPlan{
-			Team: chosen.Team, Members: members, Workers: workerNamesOf(tabs, chosen.Team),
+			Team: chosen.Team.String(), Members: members, Workers: workerNamesOf(tabs, chosen.Team.String()),
 			Leftovers: hqLeftoversOf(team.GitLeftovers(projectRoot, owner.Since, dirs)),
 		})
 	}
@@ -1539,7 +1510,7 @@ func downOneWorker(ctx context.Context, opts *options.Options, worker downWorker
 // the definition from). The panes are the ones hergy started, named after the
 // team, so closing them needs no definition.
 func downByName(ctx context.Context, chosen team.Running, reason error, opts *options.Options, projectRoot string, stdout, stderr io.Writer) error {
-	field(stdout, label("team"), startedFrom(chosen.Team, chosen.Definition))
+	field(stdout, label("team"), startedFrom(chosen.Team.String(), chosen.Definition))
 	// The reason, on one line, without the "next:" step the resolution error
 	// suggests: the step here is the down itself.
 	detail := reason.Error()
@@ -1555,25 +1526,25 @@ func downByName(ctx context.Context, chosen team.Running, reason error, opts *op
 	if chosen.Project != "" {
 		projectRoot = chosen.Project
 	}
-	dirs := teamPaneDirs(tabs, chosen.Team)
-	owner := teamLeftovers(projectRoot, chosen.Team)
+	dirs := teamPaneDirs(tabs, chosen.Team.String())
+	owner := teamLeftovers(projectRoot, chosen.Team.String())
 	if opts.JSON {
 		return writeDownPlan(stdout, downPlan{
-			Team: chosen.Team, Members: team.MemberAgents(tabs, chosen.Team), Workers: workerNamesOf(tabs, chosen.Team),
+			Team: chosen.Team.String(), Members: team.MemberAgents(tabs, chosen.Team.String()), Workers: workerNamesOf(tabs, chosen.Team.String()),
 			Leftovers: hqLeftoversOf(team.GitLeftovers(projectRoot, owner.Since, dirs)),
 		})
 	}
 	selfPane := os.Getenv("HERDR_PANE_ID")
-	l := newLauncher(&resolved{team: team.Team{Name: chosen.Team}}, opts.Timeout, stdout)
+	l := newLauncher(&resolved{team: team.Team{Name: chosen.Team.String()}}, opts.Timeout, stdout)
 	if opts.Dry {
-		closed, err := l.DownByName(team.MemberAgents(tabs, chosen.Team), selfPane, true)
+		closed, err := l.DownByName(team.MemberAgents(tabs, chosen.Team.String()), selfPane, true)
 		if err != nil {
 			return err
 		}
 		printLeftovers(stdout, projectRoot, dirs, owner, true)
 		// A dry run that would close nothing has no next step to name.
 		if closed > 0 {
-			printNext(stdout, "down "+chosen.Team)
+			printNext(stdout, "down "+chosen.Team.String())
 		}
 		return nil
 	}
@@ -1581,7 +1552,7 @@ func downByName(ctx context.Context, chosen team.Running, reason error, opts *op
 		return err
 	}
 	err = runOperation(ctx, stderr, nil, nil, func() error {
-		_, err := l.DownByName(team.MemberAgents(tabs, chosen.Team), selfPane, false)
+		_, err := l.DownByName(team.MemberAgents(tabs, chosen.Team.String()), selfPane, false)
 		return err
 	})
 	return finishTeamDown(stdout, projectRoot, dirs, owner, err)
@@ -1593,7 +1564,7 @@ func downByName(ctx context.Context, chosen team.Running, reason error, opts *op
 // team name no tab carries, or no name at all, keeps the stop the caller had,
 // which names what to do next.
 func downStopped(ctx context.Context, opts *options.Options, projectRoot string, stopped error, stdout, stderr io.Writer) error {
-	name := opts.Team
+	name := opts.Target.String()
 	if name == "" {
 		return stopped
 	}
@@ -1610,13 +1581,13 @@ func downStopped(ctx context.Context, opts *options.Options, projectRoot string,
 // hasLiveMemberAgent reports whether any member's agent of one team is live: a
 // team whose members all ended is put away with the words a stopped team always
 // had (d-da92, d-73fc).
-func hasLiveMemberAgent(name string) bool {
+func hasLiveMemberAgent(name string, running []team.Running) bool {
 	agents, err := herdrAgents()
 	if err != nil {
 		return true
 	}
 	for _, agent := range agents {
-		if protocol.NamedForTeam(name, agent.Name) {
+		if teamOfAgent(running, agent.Name.String()) == name {
 			return true
 		}
 	}
@@ -1680,7 +1651,7 @@ func downNoAgents(ctx context.Context, opts *options.Options, projectRoot, name 
 // down finds a team whose boot stopped before any agent ran.
 func hasTeamTab(tabs []team.Tab, name string) bool {
 	for _, tab := range tabs {
-		if protocol.NamesTeam(tab.Label, name) || strings.HasPrefix(tab.Label, protocol.WorkerTabPrefix(name)) {
+		if protocol.NamesTeam(tab.Label, name) || domainname.IsWorkerTab(domainname.Observe(tab.Label), domainname.Observe(name)) {
 			return true
 		}
 	}
@@ -1692,7 +1663,7 @@ func hasTeamTab(tabs []team.Tab, name string) bool {
 // working. It only reads Herdr, so it runs outside a herdr-managed pane too.
 // With no team name it lists every running team, one block each.
 func runStatus(env team.Env, opts *options.Options, stdout io.Writer) error {
-	if opts.Team == "" {
+	if opts.Team.String() == "" {
 		return runStatusList(env, opts, stdout)
 	}
 	r, err := resolveTeam(env.Catalog(source.Disk{}), env.ProjectRoot, opts)
@@ -1706,7 +1677,7 @@ func runStatus(env team.Env, opts *options.Options, stdout io.Writer) error {
 	markScreens(rows)
 	if opts.JSON {
 		return writeStatusJSON(stdout, statusJSONTeam{
-			Team: r.team.Name, Definition: r.team.Definition.Name, Members: statusJSONRows(rows),
+			Team: r.team.Name, Definition: r.team.Definition.Name.String(), Members: statusJSONRows(rows),
 		})
 	}
 	printHeader(stdout, r, env, true)
@@ -1770,7 +1741,7 @@ func watcherPresent(teamName string) bool {
 		return true // nothing to say when herdr cannot be asked
 	}
 	for _, pane := range panes {
-		if pane.Label == launcher.WatcherPane(teamName) {
+		if pane.Label.String() == launcher.WatcherPane(teamName).String() {
 			return true
 		}
 	}
@@ -1786,10 +1757,10 @@ func statusOfARunningTeam(opts *options.Options, reason error) error {
 	if err != nil {
 		return reason
 	}
-	if _, ok := team.FindRunning(running, opts.Team); !ok {
+	if _, ok := team.FindRunning(running, opts.Team.String()); !ok {
 		return reason
 	}
-	return errors.New(reason.Error() + "\n" + i18n.Tf("status.can_down", opts.Team))
+	return errors.New(reason.Error() + "\n" + i18n.Tf("status.can_down", opts.Team.String()))
 }
 
 // runStatusList is status with no team name: every running team, with its team
@@ -1837,11 +1808,11 @@ func runStatusList(env team.Env, opts *options.Options, stdout io.Writer) error 
 		markScreens(rows)
 		if opts.JSON {
 			teams = append(teams, statusJSONTeam{
-				Team: r.team.Name, Definition: r.team.Definition.Name, Members: statusJSONRows(rows),
+				Team: r.team.Name, Definition: r.team.Definition.Name.String(), Members: statusJSONRows(rows),
 			})
 			continue
 		}
-		field(stdout, label("team"), startedFrom(r.team.Name, r.team.Definition.Name))
+		field(stdout, label("team"), startedFrom(r.team.Name, r.team.Definition.Name.String()))
 		membersCount, workers := status.Counts(rows)
 		indentField(stdout, 1, label("members"), strconv.Itoa(membersCount))
 		indentField(stdout, 1, label("workers"), strconv.Itoa(workers))
@@ -2015,7 +1986,7 @@ func runNudge(env team.Env, opts *options.Options, stdout io.Writer) error {
 	}
 	text := sendText(from, body)
 	if opts.Dry {
-		fmt.Fprintf(stdout, i18n.T("send.dry"), member.Name, text)
+		fmt.Fprintf(stdout, i18n.T("send.dry"), member.Name.String(), text)
 		return nil
 	}
 	return newLauncher(r, opts.Timeout, stdout).Nudge(member, text)
@@ -2037,7 +2008,7 @@ func runStop(env team.Env, opts *options.Options, stdout io.Writer) error {
 		return err
 	}
 	if opts.Dry {
-		fmt.Fprintf(stdout, i18n.T("stop.dry"), member.Name)
+		fmt.Fprintf(stdout, i18n.T("stop.dry"), member.Name.String())
 		return nil
 	}
 	stopped, err := newLauncher(r, opts.Timeout, stdout).Stop(member, os.Getenv("HERDR_PANE_ID"))
@@ -2045,12 +2016,12 @@ func runStop(env team.Env, opts *options.Options, stdout io.Writer) error {
 		// esc twice did not end the turn. The next step is the same one a stop
 		// that worked names: the member has to be started again.
 		if _, ok := errors.AsType[launcher.StopNotStopped](err); ok {
-			printNext(stdout, "refresh "+member.Name+" --team "+r.team.Name)
+			printNext(stdout, "refresh "+member.Name.String()+" --team "+r.team.Name)
 		}
 		return err
 	}
 	if stopped {
-		printNext(stdout, "refresh "+member.Name+" --team "+r.team.Name)
+		printNext(stdout, "refresh "+member.Name.String()+" --team "+r.team.Name)
 	}
 	return nil
 }
@@ -2071,13 +2042,13 @@ func senderName(r *resolved, selfPane string) string {
 	if selfPane == "" {
 		return ""
 	}
-	agent, err := herdr.New(herdrcli.New(os.Getenv("HERGY_HERDR"))).Agent(selfPane)
+	agent, err := herdr.New(herdrcli.New(os.Getenv("HERGY_HERDR"))).Agent(domainname.Observe(selfPane))
 	if err != nil {
 		return ""
 	}
 	for i := range r.starts {
-		if r.starts[i].Name == agent.Name {
-			return agent.Name
+		if r.starts[i].Name.String() == agent.Name.String() {
+			return agent.Name.String()
 		}
 	}
 	return ""
@@ -2131,7 +2102,7 @@ func runRefresh(ctx context.Context, env team.Env, opts *options.Options, stdout
 	if len(newPanes.Members) > 0 {
 		shorts := make([]string, 0, len(newPanes.Members))
 		for _, name := range newPanes.Members {
-			shorts = append(shorts, shortMember(name, r.team.Name))
+			shorts = append(shorts, domainname.ShortIn(domainname.Observe(name), domainname.Observe(r.team.Name)).String())
 		}
 		return i18n.Errorf("refresh.use_apply", strings.Join(shorts, i18n.T("list.separator")))
 	}
@@ -2314,9 +2285,9 @@ func printHeader(w io.Writer, r *resolved, env team.Env, withTeam bool) {
 	if withTeam {
 		// A team is called by its name. The definition it was booted from is
 		// named only when the two differ (I2).
-		field(w, label("team"), startedFrom(r.team.Name, def.Name))
+		field(w, label("team"), startedFrom(r.team.Name, def.Name.String()))
 	} else {
-		field(w, label("definition"), def.Name)
+		field(w, label("definition"), def.Name.String())
 	}
 	field(w, label("version"), strconv.Itoa(def.Version))
 	field(w, label("team_file"), env.Display(def.TeamYAML))
@@ -2346,7 +2317,7 @@ func startedFrom(team, definition string) string {
 // prompt was built from. With prompt, the expanded prompt is printed verbatim
 // after the fields, so up --dry shows exactly what the agent would receive.
 func printMember(w io.Writer, r *resolved, member *definition.Start, env team.Env, prompt bool) {
-	field(w, label("member"), member.Name)
+	field(w, label("member"), member.Name.String())
 	indentField(w, 1, label("role"), member.Role)
 	indentField(w, 1, label("kind"), member.Kind)
 	if member.Profile != "" {

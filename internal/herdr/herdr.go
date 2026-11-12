@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/aq2bq/hergy/internal/definition"
+	domainname "github.com/aq2bq/hergy/internal/domain/name"
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/protocol"
 )
@@ -151,8 +152,8 @@ func (h *Herdr) LiveAgents() ([]protocol.Agent, error) {
 // runs in. It is what the WebUI's "go to this member's pane" asks for, and the
 // only thing hergy does that moves a person's focus; herdr also marks the agent
 // seen, so its done mark clears.
-func (h *Herdr) Focus(target string) error {
-	_, err := h.port.JSON("agent", "focus", target)
+func (h *Herdr) Focus(target domainname.Target) error {
+	_, err := h.port.JSON("agent", "focus", target.String())
 	return err
 }
 
@@ -164,8 +165,8 @@ func (h *Herdr) LiveAgentNames() ([]string, error) {
 	}
 	names := make([]string, 0, len(agents))
 	for _, agent := range agents {
-		if agent.Name != "" {
-			names = append(names, agent.Name)
+		if agent.Name.String() != "" {
+			names = append(names, agent.Name.String())
 		}
 	}
 	return names, nil
@@ -199,13 +200,13 @@ func (h *Herdr) Tabs() ([]protocol.Tab, error) {
 
 // FindPane returns the id of the pane hergy named with this label, or "" when no
 // pane carries it. hergy names a pane after its member with pane rename.
-func (h *Herdr) FindPane(label string) (string, error) {
+func (h *Herdr) FindPane(label domainname.Target) (string, error) {
 	panes, err := h.Panes()
 	if err != nil {
 		return "", err
 	}
 	for _, pane := range panes {
-		if pane.Label == label {
+		if pane.Label.String() == label.String() {
 			return pane.ID, nil
 		}
 	}
@@ -332,8 +333,8 @@ func (h *Herdr) Run(pane string, command []string) error {
 }
 
 // Rename names a pane after its member.
-func (h *Herdr) Rename(pane, name string) error {
-	_, err := h.port.JSON("pane", "rename", pane, name)
+func (h *Herdr) Rename(pane string, name domainname.PaneLabel) error {
+	_, err := h.port.JSON("pane", "rename", pane, name.String())
 	return err
 }
 
@@ -344,7 +345,7 @@ const paneBusy = "agent_pane_busy"
 // Start starts the member's agent in its pane. Herdr has no command that waits
 // for a new pane's shell, so a busy pane is tried again until the timeout.
 func (h *Herdr) Start(member *definition.Start, pane string, timeoutMS int) error {
-	args := []string{"agent", "start", member.Name, "--kind", member.Kind, "--pane", pane,
+	args := []string{"agent", "start", member.Name.String(), "--kind", member.Kind, "--pane", pane,
 		"--timeout", fmt.Sprintf("%d", timeoutMS), "--"}
 	args = append(args, member.StartArgs()...)
 	deadline := time.Now().Add(time.Duration(timeoutMS) * time.Millisecond)
@@ -375,8 +376,8 @@ func StartupBlocked(err error) bool {
 }
 
 // Prompt sends text to a live agent name or a pane id.
-func (h *Herdr) Prompt(target, text string) error {
-	_, err := h.port.JSON("agent", "prompt", target, text)
+func (h *Herdr) Prompt(target domainname.Target, text string) error {
+	_, err := h.port.JSON("agent", "prompt", target.String(), text)
 	return err
 }
 
@@ -384,34 +385,34 @@ func (h *Herdr) Prompt(target, text string) error {
 // up to timeoutMS. ConfirmPrompt uses this for each receipt attempt; the watcher
 // also uses a single attempt when asking a member who its reply is for. An agent that does not start is herdr's
 // agent_prompt_stalled error; one that is blocked is agent_blocked.
-func (h *Herdr) PromptWait(target, text string, timeoutMS int) error {
-	_, err := h.port.JSON("agent", "prompt", target, text, "--wait", "--until", "working", "--timeout", fmt.Sprintf("%d", timeoutMS))
+func (h *Herdr) PromptWait(target domainname.Target, text string, timeoutMS int) error {
+	_, err := h.port.JSON("agent", "prompt", target.String(), text, "--wait", "--until", "working", "--timeout", fmt.Sprintf("%d", timeoutMS))
 	return err
 }
 
 // ReadRecent reads the last lines of a live agent's terminal, unwrapped, from
 // the scrollback: what the agent wrote, for hergy turns to hand on.
-func (h *Herdr) ReadRecent(target string, lines int) (string, error) {
-	return h.port.Text("agent", "read", target, "--source", "recent-unwrapped", "--lines", fmt.Sprintf("%d", lines))
+func (h *Herdr) ReadRecent(target domainname.Target, lines int) (string, error) {
+	return h.port.Text("agent", "read", target.String(), "--source", "recent-unwrapped", "--lines", fmt.Sprintf("%d", lines))
 }
 
 // SendKeys presses keys in a live agent's pane. hergy stop sends esc, which ends
 // the agent's current turn and keeps its conversation.
-func (h *Herdr) SendKeys(target, key string) error {
-	_, err := h.port.JSON("agent", "send-keys", target, key)
+func (h *Herdr) SendKeys(target domainname.Target, key string) error {
+	_, err := h.port.JSON("agent", "send-keys", target.String(), key)
 	return err
 }
 
 // Read reads what a live agent's terminal shows, from the detection source: the
 // snapshot hergy status hashes to tell whether a working member's screen has
 // changed. It is a plain-text command, not JSON.
-func (h *Herdr) Read(target string) (string, error) {
-	return h.port.Text("agent", "read", target, "--source", "detection")
+func (h *Herdr) Read(target domainname.Target) (string, error) {
+	return h.port.Text("agent", "read", target.String(), "--source", "detection")
 }
 
 // Agent looks up a live agent by name or pane id.
-func (h *Herdr) Agent(target string) (protocol.Agent, error) {
-	result, err := h.port.JSON("agent", "get", target)
+func (h *Herdr) Agent(target domainname.Target) (protocol.Agent, error) {
+	result, err := h.port.JSON("agent", "get", target.String())
 	if err != nil {
 		return protocol.Agent{}, err
 	}

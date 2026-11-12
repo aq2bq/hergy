@@ -30,12 +30,12 @@ func (a *activityRead) CheckDefinitionRename(path string) error {
 		record, known := renameLaunch(records, running)
 		if !known || record.TeamYAML == "" {
 			if running.Definition == filepath.Base(filepath.Dir(path)) {
-				return hqRefuse(http.StatusConflict, i18n.Tf("web.rename.unknown", running.Team))
+				return hqRefuse(http.StatusConflict, i18n.Tf("web.rename.unknown", running.Team.String()))
 			}
 			continue
 		}
 		if samePath(record.TeamYAML, path) {
-			return hqRefuse(http.StatusConflict, i18n.Tf("web.rename.running", running.Team))
+			return hqRefuse(http.StatusConflict, i18n.Tf("web.rename.running", running.Team.String()))
 		}
 	}
 	return nil
@@ -43,7 +43,7 @@ func (a *activityRead) CheckDefinitionRename(path string) error {
 
 func renameLaunch(records []launchlog.Record, running team.Running) (launchlog.Record, bool) {
 	for _, one := range slices.Backward(records) {
-		if !one.IsHire() && one.Team == running.Team && (running.Project == "" || samePath(one.Project, running.Project)) {
+		if !one.IsHire() && one.Team == running.Team.String() && (running.Project == "" || samePath(one.Project, running.Project)) {
 			return one, true
 		}
 	}

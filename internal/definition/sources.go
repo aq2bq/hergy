@@ -192,8 +192,9 @@ func Read(in Input) (*Definition, error) {
 		return nil, err
 	}
 	graph := NewGraph(members, workers, turns)
+	definitionName, _ := domainname.ParseDefinitionName(in.Name)
 	def := &Definition{
-		Name:         in.Name,
+		Name:         definitionName,
 		Description:  description,
 		Graph:        graph,
 		Dir:          in.TeamDir,
@@ -287,10 +288,10 @@ func parseMembers(raw rawTeam, in Input) ([]MemberNode, error) {
 	}
 	seen := map[string]bool{}
 	for i, member := range members {
-		if seen[member.Name] {
-			return nil, field(fmt.Sprintf("members[%d].name", i), i18n.Errorf("error.duplicate_member", member.Name))
+		if seen[member.Name.String()] {
+			return nil, field(fmt.Sprintf("members[%d].name", i), i18n.Errorf("error.duplicate_member", member.Name.String()))
 		}
-		seen[member.Name] = true
+		seen[member.Name.String()] = true
 	}
 	return members, nil
 }
@@ -418,7 +419,7 @@ func memberPrompt(rm rawMember, label string) (*string, error) {
 
 func parseMember(rm rawMember, teamCwd string, in Input, index int) (MemberNode, error) {
 	label := fmt.Sprintf("members[%d]", index)
-	_, nameErr := domainname.ParseMemberName(rm.Name)
+	memberName, nameErr := domainname.ParseMemberName(rm.Name)
 	if nameErr != nil {
 		return MemberNode{}, field(label+".name", i18n.Errorf("error.name_pattern", label))
 	}
@@ -443,7 +444,7 @@ func parseMember(rm rawMember, teamCwd string, in Input, index int) (MemberNode,
 	if err != nil {
 		return MemberNode{}, field(label+".prompt", err)
 	}
-	node := MemberNode{Name: rm.Name, Role: rm.Role, Profile: name, Cwd: cwd}
+	node := MemberNode{Name: memberName, Role: rm.Role, Profile: name, Cwd: cwd}
 	if prompt != nil {
 		node.Prompt = *prompt
 		node.HasPrompt = true

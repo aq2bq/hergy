@@ -26,7 +26,7 @@ func promptsToResend(cat *catalog.Catalog, project string, r *resolved, members 
 	}
 	recorded := teamsRecorded(latestMemberRecords(), project)[r.team.Name]
 	for i := range out {
-		record, ok := recorded[out[i].Name]
+		record, ok := recorded[out[i].Name.String()]
 		if !ok {
 			continue
 		}
@@ -38,7 +38,7 @@ func promptsToResend(cat *catalog.Catalog, project string, r *resolved, members 
 		if err != nil {
 			continue
 		}
-		changes := deliver.Compare(record.Lang, string(old), oldDocs(log, record, recordedMember, string(old)), out[i], docsOfStart(cat, out[i]))
+		changes := deliver.Compare(r.modelTeamName(), record.Lang, string(old), oldDocs(log, record, recordedMember, string(old)), out[i], docsOfStart(cat, out[i]))
 		if len(changes) == 0 {
 			continue
 		}

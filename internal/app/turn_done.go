@@ -39,7 +39,7 @@ func runTurnDone(opts *options.Options, stdin io.Reader) error {
 		return err
 	}
 	sig := turns.Signal{Member: opts.Member, At: time.Now(), Text: text, Source: source}
-	if err := turns.WriteSignal(turns.SignalDir(dir, opts.Team), sig); err != nil {
+	if err := turns.WriteSignal(turns.SignalDir(dir, opts.Team.String()), sig); err != nil {
 		return err
 	}
 	if source == "codex" {

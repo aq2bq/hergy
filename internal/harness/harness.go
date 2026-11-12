@@ -97,7 +97,7 @@ func claude(start *definition.Start, team string, here Here) definition.Signal {
 		return definition.Signal{Skipped: SkippedArgs}
 	}
 	settings := map[string]any{"hooks": map[string]any{"Stop": []any{
-		map[string]any{"hooks": []any{map[string]any{"type": "command", "command": shellWords(here.Bin, "turn-done", team, start.Short)}}},
+		map[string]any{"hooks": []any{map[string]any{"type": "command", "command": shellWords(here.Bin, "turn-done", team, start.Short.String())}}},
 	}}}
 	return definition.Signal{Wired: true, Args: []string{"--settings", jsonText(settings)}}
 }
@@ -108,7 +108,7 @@ func codex(start *definition.Start, team string, here Here) definition.Signal {
 			return definition.Signal{Skipped: SkippedArgs}
 		}
 	}
-	sig := definition.Signal{Wired: true, Args: []string{"-c", "notify=" + jsonText([]string{here.Bin, "turn-done", team, start.Short})}}
+	sig := definition.Signal{Wired: true, Args: []string{"-c", "notify=" + jsonText([]string{here.Bin, "turn-done", team, start.Short.String()})}}
 	if then, ok := CodexNotify(here.CodexHome); ok {
 		sig.Env = map[string]string{EnvNotifyThen: jsonText(then)}
 	}
@@ -127,7 +127,7 @@ func opencode(start *definition.Start, team string, here Here) definition.Signal
 		EnvConfigContent: content,
 		EnvBin:           here.Bin,
 		EnvTeam:          team,
-		EnvMember:        start.Short,
+		EnvMember:        start.Short.String(),
 	}}
 }
 
