@@ -130,6 +130,7 @@ function editing<K extends ResourceKind, D, W>(definition: Definition<K, D, W>, 
   let revision = 0;
   let saving = 0;
   let refusedName: string | undefined;
+  let checkedName: string | undefined;
   const inputName = (s: EditingState<D>) => (definition.inputName || definition.name)(s);
   const pendingSaves = signal(0);
   const patch = (next: Partial<EditingState<D>>) => { state.value = { ...state.value, ...next }; };
@@ -187,7 +188,8 @@ function editing<K extends ResourceKind, D, W>(definition: Definition<K, D, W>, 
     // Validation of an unchanged name cannot undo a write refusal (for
     // example, a destination occupied after copying). Only a checked change
     // of that name resolves the preceding name's refusal.
-    const resolvedName = state.value.refusalAt === 'name' && inputName(state.value) !== refusedName && !problems.some((p) => p.sev === 'err' && (p.field === 'name' || p.at === 'name'));
+    checkedName = problems.some((p) => p.sev === 'err' && (p.field === 'name' || p.at === 'name')) ? undefined : inputName(state.value);
+    const resolvedName = state.value.refusalAt === 'name' && checkedName !== undefined && checkedName !== refusedName;
     patch({ checked: snapshot(answer.json), ...(resolvedName ? { refusal: '', refusalAt: undefined } : {}), problems: snapshot(problems), ...(dirty(definition.shape, original(), written()) ? {} : { baseProblems: snapshot(problems) }) });
   }
   async function save(over?: string): Promise<RawAnswer<Answer<K, 'save'>> | undefined> {
@@ -211,6 +213,9 @@ function editing<K extends ResourceKind, D, W>(definition: Definition<K, D, W>, 
     } catch (error) {
       if (!alive || mine !== saving) return undefined;
       const c = conflictOf(error);
+      // The person may already have checked a different name while this write
+      // was pending. A refusal of the preceding name does not invalidate it.
+      if (!c && refusalAt(error) === 'name' && inputName(state.value) !== sentName && checkedName === inputName(state.value)) return undefined;
       refusedName = sentName;
       patch(c ? { conflict: { c } } : { refusal: problemText(error, '保存できませんでした'), refusalAt: refusalAt(error) });
       return undefined;

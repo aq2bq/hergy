@@ -35,6 +35,20 @@ for (const checkFirst of [false, true]) test(`a copied role keeps the save refus
   editing.dispose();
 });
 
+test('a refusal for a preceding name does not replace a checked correction', async () => {
+  const saving = later();
+  serve((method) => method === 'PUT' ? saving.promise : result([]));
+  const editing = editRole(resourceIdentity('role', { place: 'global' }), { saved: null, draft: doc('copy', 'taken'), hash: '', text: '', base: identity() });
+  const response = editing.save();
+  editing.change(doc('copy', 'available'));
+  await editing.check();
+  saving.reject(new Refusal(422, 'the preceding name is taken', { at: 'name' }));
+  await response;
+  expect(editing.read.value.refusal).toBe('');
+  expect(editing.read.value.draft.name).toBe('available');
+  editing.dispose();
+});
+
 test('original problems and draft problems are compared even when their answers arrive backwards', async () => {
   const pending = [];
   serve((method, url, body) => { const one = later(); pending.push({ ...one, body }); return one.promise; });

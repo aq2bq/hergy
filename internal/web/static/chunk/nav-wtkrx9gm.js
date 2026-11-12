@@ -354,6 +354,7 @@ function editing(definition, initial) {
   let revision = 0;
   let saving = 0;
   let refusedName;
+  let checkedName;
   const inputName = (s) => (definition.inputName || definition.name)(s);
   const pendingSaves = y(0);
   const patch = (next) => {
@@ -426,7 +427,8 @@ function editing(definition, initial) {
     const problems = checkedProblems(answer.json);
     if (problems === undefined)
       return;
-    const resolvedName = state.value.refusalAt === "name" && inputName(state.value) !== refusedName && !problems.some((p) => p.sev === "err" && (p.field === "name" || p.at === "name"));
+    checkedName = problems.some((p) => p.sev === "err" && (p.field === "name" || p.at === "name")) ? undefined : inputName(state.value);
+    const resolvedName = state.value.refusalAt === "name" && checkedName !== undefined && checkedName !== refusedName;
     patch({ checked: snapshot(answer.json), ...resolvedName ? { refusal: "", refusalAt: undefined } : {}, problems: snapshot(problems), ...dirty(definition.shape, original(), written()) ? {} : { baseProblems: snapshot(problems) } });
   }
   async function save(over) {
@@ -466,6 +468,8 @@ function editing(definition, initial) {
       if (!alive || mine !== saving)
         return;
       const c = conflictOf(error);
+      if (!c && refusalAt(error) === "name" && inputName(state.value) !== sentName && checkedName === inputName(state.value))
+        return;
       refusedName = sentName;
       patch(c ? { conflict: { c } } : { refusal: problemText2(error, "保存できませんでした"), refusalAt: refusalAt(error) });
       return;
