@@ -31,7 +31,7 @@ beforeAll(async () => {
 });
 beforeEach(() => {
   S.state.value = { ...S.state.value, dtab: {} };
-  S.allRecs().forEach((r) => { r.ops.value = []; S.forgetUndo(r); });
+  S.allRecs().forEach((r) => { S.setOps(r, []); S.forgetUndo(r); });
 });
 async function address(open, agree) {
   const p = new URLSearchParams({ open });
@@ -106,10 +106,13 @@ test('two qualified references survive together and editing keeps place and hash
     expect(S.promptComparisonInput(r)).toMatchObject({ name: 'core', place, hash: place === 'project' ? 'h1' : 'global-hash' });
   }
   const global = S.byKey('core.global');
-  global.ops.value = [{ kind: 'description', text: 'global draft' }];
+  S.setOps(global, [{ kind: 'description', text: 'global draft' }]);
   const carried = S.take();
-  expect(carried.teams).toEqual([{ place: 'global', group: 'global', name: 'core', hash: 'global-hash', ops: global.ops.value }]);
-  global.ops.value = [];
+  expect(carried.resources).toHaveLength(1);
+  expect(carried.resources[0].team.target).toMatchObject({ place: 'global', name: 'core' });
+  expect(carried.resources[0].team.hash).toBe('global-hash');
+  expect(carried.resources[0].actions).toEqual(global.ops.value);
+  S.setOps(global, []);
   S.restore(carried);
   expect(global.draft.value.description).toBe('global draft');
   expect(S.byKey('core.project').draft.value.description).not.toBe('global draft');

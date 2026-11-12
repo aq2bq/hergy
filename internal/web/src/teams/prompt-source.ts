@@ -1,4 +1,3 @@
-import { check } from '../lib/legacy-editing-api.js';
 // teams/prompt-source.ts — 渡る文を読む唯一のモジュール (⑤ r-ba9b, d-002b).
 //
 // 規則:
@@ -199,9 +198,9 @@ function workerSlotFor(r: Rec, from: string, purpose: string): Slot<CheckAnswer>
 	const had = workers.get(k);
 	if (had) return had;
 	const reading = resource<CheckAnswer, [unknown]>(async (stop, body) => {
-		const answer = await check('team', body as Schemas['TeamCheckRequest'], { signal: stop });
-		if (!answer.json) throw new Error('本文の応答がありません');
-		return answer.json;
+		const answer = await r.editing.workerPreview(body as WorkerAsk, stop);
+		if (!answer) throw new Error('本文の応答がありません');
+		return answer;
 	});
 	const made = makeSlot<CheckAnswer>(dkey(r), reading);
 	workers.set(k, made);
@@ -210,14 +209,9 @@ function workerSlotFor(r: Rec, from: string, purpose: string): Slot<CheckAnswer>
 
 // workerBody is the check the worker's preview sends: the draft, the picked
 // running team, and the placeholder name and task.
-function workerBody(r: Rec, from: string, purpose: string): Record<string, unknown> {
-	return {
-		...promptComparisonInput(r),
-		part: 'worker',
-		hash: r.hash.value,
-		running_team: pickedRun(r),
-		doc: { name: WORKER_NAME, purpose, task: WORKER_TASK, from, preview: true, ops: r.ops.value },
-	};
+type WorkerAsk = { from: string; purpose: string; name: string; task: string; runningTeam: string };
+function workerBody(r: Rec, from: string, purpose: string): WorkerAsk {
+  return { from, purpose, name: WORKER_NAME, task: WORKER_TASK, runningTeam: pickedRun(r) };
 }
 
 // reloadPrompt reads again now (the full panel's 再取得). It is a convenience:

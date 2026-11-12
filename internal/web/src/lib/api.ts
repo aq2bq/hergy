@@ -1,5 +1,4 @@
 import type { EditedRequest } from './editing.js';
-import type { LegacyEditedRequest } from './legacy-editing-api.js';
 // lib/api.ts — the one way a screen talks to the server (spec-boundary 7, r-2cc2).
 //
 // Every kind of thing a screen reads and writes answers under /api/ in one shape
@@ -109,11 +108,6 @@ type DirectPath = Route<Exclude<keyof paths, `/api/${'team' | 'role' | 'profile'
 type DirectURL = DirectPath | `${DirectPath}?${string}`;
 export const call = <T = unknown>(method: string, url: DirectURL, payload?: unknown, opts?: CallOptions): Promise<RawAnswer<T>> =>
   send<T>(method, url, payload, opts);
-
-// Only the temporary legacy module can construct this separate capability.
-// It remains the old unbranded check/save interface for unmigrated editors.
-export const sendLegacy = <K extends Kind, A extends 'check' | 'save'>(input: LegacyEditedRequest<K, A>, opts?: CallOptions): Promise<RawAnswer<Answer<K, A>>> =>
-  send<Answer<K, A>>(input.action === 'check' ? 'POST' : 'PUT', input.action === 'check' ? `/api/${input.kind}/check` : `/api/${input.kind}/${enc(input.name)}`, input.body, opts);
 
 // ---- 書き込みと読み込みの形（spec-boundary 5）------------------------------
 // One place writes the addresses, so a screen asks for what it wants and not for

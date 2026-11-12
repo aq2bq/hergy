@@ -9,6 +9,46 @@ const open = () => editRole(identity(), { saved: { ...doc(), name: identity().na
 const problem = (text) => ({ sev: 'err', at: 'text', field: 'text', text });
 const result = (problems) => ({ problems, preview: { lines: [], chars: 1 }, effect: { diff: { added: [], removedBefore: [], removedAtEnd: false } }, readers: [] });
 
+for (const checkFirst of [false, true]) test(`a copied role keeps the save refusal when a valid-name check answers, check first ${checkFirst}`, async () => {
+  const pending = [];
+  const refusal = 'そのロール名は既にあります。別のロール名を指定してください';
+  serve((method) => {
+    if (method === 'PUT') return Promise.reject(new Refusal(422, refusal, { at: 'name', text: refusal }));
+    const one = later(); pending.push(one); return one.promise;
+  });
+  const editing = editRole(resourceIdentity('role', { place: 'global' }), { saved: null, draft: doc('copy', 'builder'), hash: '', text: '', base: identity() });
+  editing.change(doc('copy', 'lead'));
+  const checking = editing.check();
+  const answer = async () => { pending.forEach((one) => one.resolve(result([]))); await checking; };
+  if (checkFirst) await answer();
+  await editing.save();
+  if (!checkFirst) await answer();
+  expect(editing.read.value.refusal).toBe(refusal);
+  expect(editing.read.value.refusalAt).toBe('name');
+  // Rechecking the same input cannot establish that a target can be written.
+  const sameName = editing.check(); pending.at(-1).resolve(result([])); await sameName;
+  expect(editing.read.value.refusal).toBe(refusal);
+  // A new name is checked on its own; the preceding name's refusal can clear.
+  editing.change(doc('copy', 'another'));
+  const corrected = editing.check(); pending.at(-1).resolve(result([])); await corrected;
+  expect(editing.read.value.refusal).toBe('');
+  editing.dispose();
+});
+
+test('a refusal for a preceding name does not replace a checked correction', async () => {
+  const saving = later();
+  serve((method) => method === 'PUT' ? saving.promise : result([]));
+  const editing = editRole(resourceIdentity('role', { place: 'global' }), { saved: null, draft: doc('copy', 'taken'), hash: '', text: '', base: identity() });
+  const response = editing.save();
+  editing.change(doc('copy', 'available'));
+  await editing.check();
+  saving.reject(new Refusal(422, 'the preceding name is taken', { at: 'name' }));
+  await response;
+  expect(editing.read.value.refusal).toBe('');
+  expect(editing.read.value.draft.name).toBe('available');
+  editing.dispose();
+});
+
 test('original problems and draft problems are compared even when their answers arrive backwards', async () => {
   const pending = [];
   serve((method, url, body) => { const one = later(); pending.push({ ...one, body }); return one.promise; });
@@ -217,4 +257,9 @@ test('a rename with identical file bytes rechecks the new original name while la
   await editing.check();
   expect(editing.read.value.baseProblems).toEqual([]);
   editing.dispose();
+});
+test('the accepted save owns the displayed file path after a rename', async () => {
+ serve(() => ({ doc: doc('renamed', 'next'), hash: 'h2', text: 'renamed', path: 'roles/next.md' }));
+ const e = open(); e.change(doc('renamed', 'next')); await e.save();
+ expect(e.read.value.path).toBe('roles/next.md'); e.dispose();
 });

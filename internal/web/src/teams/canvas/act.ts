@@ -1,3 +1,4 @@
+import { teamActions } from '../../lib/editing.js';
 // teams/canvas/act.ts — the canvas's own presses, keys and drags（spec-teams B7）。
 //
 // 押し込みはここに集める: 図と属性の列は描き、押し込みは自分の器で受けてここの
@@ -65,7 +66,7 @@ function addMember(r: Rec, at: Spot | null): void {
   const name = `${base}-${n}`;
   if (at) putPlace(r, name, at);
   select(r, { how: 'field', what: { type: 'node', id: name } });
-  canvasAct(r, [{ kind: 'addMember', member: name, role, profile }], {
+  canvasAct(r, [teamActions.addMember(name, role, profile)], {
     message: `メンバー ${name} を足しました。メンバー名・ロール・プロファイルを右で決める`,
     undo: `メンバー ${name} を足したのを取り消しました`, focus: '[data-cv-f="m-name"]',
   });
@@ -95,14 +96,14 @@ function copyMember(r: Rec): void {
     canvasToast(r, `メンバー ${m.name} の複製に使える名前がありません（herdr 名が 32 文字を超えます）`, false);
     return;
   }
-  const ops: Op[] = [{ kind: 'addMember', member: name, role: m.role, profile: m.profile }];
+  const ops: Op[] = [teamActions.addMember(name, m.role, m.profile)];
   t.turns.forEach(([a, b]) => {
     // A member that hands the turn to itself is one turn, not two.
-    if (a === m.name) ops.push({ kind: 'addTurn', from: name, to: b });
-    else if (b === m.name) ops.push({ kind: 'addTurn', from: a, to: name });
+    if (a === m.name) ops.push(teamActions.addTurn(name, b));
+    else if (b === m.name) ops.push(teamActions.addTurn(a, name));
   });
   t.workers.forEach((w) => {
-    if (w.from === m.name) ops.push({ kind: 'addWorker', from: name, purpose: w.purpose, profile: w.profile });
+    if (w.from === m.name) ops.push(teamActions.addWorker(name, w.purpose, w.profile));
   });
   select(r, { how: 'field', what: { type: 'node', id: name } });
   canvasAct(r, ops, {
@@ -114,7 +115,7 @@ function copyMember(r: Rec): void {
 
 function addWorker(r: Rec, from: string, at: Spot | null): void {
   const t = r.draft.value, idx = t.workers.length, profile = firstProfile(true, r);
-  const ops: Op[] = [{ kind: 'addWorker', from, purpose: '', profile }];
+  const ops: Op[] = [teamActions.addWorker(from, '', profile)];
   if (at) putPlace(r, 'w' + idx, at);
   select(r, { how: 'field', what: { type: 'worker', i: idx } });
   canvasAct(r, ops, { message: `${from} のワーカーを足しました。目的を右で決める`, undo: 'ワーカーを足したのを取り消しました', focus: '[data-cv-f="w-purpose"]' });
@@ -155,11 +156,11 @@ function del(r: Rec): void {
   if (sel.type === 'node' && sel.id !== 'human') {
     const id = sel.id, nt = t.turns.filter(([a, b]) => a === id || b === id).length, nw = t.workers.filter((w) => w.from === id).length;
     select(r, { how: 'let' });
-    remove(r, 'removeMember', [{ kind: 'removeMember', member: id }], { said: `${id} を外しました（ターン ${nt} 本・ワーカー ${nw} 件も）`, undo: `${id} を外したのを取り消しました` });
+    remove(r, 'removeMember', [teamActions.removeMember(id)], { said: `${id} を外しました（ターン ${nt} 本・ワーカー ${nw} 件も）`, undo: `${id} を外したのを取り消しました` });
   } else if (sel.type === 'edge') {
     const [a, b] = sel.k.split('|'), ops: Op[] = [];
-    if (hasTurn(t, a, b)) ops.push({ kind: 'removeTurn', from: a, to: b });
-    if (hasTurn(t, b, a)) ops.push({ kind: 'removeTurn', from: b, to: a });
+    if (hasTurn(t, a, b)) ops.push(teamActions.removeTurn(a, b));
+    if (hasTurn(t, b, a)) ops.push(teamActions.removeTurn(b, a));
     select(r, { how: 'let' });
     if (ops.length) {
       const direction = turnDirection(ops);
@@ -169,7 +170,7 @@ function del(r: Rec): void {
     const w = t.workers[sel.i];
     if (!w) return;
     select(r, { how: 'let' });
-    remove(r, 'removeWorker', [{ kind: 'removeWorker', from: w.from, purpose: w.purpose }], { said: `ワーカー ${w.purpose || '（目的）'} を外しました`, undo: 'ワーカーを外したのを取り消しました' });
+    remove(r, 'removeWorker', [teamActions.removeWorker(w.from, w.purpose)], { said: `ワーカー ${w.purpose || '（目的）'} を外しました`, undo: 'ワーカーを外したのを取り消しました' });
   }
 }
 
@@ -283,7 +284,7 @@ function onPointerUp(e: PointerEvent): void {
     return;
   }
   const k = pair(d.from, to);
-  canvasAct(r, [{ kind: 'addTurn', from: d.from, to }], { message: `${nodeName(d.from)} → ${nodeName(to)} のターンを足しました`, undo: `${nodeName(d.from)} → ${nodeName(to)} のターンを足しましたのを取り消しました` });
+  canvasAct(r, [teamActions.addTurn(d.from, to)], { message: `${nodeName(d.from)} → ${nodeName(to)} のターンを足しました`, undo: `${nodeName(d.from)} → ${nodeName(to)} のターンを足しましたのを取り消しました` });
   select(r, { how: 'press', what: { type: 'edge', k } });
   r.flash.value = k;
   setTimeout(() => {
@@ -333,8 +334,8 @@ export function onClick(r: Rec, e: MouseEvent): void {
   if (a === 'm-copy') { copyMember(r); return; }
   if (a === 'edge-del') {
     const [p, q] = (b.dataset.k || '').split('|'), ops: Op[] = [];
-    if (hasTurn(t, p, q)) ops.push({ kind: 'removeTurn', from: p, to: q });
-    if (hasTurn(t, q, p)) ops.push({ kind: 'removeTurn', from: q, to: p });
+    if (hasTurn(t, p, q)) ops.push(teamActions.removeTurn(p, q));
+    if (hasTurn(t, q, p)) ops.push(teamActions.removeTurn(q, p));
     select(r, { how: 'let' });
     if (ops.length) {
       const direction = turnDirection(ops);
@@ -343,16 +344,16 @@ export function onClick(r: Rec, e: MouseEvent): void {
     return;
   }
   if (a === 'turn-del') {
-    remove(r, 'removeTurn', [{ kind: 'removeTurn', from: b.dataset.a || '', to: b.dataset.b || '' }], { said: `${nodeName(b.dataset.a || '')} → ${nodeName(b.dataset.b || '')} のターンを外しました`, undo: `${nodeName(b.dataset.a || '')} → ${nodeName(b.dataset.b || '')} のターンを外したのを取り消しました` });
+    remove(r, 'removeTurn', [teamActions.removeTurn(b.dataset.a || '', b.dataset.b || '')], { said: `${nodeName(b.dataset.a || '')} → ${nodeName(b.dataset.b || '')} のターンを外しました`, undo: `${nodeName(b.dataset.a || '')} → ${nodeName(b.dataset.b || '')} のターンを外したのを取り消しました` });
     return;
   }
   if (a === 'turn-add') {
-    canvasAct(r, [{ kind: 'addTurn', from: b.dataset.a || '', to: b.dataset.b || '' }], { message: `${nodeName(b.dataset.a || '')} → ${nodeName(b.dataset.b || '')} のターンを足しました`, undo: `${nodeName(b.dataset.a || '')} → ${nodeName(b.dataset.b || '')} のターンを足しましたのを取り消しました` });
+    canvasAct(r, [teamActions.addTurn(b.dataset.a || '', b.dataset.b || '')], { message: `${nodeName(b.dataset.a || '')} → ${nodeName(b.dataset.b || '')} のターンを足しました`, undo: `${nodeName(b.dataset.a || '')} → ${nodeName(b.dataset.b || '')} のターンを足しましたのを取り消しました` });
     return;
   }
   if (a === 'w-del') {
     const w = t.workers[Number(b.dataset.i)]; if (!w) return;
-    remove(r, 'removeWorker', [{ kind: 'removeWorker', from: w.from, purpose: w.purpose }], { said: `ワーカー ${w.purpose || '（目的）'} を外しました`, undo: 'ワーカーを外したのを取り消しました' });
+    remove(r, 'removeWorker', [teamActions.removeWorker(w.from, w.purpose)], { said: `ワーカー ${w.purpose || '（目的）'} を外しました`, undo: 'ワーカーを外したのを取り消しました' });
     return;
   }
   if (a === 'pick-w') select(r, { how: 'field', what: { type: 'worker', i: Number(b.dataset.i) } });
@@ -364,14 +365,14 @@ export function onInput(r: Rec, e: Event): void {
   const t = r.draft.value, sel = pickOf(r), v = el.value;
   if (f === 'turn-add') {
     if (v && sel && sel.type === 'node') {
-      canvasAct(r, [{ kind: 'addTurn', from: sel.id, to: v }], { message: `${nodeName(sel.id)} → ${nodeName(v)} のターンを足しました`, undo: `${nodeName(sel.id)} → ${nodeName(v)} のターンを足しましたのを取り消しました` });
+      canvasAct(r, [teamActions.addTurn(sel.id, v)], { message: `${nodeName(sel.id)} → ${nodeName(v)} のターンを足しました`, undo: `${nodeName(sel.id)} → ${nodeName(v)} のターンを足しましたのを取り消しました` });
       el.value = '';
     }
     return;
   }
   if (e.type === 'change' && el.tagName !== 'SELECT') return;
   if (e.type === 'input' && el.tagName === 'SELECT') return;
-  if (f === 'description') { canvasTyping(r, { kind: 'description', text: v }, 'description'); return; }
+  if (f === 'description') { canvasTyping(r, teamActions.description(v), 'description'); return; }
   if (f === 'm-name') {
     const node = sel && sel.type === 'node' ? sel : null;
     const m = node ? memberOf(t, node.id) : null;
@@ -384,7 +385,7 @@ export function onInput(r: Rec, e: Event): void {
     if (ok) {
       renamePlace(r, m.name, v);
       setTyped(r, null);
-      canvasTyping(r, { kind: 'renameMember', member: m.name, new: v }, 'm-name');
+      canvasTyping(r, teamActions.renameMember(m.name, v), 'm-name');
       select(r, { how: 'field', what: { type: 'node', id: v } });
       return;
     }
@@ -395,14 +396,14 @@ export function onInput(r: Rec, e: Event): void {
   }
   if (f === 'm-role' || f === 'm-profile') {
     if (!sel || sel.type !== 'node') return;
-    canvasAct(r, [{ kind: f === 'm-role' ? 'memberRole' : 'memberProfile', member: sel.id, [f === 'm-role' ? 'role' : 'profile']: v }], { message: `メンバー ${sel.id} の${f === 'm-role' ? 'ロール' : 'プロファイル'}を変えました`, undo: `メンバー ${sel.id} の${f === 'm-role' ? 'ロール' : 'プロファイル'}を変えたのを取り消しました` });
+    canvasAct(r, [f === 'm-role' ? teamActions.memberRole(sel.id, v) : teamActions.memberProfile(sel.id, v)], { message: `メンバー ${sel.id} の${f === 'm-role' ? 'ロール' : 'プロファイル'}を変えました`, undo: `メンバー ${sel.id} の${f === 'm-role' ? 'ロール' : 'プロファイル'}を変えたのを取り消しました` });
     return;
   }
   if (f === 'w-purpose' || f === 'w-from' || f === 'w-profile') {
     const w: Worker | null = sel && sel.type === 'worker' ? t.workers[sel.i] : null; if (!w) return;
-    if (f === 'w-purpose') { canvasTyping(r, { kind: 'workerPurpose', from: w.from, old: w.purpose, new: v }, 'w-purpose'); return; }
-    if (f === 'w-from') { canvasAct(r, [{ kind: 'moveWorker', from: w.from, purpose: w.purpose, to: v }], { message: `ワーカー ${w.purpose || '（目的）'} を ${v} の下へ移しました`, undo: `ワーカー ${w.purpose || '（目的）'} を移したのを取り消しました` }); return; }
-    canvasAct(r, [{ kind: 'workerProfile', from: w.from, purpose: w.purpose, profile: v }], { message: `ワーカー ${w.purpose || '（目的）'} のプロファイルを変えました`, undo: 'ワーカーのプロファイルを変えたのを取り消しました' });
+    if (f === 'w-purpose') { canvasTyping(r, teamActions.workerPurpose(w.from, w.purpose, v), 'w-purpose'); return; }
+    if (f === 'w-from') { canvasAct(r, [teamActions.moveWorker(w.from, w.purpose, v)], { message: `ワーカー ${w.purpose || '（目的）'} を ${v} の下へ移しました`, undo: `ワーカー ${w.purpose || '（目的）'} を移したのを取り消しました` }); return; }
+    canvasAct(r, [teamActions.workerProfile(w.from, w.purpose, v)], { message: `ワーカー ${w.purpose || '（目的）'} のプロファイルを変えました`, undo: 'ワーカーのプロファイルを変えたのを取り消しました' });
   }
 }
 // nameTaken is whether another member already holds a name: the draft cannot

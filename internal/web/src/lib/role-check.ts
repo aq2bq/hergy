@@ -66,7 +66,7 @@ export function roleCheckData(value: unknown): RoleCheckData {
 }
 
 
-export function roleProblems(_doc: unknown, list: Schemas['Problem'][]): RuleIssue[] {
+export function roleProblems(_doc: unknown, list: readonly Schemas['Problem'][]): RuleIssue[] {
   return list.map((p) => ({ sev: p.sev, k: 0,
     f: p.field || '', text: p.text, definition: p.definition || '' }));
 }

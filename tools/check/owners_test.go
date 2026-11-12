@@ -310,7 +310,8 @@ func TestPromptFindingsLetsTheOwnersThrough(t *testing.T) {
 	writeTree(t, root, "internal/web/api_prompt.go", "func build(def *Definition) { prompt.Member(def, node, run); prompt.Worker(prompt.WorkerInput{}) }\n")
 	writeTree(t, root, "internal/web/src/teams/prompt-source.ts",
 		"const p = signal({});\nconst runOf = (k) => '';\nconst setRun = (k, t) => {};\n"+
-			"const one = () => call('POST', '/api/team/prompt-comparison');\nconst two = () => check('team', { part: 'worker' });\n")
+			"const one = () => call('POST', '/api/team/prompt-comparison');\n")
+	writeTree(t, root, "internal/web/src/lib/editing.ts", "const checkWorker = () => check('team', { part: 'worker' });\n")
 	writeTree(t, root, "internal/cli/hire.go", "func plan() { prompt.Worker(prompt.WorkerInput{}) }\n")
 	r := &runner{root: root}
 	findings, err := r.promptFindings(ownersFile{})

@@ -20,14 +20,14 @@ import {
   bases2,
   roleModel2,
   teamModel2
-} from "../chunk/nav-ghcq2kwy.js";
+} from "../chunk/nav-hz0pc9aj.js";
 import {
   runDanger
-} from "../chunk/nav-me9ek2sz.js";
+} from "../chunk/nav-n44pqppw.js";
 import {
   takeDraft2,
   setDirty2
-} from "../chunk/nav-fsrd36y0.js";
+} from "../chunk/nav-v59w2j53.js";
 import {
   Measure,
   fromJSON2,
@@ -35,7 +35,7 @@ import {
   Badge2,
   Vm2,
   RuleDoc2
-} from "../chunk/nav-btmsht8f.js";
+} from "../chunk/nav-1b8pm6h2.js";
 import {
   ConflictNotice,
   roleProblems,
@@ -44,12 +44,12 @@ import {
   restoreRole,
   editRoleAssignments,
   YamlTab2
-} from "../chunk/nav-qdvsv3b8.js";
+} from "../chunk/nav-wtkrx9gm.js";
 import {
   copyGroupOf,
   projectOfGroup,
   ProjectView
-} from "../chunk/nav-b3v9q990.js";
+} from "../chunk/nav-ak3bme2w.js";
 import {
   Field
 } from "../chunk/nav-9htrbyn7.js";
@@ -64,7 +64,7 @@ import {
 } from "../chunk/nav-hr74m0fy.js";
 import {
   assignDirty
-} from "../chunk/nav-w5ecmbs1.js";
+} from "../chunk/nav-5jk1wdkd.js";
 import"../chunk/nav-74jj0fve.js";
 
 // roles/state.ts
@@ -147,7 +147,7 @@ function rowsOf(model, group) {
       if (r[l]) {
         const draft = fromJSON2(r[l]);
         const saved = r.noDoc || r[l].problem ? null : draft;
-        row[l] = entryOf(l, row.group, { saved, draft, hash: r[l].hash || "", text: r[l].text || "", problem: r[l].problem });
+        row[l] = entryOf(l, row.group, { saved, draft, hash: r[l].hash || "", text: r[l].text || "", path: r[l].path, problem: r[l].problem });
         if (r[l].path)
           row.paths[l] = r[l].path;
       } else {
@@ -285,7 +285,7 @@ var projectNameOf = (key) => {
   return found ? found.name : String(key || "").split("/").filter(Boolean).pop() || "";
 };
 var pathOf = (l, d) => DIR[l] + (d.name || "…") + ".md";
-var pathOfRow = (r, l, d) => r.paths && r.paths[l] || pathOf(l, d);
+var pathOfRow = (r, l, d) => r[l]?.editing.read.value.path || r.paths && r.paths[l] || pathOf(l, d);
 var withRow = (id, fn) => {
   const one = Number(id);
   roles.value = roles.value.map((r) => r.uid === one ? fn(r) : r);

@@ -568,12 +568,11 @@ func (c *Catalog) candidateNames() []string {
 	return names
 }
 
-// teamNames lists the team directories under a layer that have a team.yaml.
-// teamNames is one layer's team definition names, under the version of its
-// teams/ directory: the same list is not globbed again until a definition is
-// added or taken away (d-e00b).
+// teamNames lists definition folders that have a team.yaml. Adding or removing
+// that file does not change the teams/ directory's version, so the
+// flat-directory cache is not used here. ListedRows owns residual folders.
 func (c *Catalog) teamNames(dir string) []string {
-	return c.dirNames(filepath.Join(dir, "teams"), func() []string { return teamNames(dir) })
+	return teamNames(dir)
 }
 
 // dirNames is one directory's reading held under the directory's version. A

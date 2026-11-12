@@ -27,7 +27,7 @@ export default defineConfig({
     // walk that reads a narrower window sets its own.
     viewport: { width: 2000, height: 1100 },
     actionTimeout: 8_000,
-    trace: 'off',
+    trace: 'retain-on-failure',
     video: 'off',
     screenshot: 'off',
   },
