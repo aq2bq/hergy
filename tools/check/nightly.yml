@@ -18,6 +18,7 @@ mutation:
     internal/ops/internal/launcher: 85   # 実測 89.8
     internal/options: 85    # 実測 89.5
     internal/ops/internal/protocol: 80   # 実測 86.7
+    internal/ops/internal/resourcewrite: 75 # moved conditional writes
     internal/source: 75     # 実測 80.0
     internal/ops/internal/team: 45       # 実測 50.0
     internal/version: 85    # 実測 100 と 91.7（タイムアウトする変異が回ごとに変わる。2 回目は 11 killed / 1 lived）
@@ -35,5 +36,5 @@ fuzz:
     - package: internal/ops/internal/team
       name: FuzzParseConfig
     # 旧形式の変換: 成功時も入力を変更せず、同じ散文になること。
-    - package: internal/migrate
+    - package: internal/ops/internal/migrate
       name: FuzzConvert

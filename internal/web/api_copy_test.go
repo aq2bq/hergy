@@ -286,8 +286,8 @@ func TestCopyCarriesOnlyWhatThePersonChose(t *testing.T) {
 	globalRole := filepath.Join(c.global, "roles", "builder.md")
 	wasProfiles, hadProfiles := readFileIfThere(t, globalProfiles)
 	save := `{"place":"global","name":"other-dev","part":"folder","doc":{"ops":[]},` + base + `}`
-	if status, said := put(t, server, "/api/team/other-dev", save); status != http.StatusOK {
-		t.Fatalf("save of a copy answers %d: %s", status, said)
+	if status, said := put(t, server, "/api/team/other-dev", save); status != http.StatusUnprocessableEntity {
+		t.Fatalf("copy with unchosen required references answers %d, want 422: %s", status, said)
 	}
 	if now, _ := readFileIfThere(t, globalProfiles); now != wasProfiles {
 		t.Errorf("a copy a person chose nothing for wrote profiles.yaml:\n%s", now)
@@ -295,8 +295,8 @@ func TestCopyCarriesOnlyWhatThePersonChose(t *testing.T) {
 	if _, there := readFileIfThere(t, globalRole); there {
 		t.Error("a copy a person chose nothing for wrote the role document")
 	}
-	if _, err := os.Stat(filepath.Join(c.global, "teams", "other-dev", "team.yaml")); err != nil {
-		t.Errorf("the copy did not write the definition: %v", err)
+	if _, err := os.Stat(filepath.Join(c.global, "teams", "other-dev", "team.yaml")); !os.IsNotExist(err) {
+		t.Errorf("refused copy wrote a definition: %v", err)
 	}
 	_ = hadProfiles
 

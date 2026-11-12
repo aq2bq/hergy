@@ -8,7 +8,6 @@ import (
 
 	"html/template"
 	"net/http"
-	"os"
 	"path/filepath"
 
 	"github.com/aq2bq/hergy/internal/catalog"
@@ -88,18 +87,4 @@ func (s *Server) t2Island() t2Island {
 	}
 	out.Profiles = s.t2SortedNames()
 	return out
-}
-
-// t2LayerDir stops a write that would make a layer that is not there: a project
-// whose .hergy is gone has no place to put a team definition (spec-teams 1.7,
-// C5).
-func (s *Server) t2LayerDir(place string) error {
-	dir := s.cat.LayerDir(domainplace.Selection(place).Layer())
-	// dir is one of the catalog's two layer directories: the place is the
-	// screen's own word, and catalog.Layer answers a layer for any word, so no
-	// request names a directory of its own.
-	if _, err := os.Stat(dir); err != nil { //nolint:gosec // G703: dir is one of the catalog's two layer directories, not a path the request chose
-		return i18n.Errorf("error.teams_no_layer", s.cat.Display(dir))
-	}
-	return nil
 }

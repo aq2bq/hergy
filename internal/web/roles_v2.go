@@ -3,19 +3,12 @@ package web
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"html/template"
 	"net/http"
 	"net/url"
-	"os"
-	"path/filepath"
-
-	domainplace "github.com/aq2bq/hergy/internal/domain/place"
 
 	"github.com/aq2bq/hergy/internal/catalog"
-	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/i18n"
-	"github.com/aq2bq/hergy/internal/source"
 )
 
 // This file is the role screen's own answers (r-778c): the page the three tabs
@@ -59,58 +52,6 @@ func (s *Server) r2Page(w http.ResponseWriter, r *http.Request, tab string) {
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_, _ = w.Write(buf.Bytes())
-}
-
-// r2RolesDir makes the layer's roles/ ready for a write, and stops a write that
-// would make a layer that is not there: a project whose .hergy is gone has no
-// place to put a role document. A layer that is there but holds no role yet
-// gets its roles/ here (n-86c7, d-4cba). The place is the screen's word; the
-// catalog says which directory it is.
-func (s *Server) r2RolesDir(place string) error {
-	dir := s.cat.LayerDir(domainplace.Selection(place).Layer())
-	if _, err := os.Stat(dir); err != nil {
-		return i18n.Errorf("error.roles_no_layer", s.cat.Display(dir))
-	}
-	return os.MkdirAll(filepath.Join(dir, "roles"), 0o755)
-}
-
-// r2WriteError turns a write's failure into the refusal a person reads. A write
-// that lost a race with another place is the refusal a save whose read is old
-// gets: the file as it is now, and the text the save would have written, so the
-// screen keeps the draft and lets the person choose (r-3c77).
-func (s *Server) r2WriteError(err error, display, path string, doc func(text string) any) (any, *apiErr) {
-	if errors.Is(err, source.ErrChanged) {
-		return nil, s.refuseChanged(display, path, doc, false)
-	}
-	return nil, refuse(http.StatusInternalServerError, err.Error())
-}
-
-// r2RenameUsers writes a renamed role's new name into every definition whose
-// members play the old one, so the people that read it keep a document that is
-// there. Every other line is left as it was.
-func (s *Server) r2RenameUsers(old, next string) {
-	for _, listing := range s.cat.Definitions() {
-		path := listing.GlobalPath
-		if listing.Local {
-			path = listing.LocalPath
-		}
-		text, err := s.cat.Reader().Read(source.Doc{Path: path})
-		if err != nil {
-			continue
-		}
-		edited := text
-		for _, member := range r2MembersOf(text) {
-			if member.Saved != old {
-				continue
-			}
-			if out, err := definition.EditYAML([]byte(edited), s.cat.Display(path), definition.MemberRole(member.Name, next)); err == nil {
-				edited = string(out)
-			}
-		}
-		if edited != text {
-			_ = source.WriteBeside(path, edited)
-		}
-	}
 }
 
 // r2OldRole moves a role's old page link to the row it names, opened: the old

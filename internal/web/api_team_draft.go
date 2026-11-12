@@ -1,21 +1,11 @@
 package web
 
 import (
-	"net/http"
-	"os"
-	"path/filepath"
-	"regexp"
-	"slices"
-	"strconv"
-	"strings"
+	domainplace "github.com/aq2bq/hergy/internal/domain/place"
+	"github.com/aq2bq/hergy/internal/ops"
 
-	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/check"
 	"github.com/aq2bq/hergy/internal/definition"
-	domainname "github.com/aq2bq/hergy/internal/domain/name"
-	"github.com/aq2bq/hergy/internal/i18n"
-	"github.com/aq2bq/hergy/internal/newteam"
-	"github.com/aq2bq/hergy/internal/scaffold"
 	"github.com/aq2bq/hergy/internal/source"
 )
 
@@ -38,243 +28,18 @@ type apiTeamPreview struct {
 // text its two files stand on, the place and layer it would go into, whether the
 // starter role documents and profile go with it, and whether the person chose
 // them (r-54b8).
-type t2DraftRow struct {
-	Place          string
-	Layer          string
-	Starter        bool
-	StarterRoles   bool
-	StarterProfile bool
-	Team           string
-	Agree          string
-}
+type t2DraftRow = ops.ResourceDraft
 
 // t2DraftRowOf reads the base a row stands on: the starter files for a row added
 // from the scaffold (spec-teams B2), and the named definition's own files for a
 // duplicate or a copy (spec-teams B3).
 func (s *Server) t2DraftRowOf(in apiIn) (t2DraftRow, *apiErr) {
-	out := t2DraftRow{Place: in.Place.String(), Layer: in.Place.Layer()}
-	if in.New {
-		files, err := scaffold.Team(i18n.Language())
-		if err != nil {
-			return t2DraftRow{}, refuse(http.StatusUnprocessableEntity, err.Error())
-		}
-		out.Starter = true
-		out.StarterRoles = in.StarterRoles
-		out.StarterProfile = in.StarterProfile
-		for _, file := range files {
-			switch file.Path {
-			case "team.yaml":
-				out.Team = string(file.Data)
-			case "agreement.md":
-				out.Agree = string(file.Data)
-			}
-		}
-		return out, nil
+	query, bad := s.resourceDraftInput(in)
+	if bad != nil {
+		return t2DraftRow{}, bad
 	}
-	if in.Base == nil {
-		return t2DraftRow{}, refuse(http.StatusBadRequest, "team: a new definition needs new or base")
-	}
-	// The base is read from the place the row it came from stands in. A row of
-	// a listed project's head is that project's file, not this serve's own
-	// (r-a028): reading the wrong project's file left the copy without a base,
-	// and its save could not be pressed at all.
-	from, refusal := s.withProjectInput(in.Base.Project)
-	if refusal != nil {
-		return t2DraftRow{}, refusal
-	}
-	src := in.Base.Place.Layer()
-	path := from.cat.TeamYAML(in.Base.Name, src)
-	text, err := from.cat.Reader().Read(source.Doc{Path: path})
-	if err != nil {
-		return t2DraftRow{}, refuse(http.StatusNotFound, tf("error.copy_base_unreadable", from.cat.Display(path)))
-	}
-	out.Team = text
-	out.Agree, _ = from.cat.Reader().Read(source.Doc{Path: from.t2AgreeFile(in.Base.Name, src)})
-	return out, nil
-}
-
-// t2CheckName is the name a row's own team.yaml is read under while the row is
-// checked: the catalog reads a definition's file by its name, and a row that was
-// just added has no name yet — its name is what the person is typing. The check
-// stands the row's text at a name of its own so the figure's sentences are read
-// all the same (spec-teams B2, N1: a new row shows the description's warning). The
-// name is the server's own; nothing a person reads names it.
-const t2CheckName = "t2draft"
-
-// t2DraftCheckName is the name a draft check reads the row's team.yaml under.
-func t2DraftCheckName(name string) string {
-	if name == "" {
-		return t2CheckName
-	}
-	return name
-}
-
-// t2NameProblems is what is wrong with a new definition's name, in the order the
-// screen shows them (spec-teams B2): it is empty, it is not a name hergy new
-// accepts, or the place already has a definition of it.
-func (s *Server) t2NameProblems(in apiIn) []apiProblem {
-	name := strings.TrimSpace(in.Name)
-	if name == "" {
-		return []apiProblem{{Sev: "err", At: "name", Field: "name", Text: t("error.team_name_needed")}}
-	}
-	if _, err := domainname.NewDefinitionName(name); err != nil {
-		return []apiProblem{{Sev: "err", At: "name", Field: "name", Text: tf("error.new_name_pattern", name)}}
-	}
-	dir := filepath.Join(s.cat.LayerDir(in.Place.Layer()), "teams", name)
-	if _, err := os.Stat(dir); err == nil {
-		return []apiProblem{{Sev: "err", At: "name", Field: "name", Text: tf("error.new_exists", name, s.cat.Display(dir))}}
-	}
-	return nil
-}
-
-// t2DraftWrites is the files a save of this row would write, in the order it
-// writes them (spec-teams B2): the definition's own two, the starter role
-// documents and the starter profile the person asked for and no place holds. The
-// screen shows these; it decides none of them.
-func (s *Server) t2DraftWrites(row t2DraftRow, in apiIn, name, team string) []string {
-	// The team.yaml text is the row with its ops applied, so the starter roles
-	// and profile the save would write follow the members the row now has: a
-	// starter name no member uses is not one the person chose (r-54b8, d-86b1).
-	files := []scaffold.File{{Path: "team.yaml", Data: []byte(team)}, {Path: "agreement.md"}}
-	written, err := newteam.Plan(newteam.In{
-		Catalog: s.cat, Layer: row.Layer, Name: name, Lang: i18n.Language(),
-		Files: files, Starter: row.Starter, StarterRoles: row.StarterRoles, StarterProfile: row.StarterProfile,
-		Carry: s.carryIn(in),
-	})
-	if err != nil {
-		return nil
-	}
-	out := make([]string, 0, len(written.Files)+len(written.Roles)+2)
-	for _, paths := range [][]string{written.Files, written.Roles, written.CarryRoles} {
-		for _, path := range paths {
-			out = append(out, s.cat.Display(path))
-		}
-	}
-	if written.Profile != "" {
-		out = append(out, s.cat.Display(written.Profile))
-	}
-	if written.CarryProfileFile != "" {
-		out = append(out, s.cat.Display(written.CarryProfileFile))
-	}
-	return out
-}
-
-// t2StarterFindings is the draft's findings with what the write settles taken
-// out, and what the person has to choose said as a choice (spec-teams B2,
-// r-54b8, d-86b1): a member whose role document or profile no place holds is
-// told to choose one of the ones that are there, and a starter role or profile
-// the person asked for is not reported missing, because the save writes it.
-func (s *Server) t2StarterFindings(row t2DraftRow, cat *catalog.Catalog, def *definition.Definition, findings []check.Finding) []check.Finding {
-	roles := t2RoleNames(cat)
-	profiles := t2ProfileNames(cat)
-	out := make([]check.Finding, 0, len(findings))
-	for _, finding := range findings {
-		if member := t2MemberAt(def, finding.Field); member != nil {
-			if finding.Kind == check.KindPrompt && strings.HasSuffix(finding.Field, ".role") {
-				if _, held := cat.Role(member.Role); !held {
-					if _, markdown := cat.LegacyRole(member.Role); !markdown {
-						if row.StarterRoles && slices.Contains(scaffold.RoleNames, member.Role+".md") {
-							// The save writes this role document; it is not missing.
-							continue
-						}
-						finding.Text = t2ChooseRole(member.Name.String(), roles)
-					}
-				}
-			}
-			if finding.Stops && strings.HasSuffix(finding.Field, ".profile") {
-				if row.StarterProfile && member.Profile == scaffold.ProfileName {
-					// The save adds the starter profile; it is not missing.
-					continue
-				}
-				// The person picks a profile where the member stands, so the
-				// sentence says which profiles are there rather than how to
-				// write the file (d-86b1).
-				finding.Text = t2ChooseProfile(member.Name.String(), profiles)
-			}
-		}
-		out = append(out, finding)
-	}
-	return out
-}
-
-// t2RoleNames is the role documents either place holds, by name: what a member
-// chooses from (r-54b8).
-func t2RoleNames(cat *catalog.Catalog) []string {
-	var out []string
-	for _, role := range cat.Roles() {
-		if role.HasDocument {
-			out = append(out, role.Name)
-		}
-	}
-	return out
-}
-
-// t2ProfileNames is the profiles either place defines, by name: what a member
-// chooses from (r-54b8, d-86b1).
-func t2ProfileNames(cat *catalog.Catalog) []string {
-	profiles, _, err := cat.Profiles()
-	if err != nil {
-		return nil
-	}
-	names := make([]string, 0, len(profiles))
-	for name := range profiles {
-		names = append(names, name)
-	}
-	slices.Sort(names)
-	return names
-}
-
-// t2ChooseRole is the sentence a member without a role document gets: the person
-// chooses one of the roles that are there, and the sentence says which (r-54b8).
-func t2ChooseRole(member string, roles []string) string {
-	if len(roles) == 0 {
-		return i18n.Tf("error.role_to_choose_none", member)
-	}
-	return i18n.Tf("error.role_to_choose", member, strings.Join(roles, i18n.T("list.separator")))
-}
-
-// t2ChooseProfile is t2ChooseRole for a member without a profile: the person
-// chooses one of the profiles that are there (d-86b1).
-func t2ChooseProfile(member string, profiles []string) string {
-	if len(profiles) == 0 {
-		return i18n.Tf("error.profile_to_choose_none", member)
-	}
-	return i18n.Tf("error.profile_to_choose", member, strings.Join(profiles, i18n.T("list.separator")))
-}
-
-// t2MemberAt is the member one finding is about: "members[2].role" is the third
-// member of the definition the check read.
-func t2MemberAt(def *definition.Definition, field string) *definition.MemberNode {
-	if def == nil || def.Graph == nil {
-		return nil
-	}
-	m := memberField.FindStringSubmatch(field)
-	if m == nil {
-		return nil
-	}
-	i, err := strconv.Atoi(m[1])
-	if err != nil || i < 0 || i >= len(def.Graph.Members) {
-		return nil
-	}
-	return &def.Graph.Members[i]
-}
-
-// memberField is a field that names one member: "members[<index>]" with the rest
-// of the key behind it.
-var memberField = regexp.MustCompile(`^members\[(\d+)\]`)
-
-// t2ApplyOps is the text a row's own team.yaml stands for: the base text with the
-// row's ops applied in order.
-func t2ApplyOps(base, display string, ops []definition.Op) (string, error) {
-	text := base
-	for _, op := range ops {
-		next, err := definition.EditYAML([]byte(text), display, op)
-		if err != nil {
-			return "", err
-		}
-		text = string(next)
-	}
-	return text, nil
+	row, failure := s.resources().ReadResourceDraft(query)
+	return row, s.resourceFailure(failure, nil, false)
 }
 
 // t2LineTexts is the text of a preview's lines, for a diff by line.
@@ -306,66 +71,29 @@ func (s *Server) t2AgreeOfText(name, layer, text string) *apiTeamAgree {
 // definition that is already there is checked as its own draft.
 func (k apiTeam) checkDraft(in apiIn) (any, *apiErr) {
 	s := k.s
-	row, refusal := s.t2DraftRowOf(in)
-	if refusal != nil {
-		return nil, refusal
+	body, bad := t2DecodeOps(in)
+	if bad != nil {
+		return nil, bad
 	}
-	body, refusal := t2DecodeOps(in)
-	if refusal != nil {
-		return nil, refusal
+	query, bad := s.resourceDraftInput(in)
+	if bad != nil {
+		return nil, bad
 	}
-	name := t2DraftCheckName(in.Name)
-	// The row's own agreement is laid over beside its team.yaml, so the check
-	// reads the draft's rules rather than the rules of a definition that already
-	// holds the name: a row named after a saved definition is not told about
-	// that definition's rules (spec-teams B2, 監査 R6).
-	//
-	// A copy of a project's definition reads the global layer alone: the copy
-	// would stand there, so what the global layer does not hold is what the row
-	// has to bring, and a role document or profile this serve's own project
-	// happens to hold is not the copy's (r-7e4a, d-dc81).
-	base := s.cat
-	if t2IsCopyToGlobal(in, row) {
-		base = s.globalCatalog()
+	result, failure := s.resources().CheckDefinitionDraft(query, body.ops)
+	if failure != nil {
+		return nil, s.resourceFailure(failure, nil, false)
 	}
-	path := base.TeamYAML(name, row.Layer)
-	display := base.Display(base.TeamYAML(in.Name, row.Layer))
-	cat := base.With(path, row.Team).With(s.t2AgreeFile(name, row.Layer), row.Agree)
-	report := check.Team(check.TeamInput{Catalog: cat, Name: name, Layer: row.Layer, Ops: body.ops})
-	def, _ := cat.Definition(name, row.Layer)
-	findings := report.Problems
-	if row.Starter {
-		findings = s.t2StarterFindings(row, cat, def, findings)
+	row := result.Row
+	problems := make([]apiProblem, 0, len(result.NameProblems)+len(result.Findings))
+	for _, p := range result.NameProblems {
+		problems = append(problems, apiProblem{Sev: p.Sev, At: p.At, Field: p.Field, Text: p.Text})
 	}
-	// A copy of a project's definition brings its own two files alone: a name the
-	// global layer does not hold is said as one this row can bring, and a name the
-	// person chose is not reported, because the save writes it (r-7e4a, d-dc81).
-	carry := s.t2CarryOf(in, row, def)
-	findings = s.carryFindings(carry, t2ChosenOf(in), def, findings)
-	draft, err := t2ApplyOps(row.Team, display, body.ops)
-	if err != nil {
-		return nil, refuse(http.StatusUnprocessableEntity, err.Error())
+	problems = append(problems, t2FigureProblems(result.Findings, result.Display)...)
+	var carry *apiCheckCarry
+	if result.Carry != nil {
+		carry = &apiCheckCarry{Roles: result.Carry.Roles, Profiles: result.Carry.Profiles}
 	}
-	problems := append(s.t2NameProblems(in), t2FigureProblems(findings, display)...)
-	hasRoles := newteam.HasRoles(cat)
-	hasProfiles, _ := newteam.HasProfiles(cat)
-	var apiCarry *apiCheckCarry
-	if carry != nil {
-		apiCarry = carry.answer()
-	}
-	return apiCheck{
-		Problems: problems,
-		Doc:      s.t2DocWithAgree(def, s.t2AgreeOfText(in.Name, row.Layer, row.Agree)),
-		Draft: &apiCheckDraft{
-			Name: in.Name, Place: in.Place.String(), Starter: row.Starter, Path: display, Hash: source.Hash(""),
-			Writes: s.t2DraftWrites(row, in, in.Name, draft), HasRoles: hasRoles, HasProfiles: hasProfiles,
-			Carry: apiCarry,
-		},
-		Preview: apiTeamPreview{
-			Lines: definition.YAMLLines(draft),
-			Diff:  check.LineDiff(t2LineTexts(definition.YAMLLines(row.Team)), t2LineTexts(definition.YAMLLines(draft))),
-		},
-	}, nil
+	return apiCheck{Problems: problems, Doc: s.t2DocWithAgree(result.Definition, s.t2AgreeOfText(in.Name, row.Layer, row.Agree)), Draft: &apiCheckDraft{Name: in.Name, Place: in.Place.String(), Starter: row.Starter, Path: result.Display, Hash: source.Hash(""), Writes: result.Writes, HasRoles: result.HasRoles, HasProfiles: result.HasProfiles, Carry: carry}, Preview: apiTeamPreview{Lines: definition.YAMLLines(result.Draft), Diff: check.LineDiff(t2LineTexts(definition.YAMLLines(row.Team)), t2LineTexts(definition.YAMLLines(result.Draft)))}}, nil
 }
 
 // checkDraftAgreement answers what is wrong with the rules of a definition that
@@ -373,28 +101,22 @@ func (k apiTeam) checkDraft(in apiIn) (any, *apiErr) {
 // with the base team.yaml laid over the catalog so its arrows are judged against
 // the draft's turns.
 func (k apiTeam) checkDraftAgreement(in apiIn) (any, *apiErr) {
-	s := k.s
-	row, refusal := s.t2DraftRowOf(in)
-	if refusal != nil {
-		return nil, refusal
-	}
-	body, refusal := t2DecodeOps(in)
-	if refusal != nil {
-		return nil, refusal
+	body, bad := t2DecodeOps(in)
+	if bad != nil {
+		return nil, bad
 	}
 	if body.in.Doc == nil {
-		return nil, refuse(http.StatusUnprocessableEntity, "agreement: one document is needed")
+		return nil, refuse(422, "agreement: one document is needed")
 	}
-	// The base's two files are laid over, so the arrows are judged against the
-	// draft's turns and the diff stands against the row's own base rather than
-	// the file of a definition that already holds the name (spec-teams B2, 監査
-	// R6).
-	cat := s.cat.With(s.cat.TeamYAML(t2DraftCheckName(in.Name), row.Layer), row.Team).
-		With(s.t2AgreeFile(t2DraftCheckName(in.Name), row.Layer), row.Agree)
-	report := check.Agreement(check.AgreementInput{
-		Catalog: cat, Name: t2DraftCheckName(in.Name), Place: row.Layer, Text: body.in.Doc.Text,
-	})
-	return r2CheckAnswer(report, false), nil
+	query, bad := k.s.resourceDraftInput(in)
+	if bad != nil {
+		return nil, bad
+	}
+	checked, failure := k.s.resources().CheckDefinitionDraftAgreement(query, body.in.Doc.Text)
+	if failure != nil {
+		return nil, k.s.resourceFailure(failure, nil, false)
+	}
+	return r2CheckAnswer(checked, false), nil
 }
 
 // saveFolder writes a definition that is not there yet, whole (spec-teams B2,
@@ -404,41 +126,25 @@ func (k apiTeam) checkDraftAgreement(in apiIn) (any, *apiErr) {
 // that has appeared since the check, stops it before anything is written.
 func (k apiTeam) saveFolder(name string, in apiIn) (any, *apiErr) {
 	s := k.s
-	if problems := s.t2NameProblems(in); len(problems) > 0 {
-		return nil, refuseAt("name", problems[0].Text)
+	ref, bad := s.resourceRef(domainplace.Definition, in.Place.String(), name)
+	if bad != nil {
+		return nil, bad
 	}
-	if err := s.t2LayerDir(in.Place.String()); err != nil {
-		return nil, refuse(http.StatusUnprocessableEntity, err.Error())
+	body, bad := t2DecodeOps(in)
+	if bad != nil {
+		return nil, bad
 	}
-	row, refusal := s.t2DraftRowOf(in)
-	if refusal != nil {
-		return nil, refusal
+	query, bad := s.resourceDraftInput(in)
+	if bad != nil {
+		return nil, bad
 	}
-	body, refusal := t2DecodeOps(in)
-	if refusal != nil {
-		return nil, refusal
-	}
-	display := s.cat.Display(s.cat.TeamYAML(name, row.Layer))
-	team, err := t2ApplyOps(row.Team, display, body.ops)
-	if err != nil {
-		return nil, refuse(http.StatusUnprocessableEntity, err.Error())
-	}
-	agree := row.Agree
+	var agreement *string
 	if body.in.Doc != nil {
-		agree = body.in.Doc.Text
+		agreement = &body.in.Doc.Text
 	}
-	files := []scaffold.File{
-		{Path: "team.yaml", Data: []byte(team)},
-		{Path: "agreement.md", Data: []byte(agree)},
+	_, failure := s.resources().SaveDefinitionDraft(ref, query, body.ops, agreement)
+	if failure != nil {
+		return nil, s.resourceFailure(failure, nil, false)
 	}
-	if _, err := newteam.Write(newteam.In{
-		Catalog: s.cat, Layer: row.Layer, Name: name, Lang: i18n.Language(),
-		Files: files, Starter: row.Starter, StarterRoles: row.StarterRoles, StarterProfile: row.StarterProfile,
-		Carry: s.carryIn(in),
-	}); err != nil {
-		return nil, refuse(http.StatusInternalServerError, err.Error())
-	}
-	// The save wrote rule files — the agreement, and the role documents a
-	// starter definition brings — so their rules get hergy's ids now (d-4aab).
 	return k.savedAnswer(name, in.Place.String()), nil
 }

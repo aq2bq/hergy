@@ -10,7 +10,7 @@ import (
 	domainplace "github.com/aq2bq/hergy/internal/domain/place"
 
 	"github.com/aq2bq/hergy/internal/i18n"
-	"github.com/aq2bq/hergy/internal/prompt"
+	"github.com/aq2bq/hergy/internal/ops"
 	"github.com/aq2bq/hergy/internal/source"
 )
 
@@ -23,15 +23,12 @@ func TestPromptComparisonCurrentMatchesMemberAndNeverWrites(t *testing.T) {
 	if failure != nil {
 		t.Fatal(failure)
 	}
-	def, err := s.cat.Definition("demo", "local")
-	if err != nil {
-		t.Fatal(err)
+	target, _ := s.resourceSeen(domainplace.Definition, "project", "demo")
+	reference, resourceFailure := s.resources().PreviewResourcePrompts(ops.ResourcePromptInput{Target: ops.ExistingResource(target), Hash: source.Hash(before), Member: "lead", Executable: promptExecutable()})
+	if resourceFailure != nil {
+		t.Fatal(resourceFailure)
 	}
-	node, _ := def.Graph.Member("lead")
-	built, err := prompt.Member(def, &node, prompt.Run{Team: fixtureNaming("demo"), Base: s.cat.Base(), Executable: promptExecutable(), Reader: s.cat.Reader(), Sources: s.cat, Display: s.cat.Display})
-	if err != nil {
-		t.Fatal(err)
-	}
+	built := reference.Built[0]
 	if out.Current == nil || *out.Current != built.Text || out.Recorded != nil || !reflect.DeepEqual(out.Segments, built.Segments) {
 		t.Fatalf("%+v", out)
 	}
@@ -211,14 +208,22 @@ func TestWorkerPreviewUsesTheRunningNameAndTheDraft(t *testing.T) {
 	}
 	want := func(t *testing.T, team, leadRole, purpose string) string {
 		t.Helper()
-		built, err := prompt.Worker(prompt.WorkerInput{
-			Team: team, Lead: team + "-lead", LeadRole: leadRole,
-			Purpose: purpose, Name: team + "-helper", Task: "作る",
-		})
-		if err != nil {
-			t.Fatal(err)
+		target, _ := ops.ObserveResource(domainplace.Definition, domainplace.In(f.catalog().Base()), "demo")
+		cat := f.catalog()
+		def, _ := cat.Definition("demo", "local")
+		for i := range def.Graph.Members {
+			if def.Graph.Members[i].Name.String() == "lead" {
+				def.Graph.Members[i].Role = leadRole
+			}
 		}
-		return built.Text
+		run := PromptRun{Team: fixtureTeam(team)}
+		built, failure := (ops.ResourceScope{Catalog: cat}).PreviewResourcePrompts(ops.ResourcePromptInput{Target: ops.ExistingResource(target), Catalog: cat, Definition: def, WithRuns: true, Runs: func(domainplace.Project, string, string) ([]ops.PromptRun, error) {
+			return []ops.PromptRun{{Team: run.Team}}, nil
+		}, Worker: &ops.ResourceWorkerPrompt{Name: "helper", From: "lead", Purpose: purpose, Task: "作る", Preview: true}})
+		if failure != nil || built.WorkerErr != nil {
+			t.Fatalf("%v %v", failure, built.WorkerErr)
+		}
+		return built.Worker.Text
 	}
 	const plain = `{"name":"helper","purpose":"試作","task":"作る","from":"lead","preview":true}`
 	cases := []struct {

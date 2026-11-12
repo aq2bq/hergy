@@ -5,6 +5,8 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 
+	"github.com/aq2bq/hergy/internal/ops"
+
 	"net/http"
 	"path/filepath"
 
@@ -72,8 +74,8 @@ func hqNavOf(projects HQProjects) *navHQ {
 // from here, so they cannot count the same thing differently.
 func (s *Server) navOf(current string) navData {
 	list := s.activity().List()
-	teams, roles, profiles := s.cat.Counts(source.LayerLocal)
-	globalTeams, globalRoles, globalProfiles := s.cat.Counts(source.LayerGlobal)
+	teams, roles, profiles := ops.ResourceCounts(s.cat, source.LayerLocal)
+	globalTeams, globalRoles, globalProfiles := ops.ResourceCounts(s.cat, source.LayerGlobal)
 	nav := navData{
 		Current:  current,
 		Project:  filepath.Base(s.cat.Base().String()),

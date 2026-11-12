@@ -683,5 +683,7 @@
   "activity.turn_holder_asked": "ターン: %s（%s から）。渡し先を聞いています",
   "activity.turn_waits": "答え待ち: %s",
   "activity.turn_human": "ターン: 人間（%s から）%s",
-  "error.tell_target_unknown": "%s というメンバーもワーカーもいません。hergy status で名前を確かめてください"
+  "error.tell_target_unknown": "%s というメンバーもワーカーもいません。hergy status で名前を確かめてください",
+  "error.resource_references_unreadable": "次のチーム定義を書き換えられないため、保存しませんでした:\n%s",
+  "error.resource_references_write": "書き込みに失敗しました。済んだもの:\n%s\n済んでいないもの:\n%s\n%s"
 }

@@ -2,23 +2,8 @@ package main
 
 // The owners gate holds one concept to one owner (r-ea17, ac-f62f, d-4d88).
 //
-// Concept ② "一覧の行と件数" has two owners:
-//
-//   - the server's internal/catalog is the only place that decides which rows a
-//     list draws and what the band's numbers are; a list answer and the band ask
-//     it (ListedRows / ShownRows / Counts) and never count rows themselves.
-//   - the WebUI's lib/band-counts.ts is the only module that writes the band's
-//     numbers (setCount / setActivity); a screen hands in what a reading said.
-//
-// The gate reads the source, not the behaviour: a name that writes the band or
-// asks the owner for rows may stand only in the files the rule below names. A
-// file that needs the name and is not there is either moved to the owner or
-// added to tools/check/owners.yml's allowlist, with why and the decision that
-// allowed it (gy's d-…).
-//
-// It starts as a report and becomes a gate: with enforce: false the findings are
-// printed and the gate passes, so the copies can be merged before the gate
-// fails. done is the gate failing, which is what enforce: true makes it.
+// Go row calculations and prompt construction are private to ops. This gate
+// retains only the TypeScript ownership checks until their own modules move.
 
 import (
 	"fmt"
@@ -54,15 +39,6 @@ var ownerRules = []ownerRule{
 	{name: "setActivity", where: "ts", files: []string{"internal/web/src/lib/nav.ts", "internal/web/src/lib/band-counts.ts"}},
 	{name: "applyCounts", where: "ts", files: []string{"internal/web/src/lib/band-counts.ts", "internal/web/src/lib/hq/state.ts"}},
 	{name: "applyActivity", where: "ts", files: []string{"internal/web/src/lib/band-counts.ts", "internal/web/src/lib/hq/state.ts"}},
-	// The rows and the counts are decided in internal/catalog; the lists and the
-	// band's first value ask it. The row rules of r-929e are gone: a name that
-	// decided rows anywhere else fails here.
-	{name: "Counts", where: "go", files: []string{"internal/catalog/", "internal/ops/hq.go", "internal/web/nav.go"}},
-	{name: "ListedRows", where: "go", files: []string{"internal/catalog/", "internal/web/"}},
-	{name: "ShownRows", where: "go", files: []string{"internal/catalog/", "internal/web/"}},
-	{name: "ReadableOf", where: "go", files: []string{"internal/catalog/", "internal/web/"}},
-	{name: "ListedRoles", where: "go", files: []string{"internal/catalog/"}},
-	{name: "navRoles", where: "go", files: []string{"internal/catalog/"}},
 }
 
 // The danger section: the one table of what a dangerous action does, and the one
@@ -94,24 +70,10 @@ var dangerNameRules = []ownerRule{
 }
 
 // The prompt section (⑤ r-ba9b): the text handed to a member or a worker is
-// built by promptsFor (internal/web/api_prompt.go) and read by prompt-source.ts,
-// and nowhere else. The check and the two panels ask the owners; they build no
-// text and keep no second reading of it.
+// read by prompt-source.ts alone. Go builders are protected by package visibility.
 const (
-	promptBuilder = "internal/web/api_prompt.go"
-	promptReader  = "internal/web/src/teams/prompt-source.ts"
+	promptReader = "internal/web/src/teams/prompt-source.ts"
 )
-
-// promptGoRules are the builder's calls, read only in the WebUI's server: the
-// command's own senders (up, hire, apply) are outside this layer and keep their
-// calls.
-var promptGoRules = []ownerRule{
-	{name: "prompt.Member", where: "go", scope: []string{"internal/web/"}, files: []string{promptBuilder}},
-	{name: "prompt.Worker", where: "go", scope: []string{"internal/web/"}, files: []string{promptBuilder}},
-	{name: "t2PromptOf", where: "go", scope: []string{"internal/web/"}, files: []string{promptBuilder}},
-	{name: "prompt.TurnsOf", where: "go", scope: []string{"internal/web/"}, files: []string{promptBuilder}},
-	{name: "prompt.WorkersOf", where: "go", scope: []string{"internal/web/"}, files: []string{promptBuilder}},
-}
 
 // promptWords are the names the copies used. They stand only in their owner, and
 // the ones with no owner at all (an old cache, an old reading) stand nowhere.
@@ -469,28 +431,11 @@ func promptFileFindings(rel, raw string, goFile bool, conf ownersFile) []string 
 	var out []string
 	code := maskSpec(raw)
 	if goFile {
-		out = append(out, promptBuilderFindings(rel, code, conf)...)
+		return nil
 	}
 	out = append(out, promptNameFindings(rel, code, conf)...)
 	if !goFile {
 		out = append(out, promptAddressFindings(rel, raw)...)
-	}
-	return out
-}
-
-// promptBuilderFindings is the builder's calls outside api_prompt.go.
-func promptBuilderFindings(rel, code string, conf ownersFile) []string {
-	var out []string
-	for _, rule := range promptGoRules {
-		if len(rule.scope) > 0 && !allowed(rel, rule.scope) {
-			continue
-		}
-		if allowed(rel, rule.files) || allowedBy(rel, conf.Allow, rule.name) {
-			continue
-		}
-		for _, line := range wordLines(code, rule.name) {
-			out = append(out, fmt.Sprintf("%s:%d: %s はここではなく %s に置いてください", rel, line, rule.name, promptBuilder))
-		}
 	}
 	return out
 }

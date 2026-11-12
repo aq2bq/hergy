@@ -7,6 +7,8 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/aq2bq/hergy/internal/ops"
+
 	domainplace "github.com/aq2bq/hergy/internal/domain/place"
 
 	"github.com/aq2bq/hergy/internal/catalog"
@@ -133,20 +135,6 @@ type apiItem struct {
 	Mark string `json:"mark,omitempty"`
 }
 
-// docUnreadableRefusal refuses a write over a document that is there and cannot
-// be read (r-ea17, d-0bf1): the owner decides whether a file reads, and a save
-// or a delete never replaces what it could not read. A file that is not there is
-// the empty file a save would make.
-func (s *Server) docUnreadableRefusal(path string) *apiErr {
-	if path == "" {
-		return nil
-	}
-	if _, ok, why := s.cat.FileState(path); !ok {
-		return refuse(http.StatusUnprocessableEntity, why)
-	}
-	return nil
-}
-
 // markWord is the item's word for one row: the owner's InEffect/Hidden, or none.
 func markWord(row catalog.ListedRow) string {
 	switch {
@@ -162,7 +150,7 @@ func markWord(row catalog.ListedRow) string {
 // hidden: the owner's rows answer it (ListedRow.InEffect/Hidden, r-ea17), so a
 // file that cannot be read does not change the answer.
 func (s *Server) effectiveOf(kind, name string) (string, []string) {
-	for _, one := range s.cat.ShownRows(kind, source.LayerLocal) {
+	for _, one := range ops.ListResourceRows(s.cat, kind, source.LayerLocal) {
 		if one.Name != name {
 			continue
 		}
@@ -171,7 +159,7 @@ func (s *Server) effectiveOf(kind, name string) (string, []string) {
 		}
 		return catalog.PlaceProject, nil
 	}
-	for _, one := range s.cat.ShownRows(kind, source.LayerGlobal) {
+	for _, one := range ops.ListResourceRows(s.cat, kind, source.LayerGlobal) {
 		if one.Name == name {
 			return catalog.PlaceGlobal, nil
 		}

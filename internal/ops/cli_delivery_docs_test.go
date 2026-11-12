@@ -9,9 +9,9 @@ import (
 	"testing"
 
 	"github.com/aq2bq/hergy/internal/definition"
-	"github.com/aq2bq/hergy/internal/migrate"
 	"github.com/aq2bq/hergy/internal/ops/internal/deliver"
 	"github.com/aq2bq/hergy/internal/ops/internal/launchlog"
+	"github.com/aq2bq/hergy/internal/ops/internal/migrate"
 	"github.com/aq2bq/hergy/internal/source"
 )
 

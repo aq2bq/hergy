@@ -22,9 +22,11 @@ import (
 
 	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/definition"
+	domainname "github.com/aq2bq/hergy/internal/domain/name"
+	domainplace "github.com/aq2bq/hergy/internal/domain/place"
 	"github.com/aq2bq/hergy/internal/i18n"
+	"github.com/aq2bq/hergy/internal/ops"
 	"github.com/aq2bq/hergy/internal/profile"
-	"github.com/aq2bq/hergy/internal/prompt"
 	"github.com/aq2bq/hergy/internal/source"
 )
 
@@ -82,7 +84,7 @@ func newLayer(t *testing.T, shared string) layer {
 // sources is the catalog a prompt looks a role document and the shared agreement
 // up in, over this layer. The global layer is a directory that is not there, so
 // every lookup is answered by this layer.
-func (l layer) sources() prompt.Sources {
+func (l layer) sources() *catalog.Catalog {
 	return catalog.New(filepath.Join(l.root, "global"), l.root, projectPath(l.root), source.Disk{},
 		func(path string) string { return path })
 }
@@ -181,18 +183,25 @@ func parse(text, name, runName string, l layer, profiles map[string]profile.Prof
 // startsOf is the member projection app builds: the herdr name, the profile's
 // engine, and prompt.Member's text.
 func startsOf(def *definition.Definition, runName string, l layer, profiles map[string]profile.Profile) ([]definition.Start, error) {
-	run := prompt.Run{Team: fixtureNaming(runName), Executable: "hergy", Base: projectPath(l.team), Reader: source.Disk{}, Sources: l.sources()}
+	names := fixtureNaming(runName)
+	cat := l.sources()
+	n, _ := domainname.ParseDefinitionName(runName)
+	target := ops.ModelResource(domainplace.DefinitionRef(domainplace.In(cat.Base()), n))
 	out := make([]definition.Start, 0, len(def.Graph.Members))
 	for i := range def.Graph.Members {
 		node := &def.Graph.Members[i]
-		herdr, nameErr := run.Team.MemberTarget(node.Name)
+		herdr, nameErr := names.MemberTarget(node.Name)
 		if nameErr != nil {
-			return nil, i18n.Errorf("error.herdr_name_pattern", run.Team.Member(node.Name))
+			return nil, i18n.Errorf("error.herdr_name_pattern", names.Member(node.Name))
 		}
-		text, err := prompt.Member(def, node, run)
-		if err != nil {
+		preview, failure := (ops.ResourceScope{Catalog: cat}).PreviewResourcePrompts(ops.ResourcePromptInput{Target: target, Catalog: cat, Definition: def, Member: node.Name.String(), Executable: "hergy"})
+		if failure != nil {
+			return nil, failure
+		}
+		if err := preview.Errors[node.Name.String()]; err != nil {
 			return nil, err
 		}
+		text := preview.Built[0]
 		value := profiles[node.Profile]
 		out = append(out, definition.Start{
 			Name: herdr, Short: node.Name.Short(), Role: node.Role, Profile: node.Profile,

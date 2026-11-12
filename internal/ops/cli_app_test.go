@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/i18n"
+	"github.com/aq2bq/hergy/internal/ops/internal/catalog"
 	"github.com/aq2bq/hergy/internal/options"
 	"github.com/aq2bq/hergy/internal/source" // TestNewUpDryPassesWithNoRoleAnywhere: with neither place holding a role or a
 	// profile, hergy new writes the starter ones, and the definition it wrote runs

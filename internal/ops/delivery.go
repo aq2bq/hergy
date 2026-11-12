@@ -8,12 +8,12 @@ import (
 	domainname "github.com/aq2bq/hergy/internal/domain/name"
 
 	"github.com/aq2bq/hergy/internal/activity"
-	"github.com/aq2bq/hergy/internal/catalog"
 	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/i18n"
+	"github.com/aq2bq/hergy/internal/ops/internal/catalog"
 	"github.com/aq2bq/hergy/internal/ops/internal/deliver"
 	"github.com/aq2bq/hergy/internal/ops/internal/launchlog"
-	"github.com/aq2bq/hergy/internal/prompt"
+	"github.com/aq2bq/hergy/internal/ops/internal/prompt"
 	"github.com/aq2bq/hergy/internal/source"
 )
 

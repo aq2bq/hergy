@@ -853,6 +853,8 @@ func TestTeamsDraftCheckAnswersTheNameAndTheWrites(t *testing.T) {
 // profiles.yaml already, so the save writes neither (r-54b8).
 func TestTEAMS_N3_DraftSaveWritesTheStarterFolder(t *testing.T) {
 	f := newFixture(t)
+	// This test saves the unchanged starter, so its profile must already exist.
+	f.write(t, "profiles.yaml", readFile(t, filepath.Join(f.proj, ".hergy/profiles.yaml"))+"  claude-default:\n    kind: claude\n")
 	server := f.server(t)
 	profilesBefore := readFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml"))
 	resp, body := f.api(t, server, http.MethodPut, "/api/team/ops", map[string]any{
@@ -1405,8 +1407,11 @@ func TestTEAMS_R54B8_ADraftWritesNoRoleFilesThePersonDidNotChoose(t *testing.T) 
 		"place": "project", "name": "ops", "part": "folder", "new": true,
 		"doc": map[string]any{"ops": []any{}},
 	})
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("PUT /api/team/ops answers %d, want 200: %s", resp.StatusCode, body)
+	if resp.StatusCode != http.StatusUnprocessableEntity {
+		t.Fatalf("new definition with missing references answers %d, want 422: %s", resp.StatusCode, body)
+	}
+	if _, err := os.Stat(filepath.Join(f.proj, ".hergy/teams/ops")); !os.IsNotExist(err) {
+		t.Fatalf("refused definition was written: %v", err)
 	}
 	if got := roleFiles(t, filepath.Join(f.proj, ".hergy")); len(got) != 0 {
 		t.Errorf("the save wrote the project's roles/: %v", got)
@@ -1455,8 +1460,11 @@ func TestTEAMS_R54B8_TheStarterRolesFollowTheMembersTheRowHas(t *testing.T) {
 	}
 	body["part"] = "folder"
 	resp, answer = f.api(t, server, http.MethodPut, "/api/team/ops", body)
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("PUT /api/team/ops answers %d, want 200: %s", resp.StatusCode, answer)
+	if resp.StatusCode != http.StatusUnprocessableEntity {
+		t.Fatalf("new definition with missing references answers %d, want 422: %s", resp.StatusCode, answer)
+	}
+	if _, err := os.Stat(filepath.Join(f.proj, ".hergy/teams/ops")); !os.IsNotExist(err) {
+		t.Fatalf("refused definition was written: %v", err)
 	}
 	if got := roleFiles(t, base); len(got) != 0 {
 		t.Errorf("the save wrote the project's roles/: %v", got)

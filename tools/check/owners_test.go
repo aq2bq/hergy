@@ -267,21 +267,6 @@ func TestDangerFindingsFlagsTheClosingWarning(t *testing.T) {
 	}
 }
 
-// TestPromptFindingsFlagsTheBuilderOutsideItsOwner: a WebUI server file that
-// builds a prompt itself is the copy ⑤ r-ba9b removed.
-func TestPromptFindingsFlagsTheBuilderOutsideItsOwner(t *testing.T) {
-	root := t.TempDir()
-	writeTree(t, root, "internal/web/api_team.go", "func build(def *Definition) { prompt.Member(def, node, run) }\n")
-	r := &runner{root: root}
-	findings, err := r.promptFindings(ownersFile{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(findings) != 1 || !strings.Contains(findings[0], "prompt.Member") || !strings.Contains(findings[0], "api_prompt.go") {
-		t.Fatalf("findings = %v, want one for prompt.Member", findings)
-	}
-}
-
 // TestPromptFindingsFlagsTheReadersOutsideTheirOwner: a screen that calls the
 // comparison itself, or brings back an old cache name, fails.
 func TestPromptFindingsFlagsTheReadersOutsideTheirOwner(t *testing.T) {
@@ -327,7 +312,7 @@ func TestPromptFindingsLetsTheOwnersThrough(t *testing.T) {
 // false and fails once prompt_enforce is true.
 func TestOwnersPromptSectionIsHard(t *testing.T) {
 	root := t.TempDir()
-	writeTree(t, root, "internal/web/api_team.go", "func build() { prompt.Member(nil, nil, run) }\n")
+	writeTree(t, root, "internal/web/src/teams/canvas/prompt.tsx", "const workerPrompt = 1;\n")
 	writeTree(t, root, ownersPath, "prompt_enforce: false\nallow: []\n")
 	r := &runner{root: root}
 	if err := r.ownersGate(); err != nil {

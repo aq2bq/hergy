@@ -10,8 +10,7 @@ changed_enforce: true
 # The danger section: the confirmation and the undo notice have one owner each,
 # and every danger button says which action it runs (r-ccf8, d-2cce, d-aeeb).
 danger_enforce: true
-# The prompt section: 渡る文 is built by promptsFor (internal/web/api_prompt.go)
-# and read by teams/prompt-source.ts, and nowhere else (⑤ r-ba9b, d-002b).
+# The prompt section checks TypeScript readers; Go builders are private to ops.
 prompt_enforce: true
 # The selection section: the pick and the right column are written by
 # teams/selection.ts alone, the table is selection-table.ts, and the old writer
@@ -31,14 +30,6 @@ enforce: true
 # and the decision that allowed it (gy's d-…). An entry without all four fails
 # the gate before the code is read.
 allow:
-  - path: internal/ops/status.go
-    name: Counts
-    why: 動いているチームの人数と作業者を数える、一覧の行とは別の数え上げ（status.Counts）
-    decision: d-4d88
-  - path: internal/ops/internal/status/status.go
-    name: Counts
-    why: 動いているチームの人数と作業者を数える、一覧の行とは別の数え上げ（上の呼び出しの定義）
-    decision: d-4d88
   - path: internal/web/src/lib/prose-transfer.ts
     name: JSON.stringify
     why: 転送する文の下書きの比較で、「変えたか」の概念ではない（r-0b69）

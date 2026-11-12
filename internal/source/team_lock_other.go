@@ -15,6 +15,3 @@ func LockTeamStart(_ string) (func(), error) {
 }
 
 // RenameDirectory refuses platforms without an exclusive directory move.
-func RenameDirectory(_, _ string) error {
-	return errors.New("exclusive directory rename is supported on macOS and Linux")
-}

@@ -2,7 +2,6 @@ package web
 
 import (
 	"encoding/json"
-	"errors"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -10,6 +9,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/aq2bq/hergy/internal/ops"
 
 	domainplace "github.com/aq2bq/hergy/internal/domain/place"
 
@@ -171,7 +172,7 @@ func (s *Server) t2ListLayers(layers []string) apiList {
 		if !slices.Contains(layers, layer) {
 			continue
 		}
-		for _, listed := range s.cat.ShownRows(catalog.KindTeam, layer) {
+		for _, listed := range ops.ListResourceRows(s.cat, catalog.KindTeam, layer) {
 			item := s.t2ItemAt(listed.Name, place, ver)
 			item.Mark = markWord(listed)
 			out.Items = append(out.Items, item)
@@ -218,7 +219,7 @@ func (s *Server) t2ItemAt(name, place, ver string) apiItem {
 // YAML tab's badge is not the file's layer (r-ea17).
 func (s *Server) fileMark(name, place string) string {
 	layer := domainplace.Selection(place).Layer()
-	for _, row := range s.cat.ShownRows(catalog.KindTeam, layer) {
+	for _, row := range ops.ListResourceRows(s.cat, catalog.KindTeam, layer) {
 		if row.Name == name {
 			return markWord(row)
 		}
@@ -493,11 +494,15 @@ func (k apiTeam) Get(name, place string) (any, *apiErr) {
 		return nil, refuse(http.StatusBadRequest, "unknown place")
 	}
 	layer := domainplace.Selection(place).Layer()
-	path := s.cat.TeamYAML(name, layer)
-	text, err := s.cat.Reader().Read(source.Doc{Path: path})
-	if err != nil {
-		return nil, refuse(http.StatusNotFound, t("web.error.not_found"))
+	target, bad := s.resourceSeen(domainplace.Definition, place, name)
+	if bad != nil {
+		return nil, bad
 	}
+	file, failure := s.resources().ReadResource(ops.ExistingResource(target), ops.ResourceMain)
+	if failure != nil || !file.Exists {
+		return nil, refuse(404, t("web.error.not_found"))
+	}
+	path, text := file.Path, file.Text
 	def, _ := s.cat.Definition(name, layer)
 	effective, hidden := s.effectiveOf(catalog.KindTeam, name)
 	return apiTeamGet{
@@ -587,45 +592,6 @@ func (k apiTeam) checkWorkerPrompt(in apiIn) (any, *apiErr) {
 	return apiCheck{Prompt: built.Worker.Segments, PromptTeam: built.Names.Team}, nil
 }
 
-// t2HiringMember is the member a worker preview hires through: the one from:
-// names, or the one whose workers: pair this purpose. Two candidates are a
-// refusal, because the screen has to say which (the command line asks too).
-func t2HiringMember(def *definition.Definition, purpose, from string) (*definition.MemberNode, error) {
-	if def == nil || def.Graph == nil {
-		return nil, i18n.Errorf("error.no_member", from)
-	}
-	if from != "" {
-		for i := range def.Graph.Members {
-			member := &def.Graph.Members[i]
-			if member.Name.String() == from || domainname.DefinitionNames(def.Name).Member(member.Name) == from {
-				return member, nil
-			}
-		}
-		return nil, i18n.Errorf("error.no_member", from)
-	}
-	var names []string
-	for i := range def.Graph.Members {
-		member := &def.Graph.Members[i]
-		for _, worker := range def.Graph.Workers {
-			if worker.From == member.Name.String() && worker.Purpose.String() == purpose {
-				names = append(names, member.Name.String())
-				break
-			}
-		}
-	}
-	switch len(names) {
-	case 0:
-		return nil, i18n.Errorf("error.worker_prompt_none", purpose)
-	case 1:
-		for i := range def.Graph.Members {
-			if def.Graph.Members[i].Name.String() == names[0] {
-				return &def.Graph.Members[i], nil
-			}
-		}
-	}
-	return nil, i18n.Errorf("error.from_required_many", strings.Join(names, i18n.T("list.separator")))
-}
-
 // checkFigure answers what is wrong with the figure a panel holds: the saved
 // text with the panel's ops applied, checked as if it were saved (spec-teams
 // C2). When the payload carries the one op a card is trying, the answer carries
@@ -633,41 +599,27 @@ func t2HiringMember(def *definition.Definition, purpose, from string) (*definiti
 // well: the text a save would write and the lines one edit changed (spec-teams
 // B7).
 func (k apiTeam) checkFigure(in apiIn) (any, *apiErr) {
-	body, refusal := t2DecodeOps(in)
-	if refusal != nil {
-		return nil, refusal
+	body, bad := t2DecodeOps(in)
+	if bad != nil {
+		return nil, bad
 	}
-	s := k.s
-	layer := in.Place.Layer()
-	path := s.cat.TeamYAML(in.Name, layer)
-	own := s.cat.Display(path)
-	team := check.Team(check.TeamInput{Catalog: s.cat, Name: in.Name, Layer: layer, Ops: body.ops})
-	out := apiCheck{Problems: t2FigureProblems(team.Problems, own)}
-	saved, _ := s.cat.Reader().Read(source.Doc{Path: path})
-	draft, err := t2ApplyOps(saved, own, body.ops)
-	if err != nil {
-		return nil, refuse(http.StatusUnprocessableEntity, err.Error())
-	}
-	out.Preview = apiTeamPreview{
-		Lines: definition.YAMLLines(draft),
-		Diff:  check.LineDiff(t2LineTexts(definition.YAMLLines(saved)), t2LineTexts(definition.YAMLLines(draft))),
-	}
+	query := ops.ResourceInspection{Kind: domainplace.Definition, Place: in.Place.At(k.s.cat.Base()), Name: in.Name, Ops: body.ops}
 	if body.in.Op != nil {
 		op, err := body.in.Op.op()
 		if err != nil {
-			return nil, refuse(http.StatusUnprocessableEntity, err.Error())
+			return nil, refuse(422, err.Error())
 		}
-		report := check.TeamEffect(check.TeamInput{Catalog: k.s.cat, Name: in.Name, Layer: layer, Ops: body.ops}, op)
-		out.Effect = apiTeamEffect{Lines: report.Lines, Problems: t2FigureProblems(report.Problems, own)}
+		query.Effect = &op
 	}
-	// The definition's own size, counted the way d-00a9 says, for the screen
-	// that shows it against the provisional budget (r-2f83). It is the same
-	// number the size warning counts, and the one the list's row carries.
-	out.Limit = check.TeamCharLimit
-	if overlay, refusal := k.overlay(in.Name, in.Place.String(), body.ops); refusal == nil {
-		if def, err := overlay.Definition(in.Name, layer); err == nil {
-			out.Size = check.TeamSizeChars(overlay, def)
-		}
+	checked, failure := k.s.resources().CheckResource(query)
+	if failure != nil {
+		return nil, k.s.resourceFailure(failure, nil, false)
+	}
+	own := k.s.cat.Display(checked.Path)
+	out := apiCheck{Problems: t2FigureProblems(checked.Team.Problems, own), Limit: checked.Limit, Size: checked.Size}
+	out.Preview = apiTeamPreview{Lines: definition.YAMLLines(checked.Edited), Diff: check.LineDiff(t2LineTexts(definition.YAMLLines(checked.Before)), t2LineTexts(definition.YAMLLines(checked.Edited)))}
+	if checked.Effect != nil {
+		out.Effect = apiTeamEffect{Lines: checked.Effect.Lines, Problems: t2FigureProblems(checked.Effect.Problems, own)}
 	}
 	return out, nil
 }
@@ -675,21 +627,18 @@ func (k apiTeam) checkFigure(in apiIn) (any, *apiErr) {
 // checkAgreement answers what is wrong with a team's agreement, checked with
 // the figure's draft laid over the team.yaml (spec-teams C6, 1.5).
 func (k apiTeam) checkAgreement(in apiIn) (any, *apiErr) {
-	body, refusal := t2DecodeOps(in)
-	if refusal != nil {
-		return nil, refusal
+	body, bad := t2DecodeOps(in)
+	if bad != nil {
+		return nil, bad
 	}
 	if body.in.Doc == nil {
-		return nil, refuse(http.StatusUnprocessableEntity, "agreement: one document is needed")
+		return nil, refuse(422, "agreement: one document is needed")
 	}
-	cat, refusal := k.overlay(in.Name, in.Place.String(), body.ops)
-	if refusal != nil {
-		return nil, refusal
+	checked, failure := k.s.resources().CheckResource(ops.ResourceInspection{Kind: domainplace.Definition, Place: in.Place.At(k.s.cat.Base()), Name: in.Name, Ops: body.ops, Part: ops.ResourceAgreement, Text: body.in.Doc.Text})
+	if failure != nil {
+		return nil, k.s.resourceFailure(failure, nil, false)
 	}
-	report := check.Agreement(check.AgreementInput{
-		Catalog: cat, Name: in.Name, Place: in.Place.Layer(), Text: body.in.Doc.Text,
-	})
-	return r2CheckAnswer(report, false), nil
+	return r2CheckAnswer(checked.Document, false), nil
 }
 
 // t2DecodeOps reads a figure's or an agreement's draft: the ops it holds, and
@@ -714,26 +663,6 @@ func t2DecodeOps(in apiIn) (t2Body, *apiErr) {
 		ops = apiTeamRowOps(apiTeamDraft{Members: body.Members, Workers: body.Workers})
 	}
 	return t2Body{in: body, ops: ops}, nil
-}
-
-// overlay is the catalog with one definition's team.yaml replaced by the saved
-// text with the ops applied: the text an agreement check reads through, so its
-// arrows are judged against the figure's draft turns.
-func (k apiTeam) overlay(name, place string, ops []definition.Op) (*catalog.Catalog, *apiErr) {
-	layer := domainplace.Selection(place).Layer()
-	path := k.s.cat.TeamYAML(name, layer)
-	text, err := k.s.cat.Reader().Read(source.Doc{Path: path})
-	if err != nil {
-		return nil, refuse(http.StatusUnprocessableEntity, err.Error())
-	}
-	for _, op := range ops {
-		next, err := definition.EditYAML([]byte(text), k.s.cat.Display(path), op)
-		if err != nil {
-			return nil, refuse(http.StatusUnprocessableEntity, err.Error())
-		}
-		text = string(next)
-	}
-	return k.s.cat.With(path, text), nil
 }
 
 // t2FigureProblems is the figure's findings in the boundary's shape: the field
@@ -790,27 +719,28 @@ func withoutOwnHead(text, file string) string {
 func (k apiTeam) checkYAML(in apiIn) (any, *apiErr) {
 	place, kind, ok := k.fileOf(in.Name, in)
 	if !ok {
-		return nil, refuse(http.StatusNotFound, t("web.error.not_found"))
+		return nil, refuse(404, t("web.error.not_found"))
 	}
-	layer := domainplace.Selection(place).Layer()
+	part := ops.ResourceMain
+	if kind == "agreement" {
+		part = ops.ResourceAgreement
+	}
+	checked, failure := k.s.resources().CheckResource(ops.ResourceInspection{Kind: domainplace.Definition, Place: domainplace.Selection(place).At(k.s.cat.Base()), Name: in.Name, Text: in.Text, WholeText: true, Part: part})
+	if failure != nil {
+		return nil, k.s.resourceFailure(failure, nil, false)
+	}
 	out := apiCheck{}
 	if kind == "agreement" {
-		report := check.Agreement(check.AgreementInput{Catalog: k.s.cat, Name: in.Name, Place: layer, Text: in.Text})
-		out.Problems = r2Problems(report.Problems, true)
+		out.Problems = r2Problems(checked.Document.Problems, true)
 		return out, nil
 	}
-	path := k.s.cat.TeamYAML(in.Name, layer)
-	display := k.s.cat.Display(path)
-	findings := check.Team(check.TeamInput{Catalog: k.s.cat.With(path, in.Text), Name: in.Name, Layer: layer}).Problems
-	for _, finding := range findings {
+	display := k.s.cat.Display(checked.Path)
+	for _, finding := range checked.Team.Problems {
 		sev := "warn"
 		if finding.Stops {
 			sev = "err"
 		}
-		out.Problems = append(out.Problems, apiProblem{
-			Sev: sev, At: "line", Field: finding.Field, Line: t2YamlLine(in.Text, finding.Field), Text: withoutOwnHead(finding.Text, display),
-			Role: finding.Role,
-		})
+		out.Problems = append(out.Problems, apiProblem{Sev: sev, At: "line", Field: finding.Field, Line: t2YamlLine(in.Text, finding.Field), Text: withoutOwnHead(finding.Text, display), Role: finding.Role})
 	}
 	return out, nil
 }
@@ -848,44 +778,17 @@ func (k apiTeam) Save(name string, in apiIn) (any, *apiErr) {
 // the ops do not touch comes back byte for byte. It is refused only when a
 // problem the saved file did not hold has appeared (spec-teams 1.3, X1).
 func (k apiTeam) saveFigure(name string, in apiIn) (any, *apiErr) {
-	s := k.s
-	body, refusal := t2DecodeOps(in)
-	if refusal != nil {
-		return nil, refusal
-	}
-	if err := s.t2LayerDir(in.Place.String()); err != nil {
-		return nil, refuse(http.StatusUnprocessableEntity, err.Error())
-	}
-	layer := in.Place.Layer()
-	path := s.cat.TeamYAML(name, layer)
-	display := s.cat.Display(path)
-	if bad := s.docUnreadableRefusal(path); bad != nil {
+	body, bad := t2DecodeOps(in)
+	if bad != nil {
 		return nil, bad
 	}
-	text, readErr := s.cat.Reader().Read(source.Doc{Path: path})
-	hash := source.Hash("")
-	if readErr == nil {
-		hash = source.Hash(text)
+	ref, bad := k.s.resourceRef(domainplace.Definition, in.Place.String(), name)
+	if bad != nil {
+		return nil, bad
 	}
-	if refusal := t2RefuseNewTeamError(s.cat, name, layer, body.ops); refusal != nil {
-		return nil, refusal
-	}
-	edited := text
-	for _, op := range body.ops {
-		next, err := definition.EditYAML([]byte(edited), display, op)
-		if err != nil {
-			return nil, refuse(http.StatusUnprocessableEntity, err.Error())
-		}
-		edited = string(next)
-	}
-	// The file moved under the screen: the save is refused, and the answer
-	// carries the file as it is now and the text the ops would write over it
-	// (r-3c77, d-a34a).
-	if in.Hash != hash {
-		return nil, s.refuseChanged(display, path, s.teamDoc(name, layer), false)
-	}
-	if err := source.WriteIfUnchanged(path, hash, edited); err != nil {
-		return s.r2WriteError(err, display, path, s.teamDoc(name, layer))
+	_, failure := k.s.resources().SaveResource(ref, ops.ResourceEdit{Ops: body.ops, Hash: in.Hash})
+	if failure != nil {
+		return nil, k.s.resourceFailure(failure, k.s.teamDoc(name, in.Place.Layer()), false)
 	}
 	return k.savedAnswer(name, in.Place.String()), nil
 }
@@ -894,42 +797,26 @@ func (k apiTeam) saveFigure(name string, in apiIn) (any, *apiErr) {
 // An agreement the team does not have yet is written whole (spec-teams 1.5).
 func (k apiTeam) saveAgreement(name string, in apiIn) (any, *apiErr) {
 	s := k.s
-	body, refusal := t2DecodeOps(in)
-	if refusal != nil {
-		return nil, refusal
-	}
-	if body.in.Doc == nil {
-		return nil, refuse(http.StatusUnprocessableEntity, "agreement: one document is needed")
-	}
-	if err := s.t2LayerDir(in.Place.String()); err != nil {
-		return nil, refuse(http.StatusUnprocessableEntity, err.Error())
-	}
-	layer := in.Place.Layer()
-	path := s.t2AgreeFile(name, layer)
-	display := s.cat.Display(path)
-	if bad := s.docUnreadableRefusal(path); bad != nil {
+	body, bad := t2DecodeOps(in)
+	if bad != nil {
 		return nil, bad
 	}
-	text, readErr := s.cat.Reader().Read(source.Doc{Path: path})
-	hash := source.Hash("")
-	if readErr == nil {
-		hash = source.Hash(text)
+	if body.in.Doc == nil {
+		return nil, refuse(422, "agreement: one document is needed")
 	}
-	edited := body.in.Doc.Text
-	if in.Hash != hash {
-		return nil, s.refuseChanged(display, path, ruleDoc(display), false)
+	ref, bad := s.resourceRef(domainplace.Definition, in.Place.String(), name)
+	if bad != nil {
+		return nil, bad
 	}
-	if err := source.WriteIfUnchanged(path, hash, edited); err != nil {
-		return s.r2WriteError(err, display, path, ruleDoc(display))
+	saved, failure := s.resources().SaveResource(ref, ops.ResourceEdit{Part: ops.ResourceAgreement, Text: body.in.Doc.Text, Hash: in.Hash})
+	if failure != nil {
+		return nil, s.resourceFailure(failure, ruleDoc(s.cat.Display(failure.Path)), false)
 	}
 	out := k.savedAnswer(name, in.Place.String())
-	if one, refusal := k.Get(name, in.Place.String()); refusal == nil {
-		if got, ok := one.(apiTeamGet); ok {
-			agree := got.Doc.Agreement
-			text := s.writtenText(path, edited)
-			out.Doc, out.Text, out.Hash, out.Path = agree.Doc, text, source.Hash(text), agree.Path
-		}
-	}
+	out.Doc = r2DocOf(saved.Text, saved.Path)
+	out.Text = saved.Text
+	out.Hash = saved.Hash
+	out.Path = s.cat.Display(saved.Path)
 	return out, nil
 }
 
@@ -939,88 +826,25 @@ func (k apiTeam) saveYAML(name string, in apiIn) (any, *apiErr) {
 	s := k.s
 	place, kind, ok := k.fileOf(name, in)
 	if !ok {
-		return nil, refuse(http.StatusNotFound, t("web.error.not_found"))
+		return nil, refuse(404, t("web.error.not_found"))
 	}
-	if err := s.t2LayerDir(place); err != nil {
-		return nil, refuse(http.StatusUnprocessableEntity, err.Error())
-	}
-	layer := domainplace.Selection(place).Layer()
-	path := s.cat.TeamYAML(name, layer)
-	if kind == "agreement" {
-		path = s.t2AgreeFile(name, layer)
-	}
-	display := s.cat.Display(path)
-	if bad := s.docUnreadableRefusal(path); bad != nil {
+	ref, bad := s.resourceRef(domainplace.Definition, place, name)
+	if bad != nil {
 		return nil, bad
 	}
-	text, err := s.cat.Reader().Read(source.Doc{Path: path})
-	hash := source.Hash("")
-	if err == nil {
-		hash = source.Hash(text)
+	part := ops.ResourceMain
+	if kind == "agreement" {
+		part = ops.ResourceAgreement
 	}
-	if in.Hash != hash {
-		return nil, s.refuseChanged(display, path, nil, false)
+	saved, failure := s.resources().SaveResource(ref, ops.ResourceEdit{Part: part, Text: in.Text, Hash: in.Hash})
+	if failure != nil {
+		return nil, s.resourceFailure(failure, nil, false)
 	}
-	written := in.Text
-	if kind != "agreement" {
-		if refusal := t2RefuseNewTeamText(s.cat, path, name, layer, text, in.Text); refusal != nil {
-			return nil, refusal
-		}
-	}
-	if err := source.WriteIfUnchanged(path, hash, written); err != nil {
-		doc := ruleDoc(display)
-		if kind == "team" {
-			doc = s.teamDoc(name, layer)
-		}
-		return s.r2WriteError(err, display, path, doc)
-	}
-	written = s.writtenText(path, written)
 	out := k.savedAnswer(name, place)
-	out.Text, out.Hash, out.Path = written, source.Hash(written), display
+	out.Text = saved.Text
+	out.Hash = saved.Hash
+	out.Path = s.cat.Display(saved.Path)
 	return out, nil
-}
-
-// t2RefuseNewTeamError is the refusal for the first error a panel's ops would
-// add to the saved team.yaml, or nil.
-func t2RefuseNewTeamError(cat *catalog.Catalog, name, layer string, ops []definition.Op) *apiErr {
-	known := map[string]bool{}
-	for _, finding := range check.Team(check.TeamInput{Catalog: cat, Name: name, Layer: layer}).Problems {
-		if finding.Stops {
-			known[finding.Text] = true
-		}
-	}
-	for _, finding := range check.Team(check.TeamInput{Catalog: cat, Name: name, Layer: layer, Ops: ops}).Problems {
-		if finding.Stops && !known[finding.Text] && !t2TurnGateFinding(finding) {
-			return refuse(http.StatusUnprocessableEntity, finding.Text)
-		}
-	}
-	return nil
-}
-
-// t2RefuseNewTeamText is the refusal for the first error typed team.yaml holds
-// that the saved one did not, or nil.
-func t2RefuseNewTeamText(cat *catalog.Catalog, path, name, layer, before, after string) *apiErr {
-	known := map[string]bool{}
-	for _, finding := range check.Team(check.TeamInput{Catalog: cat.With(path, before), Name: name, Layer: layer}).Problems {
-		if finding.Stops {
-			known[finding.Text] = true
-		}
-	}
-	for _, finding := range check.Team(check.TeamInput{Catalog: cat.With(path, after), Name: name, Layer: layer}).Problems {
-		if finding.Stops && !known[finding.Text] && !t2TurnGateFinding(finding) {
-			return refuse(http.StatusUnprocessableEntity, withoutOwnHead(finding.Text, cat.Display(path)))
-		}
-	}
-	return nil
-}
-
-// t2TurnGateFinding is the one kind of new stop a save lets through (d-9abb):
-// a node with no turn (I12a) or a definition no turn reaches the human from
-// (I12b). They are kept as team-definition problems, so the row, the panel,
-// validate and up say them; a save that is a step in a longer edit can keep its
-// work. Every other new stop still refuses.
-func t2TurnGateFinding(finding check.Finding) bool {
-	return finding.Kind == check.KindGraph && strings.HasPrefix(finding.Field, "node:")
 }
 
 // savedAnswer is the answer of a write: the one definition as GET /api/team
@@ -1043,46 +867,13 @@ func (k apiTeam) savedAnswer(name, place string) apiSaved {
 // file the screen read must still be the one it read, so a file that moved under
 // the screen is not removed.
 func (k apiTeam) Delete(name string, in apiIn) (any, *apiErr) {
-	s := k.s
-	files, _, _, _ := s.teamTargets(in.Place.String(), name)
-	teamPath, agreePath := "", ""
-	if len(files) > 0 {
-		teamPath = files[0]
+	target, bad := k.s.resourceSeen(domainplace.Definition, in.Place.String(), name)
+	if bad != nil {
+		return nil, bad
 	}
-	if len(files) > 1 {
-		agreePath = files[1]
+	if failure := k.s.resources().DeleteResource(ops.ExistingResource(target), ops.ResourceDelete{Hash: in.Hash, AgreementHash: in.AgreementHash}); failure != nil {
+		return nil, k.s.resourceFailure(failure, nil, true)
 	}
-	for _, path := range []string{teamPath, agreePath} {
-		if bad := s.docUnreadableRefusal(path); bad != nil {
-			return nil, bad
-		}
-	}
-	for _, one := range []struct{ path, hash string }{
-		{teamPath, in.Hash},
-		{agreePath, in.AgreementHash},
-	} {
-		if one.hash == "" {
-			continue
-		}
-		text, err := s.cat.Reader().Read(source.Doc{Path: one.path})
-		pathHash := source.Hash("")
-		if err == nil {
-			pathHash = source.Hash(text)
-		}
-		if one.hash != pathHash {
-			return nil, s.refuseChanged(s.cat.Display(one.path), one.path, nil, true)
-		}
-	}
-	for _, path := range []string{teamPath, agreePath} {
-		if path == "" {
-			continue
-		}
-		if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
-			return nil, refuse(http.StatusInternalServerError, err.Error())
-		}
-	}
-	// The directory goes too when nothing else is left in it.
-	_ = os.Remove(filepath.Dir(teamPath))
 	return k.List()
 }
 

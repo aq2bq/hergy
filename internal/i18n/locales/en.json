@@ -683,5 +683,7 @@
   "activity.turn_holder_asked": "turn: %s (handed by %s); asked who it is for",
   "activity.turn_waits": "awaiting: %s",
   "activity.turn_human": "turn: the human (from %s)%s",
-  "error.tell_target_unknown": "%s is neither a member nor a worker of this team; check the names with `hergy status`"
+  "error.tell_target_unknown": "%s is neither a member nor a worker of this team; check the names with `hergy status`",
+  "error.resource_references_unreadable": "The definitions cannot be updated; nothing was saved:\n%s",
+  "error.resource_references_write": "Writing failed. Completed:\n%s\nNot completed:\n%s\n%s"
 }
