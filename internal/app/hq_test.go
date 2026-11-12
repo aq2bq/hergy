@@ -14,8 +14,8 @@ import (
 	domainplace "github.com/aq2bq/hergy/internal/domain/place"
 
 	"github.com/aq2bq/hergy/internal/i18n"
-	"github.com/aq2bq/hergy/internal/launcher"
 	"github.com/aq2bq/hergy/internal/launchlog"
+	"github.com/aq2bq/hergy/internal/ops"
 	"github.com/aq2bq/hergy/internal/team"
 	"github.com/aq2bq/hergy/internal/web"
 )
@@ -418,10 +418,10 @@ func TestALaunchSaysWhereAStartupQuestionWaits(t *testing.T) {
 		ID: "l-1", Team: "core", Definition: "core", Project: projectPath("/p"), ProjectName: "p",
 		Phase: "starting", Steps: []web.HQLaunchStep{},
 	}}
-	h.observe(op, launcher.Event{Stage: "起動しています"})
-	h.observe(op, launcher.Event{
+	h.observe(op, ops.Progress{Stage: "起動しています"})
+	h.observe(op, ops.Progress{
 		Stage: "待っています",
-		Waiting: &launcher.Waiting{
+		Waiting: &ops.Waiting{
 			Member: "lead", Herdr: "core-lead", Workspace: "p-dev", Tab: "core", Pane: "core-lead",
 		},
 	})
@@ -432,9 +432,9 @@ func TestALaunchSaysWhereAStartupQuestionWaits(t *testing.T) {
 	if state.Waiting.Herdr != "core-lead" || state.Waiting.Pane != "core-lead" || state.Waiting.Command != "hergy up core" {
 		t.Errorf("waiting = %+v", state.Waiting)
 	}
-	h.observe(op, launcher.Event{State: "bootstrap received", Member: "lead"})
-	h.observe(op, launcher.Event{Stage: "送っています"})
-	h.observe(op, launcher.Event{Waiting: nil})
+	h.observe(op, ops.Progress{State: "bootstrap received", Member: "lead"})
+	h.observe(op, ops.Progress{Stage: "送っています"})
+	h.observe(op, ops.Progress{Waiting: nil})
 	state = op.snapshot()
 	if state.Phase != "starting" || state.Waiting != nil {
 		t.Errorf("after the answer the launch = %+v, want starting", state)

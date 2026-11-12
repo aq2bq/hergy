@@ -1,11 +1,7 @@
-package app
+package ops
 
 import (
-	"fmt"
-	"io"
 	"time"
-
-	"github.com/aq2bq/hergy/internal/ops"
 
 	domainname "github.com/aq2bq/hergy/internal/domain/name"
 	domainplace "github.com/aq2bq/hergy/internal/domain/place"
@@ -19,26 +15,26 @@ import (
 	"github.com/aq2bq/hergy/internal/version"
 )
 
-// recordLaunch writes one launch to this machine's record (spec/11): what hergy
+// RecordLaunch writes one launch to this machine's record (spec/11): what hergy
 // handed the members it handed a prompt to, and which rule files those prompts
 // were built from. The WebUI reads it to show what changed since the last launch
 // and how the prompts differ.
 //
 // Members record only confirmed recipients. Successful operations and missing
-// receipts use recordReceivedLaunch: up always keeps the team's identity, even
+// receipts use RecordReceivedLaunch: up always keeps the team's identity, even
 // with no recipient; refresh, reprompt and apply write only with a recipient.
 // Startup failures, sending failures and cancellation keep no launch record.
-// A hire has its own recordHire, independently of prompt receipt. A record that
+// A hire has its own RecordHire, independently of prompt receipt. A record that
 // cannot be written is reported on stderr and does not decide the operation.
-func recordLaunch(stderr io.Writer, env team.Env, r *ops.Resolved, command string, members []definition.Start) {
-	recordLaunchIn(stderr, env, r, command, members, launchlog.Workspace{})
+func RecordLaunch(env team.Env, r *Resolved, command string, members []definition.Start) string {
+	return RecordLaunchIn(env, r, command, members, launchlog.Workspace{})
 }
 
-// recordReceivedLaunch owns which confirmed recipients enter a launch and when
+// RecordReceivedLaunch owns which confirmed recipients enter a launch and when
 // an empty launch is kept (d-8e2f). The team created by up must remain resolvable
 // by its alias even when nobody received a prompt; other operations create no
 // team and keep no new record when nobody received one.
-func recordReceivedLaunch(stderr io.Writer, env team.Env, r *ops.Resolved, command string, members []definition.Start, l *launcher.Launcher, workspace launchlog.Workspace) {
+func RecordReceivedLaunch(env team.Env, r *Resolved, command string, members []definition.Start, l *launcher.Launcher, workspace launchlog.Workspace) string {
 	var received []definition.Start
 	for _, member := range members {
 		if l.Received(member.Name.String()) {
@@ -46,28 +42,29 @@ func recordReceivedLaunch(stderr io.Writer, env team.Env, r *ops.Resolved, comma
 		}
 	}
 	if command != launchlog.CommandUp && len(received) == 0 {
-		return
+		return ""
 	}
-	recordLaunchIn(stderr, env, r, command, received, workspace)
+	return RecordLaunchIn(env, r, command, received, workspace)
 }
 
-// recordLaunchIn writes one launch, naming the workspace its tab was made in
+// RecordLaunchIn writes one launch, naming the workspace its tab was made in
 // (d-73fc). A launch that makes no tab passes the zero workspace.
-func recordLaunchIn(stderr io.Writer, env team.Env, r *ops.Resolved, command string, members []definition.Start, workspace launchlog.Workspace) {
+func RecordLaunchIn(env team.Env, r *Resolved, command string, members []definition.Start, workspace launchlog.Workspace) string {
 	log, err := launchlog.Open()
 	if err == nil {
-		err = writeLaunch(log, env, r, command, members, workspace)
+		err = WriteLaunch(log, env, r, command, members, workspace)
 	}
 	if err != nil {
-		fmt.Fprintln(stderr, i18n.Tf("launch.not_recorded", err))
+		return i18n.Tf("launch.not_recorded", err)
 	}
+	return ""
 }
 
-// recordHire writes the one line a hire leaves in this machine's record: which
+// RecordHire writes the one line a hire leaves in this machine's record: which
 // worker it added, which member added it, the purpose and the tab (d-b4b9). The
 // activity screen reads it to say "<member> が追加". A line that cannot be
 // written is one line on stderr and nothing else: the worker is already up.
-func recordHire(stderr io.Writer, env team.Env, r *ops.Resolved, worker definition.Start) {
+func RecordHire(env team.Env, r *Resolved, worker definition.Start) string {
 	log, err := launchlog.Open()
 	if err == nil {
 		workerName, _ := domainname.ParseWorkerName(worker.Short.String())
@@ -88,14 +85,15 @@ func recordHire(stderr io.Writer, env team.Env, r *ops.Resolved, worker definiti
 		})
 	}
 	if err != nil {
-		fmt.Fprintln(stderr, i18n.Tf("launch.not_recorded", err))
+		return i18n.Tf("launch.not_recorded", err)
 	}
+	return ""
 }
 
-// writeLaunch builds one record and appends it. The texts the record points at —
+// WriteLaunch builds one record and appends it. The texts the record points at —
 // prompt bodies before change-reason preambles and the files read — go into blobs/ first.
-func writeLaunch(log launchlog.Log, env team.Env, r *ops.Resolved, command string, members []definition.Start, workspace launchlog.Workspace) error {
-	material, err := teamMaterial(r)
+func WriteLaunch(log launchlog.Log, env team.Env, r *Resolved, command string, members []definition.Start, workspace launchlog.Workspace) error {
+	material, err := TeamMaterial(r)
 	if err != nil {
 		return err
 	}
@@ -113,7 +111,7 @@ func writeLaunch(log launchlog.Log, env team.Env, r *ops.Resolved, command strin
 		Hash:        launchlog.Hash(material),
 		// The facts the prompts were built with, so a screen can rebuild them
 		// the way the launch did (C9, spec/43 S1).
-		Executable: ops.Executable(),
+		Executable: Executable(),
 		Lang:       i18n.Language(),
 	}
 	// A worker's profile is not a member's: it reaches the next worker hired,
@@ -138,8 +136,8 @@ func writeLaunch(log launchlog.Log, env team.Env, r *ops.Resolved, command strin
 		if err != nil {
 			return err
 		}
-		paths := make([]string, 0, len(docsReadBy(member)))
-		for _, doc := range docsReadBy(member) {
+		paths := make([]string, 0, len(DocsReadBy(member)))
+		for _, doc := range DocsReadBy(member) {
 			paths = append(paths, doc.Path)
 		}
 		rec.Members = append(rec.Members, launchlog.Member{
@@ -150,12 +148,12 @@ func writeLaunch(log launchlog.Log, env team.Env, r *ops.Resolved, command strin
 			Start:  launchlog.StartFingerprint(member.Kind, member.Args),
 			Env:    launchlog.EnvFingerprint(member.Env),
 		})
-		for _, doc := range docsReadBy(member) {
+		for _, doc := range DocsReadBy(member) {
 			if seen[doc.Path] {
 				continue
 			}
 			seen[doc.Path] = true
-			entry, err := docEntry(log, doc)
+			entry, err := DocEntry(log, doc)
 			if err != nil {
 				return err
 			}
@@ -165,12 +163,12 @@ func writeLaunch(log launchlog.Log, env team.Env, r *ops.Resolved, command strin
 	return log.Append(rec)
 }
 
-// teamMaterial is the team definition as it was launched: the settings file, and
+// TeamMaterial is the team definition as it was launched: the settings file, and
 // every member of the definition after its profile is resolved. The hash is over
 // this and not over the members one command handed a prompt to, so the same team
 // definition hashes the same across up, refresh and reprompt, and a change to a
 // profile no member reads does not change it.
-func teamMaterial(r *ops.Resolved) (launchlog.Material, error) {
+func TeamMaterial(r *Resolved) (launchlog.Material, error) {
 	def := r.Team.Definition
 	teamYAML, err := source.Disk{}.Read(source.Doc{Layer: def.Layer, Path: def.TeamYAML.String()})
 	if err != nil {
@@ -192,9 +190,9 @@ func teamMaterial(r *ops.Resolved) (launchlog.Material, error) {
 	return material, nil
 }
 
-// docsReadBy is every rule file one member's prompt was built from: the role
+// DocsReadBy is every rule file one member's prompt was built from: the role
 // file first, then the documents, in the order the prompt read them.
-func docsReadBy(member *definition.Start) []source.Doc {
+func DocsReadBy(member *definition.Start) []source.Doc {
 	var docs []source.Doc
 	if member.HasRole {
 		docs = append(docs, member.RoleDoc)
@@ -202,12 +200,12 @@ func docsReadBy(member *definition.Start) []source.Doc {
 	return append(docs, member.Read...)
 }
 
-// docEntry is one rule file as the record holds it: where it is, which layer
+// DocEntry is one rule file as the record holds it: where it is, which layer
 // supplied it, its own revision when it has one, and the hash of its text, which
 // is in blobs/. A file that does not read as a rule file — the record is taken
 // from what was read, not only from what this hergy can parse — is recorded
 // without a revision.
-func docEntry(log launchlog.Log, doc source.Doc) (launchlog.Doc, error) {
+func DocEntry(log launchlog.Log, doc source.Doc) (launchlog.Doc, error) {
 	text, err := source.Disk{}.Read(doc)
 	if err != nil {
 		return launchlog.Doc{}, err

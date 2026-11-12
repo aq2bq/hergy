@@ -36,6 +36,9 @@ func importsOf(t *testing.T) map[string][]string {
 		if err != nil {
 			return err
 		}
+		if d.IsDir() && d.Name() != "." && strings.HasPrefix(d.Name(), ".") {
+			return fs.SkipDir
+		}
 		if d.IsDir() || !strings.HasSuffix(file, ".go") || strings.HasSuffix(file, "_test.go") {
 			return nil
 		}
@@ -141,7 +144,7 @@ func TestImportDirection(t *testing.T) {
 					continue
 				}
 				// Stage C moves operational dependencies into ops one by one.
-				if pkg == "ops" && slices.Contains([]string{"launcher", "team", "herdrcli"}, imp) {
+				if pkg == "ops" && slices.Contains([]string{"launcher", "team", "herdrcli", "spawn"}, imp) {
 					continue
 				}
 				// A package nested inside a top-layer package

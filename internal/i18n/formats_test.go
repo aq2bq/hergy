@@ -138,7 +138,7 @@ func localeCalls(t *testing.T, root string) []localeCall {
 			return err
 		}
 		if d.IsDir() {
-			if skip[d.Name()] || (d.Name() == "static" && strings.HasSuffix(path, filepath.Join("web", "static"))) {
+			if (path != root && strings.HasPrefix(d.Name(), ".")) || skip[d.Name()] || (d.Name() == "static" && strings.HasSuffix(path, filepath.Join("web", "static"))) {
 				return fs.SkipDir
 			}
 			return nil
@@ -243,5 +243,25 @@ func TestEveryCallFillsTheMessagesValues(t *testing.T) {
 					call.file, call.line, call.key, call.value, lang, want, text)
 			}
 		}
+	}
+}
+
+func TestLocaleCallsIgnoreHiddenDirectories(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "main.go"), []byte(`package main
+ func main(){i18n.Errorf("error.team_name_taken","demo")}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{".local", ".bin", ".git"} {
+		dir := filepath.Join(root, name)
+		if err := os.Mkdir(dir, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "old.go"), []byte("an old worktree is not a source file"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if calls := localeCalls(t, root); len(calls) != 1 || calls[0].key != "error.team_name_taken" {
+		t.Fatalf("source calls: %+v", calls)
 	}
 }

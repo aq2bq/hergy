@@ -29,7 +29,7 @@ func applyDemo(t *testing.T) *fixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeLaunch(log, env, r, launchlog.CommandUp, r.Starts, launchlog.Workspace{}); err != nil {
+	if err := ops.WriteLaunch(log, env, r, launchlog.CommandUp, r.Starts, launchlog.Workspace{}); err != nil {
 		t.Fatalf("record demo: %v", err)
 	}
 	return f
@@ -167,7 +167,7 @@ func TestApplyNotesAChangedWorkerProfile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeLaunch(log, env, r, launchlog.CommandUp, r.Starts, launchlog.Workspace{}); err != nil {
+	if err := ops.WriteLaunch(log, env, r, launchlog.CommandUp, r.Starts, launchlog.Workspace{}); err != nil {
 		t.Fatal(err)
 	}
 	writeFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml"),
@@ -205,7 +205,7 @@ func TestApplyTellsAChangedWorkerProfileFromAnAddedWorker(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeLaunch(log, env, r, launchlog.CommandUp, r.Starts, launchlog.Workspace{}); err != nil {
+	if err := ops.WriteLaunch(log, env, r, launchlog.CommandUp, r.Starts, launchlog.Workspace{}); err != nil {
 		t.Fatal(err)
 	}
 	// The profile the worker entry names changes after the launch.

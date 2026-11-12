@@ -5,7 +5,6 @@ import (
 	"errors"
 	"strings"
 
-	domainname "github.com/aq2bq/hergy/internal/domain/name"
 	"github.com/aq2bq/hergy/internal/i18n"
 )
 
@@ -343,9 +342,6 @@ func validateValues(o *Options) error {
 	}
 	if o.JSON && !o.Dry && o.Kind != Status {
 		return i18n.Errorf("error.json_needs_dry")
-	}
-	if _, err := domainname.NewTeamName(o.As); o.As != "" && err != nil {
-		return i18n.Errorf("error.as_name_pattern", o.As)
 	}
 	return nil
 }

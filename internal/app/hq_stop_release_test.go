@@ -52,6 +52,7 @@ func (p *stopReleasePort) JSON(args ...string) (map[string]any, error) {
 		return map[string]any{"panes": panes}, nil
 	case "pane close":
 		p.closed = append(p.closed, args[2])
+		p.snapshot.Panes = slices.DeleteFunc(p.snapshot.Panes, func(pane protocol.Pane) bool { return pane.ID.String() == args[2] })
 		return map[string]any{}, nil
 	case "agent get":
 		for _, a := range p.snapshot.Agents {
@@ -69,6 +70,12 @@ func (p *stopReleasePort) JSON(args ...string) (map[string]any, error) {
 		}
 		_, err := protocol.Result(args, `{"error":{"code":"agent_not_found"}}`, "", 1)
 		return nil, err
+	case "workspace list":
+		spaces := []any{}
+		for _, space := range p.snapshot.Workspaces {
+			spaces = append(spaces, map[string]any{"workspace_id": space.ID, "label": space.Label})
+		}
+		return map[string]any{"workspaces": spaces}, nil
 	case "workspace get":
 		return map[string]any{"workspace": map[string]any{"workspace_id": "w1", "label": "demo"}}, nil
 	case "tab create":
