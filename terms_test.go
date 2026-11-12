@@ -381,6 +381,14 @@ func TestGlossaryBannedWordsStayOut(t *testing.T) {
 		}
 	}
 
+	// The labels: the summaries and the fixed lines of help and the cheatsheets
+	// are written in internal/words too (a command's row in hergy --help).
+	for _, id := range words.Labels() {
+		for _, lang := range []string{"en", "ja"} {
+			check("internal/words label "+id, "", lang, words.Label(id)[lang])
+		}
+	}
+
 	// The prose and the bundled skills, line by line so a hit has a line number.
 	for _, src := range []struct{ path, lang string }{
 		{"README.md", "en"},
