@@ -1,0 +1,23 @@
+import { expect, test } from 'bun:test';
+import { layout, serve, settle } from './page.js';
+const doc = {name: 'builder', title: '担当', text: '本文'};
+test('a role usage chip names the correct assignment address and connects its member row', async () => {
+ history.replaceState({}, '', '/roles?open=builder');
+ layout('roles-data', {places: {}, texts: {}, role: {items: [{name: 'builder', effective: 'project', summary: {}, places: {project: {doc, text: '本文', hash: 'r1', path: '/roles/builder.md'}}}]}, team: {items: [{name: 'sample', effective: 'project', summary: {members: [{name: 'lead', role: 'builder'}, {name: 'worker', role: 'builder'}]}, places: {project: {hash: 't1', doc: {description: '', turns: [], workers: [], members: [{name: 'lead', role: 'builder', profile: 'coder'}, {name: 'worker', role: 'builder', profile: 'coder'}]}}}}]}});
+ serve((method, url) => url.startsWith('/api/role/check') ? {problems: [], preview: {lines: []}} : undefined);
+ const state = await import('../src/roles/state');
+ await import('../src/roles/main'); await settle();
+ const chips = [...document.querySelectorAll('.uchip')];
+ expect(chips.map((chip) => chip.dataset.i)).toEqual(['0', '1']);
+ chips[1].click(); await settle();
+ expect(location.pathname + location.hash).toBe('/roles/assign#sample.m-1');
+ expect(state.gotoAsk.value).toMatchObject({team: 'sample', member: 'worker', i: 1});
+ const row = document.querySelector('.team[data-t=sample] .arow[data-m=worker]');
+ expect(row.classList.contains('flash')).toBe(true);
+ expect(row.querySelector('select').id).toBe('s-sample-1');
+ expect(document.activeElement).toBe(row.querySelector('select'));
+ state.pressTab('roles'); await settle();
+ document.querySelector('.uchip[data-m=lead]').click(); await settle();
+ expect(location.pathname + location.hash).toBe('/roles/assign#sample.m-0');
+ expect(state.gotoAsk.value).toMatchObject({team: 'sample', member: 'lead', i: 0});
+});

@@ -1,3 +1,4 @@
+import { mark } from './diagnostics.js';
 // lib/resource.ts — サーバーへの読み込みの共有部品。
 // The request ordering contract is tested in jstest/resource.test.js and
 // jstest/profiles-check-order.test.js.
@@ -51,15 +52,19 @@ export function resource<T, A extends unknown[] = []>(load: Load<T, A>): Reading
     loading.value = true;
     error.value = null;
     try {
+      mark('resource:start');
       const next = await load(mine.stop.signal, ...args);
+      mark('resource:response', { aborted: mine.stop.signal.aborted });
       if (mine.stop.signal.aborted) return undefined;
       value.value = next;
       return next;
     } catch (e) {
+      mark('resource:error', { aborted: mine.stop.signal.aborted });
       if (mine.stop.signal.aborted) return undefined;
       error.value = e;
       return undefined;
     } finally {
+      mark('resource:end');
       if (inflight === mine) {
         inflight = null;
         loading.value = false;

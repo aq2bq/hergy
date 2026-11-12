@@ -1,3 +1,4 @@
+import { promptClock } from './prompt-clock.js';
 // CANVAS-PROMPT, the blocked definition (d-20ac): a definition hergy will not
 // build a prompt for shows the reason and no lines; when the last problem goes,
 // the lines with the unsaved ops appear. ⑤ r-ba9b: the answer is the comparison
@@ -45,9 +46,8 @@ test('a definition with a problem says why, keeps the history entry available af
     if (url.startsWith('/api/role')) return { items: [{ name: 'builder' }] };
     return undefined;
   });
-  await import('../src/teams/main');
-  const { PROMPT_READ } = await import('../src/teams/prompt-source.js');
-  PROMPT_READ.wait = 0;
+  await promptClock();
+ await import('../src/teams/main');
   await flush();
 
   // (a) the new member hands the turn to no one: the lead's column says why and

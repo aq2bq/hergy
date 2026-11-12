@@ -72,3 +72,13 @@ if (false) {
   const name: ResourceName<'profile'> = 'fast';
   void [project, place, name];
 }
+
+// @ts-expect-error The generic comparison no longer has a public entry.
+import { dirty } from './editing.js';
+// @ts-expect-error The legacy comparator module has been removed.
+import { assignDirty } from './changed.js';
+if (false) {
+ void dirty; void assignDirty;
+ // @ts-expect-error A screen cannot replace the editor's comparison answer.
+ role.nameChanged.value = true;
+}

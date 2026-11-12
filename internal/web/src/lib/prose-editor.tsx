@@ -1,3 +1,4 @@
+import { mark } from './diagnostics.js';
 import { Field } from './field.js';
 import { useState, useRef, useLayoutEffect } from './preact.js';
 import type { ComponentChildren } from 'preact';
@@ -25,8 +26,9 @@ export function ProseIdentity({ heading }: { heading: ProseHeading }) {
  return <h2 data-width={widths.value[heading.id || '']} id={heading.id} tabIndex={-1}><span class="prose-kind">{heading.kind}</span><span class="prose-label" title={heading.name}>{heading.name}</span>{heading.id ? <WidthButtons id={heading.id} /> : null}</h2>;
 }
 export function ProseHeader({ heading, text, children, position }: { heading: ProseHeading; text: string; children?: ComponentChildren; position?: string }) {
+ mark('prose:header:start', { id: heading.id || heading.name, length: text.length });
  const count = chars(text), template = heading.template || 0, total = count + template;
- return <header class="prose-head">
+ const view = <header class="prose-head">
   {!heading.compact ? <ProseIdentity heading={heading} /> : null}
   <p class="prose-title" title={heading.title}>{heading.title && heading.title !== heading.name ? heading.title : '題なし'}</p>
   <code class="path" title={heading.fullPath || heading.path}>{heading.path || '保存先を確認しています'}</code>
@@ -35,11 +37,15 @@ export function ProseHeader({ heading, text, children, position }: { heading: Pr
   <div class="prose-budget" title={template ? `内訳: 規則 ${num(count)} 字・ひな形 ${num(template)} 字` : undefined}><Measure chars={total} limit={1200} /></div>
   <div class="prose-status"><span class={position ? 'prose-current' : undefined} title={position} aria-live="polite">{position || heading.state || '保存済み'}</span>{children}</div>
  </header>;
+ mark('prose:header:end', { id: heading.id || heading.name });
+ return view;
 }
 
 export function ProseEditor({ text, heading, onChange, transfer }: { text: string; heading: ProseHeading; onChange: (text: string) => void; transfer?: TransferSource }) {
+ mark('prose:render:start', { id: heading.id || heading.name, length: text.length });
  const [outline, setOutline] = useState(false), [cursor, setCursor] = useState(0), [focused, setFocused] = useState(false);
  const parts = blocks(text);
+ mark('prose:blocks:end', { id: heading.id || heading.name, count: parts.length });
  const narrow = widths.value[heading.id || ''] === 'narrow', showOutline = outline || narrow;
  const input = useRef<HTMLTextAreaElement>(null);
  const [menu, setMenu] = useState<{index: number; target?: string; at?: number; move?: boolean; children?: boolean} | null>(null);
@@ -48,20 +54,31 @@ export function ProseEditor({ text, heading, onChange, transfer }: { text: strin
   const field = input.current;
   if (!field) return;
   const fit = () => {
-   if (!field.clientWidth) return;
-   const board = field.closest('.prose-workspace');
-   if (board && board.getAttribute('data-mode') !== 'single') { field.style.height = ''; return; }
-   field.style.height = 'auto'; field.style.height = `${Math.max(320, field.scrollHeight + 2)}px`;
+   mark('prose:measure:start', { id: heading.id || heading.name });
+   try {
+    const measuredWidth = field.clientWidth;
+    mark('prose:measure:width', { id: heading.id || heading.name, width: measuredWidth });
+    if (!measuredWidth) return;
+    const board = field.closest('.prose-workspace');
+    if (board && board.getAttribute('data-mode') !== 'single') { field.style.height = ''; return; }
+    field.style.height = 'auto'; field.style.height = `${Math.max(320, field.scrollHeight + 2)}px`;
+   } finally { mark('prose:measure:end', () => ({ id: heading.id || heading.name, height: field.style.height })); }
   };
   fit();
   let width = field.clientWidth;
-  const observer = new ResizeObserver(() => { if (width !== field.clientWidth) { width = field.clientWidth; fit(); } });
+  const observer = new ResizeObserver(() => {
+   mark('prose:resize:start', { id: heading.id || heading.name });
+   const nextWidth = field.clientWidth;
+   mark('prose:resize:width', { id: heading.id || heading.name, before: width, after: nextWidth });
+   if (width !== nextWidth) { width = nextWidth; fit(); }
+   mark('prose:resize:end', { id: heading.id || heading.name });
+  });
   observer.observe(field);
   document.fonts?.addEventListener('loadingdone', fit);
   return () => { observer.disconnect(); document.fonts?.removeEventListener('loadingdone', fit); };
  }, [text, showOutline, widths.value[heading.id || '']]);
  const position = (event: Event) => { if (event.currentTarget instanceof HTMLTextAreaElement) setCursor(event.currentTarget.selectionStart); };
- return <div class="prose-editor" data-width={widths.value[heading.id || '']} onDragOver={(e) => { if (transfer) e.preventDefault(); }} onDrop={(e) => { if (transfer) dropTransfer(e, transfer.id, -1); }}>
+ const view = <div class="prose-editor" data-width={widths.value[heading.id || '']} onDragOver={(e) => { if (transfer) e.preventDefault(); }} onDrop={(e) => { if (transfer) dropTransfer(e, transfer.id, -1); }}>
  {menu && transfer ? <TransferMenu source={transfer} index={menu.index} target={menu.target} at={menu.at} move={menu.move} children={menu.children} close={() => setMenu(null)} /> : null}
   <ProseHeader heading={heading} text={text} position={focused && !showOutline && text && current ? `入力位置: ${current.heading}（${num(chars(text.slice(current.start, current.end)))} 字）` : undefined}><>{heading.compact && heading.id ? <WidthButtons id={heading.id} /> : null}<div class="prose-modes" role="group" aria-label={`${heading.name} の表示`}>
    <button type="button" class="btn sm" title="全文" aria-label="全文" aria-pressed={!showOutline} onClick={() => { setOutline(false); if (heading.id) widths.value = { ...widths.value, [heading.id]: '' }; }}><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 7h8M8 11h8M8 15h5"/></svg></button>
@@ -69,7 +86,9 @@ export function ProseEditor({ text, heading, onChange, transfer }: { text: strin
   </div></></ProseHeader>
   {showOutline ? <ul class="prose-outline" aria-label={`${heading.name} の見出し`}>{parts.map((part, index) => <li onDragOver={(e) => { if (transfer) e.preventDefault(); }} onDrop={(e) => { if (transfer) dropTransfer(e, transfer.id, part.start); }} style={{ paddingLeft: `${Math.max(0, part.depth - 1) * (narrow ? 2 : 14)}px` }}><span class="prose-block-name">{transfer ? <TransferGrip source={transfer} index={index} open={(choice) => setMenu({ index, ...choice })} /> : null}<button type="button" class="prose-heading-link" title={part.heading} onClick={() => { setOutline(false); if (heading.id) widths.value = { ...widths.value, [heading.id]: '' }; requestAnimationFrame(() => { input.current?.focus({ preventScroll: true }); input.current?.setSelectionRange(part.start, part.start); }); }}>{part.heading}</button></span><span>{num(chars(text.slice(part.start, part.end)))} 字</span>{transfer ? <button type="button" class="prose-more" title={`${part.heading} を写す・移す`} aria-label={`${part.heading} を写す・移す`} onClick={() => setMenu({ index })}>⋯</button> : null}</li>)}</ul>
    : <Field as="textarea" fieldRef={input} aria-label={`${heading.name} の規則の全文`} placeholder={heading.kind === 'チーム定義' ? 'チームの規則は任意です。本文を入力して保存できます。' : '本文を入力してください。'} value={text} spellcheck={false}
-     onInput={(event: Event) => { position(event); if (event.currentTarget instanceof HTMLTextAreaElement) onChange(event.currentTarget.value); }}
+     onInput={(event: Event) => { mark('prose:input', { id: heading.id || heading.name, length: event.currentTarget instanceof HTMLTextAreaElement ? event.currentTarget.value.length : 0 }); position(event); if (event.currentTarget instanceof HTMLTextAreaElement) onChange(event.currentTarget.value); }}
      onSelect={position} onKeyUp={position} onClick={position} onFocus={(event: Event) => { setFocused(true); position(event); }} onBlur={() => setFocused(false)} />}
  </div>;
+ mark('prose:render:end', { id: heading.id || heading.name });
+ return view;
 }

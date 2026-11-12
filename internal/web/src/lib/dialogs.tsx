@@ -4,9 +4,12 @@
 // still says what it did and can take it back (d-2cb2).
 import type { JSX } from 'preact';
 import { render } from './preact.js';
-import { ConfirmDialog } from './confirm.js';
+import { confirmView } from './confirm.js';
 
-export function Dialogs(): JSX.Element { return <ConfirmDialog />; }
+const dialogHostBrand: unique symbol = Symbol('DialogHost');
+export type DialogHost = { readonly [dialogHostBrand]: true };
+const host: DialogHost = { [dialogHostBrand]: true };
+function Dialogs(): JSX.Element { return confirmView(host); }
 
 // belowBand is one shared host below the band. A host that is gone is made
 // again: the band is drawn again when a reading lands, and a guest inside it

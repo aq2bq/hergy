@@ -1,3 +1,4 @@
+import { promptClock } from './prompt-clock.js';
 // r-0b69 / ⑤ r-ba9b: one owner reads the prompt (prompt-source.ts). The column
 // and the whole-text panel draw its answer, a pick is one pick, a start/stop or
 // an edit reads again through the key, and a failed read leaves no old text.
@@ -63,9 +64,8 @@ test('the note names the team the shown text was built with, in every case', asy
     if (url.startsWith('/api/role')) return { items: [] };
     return undefined;
   });
-  await import('../src/teams/main');
-  const { PROMPT_READ } = await import('../src/teams/prompt-source.js');
-  PROMPT_READ.wait = 0;
+  await promptClock();
+ await import('../src/teams/main');
   await flush();
   const row = () => document.querySelector('.tdef[data-name="core"]');
   const panel = () => row().querySelector('.cv-topology-prompt');

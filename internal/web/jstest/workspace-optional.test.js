@@ -53,11 +53,8 @@ test('an empty workspace has no trailing separator or stop-sheet row, and a name
   const namedHeading = document.querySelector('.hq-tile[data-team="named"] .hq-pw');
   expect(namedHeading.textContent).toBe('注文 API · 本体');
 
-  const { ConfirmDialog } = await import('../src/lib/confirm.js');
-  const { render, h } = await import('../src/lib/preact.js');
-  const confirmHost = document.createElement('div');
-  document.body.appendChild(confirmHost);
-  render(h(ConfirmDialog, {}), confirmHost);
+  const { mountDialogs } = await import('../src/lib/dialogs.js');
+  mountDialogs();
   document.querySelector('.hq-tile[data-team="empty"] [data-hq="stop"]').click();
   await settle();
   let ask = document.querySelector('.confirm');

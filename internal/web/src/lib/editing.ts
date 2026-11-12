@@ -5,9 +5,137 @@ import { signal, computed } from './preact.js';
 import { resource } from './resource.js';
 import { check as apiCheck, save as apiSave, del as apiDel, problemText, Refusal, type Kind, type Request, type Answer, type RawAnswer, type Schemas } from './api.js';
 import { conflictOf, type Conflict } from './conflict.js';
-import { PROFILE, ROLE_DOC, PROFILE_ASSIGN, YAML_TEXT, TEAM, TEAM_AGREEMENT, same, dirty, diff, lost, snapshot, profileFlags, assignDirty, type Shape, type ProfileWritten } from './changed.js';
 import { roleCheckData, type RoleCheckData } from './role-check.js';
 import { resourceIdentity, type ResourceIdentity, type ResourceKind, type ResourceName } from './resource-identity.js';
+type Field<T> = { key: string; label: string; get: (v: T) => unknown };
+type Shape<T> = { fields: Field<T>[] };
+
+// same is the one comparison: primitives by Object.is, arrays element by
+// element, plain objects by their own keys. Nothing else is compared.
+function same(a: unknown, b: unknown): boolean {
+  if (Object.is(a, b)) return true;
+  if (Array.isArray(a) || Array.isArray(b)) {
+    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+    return a.every((one, i) => same(one, b[i]));
+  }
+  if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return false;
+  // A field whose value is undefined is no field at all: the value is handed to
+  // the API as JSON, where undefined and missing are the same (r-1e9a).
+  const ka = Object.keys(a).filter((key) => (a as Record<string, unknown>)[key] !== undefined);
+  const kb = Object.keys(b).filter((key) => (b as Record<string, unknown>)[key] !== undefined);
+  if (ka.length !== kb.length) return false;
+  return ka.every((key) => key in (b as object) && same((a as Record<string, unknown>)[key], (b as Record<string, unknown>)[key]));
+}
+
+// snapshot is a value's copy, made when a thing is created or saved.
+function snapshot<T>(v: T): T {
+  if (Array.isArray(v)) return v.map((one) => snapshot(one)) as unknown as T;
+  if (v && typeof v === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [key, one] of Object.entries(v as Record<string, unknown>)) out[key] = snapshot(one);
+    return out as T;
+  }
+  return v;
+}
+
+// changed is whether the written value differs from the one held.
+function dirty<T>(_shape: Shape<T>, from: T | null, to: T, readable = true): boolean {
+  // A document that cannot be read is never a change: there is nothing it would
+  // write, so a broken row carries no ● and no 未保存 (r-1e9a).
+  if (!readable) return false;
+  if (from === null || from === undefined) return to !== null && to !== undefined;
+  return !same(from, to);
+}
+
+// diff is the fields that differ, in the table's order, with one 「そのほかの
+// 変更」 when the value differs and no field in the table does.
+function diff<T>(shape: Shape<T>, from: T | null, to: T, readable = true): Field<T>[] {
+  if (!dirty(shape, from, to, readable)) return [];
+  if (from === null || from === undefined) {
+    const out = shape.fields.filter((f) => !empty(f.get(to)));
+    return out.length ? out : [{ key: '*', label: 'そのほかの変更', get: () => undefined }];
+  }
+  const out = shape.fields.filter((f) => !same(f.get(from), f.get(to)));
+  if (out.length === 0) return [{ key: '*', label: 'そのほかの変更', get: () => undefined }];
+  return out;
+}
+
+// lost is what a revert or a discard would drop, in words.
+function lost<T>(shape: Shape<T>, from: T | null, to: T, readable = true): string[] {
+  return diff(shape, from, to, readable).map((f) => f.label);
+}
+
+function empty(v: unknown): boolean {
+  if (v === null || v === undefined || v === '') return true;
+  if (Array.isArray(v)) return v.length === 0;
+  if (typeof v === 'object') return Object.keys(v as object).length === 0;
+  return false;
+}
+
+// The shapes the screens keep. A field's label is what a person reads when the
+// change is lost; it is not what decides the change.
+type RoleDoc = { name: string; title: string; text: string };
+const ROLE_DOC: Shape<RoleDoc> = { fields: [
+  { key: 'name', label: '名前（保存先のファイルも変わる）', get: (v) => v.name },
+  { key: 'title', label: '題名', get: (v) => v.title },
+  { key: 'text', label: '本文', get: (v) => v.text },
+] };
+
+type TeamWritten = {
+  description: string;
+  turns: [string, string][];
+  members: { name: string; role: string; profile: string }[];
+  workers: { from: string; purpose: string; profile: string }[];
+};
+const TEAM: Shape<TeamWritten> = { fields: [
+  { key: 'description', label: '説明', get: (v) => v.description },
+  { key: 'turns', label: 'ターン', get: (v) => v.turns },
+  { key: 'members', label: 'メンバー', get: (v) => v.members.map((m) => ({ name: m.name, role: m.role, profile: m.profile })) },
+  { key: 'workers', label: 'ワーカー', get: (v) => v.workers.map((w) => ({ from: w.from, purpose: w.purpose, profile: w.profile })) },
+] };
+
+type Agreement = { text: string };
+const TEAM_AGREEMENT: Shape<Agreement> = { fields: [
+  { key: 'text', label: 'チームの規則', get: (v) => v.text },
+] };
+
+type ProfileWritten = { name: string; kind: string; args: string[]; env: { key: string; value: string }[] };
+const PROFILE: Shape<ProfileWritten> = { fields: [
+  { key: 'name', label: '名前（保存先のファイルも変わる）', get: (v) => v.name },
+  { key: 'kind', label: 'kind', get: (v) => v.kind },
+  { key: 'args', label: '引数', get: (v) => v.args },
+  { key: 'env', label: '環境変数', get: (v) => v.env },
+] };
+
+type AssignPicks = { member: string; role: string; profile?: string };
+type AssignWritten = { picks: AssignPicks[] };
+const PROFILE_ASSIGN: Shape<AssignWritten> = { fields: [
+  { key: 'picks', label: '割り当て', get: (v) => v.picks },
+] };
+
+type YamlWritten = { text: string };
+const YAML_TEXT: Shape<YamlWritten> = { fields: [
+  { key: 'text', label: '本文', get: (v) => v.text },
+] };
+
+// profileFlags is which fields of a profile differ, index by index for args and
+// env, from the same value comparison the change test makes (r-1e9a). The count
+// is the owner's diff.
+type ProfileFlags = { name: boolean; kind: boolean; args: boolean[]; env: { key: boolean; value: boolean }[]; count: number };
+function profileFlags(saved: ProfileWritten | null, draft: ProfileWritten, readable = true): ProfileFlags {
+  const count = diff(PROFILE, saved, draft, readable).length;
+  const out: ProfileFlags = { name: false, kind: false, args: [], env: [], count };
+  if (!readable) return out;
+  out.name = !saved || !same(saved.name, draft.name);
+  out.kind = !saved || !same(saved.kind, draft.kind);
+  draft.args.forEach((arg, i) => { out.args[i] = !saved || i >= saved.args.length || !same(saved.args[i], arg); });
+  out.env = draft.env.map((pair, i) => ({
+    key: !saved || i >= saved.env.length || !same(saved.env[i].key, pair.key),
+    value: !saved || i >= saved.env.length || !same(saved.env[i].value, pair.value),
+  }));
+  return out;
+}
+
 
 declare const requestBrand: unique symbol;
 export type EditedRequest<K extends Kind, A extends 'check' | 'save'> = Readonly<{
@@ -294,16 +422,20 @@ export function editProfile(identity: ResourceIdentity<'profile'>, initial: Prof
 }
 
 export type ProfilePick = { key: string; name: string; role: string; profile: string };
-export type ProfileAssignments = Editing<'team', ProfilePick[], { picks: { member: string; role: string }[] }>;
+export type ProfileAssignments = Editing<'team', ProfilePick[], { picks: { member: string; role: string }[] }> & { readonly rows: { readonly value: readonly Readonly<ProfilePick & { saved: string; changed: boolean }>[] } };
 export function editProfileAssignments(identity: ResourceIdentity<'team'>, picks: ProfilePick[], hash: string): ProfileAssignments {
   const doc = (s: EditingState<ProfilePick[]>) => ({ ops: s.draft.filter((row) => {
     const saved = s.saved?.find((one) => one.key === row.key);
-    return !saved || assignDirty({ name: row.key, saved: saved.profile, draft: row.profile });
+    return !saved || !same(saved.profile, row.profile);
   }).map((row) => row.key.startsWith('m') ? assignmentAction('memberProfile', row.name, row.profile) : assignmentAction('workerProfile', row.role, row.profile, row.name)) });
-  return editing({ identity, shape: PROFILE_ASSIGN, written: (rows) => ({ picks: rows.map((r) => ({ member: r.key, role: r.profile })) }),
+  const one = editing({ identity, shape: PROFILE_ASSIGN, written: (rows) => ({ picks: rows.map((r) => ({ member: r.key, role: r.profile })) }),
     name: () => identity.name || '', check: (s) => ({ place: identity.place, project: identity.project, name: identity.name || '', doc: doc(s) }),
     save: (s) => ({ place: identity.place, project: identity.project, doc: doc(s), hash: s.hash }), recovered: () => null, saved: (_a, sent) => sent,
   }, { saved: picks, draft: picks, hash });
+  return { ...one, rows: computed(() => one.read.value.draft.map((row) => {
+    const saved = one.read.value.saved?.find((r) => r.key === row.key)?.profile || '';
+    return { ...row, saved, changed: !same(saved, row.profile) };
+  })) };
 }
 
 export type YamlEditing = Editing<ResourceKind, string, { text: string }>;
@@ -338,6 +470,7 @@ export type RoleEditing = Omit<Editing<'role', RoleDraft, RoleDraft>, 'take'> & 
   readonly yaml: YamlEditing;
   readonly blocked: { readonly value: boolean };
   readonly grew: { readonly value: readonly Problem[] };
+  readonly nameChanged: { readonly value: boolean };
 };
 const roleDoc = (doc: ReadonlyDeep<RoleDraft>): RoleDraft => ({ name: doc.name, title: doc.title || '', text: doc.text });
 export function editRole(identity: ResourceIdentity<'role'>, initial: Omit<Initial<RoleDraft>, 'saved'> & { saved: SavedRole | null; base?: ResourceIdentity<'role'>; roleContext?: 'project' | 'global' }): RoleEditing {
@@ -380,6 +513,7 @@ export function editRole(identity: ResourceIdentity<'role'>, initial: Omit<Initi
       if (restored && 'base' in carry && carry.base) base = resourceIdentity('role', { place: carry.base.place, project: carry.base.project, name: carry.base.name || undefined });
       return restored || raw;
     },
+    nameChanged: computed(() => !!doc.read.value.saved && doc.read.value.saved.name !== doc.read.value.draft.name),
     validation: computed(() => (doc.read.value.checked || {}) as RoleCheckData),
     grew,
     blocked: computed(() => doc.read.value.saved ? grew.value.length > 0 || !doc.dirty.value : doc.read.value.problems.some((p) => p.sev === 'err')),
@@ -403,17 +537,20 @@ function readRole(value: unknown): RoleDraft {
   return { name: 'name' in value && typeof value.name === 'string' ? value.name : '', title: 'title' in value && typeof value.title === 'string' ? value.title : '', text: 'text' in value && typeof value.text === 'string' ? value.text : '' };
 }
 export type RolePick = { name: string; saved: string; draft: string };
-export type RoleAssignments = Editing<'team', { name: string; role: string }[], { picks: { member: string; role: string }[] }> & { renameRole: (from: string, to: string) => void };
+export type RoleAssignments = Editing<'team', { name: string; role: string }[], { picks: { member: string; role: string }[] }> & { readonly rows: { readonly value: readonly Readonly<RolePick & { changed: boolean }>[] }; renameRole: (from: string, to: string) => void };
 export function editRoleAssignments(identity: ResourceIdentity<'team'>, picks: RolePick[], hash: string): RoleAssignments {
   const doc = (s: EditingState<{ name: string; role: string }[]>) => ({ ops: s.draft.filter((row) => {
     const saved = s.saved?.find((one) => one.name === row.name);
-    return !saved || assignDirty({ name: row.name, saved: saved.role, draft: row.role });
+    return !saved || !same(saved.role, row.role);
   }).map((row) => (assignmentAction('memberRole', row.name, row.role))) });
   const one = editing({ identity, shape: PROFILE_ASSIGN, written: (rows: { name: string; role: string }[]) => ({ picks: rows.map((r) => ({ member: r.name, role: r.role })) }),
     name: () => identity.name || '', check: (s) => ({ place: identity.place, project: identity.project, name: identity.name || '', doc: doc(s) }),
     save: (s) => ({ place: identity.place, part: 'team', hash: s.hash, doc: doc(s) }), recovered: () => null, saved: (_a, sent) => sent,
   }, { saved: picks.map((r) => ({ name: r.name, role: r.saved })), draft: picks.map((r) => ({ name: r.name, role: r.draft })), hash });
-  return { ...one, renameRole: (from, to) => {
+  return { ...one, rows: computed(() => one.read.value.draft.map((row) => {
+    const saved = one.read.value.saved?.find((r) => r.name === row.name)?.role || '';
+    return { name: row.name, saved, draft: row.role, changed: !same(saved, row.role) };
+  })), renameRole: (from, to) => {
     const state = one.read.value;
     const map = (rows: readonly { name: string; role: string }[]) => rows.map((r) => ({ ...r, role: r.role === from ? to : r.role }));
     if (state.saved) one.accept(map(state.saved), state.hash, '', -1);
@@ -443,7 +580,7 @@ export const teamActions = {
   workerPurpose: (from: string, old: string, next: string) => teamAction('workerPurpose', { from, old, new: next }),
   moveWorker: (from: string, purpose: string, to: string) => teamAction('moveWorker', { from, purpose, to }),
 };
-export type TeamDocument = import('./changed.js').TeamWritten;
+export type TeamDocument = TeamWritten;
 type TeamInput = { description?: string; members?: ReadonlyDeep<TeamDocument['members']> | null; workers?: ReadonlyDeep<TeamDocument['workers']> | null; turns?: readonly (readonly [string, string] | { readonly from: string; readonly to: string })[] | null };
 export function teamDocument(t: TeamInput | null | undefined): TeamDocument {
   return { description: t?.description || '', members: (t?.members || []).map((m) => ({ ...m })), workers: (t?.workers || []).map((w) => ({ ...w })),
@@ -515,7 +652,51 @@ type TeamOptions = { name: string; fresh: boolean; how: string; base: ResourceId
 export type TeamCarry = { actions: TeamAction[]; folder: TeamOptions; team: CompleteCarry<TeamDocument>; agreement: CompleteCarry<RoleDraft>; teamYaml: CompleteCarry<string>; agreementYaml: CompleteCarry<string> };
 type TeamInitial = { name: string; team: TeamInput; hash: string; agreement: RoleDraft | null; agreementHash: string; teamText?: string; agreementText?: string;
   teamPath?: string; agreementPath?: string; how?: string; base?: ResourceIdentity<'team'> | null; seeded?: boolean; readable?: boolean; draftId?: string; agreementDraftId?: string };
+export type TeamChanges = ReadonlyDeep<{
+  members: Record<string, '' | 'new' | 'changed'>;
+  workers: { from: string; purpose: string; added: boolean }[];
+  turns: { from: string; to: string; added: boolean }[];
+  list: ['a' | 'c' | 'd', string][];
+}>;
+function teamChanges(s: ReadonlyDeep<TeamDocument>, t: ReadonlyDeep<TeamDocument>): TeamChanges {
+  const out: ['a' | 'c' | 'd', string][] = [];
+  const hasTurn = (team: ReadonlyDeep<TeamDocument>, from: string, to: string) => team.turns.some(([a, b]) => a === from && b === to);
+  const nodeName = (name: string) => name === 'human' ? '人間' : name;
+  const sm = new Map(s.members.map((m) => [m.name, m])), cm = new Map(t.members.map((m) => [m.name, m]));
+  if (s.description !== t.description) out.push(['c', `説明: ${t.description}`]);
+  cm.forEach((m, n) => {
+    if (!sm.has(n)) out.push(['a', `メンバー ${n}（${m.role} · ${m.profile}）`]);
+    else {
+      const o = sm.get(n);
+      if (o && o.role !== m.role) out.push(['c', `${n} のロール ${o.role} → ${m.role}`]);
+      if (o && o.profile !== m.profile) out.push(['c', `${n} のプロファイル ${o.profile} → ${m.profile}`]);
+    }
+  });
+  sm.forEach((_m, n) => { if (!cm.has(n)) out.push(['d', `メンバー ${n}`]); });
+  const sw = new Map(s.workers.map((w) => [w.from + '\u0000' + w.purpose, w])), cw = new Map(t.workers.map((w) => [w.from + '\u0000' + w.purpose, w]));
+  cw.forEach((w, k) => {
+    if (!sw.has(k)) out.push(['a', `ワーカー ${w.purpose || '（目的）'}（${w.from} · ${w.profile}）`]);
+    else {
+      const o = sw.get(k);
+      if (o && (o.purpose !== w.purpose || o.profile !== w.profile || o.from !== w.from)) out.push(['c', `ワーカー ${w.purpose || '（目的）'}（${w.from} · ${w.profile}）`]);
+    }
+  });
+  sw.forEach((w, k) => { if (!cw.has(k)) out.push(['d', `ワーカー ${w.purpose || '（目的）'}`]); });
+  t.turns.forEach(([a, b]) => { if (!hasTurn(s, a, b)) out.push(['a', `ターン ${nodeName(a)} → ${nodeName(b)}`]); });
+  s.turns.forEach(([a, b]) => { if (!hasTurn(t, a, b)) out.push(['d', `ターン ${nodeName(a)} → ${nodeName(b)}`]); });
+  return {
+    members: Object.fromEntries([...new Set(t.members.map((m) => m.name))].map((name) => {
+      const m = t.members.find((one) => one.name === name)!;
+      const before = s.members.find((one) => one.name === name);
+      return [m.name, !before ? 'new' : before.role !== m.role || before.profile !== m.profile ? 'changed' : ''];
+    })),
+    workers: t.workers.map((w) => ({ from: w.from, purpose: w.purpose, added: !s.workers.some((one) => one.from === w.from && one.purpose === w.purpose) })),
+    turns: t.turns.map(([from, to]) => ({ from, to, added: !hasTurn(s, from, to) })),
+    list: out,
+  };
+}
 export type TeamEditing = {
+  readonly changes: { readonly value: TeamChanges };
   readonly read: { readonly value: ReadonlyDeep<TeamOptions> };
   readonly team: Editing<'team', TeamDocument, TeamDocument>;
   readonly agreement: Editing<'team', RoleDraft, { text: string }>;
@@ -643,7 +824,7 @@ export function editTeam(identity: ResourceIdentity<'team'>, input: TeamInitial)
     return team.read.value.problems.filter((p) => p.sev === 'err' && !(p.at || p.field || '').startsWith('node:') && !before.has(p.text));
   });
   const take = (): TeamCarry => snapshot({ actions: operations(team.read.value), folder: meta.value, team: team.take(), agreement: agreement.take(), teamYaml: teamYaml.take(), agreementYaml: agreementYaml.take() });
-  return { read: computed(() => snapshot(meta.value)), team: { ...team, save: () => save('team'), overwrite: () => save('team', true), readConflict: () => recover('team'), undoConflict: () => recover('team', true) }, agreement: { ...agreement, save: () => save('agreement'), overwrite: () => save('agreement', true), readConflict: () => recover('agreement'), undoConflict: () => recover('agreement', true) }, teamYaml: rawEditor(teamYaml, 'team'), agreementYaml: rawEditor(agreementYaml, 'agreement'),
+  return { changes: computed(() => teamChanges(team.read.value.saved || initialTeam, team.read.value.draft)), read: computed(() => snapshot(meta.value)), team: { ...team, save: () => save('team'), overwrite: () => save('team', true), readConflict: () => recover('team'), undoConflict: () => recover('team', true) }, agreement: { ...agreement, save: () => save('agreement'), overwrite: () => save('agreement', true), readConflict: () => recover('agreement'), undoConflict: () => recover('agreement', true) }, teamYaml: rawEditor(teamYaml, 'team'), agreementYaml: rawEditor(agreementYaml, 'agreement'),
     operations: computed(() => operations(team.read.value)),
     validation: computed(() => (team.read.value.checked || {}) as Answer<'team', 'check'>), agreementValidation: computed(() => (agreement.read.value.checked || {}) as Answer<'team', 'check'>),
     grew, agreementBlocked: computed(() => { const s = agreement.read.value; const before = new Set(s.baseProblems.filter((p) => p.sev === 'err').map((p) => p.text)); return !s.saved && !s.draft.text || !agreement.dirty.value || s.problems.some((p) => p.sev === 'err' && (!s.saved || !before.has(p.text))); }),

@@ -34,11 +34,8 @@ test('the stop result lists the worktrees and stashes the team left in git', asy
   await hq.readCore();
   await settle();
   const { stopSheet } = await import('../src/lib/hq/sheets.js');
-  const { ConfirmDialog } = await import('../src/lib/confirm.js');
-  const { render, h } = await import('../src/lib/preact.js');
-  const confirmHost = document.createElement('div');
-  document.body.appendChild(confirmHost);
-  render(h(ConfirmDialog, {}), confirmHost);
+  const { mountDialogs } = await import('../src/lib/dialogs.js');
+  mountDialogs();
   stopSheet('draft');
   await settle();
 

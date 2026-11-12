@@ -89,7 +89,7 @@ func TestACommittedBranchWithNoUpstreamStillSelectsItsChange(t *testing.T) {
 // cost is the change's and leaves e2e, coverage and vuln to CI, in the table's order.
 func TestLocalGatesLeaveTheRepositorysCostToCI(t *testing.T) {
 	here, later := localGates(gatesFor([]string{"internal/cli/serve.go"}))
-	if got := gateNames(here); got != "fmt tidy fix lint arch test owners deadcode" {
+	if got := gateNames(here); got != "fmt tidy fix lint arch test deadcode" {
 		t.Errorf("here = %q", got)
 	}
 	if got := gateNames(later); got != "e2e coverage" {

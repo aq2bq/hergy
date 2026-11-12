@@ -28,6 +28,7 @@
 // 検査の行・YAML の行が属性へ移る理由は、要求では確かめていなかった。上の理由は
 // コードから読める（直す欄が属性にある）。
 import type { CanvasPick, Rec } from './state.js';
+import { signal, computed } from '../lib/preact.js';
 import { nextSide } from './selection-table.js';
 import type { PickWhat, Side } from './selection-table.js';
 
@@ -41,21 +42,36 @@ export type PickEvent =
   | { how: 'side'; side: Side }                // 右の列の見出し
   | { how: 'yaml' };                           // YAML へ
 
-// select writes the pick and the right column, the one place both are written.
-// A pick that changes drops the half-typed name (the field was about the old
-// pick); a column that changes leaves it, and the pick, alone.
-export function select(r: Rec, e: PickEvent): void {
-  if (e.how === 'side') {
-    if (isSide(e.side)) r.side.value = e.side;
-    return;
-  }
-  if (e.how === 'yaml') { r.side.value = 'yaml'; return; }
-  const pick = e.how === 'press' || e.how === 'field' ? e.what : null;
-  r.sel.value = pick;
-  r.typed.value = null;
-  const next = nextSide(e.how, whatOf(pick), sideOf(r));
-  if (next !== 'pressed') r.side.value = next;
+const selectionBrand: unique symbol = Symbol('Selection');
+export type Selection = Readonly<{
+  [selectionBrand]: true;
+  pick: { readonly value: Readonly<CanvasPick> | null };
+  side: { readonly value: Side };
+  send: (event: PickEvent) => void;
+}>;
+
+// The component owns both fields; callers can only send an event. The snapshot
+// is frozen as well as readonly so a DOM consumer cannot mutate the pick.
+export function createSelection(changed: () => void): Selection {
+  const picked = signal<CanvasPick | null>(null);
+  const side = signal<Side>('attr');
+  return {
+    [selectionBrand]: true,
+    pick: computed(() => picked.value ? Object.freeze({ ...picked.value }) : null),
+    side: computed(() => side.value),
+    send: (event: PickEvent) => {
+      if (event.how === 'side') { if (isSide(event.side)) side.value = event.side; return; }
+      if (event.how === 'yaml') { side.value = 'yaml'; return; }
+      const pick = event.how === 'press' || event.how === 'field' ? event.what : null;
+      picked.value = pick ? { ...pick } : null;
+      changed();
+      const next = nextSide(event.how, whatOf(pick), side.value);
+      if (next !== 'pressed') side.value = next;
+    },
+  };
 }
+
+export function select(r: Rec, event: PickEvent): void { r.selection.send(event); }
 
 export const isSide = (value: string): value is Side => value === 'attr' || value === 'yaml' || value === 'prompt';
 
@@ -95,6 +111,3 @@ export function samePick(a: CanvasPick | null, b: CanvasPick | null): boolean {
   return b.type === 'edge' && a.k === b.k;
 }
 
-// startSelection is the value a record starts with: nothing picked, the
-// attribute column.
-export const startSelection = (): { sel: null; side: Side } => ({ sel: null, side: 'attr' });

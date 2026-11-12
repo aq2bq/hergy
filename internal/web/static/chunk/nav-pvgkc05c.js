@@ -19,8 +19,9 @@ import {
   u
 } from "./nav-zn7g81kr.js";
 import {
+  dangerAttrs,
   runDanger
-} from "./nav-n44pqppw.js";
+} from "./nav-pfvc24x1.js";
 import {
   Refusal2,
   call2,
@@ -29,23 +30,78 @@ import {
   applyCount2,
   applyMembers2,
   problemText2
-} from "./nav-hz0pc9aj.js";
-import {
-  setCount2,
-  setActivity2
-} from "./nav-v59w2j53.js";
+} from "./nav-ncqt2ghs.js";
 import {
   token2
-} from "./nav-hr74m0fy.js";
+} from "./nav-nmj3geqx.js";
 
 // lib/band-counts.ts
-function applyCounts(counts) {
-  setCount2("teams", counts.teams);
-  setCount2("roles", counts.roles);
-  setCount2("profiles", counts.profiles);
+var scr = (name) => document.querySelector('.screens .scr[data-screen="' + name + '"]');
+function setCount(screen, n) {
+  const el = scr(screen);
+  const num = el?.querySelector(".n");
+  if (num)
+    num.textContent = String(n);
 }
-function applyActivity(running, waiting, counts) {
-  setActivity2(running, waiting, counts);
+function setActivity(running, waiting, counts) {
+  const el = scr("activity");
+  if (!el)
+    return;
+  let num = el.querySelector(".n");
+  if (counts && !num) {
+    num = document.createElement("span");
+    num.className = "n";
+    el.appendChild(num);
+  }
+  if (!counts && num) {
+    num.remove();
+    num = null;
+  }
+  if (num)
+    num.textContent = String(running);
+  let wait = el.querySelector(".wait");
+  if (!wait && waiting > 0) {
+    wait = document.createElement("span");
+    wait.className = "wait";
+    if (num)
+      num.after(wait);
+    else
+      el.appendChild(wait);
+  }
+  if (!wait)
+    return;
+  if (waiting > 0)
+    wait.textContent = "待ち " + waiting;
+  else
+    wait.remove();
+}
+function bandActivity2() {
+  const teams = st.running.value.teams || [];
+  const waiting = teams.reduce((n, t) => n + (t.waiting || []).length, 0);
+  setActivity(teams.length, waiting, !!st.running.value.herdr.ok && teams.length > 0);
+}
+function bandCounts() {
+  const p = st.projects.value;
+  if (!p)
+    return;
+  const totals = { teams: 0, roles: 0, profiles: 0 };
+  const add = (one) => {
+    if (!one)
+      return;
+    totals.teams += one.definitions || 0;
+    totals.roles += one.roles || 0;
+    totals.profiles += one.profiles || 0;
+  };
+  if (p.mode === "listed") {
+    (p.projects || []).filter((x) => x.listed).forEach(add);
+    add(p.global);
+  } else {
+    add(p.current);
+    add(p.global);
+  }
+  setCount("teams", totals.teams);
+  setCount("roles", totals.roles);
+  setCount("profiles", totals.profiles);
 }
 
 // lib/hq/state.ts
@@ -130,32 +186,6 @@ function definitionDoc(definition, project) {
       return own;
   }
   return globalDefinition(definition) || definitionOf2("", definition);
-}
-function bandActivity2() {
-  const teams = st.running.value.teams || [];
-  const waiting = teams.reduce((n, t) => n + (t.waiting || []).length, 0);
-  applyActivity(teams.length, waiting, !!st.running.value.herdr.ok && teams.length > 0);
-}
-function bandCounts() {
-  const p = st.projects.value;
-  if (!p)
-    return;
-  const totals = { teams: 0, roles: 0, profiles: 0 };
-  const add = (one) => {
-    if (!one)
-      return;
-    totals.teams += one.definitions || 0;
-    totals.roles += one.roles || 0;
-    totals.profiles += one.profiles || 0;
-  };
-  if (p.mode === "listed") {
-    (p.projects || []).filter((x) => x.listed).forEach(add);
-    add(p.global);
-  } else {
-    add(p.current);
-    add(p.global);
-  }
-  applyCounts(totals);
 }
 var pending = null;
 function refreshCounts() {
@@ -472,8 +502,7 @@ function ProjectsSheet() {
             if (no)
               setError(no);
           },
-          "data-danger": true,
-          "data-danger-act": "unlistProject",
+          ...dangerAttrs("unlistProject"),
           children: "外す"
         })
       })
@@ -1295,8 +1324,7 @@ function RunSheet({ id, launch: first }) {
             launch.tab.id ? /* @__PURE__ */ u("button", {
               type: "button",
               class: "hq-btn danger",
-              "data-danger": true,
-              "data-danger-act": "stopTeam",
+              ...dangerAttrs("stopTeam"),
               "data-hq": "stop",
               "data-team": launch.team,
               onClick: () => stopSheet2(launch.team),
@@ -1938,4 +1966,4 @@ async function send() {
   }
 }
 
-export { st, setRunning2, projectName2, runningFor, runningTeam2, lastWorkspaceOf, definitionOf2, bandActivity2, readCore2, readGroups2, readAll2, readRunning2, startReads, sheetOpen, closeSheet2, startSheet2, stopSheet2, projectsSheet, searchBoxOpen, closeBox, moveSel, mountSearch, resetSearch, searchHook, POLL, count, opened, answer, note, scope, chosen, teams, canApply, applyLabel, teamCount, toggle, readCount, readTeams, openSheet, close, send };
+export { bandActivity2, st, setRunning2, projectName2, runningFor, runningTeam2, lastWorkspaceOf, definitionOf2, readCore2, readGroups2, readAll2, readRunning2, startReads, sheetOpen, closeSheet2, startSheet2, stopSheet2, projectsSheet, searchBoxOpen, closeBox, moveSel, mountSearch, resetSearch, searchHook, POLL, count, opened, answer, note, scope, chosen, teams, canApply, applyLabel, teamCount, toggle, readCount, readTeams, openSheet, close, send };

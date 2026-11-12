@@ -1,7 +1,7 @@
 // The table (r-3d54): every event the owner names leaves the pick and the right
 // column where SIDE_RULES says, from each column the screen can start at.
 import { describe, expect, test } from 'bun:test';
-import { samePick, select } from '../src/teams/selection';
+import { samePick, select, createSelection } from '../src/teams/selection';
 import { SIDE_RULES } from '../src/teams/selection-table';
 
 const SIDES = ['attr', 'yaml', 'prompt'];
@@ -10,12 +10,13 @@ const ONE = { type: 'node', id: 'lead' };
 const TYPED = { id: 'lead', value: 'le', msgs: [] };
 
 // rec is one record with the signals the owner writes and reads.
-const rec = (side) => ({
-  sel: { value: BEFORE },
-  side: { value: side },
-  typed: { value: TYPED },
-  draft: { value: { description: '', members: [{ name: 'lead' }, { name: 'impl' }], workers: [{ purpose: 'a' }], turns: [] } },
-});
+const rec = (side) => {
+ const r = { typed: { value: TYPED }, draft: { value: { description: '', members: [{ name: 'lead' }, { name: 'impl' }], workers: [{ purpose: 'a' }], turns: [] } } };
+ const selection = createSelection(() => { r.typed.value = null; });
+ Object.assign(r, { selection, sel: selection.pick, side: selection.side });
+ select(r, { how: 'field', what: BEFORE }); select(r, { how: 'side', side }); r.typed.value = TYPED;
+ return r;
+};
 
 // EVENTS is one event per row of the table, as a caller hands it over.
 const EVENTS = [
@@ -75,4 +76,13 @@ describe('samePick', () => {
     expect(samePick(null, { type: 'node', id: 'lead' })).toBe(false);
     expect(samePick({ type: 'node', id: 'lead' }, null)).toBe(false);
   });
+});
+
+test('a side change preserves the selected object and a caller cannot mutate it', () => {
+ const r = rec('attr');
+ const before = r.sel.value;
+ select(r, { how: 'side', side: 'yaml' });
+ expect(r.sel.value).toBe(before);
+ const pick = { type: 'node', id: 'lead' }; select(r, { how: 'press', what: pick });
+ pick.id = 'outside'; expect(r.sel.value.id).toBe('lead');
 });

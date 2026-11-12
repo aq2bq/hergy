@@ -16,10 +16,8 @@ test('a late stop timeout stays visible after the running row disappears', async
   const hq = await import('../src/lib/hq');
   await hq.readCore();
   const { stopSheet } = await import('../src/lib/hq/sheets');
-  const { ConfirmDialog } = await import('../src/lib/confirm');
-  const { render, h } = await import('../src/lib/preact');
-  const host = document.createElement('div'); document.body.appendChild(host);
-  render(h(ConfirmDialog, {}), host);
+  const { mountDialogs } = await import('../src/lib/dialogs.js');
+  mountDialogs();
   stopSheet('draft'); await settle();
   document.querySelector('.confirm .btn.danger.solid').click(); await settle();
   teams = []; await hq.readCore(); await settle();

@@ -1,4 +1,4 @@
-import { runDanger } from '../lib/danger.js';
+import { runDanger, dangerAttrs } from '../lib/danger.js';
 import { ProjectView } from '../lib/project-view';
 // teams/view.tsx — チーム定義の画面の一覧とパネル（webui-preact-design 4 章）。
 //
@@ -30,10 +30,10 @@ import {
   dkey, currentProjectName, teamLabel, dtabOf, isOpenRow, missingOpen,
   rowIssues, dirtyDef, agreeIssues, agreementChanged, teamChanges, vlistParts,
   rowOfPanel, okOf, refusalOf, pmodeOf, yfiles, fileOf, yamlChanged, yIssues,
-  chosenFile, scheduleAgree, syncURL, focusAsk, groupOfRecord,
+  chosenFile, scheduleAgree, focusAsk, groupOfRecord,
   pressTab, pressToggle, pressNew, pressDup, pressCopy, pressDiscard,
   pressStarterRoles, pressStarterProfile, pressCarry,
-  pressDelYes, pressName, pressDtab, pressPmode, bornTouched,
+  pressDelYes, pressName, pressDtab, bornTouched,
   pressTSave, pressTRevert, pressSave, pressRevert, pressVpick,
   pressToastUndo, pressYfile, fileText,
   conflictAt, pressOverwrite, pressRevertConflict, pressUndoConflict,
@@ -291,7 +291,7 @@ function Dacts({ r }: { r: Rec }) {
     if (!touched()) { pressDiscard(r); return; }
     runDanger('discardRow', { run: () => pressDiscard(r), lost: r.editing.bornLost.value, confirm: { title: '入力した内容を捨てますか', label: '破棄する' } });
   };
-  if (r.draftRow) return <button class="btn danger" data-act="discard" data-danger data-danger-act="discardRow" onClick={discard}>取り消し</button>;
+  if (r.draftRow) return <button class="btn danger" data-act="discard" {...dangerAttrs('discardRow')} onClick={discard}>取り消し</button>;
   const o = other(r.place.value);
   const group = copyGroupOf(o, groupOfRecord(r), GROUPED ? CURRENT : '');
   // A name the side the copy would go to already holds is not offered again:
@@ -303,7 +303,7 @@ function Dacts({ r }: { r: Rec }) {
     <>
       <button class="btn" data-act="dup" onClick={() => pressDup(r)}>複製</button>
       {!(r.places || []).includes(o) && !copying ? <button class="btn" data-act="copy" onClick={() => pressCopy(r)}>{PLACE[o]}にコピー</button> : null}
-      <button class="btn danger" data-act="del" data-danger data-danger-act="deleteTeam" onClick={del}>削除</button>
+      <button class="btn danger" data-act="del" {...dangerAttrs('deleteTeam')} onClick={del}>削除</button>
     </>
   );
 }
@@ -480,14 +480,14 @@ function Foot({ r, agree }: { r: Rec; agree?: boolean }) {
     return (
       <>{notice}<footer class="pf">
         <button class="btn primary" data-act="save" disabled={blocked} onClick={() => pressSave(r)}>保存</button><span class="errline doc" hidden={!refusal}>{refusal}</span><span class="dirty">{s && d ? `${d} か所` : ''}</span>{ok}
-        <span class="acts"><button class="btn" data-act="revert" data-danger data-danger-act="revertDraft" hidden={empty || !d} onClick={(e) => pressRevert(r, (e.currentTarget as HTMLElement).closest('.panel') as HTMLElement | null)}>元に戻す</button></span>
+        <span class="acts"><button class="btn" data-act="revert" {...dangerAttrs('revertDraft')} hidden={empty || !d} onClick={(e) => pressRevert(r, (e.currentTarget as HTMLElement).closest('.panel') as HTMLElement | null)}>元に戻す</button></span>
       </footer></>
     );
   }
   return (
     <>{notice}<footer class="pf">
       <button class="btn primary" data-act="t-save" disabled={!n || grew} onClick={() => pressTSave(r)}>保存</button><span class="dirty">{n ? `${n} か所` : ''}</span>{ok}
-      <span class="acts"><button class="btn" data-act="t-revert" data-danger data-danger-act="revertDraft" hidden={!n} onClick={(e) => pressTRevert(r, (e.currentTarget as HTMLElement).closest('.panel') as HTMLElement | null)}>元に戻す</button></span>{refusal ? <span class="sev err refusal">{refusal}</span> : null}
+      <span class="acts"><button class="btn" data-act="t-revert" {...dangerAttrs('revertDraft')} hidden={!n} onClick={(e) => pressTRevert(r, (e.currentTarget as HTMLElement).closest('.panel') as HTMLElement | null)}>元に戻す</button></span>{refusal ? <span class="sev err refusal">{refusal}</span> : null}
     </footer></>
   );
 }
@@ -502,7 +502,7 @@ function AgreePanel({ r }: { r: Rec }) {
     setScanned((previous) => { const next = { ...previous }; if (places) next[name] = places; else delete next[name]; return next; });
   }, []);
   const places = [...new Set(Object.values(scanned).flat())];
-  const shadowed = r.place.value === 'global' && (r.places || []).includes('project');
+  const shadowed = r.mark.value === 'hidden';
   const mode = pmodeOf(r);
   const workspace = useRef<HTMLDivElement>(null);
   // Opening the tab, and picking other documents, only changes what stands in
@@ -549,8 +549,7 @@ function AgreePanel({ r }: { r: Rec }) {
             path: `${placeName(r.place.value)} · teams/${r.name.value}/agreement.md`, members: r.draft.value.members.map((m) => m.name).join('、'),
             template: r.check.value?.templateSize || 0, state: (agreementChanged(r) ? '未保存' : '保存済み') + (shadowed ? '（無効）' : '') }}
           onDraft={(draft) => { r.editing.agreement.change(draft); scheduleAgree(r); }}
-          onMode={(v: string) => pressPmode(r, v)}
-          onURL={() => syncURL()} />
+ />
       </div>
       <Foot r={r} agree={true} />
     </section>{names.map((name) => <RoleColumn key={name} r={r} name={name} visible={active.includes('role:' + name)} onScanned={onScanned} />)}</div></div>

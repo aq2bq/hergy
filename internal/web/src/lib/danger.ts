@@ -17,7 +17,7 @@ export type DangerAction =
   | 'abortStart';
 
 // DANGER is the one table: what a dangerous action does before it runs.
-export const DANGER: Record<DangerAction, 'confirm' | 'undoable' | 'none'> = {
+export const DANGER: Readonly<Record<DangerAction, 'confirm' | 'undoable' | 'none'>> = {
   deleteTeam: 'confirm', deleteRole: 'confirm', deleteProfile: 'confirm', stopTeam: 'confirm',
   unlistProject: 'undoable', revertDraft: 'undoable', removeMember: 'undoable', removeWorker: 'undoable',
   removeTurn: 'undoable', conflictRevert: 'undoable',
@@ -25,6 +25,14 @@ export const DANGER: Record<DangerAction, 'confirm' | 'undoable' | 'none'> = {
   discardRow: 'confirm',
   abortStart: 'none',
 };
+
+// Only routing through runDanger can authorize a confirmation or undo offer.
+const dangerBrand: unique symbol = Symbol('DangerDecision');
+export type DangerDecision = { readonly [dangerBrand]: true };
+const decision: DangerDecision = { [dangerBrand]: true };
+export function dangerAttrs(action: DangerAction): Readonly<{ 'data-danger': true; 'data-danger-act': DangerAction }> {
+  return { 'data-danger': true, 'data-danger-act': action };
+}
 
 export type DangerOptions = {
   run: () => void | Promise<void>;
@@ -50,7 +58,7 @@ export function runDanger(action: DangerAction, opts: DangerOptions): void {
   const kind = DANGER[action];
   if (kind === 'none') { void opts.run(); return; }
   if (kind === 'undoable') {
-    const offer = () => { if (opts.restore) offerUndo({ said: opts.said || '実行しました', restore: opts.restore }, opts.host); };
+    const offer = () => { if (opts.restore) offerUndo(decision, { said: opts.said || '実行しました', restore: opts.restore }, opts.host); };
     const done = opts.run();
     if (done && typeof (done as Promise<unknown>).then === 'function') void (done as Promise<unknown>).then(offer);
     else offer();
@@ -66,15 +74,15 @@ export function runDanger(action: DangerAction, opts: DangerOptions): void {
     const url = `/api/danger/${encodeURIComponent(loss.kind)}/${encodeURIComponent(loss.name)}${q.toString() ? `?${q}` : ''}`;
     void read<{ lines: string[] }>(url).then((answer) => {
       const lines = (answer && answer.lines) || [];
-      askConfirm({ ...ask, body: h('div', {}, lines.map((line) => h('p', {}, line))), run: opts.run } as ConfirmAsk);
+      askConfirm(decision, { ...ask, body: h('div', {}, lines.map((line) => h('p', {}, line))), run: opts.run } as ConfirmAsk);
     }).catch((err: unknown) => {
-      askConfirm({ ...ask, body: h('p', { role: 'alert' }, `消えるものを読めませんでした: ${String(err)}`), run: () => undefined } as ConfirmAsk);
+      askConfirm(decision, { ...ask, body: h('p', { role: 'alert' }, `消えるものを読めませんでした: ${String(err)}`), run: () => undefined } as ConfirmAsk);
     });
     return;
   }
   if (opts.lost) {
-    askConfirm({ ...ask, body: h('div', {}, [...opts.lost.map((one) => h('p', {}, one)), h('p', {}, h('b', {}, '取り消せません。'))]), run: opts.run } as ConfirmAsk);
+    askConfirm(decision, { ...ask, body: h('div', {}, [...opts.lost.map((one) => h('p', {}, one)), h('p', {}, h('b', {}, '取り消せません。'))]), run: opts.run } as ConfirmAsk);
     return;
   }
-  askConfirm({ ...ask, body: ask.body ?? h('div', {}), run: opts.run } as ConfirmAsk);
+  askConfirm(decision, { ...ask, body: ask.body ?? h('div', {}), run: opts.run } as ConfirmAsk);
 }

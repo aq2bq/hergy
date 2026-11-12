@@ -8,6 +8,12 @@
 // tools/webvendor/package.json and bun.lock.
 
 // lib/address.ts
+var addressBrand = Symbol("RowAddress");
+function rowAddress(name, group) {
+  if (!group)
+    throw new Error(`置き場所の無い行は URL に書けません: ${name}`);
+  return Object.freeze({ name, group, [addressBrand]: true });
+}
 var token2 = (name, group) => group ? `${name}|${group}` : name;
 function parseOpen2(value) {
   return String(value || "").split(",").filter(Boolean).map((one) => {
@@ -59,4 +65,4 @@ function rowsFor(ref, rows, of, current) {
   return both.length ? both : named.slice(0, 1);
 }
 
-export { token2, parseOpen2, readOpen2, writeOpen2, placeGroup, rowsFor };
+export { rowAddress, token2, parseOpen2, readOpen2, writeOpen2, placeGroup, rowsFor };

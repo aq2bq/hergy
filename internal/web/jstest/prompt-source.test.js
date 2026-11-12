@@ -1,3 +1,4 @@
+import { promptClock } from './prompt-clock.js';
 // ⑤ r-ba9b: the prompt's key is everything a change of which changes the text.
 // A start, a stop and a pick read again without pressing anything; the old
 // answer does not stand while the new one is read.
@@ -30,9 +31,8 @@ test('a start, a stop and a pick change the key and read again', async () => {
     if (url.startsWith('/api/role')) return { items: [] };
     return undefined;
   });
-  await import('../src/teams/main');
-  const { PROMPT_READ } = await import('../src/teams/prompt-source.js');
-  PROMPT_READ.wait = 0;
+  await promptClock();
+ await import('../src/teams/main');
   await flush();
   const row = () => document.querySelector('.tdef[data-name="core"]');
   const panel = () => row().querySelector('.cv-topology-prompt');
@@ -71,4 +71,15 @@ test('a start, a stop and a pick change the key and read again', async () => {
   expect(note()).toContain('実行中のチーム core-hotfix の名前で作っています。');
   const afterPick = asked.filter((one) => one.url.startsWith('/api/team/prompt-comparison'));
   expect(afterPick[afterPick.length - 1].body.running_team).toBe('core-hotfix');
+});
+
+test('prompt components keep independent private picks and expose no arbitrary-key setter', async () => {
+  const { createPromptSource } = await import('../src/teams/prompt-source');
+  const a = createPromptSource({ wait: 0 }), b = createPromptSource({ wait: 0 });
+  const row = { dom: 'core', place: { value: 'project' } };
+  a.pickRun(row, 'core-hotfix');
+  expect(a.pickedRun(row)).toBe('core-hotfix');
+  expect(b.pickedRun(row)).toBe('');
+  expect(a.setRun).toBeUndefined();
+  expect(Object.isFrozen(a)).toBe(true);
 });

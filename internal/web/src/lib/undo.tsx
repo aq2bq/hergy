@@ -1,3 +1,4 @@
+import type { DangerDecision } from './danger.js';
 // undo.tsx — すぐ実行した操作の取り戻し方を、その場に 1 行で示す (d-79e3 の A,
 // d-021e). ④ の持ち物の置き場所で、保存していない編集の「元に戻す」が最初の
 // 利用者になる。1 つだけ覚え、新しければ置き換える。
@@ -5,11 +6,12 @@
 // 知らせの置き場が描き直しで消えたら（欄や行が作り直されたとき）、帯の下の
 // 同じ入れ物へ移す。置き場があるうちは押した場所のまま（d-2cb2）。
 import type { JSX } from 'preact';
-import { render, signal } from './preact.js';
+import { render, signal, computed } from './preact.js';
 import { undoFallback } from './dialogs.js';
 
 export type Undoable = { said: string; restore: () => void | Promise<string | null> };
-export const undo = signal<Undoable | null>(null);
+const currentUndo = signal<Undoable | null>(null);
+export const undo = computed(() => currentUndo.value ? Object.freeze({ said: currentUndo.value.said }) : null);
 let hostEl: HTMLElement | null = null;
 // watch looks at the sheet's own drawings while a notice stands: when the host
 // is taken away, the notice moves to the shared place below the band.
@@ -29,8 +31,8 @@ function place(host: HTMLElement): HTMLElement {
 }
 // offerUndo shows the one notice in the field that was pressed (d-021e): the
 // caller hands the element the 元に戻す stands in, and the notice is drawn there.
-export function offerUndo(one: Undoable, host?: HTMLElement | null): void {
-  undo.value = one;
+export function offerUndo(_decision: DangerDecision, one: Undoable, host?: HTMLElement | null): void {
+  currentUndo.value = one;
   stopWatch();
   if (hostEl) { render(null, hostEl); hostEl.remove(); hostEl = null; }
   if (!host) return;
@@ -49,9 +51,9 @@ export function offerUndo(one: Undoable, host?: HTMLElement | null): void {
 // through): the notice then says why it could not go back, instead of closing
 // as though it had (r-ccf8, d-2cce).
 export function takeUndo(): void {
-  const one = undo.value;
+  const one = currentUndo.value;
   if (!one) return;
-  undo.value = null;
+  currentUndo.value = null;
   stopWatch();
   const host = hostEl;
   const done = one.restore();
@@ -77,8 +79,8 @@ export function dropUndo(): void {
   stopWatch();
   if (host) { render(null, host); host.remove(); }
 }
-export function UndoNotice(): JSX.Element | null {
-  const one = undo.value;
+function UndoNotice(): JSX.Element | null {
+  const one = currentUndo.value;
   if (!one) return null;
   return <div class="undo" role="status"><span>{one.said}</span><button type="button" class="btn sm" onClick={takeUndo}>取り消す</button></div>;
 }

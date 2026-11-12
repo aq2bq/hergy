@@ -10,6 +10,9 @@
 import {
   y
 } from "./nav-zn7g81kr.js";
+import {
+  mark
+} from "./nav-ncqt2ghs.js";
 
 // lib/resource.ts
 function resource(load) {
@@ -25,17 +28,21 @@ function resource(load) {
     loading.value = true;
     error.value = null;
     try {
+      mark("resource:start");
       const next = await load(mine.stop.signal, ...args);
+      mark("resource:response", { aborted: mine.stop.signal.aborted });
       if (mine.stop.signal.aborted)
         return;
       value.value = next;
       return next;
     } catch (e) {
+      mark("resource:error", { aborted: mine.stop.signal.aborted });
       if (mine.stop.signal.aborted)
         return;
       error.value = e;
       return;
     } finally {
+      mark("resource:end");
       if (inflight === mine) {
         inflight = null;
         loading.value = false;
