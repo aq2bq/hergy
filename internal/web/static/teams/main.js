@@ -8,6 +8,10 @@
 // tools/webvendor/package.json and bun.lock.
 
 import {
+  movePage,
+  installWheel
+} from "../chunk/nav-9pzbh62h.js";
+import {
   S,
   R,
   d,
@@ -25,8 +29,9 @@ import {
   dropUndo,
   dangerAttrs,
   runDanger
-} from "../chunk/nav-pfvc24x1.js";
+} from "../chunk/nav-1dnphn3q.js";
 import {
+  term,
   call2,
   readPromptComparison2,
   read2,
@@ -36,12 +41,24 @@ import {
   saved2,
   bases2,
   problemText2
-} from "../chunk/nav-ncqt2ghs.js";
+} from "../chunk/nav-4q8266gs.js";
 import {
   carryTo2,
   takeDraft2,
   setDirty2
-} from "../chunk/nav-bsvbpa2b.js";
+} from "../chunk/nav-9n0fqd7r.js";
+import {
+  ConflictNotice,
+  roleProblems,
+  resourceIdentity,
+  editYaml,
+  editRole,
+  teamActions,
+  teamDocument,
+  editTeam,
+  restoreTeam,
+  YamlTab2
+} from "../chunk/nav-efmr64nf.js";
 import {
   num,
   documents,
@@ -57,7 +74,7 @@ import {
   Counts2,
   Vm2,
   RuleDoc2
-} from "../chunk/nav-6kxs92mx.js";
+} from "../chunk/nav-cgyn1dgv.js";
 import {
   rowAddress,
   token2,
@@ -65,42 +82,26 @@ import {
   readOpen2,
   writeOpen2,
   rowsFor
-} from "../chunk/nav-nmj3geqx.js";
-import {
-  ConflictNotice,
-  roleProblems,
-  resourceIdentity,
-  editYaml,
-  editRole,
-  teamActions,
-  teamDocument,
-  editTeam,
-  restoreTeam,
-  YamlTab2
-} from "../chunk/nav-hvx192pf.js";
+} from "../chunk/nav-ctrsx4mj.js";
 import {
   st,
   projectName2
-} from "../chunk/nav-pvgkc05c.js";
+} from "../chunk/nav-gh2djj24.js";
 import {
   RunCell2
-} from "../chunk/nav-9wayq1az.js";
+} from "../chunk/nav-dsra0337.js";
 import {
   copyGroupOf,
   groupPlace,
   projectOfGroup,
   ProjectView
-} from "../chunk/nav-k6cajr7a.js";
+} from "../chunk/nav-pmxmg887.js";
 import {
   Field
 } from "../chunk/nav-9htrbyn7.js";
 import {
-  movePage,
-  installWheel
-} from "../chunk/nav-31sebn46.js";
-import {
   resource
-} from "../chunk/nav-pxepfcmw.js";
+} from "../chunk/nav-apgb46t2.js";
 
 // teams/selection-table.ts
 var SIDE_RULES = [
@@ -207,7 +208,7 @@ function showOnly(uid, name) {
 function teamTransfer(r) {
   return {
     id: documentID("team", r.name.value, r.place.value, projectOfGroup(groupOfRecord(r)) || CURRENT),
-    label: `チーム定義 ${r.name.value}（${r.place.value === "global" ? "グローバル" : placeGroups().find((g) => g.key === groupOfRecord(r))?.name || currentProjectName() || CURRENT}）`,
+    label: `${term("team-definition")} ${r.name.value}（${r.place.value === "global" ? term("global") : placeGroups().find((g) => g.key === groupOfRecord(r))?.name || currentProjectName() || CURRENT}）`,
     text: () => r.agreeDraft.value.text,
     set: (text) => {
       r.editing.agreement.change({ ...r.agreeDraft.value, text, title: title(text) });
@@ -224,7 +225,7 @@ function teamTransfer(r) {
 async function transferTargets() {
   const out = recs.value.filter((r) => !r.draftRow).map((r) => {
     const doc = teamTransfer(r);
-    return { id: doc.id, label: doc.label, kind: "team", group: r.place.value === "global" ? "グローバル" : placeGroups().find((g) => g.key === groupOfRecord(r))?.name || currentProjectName(), otherProject: r.place.value !== "global" && (projectOfGroup(groupOfRecord(r)) || CURRENT) !== CURRENT, load: async () => doc };
+    return { id: doc.id, label: doc.label, kind: "team", group: r.place.value === "global" ? term("global") : placeGroups().find((g) => g.key === groupOfRecord(r))?.name || currentProjectName(), otherProject: r.place.value !== "global" && (projectOfGroup(groupOfRecord(r)) || CURRENT) !== CURRENT, load: async () => doc };
   });
   const groups = await hqList2("roles");
   for (const group of groups.groups)
@@ -236,8 +237,8 @@ async function transferTargets() {
         const id = documentID("role", item.name, place, project);
         if (out.some((x) => x.id === id))
           continue;
-        const label = `ロール ${item.name}（${place === "global" ? "グローバル" : group.project?.name || project}）`;
-        out.push({ id, label, kind: "role", group: place === "global" ? "グローバル" : group.project?.name || project, otherProject: place !== "global" && project !== CURRENT, load: async () => {
+        const label = `${term("role")} ${item.name}（${place === "global" ? term("global") : group.project?.name || project}）`;
+        out.push({ id, label, kind: "role", group: place === "global" ? term("global") : group.project?.name || project, otherProject: place !== "global" && project !== CURRENT, load: async () => {
           const held = documents.get(id);
           if (held)
             return held;
@@ -248,7 +249,7 @@ async function transferTargets() {
             const query = new URLSearchParams({ context: place, project });
             const context = await read2(`/api/role/${encodeURIComponent(item.name)}/context?${query}`);
             if (context.state !== "readable" || context.place !== place || context.errors.length)
-              throw new Error(context.problem || context.errors.join("、") || "ロールの保存先と使用先を確認できませんでした");
+              throw new Error(context.problem || context.errors.join("、") || `${term("role")}の保存先と使用先を確認できませんでした`);
             try {
               const answer = await editing.save();
               if (!answer?.json) {
@@ -258,7 +259,7 @@ async function transferTargets() {
               }
               saved2();
             } catch (err) {
-              throw new Error(problemText2(err, "ロールを保存できませんでした"));
+              throw new Error(problemText2(err, `${term("role")}を保存できませんでした`));
             }
             refreshAfterRoleSave().catch(() => {});
             return true;
@@ -273,7 +274,7 @@ async function transferTargets() {
 // teams/role-modal.tsx
 var ids = 1e6;
 var focusTarget = y("");
-function RoleButton({ r, name, children = "ロールを確認・編集" }) {
+function RoleButton({ r, name, children = `${term("role")}を確認・編集` }) {
   return /* @__PURE__ */ u("button", {
     class: "btn sm",
     type: "button",
@@ -416,7 +417,7 @@ function Editor({ session, onScanned, visible }) {
       model.error.value = "保存しましたが、文書の再検査に失敗しました。";
     }
     refreshAfterRoleSave().catch(() => {
-      model.error.value = "保存しましたが、チーム定義を再検査できませんでした。";
+      model.error.value = `保存しましたが、${term("team-definition")}を再検査できませんでした。`;
     });
     return true;
   }
@@ -455,14 +456,14 @@ function Editor({ session, onScanned, visible }) {
     }
     event.preventDefault();
     const href = event.currentTarget.href;
-    askDiscard("ロールに保存していない変更があります。変更を破棄して閉じますか？", "破棄して閉じる", () => {
+    askDiscard(`${term("role")}に保存していない変更があります。変更を破棄して閉じますか？`, "破棄して閉じる", () => {
       carryTo2("roles", model.project);
       location.assign(href);
     });
   }
   const transfer = e && ctx?.state === "readable" ? {
     id: documentID("role", session.name, ctx.place, model.project || CURRENT),
-    label: `ロール ${session.name}（${ctx.place === "global" ? "グローバル" : model.project || CURRENT}）`,
+    label: `${term("role")} ${session.name}（${ctx.place === "global" ? term("global") : model.project || CURRENT}）`,
     text: () => model.editor.value.read.value.draft.text,
     set: (text) => {
       const editor = model.editor.value;
@@ -475,11 +476,11 @@ function Editor({ session, onScanned, visible }) {
   if (transfer)
     documents.set(transfer.id, transfer);
   const heading = {
-    kind: "ロール",
+    kind: term("role"),
     name: session.name,
     title: e?.draft.title,
     id: `role-title-${session.id}`,
-    path: ctx ? `${ctx.place === "global" ? "グローバル" : "プロジェクト"} · roles/${session.name}.md` : "",
+    path: ctx ? `${ctx.place === "global" ? term("global") : term("project")} · roles/${session.name}.md` : "",
     members: session.r.draft.value.members.filter((m) => m.role === session.name).map((m) => m.name).join("、"),
     otherTeams: other.map((u2) => `${u2.project_name} ${u2.name}（${u2.members.join("、")}）`).join("、"),
     state: ctx?.state === "missing" ? "文書なし" : ctx?.state === "unreadable" ? "読み込み不可" : dirty() ? "未保存" : editor?.read.value.savedLine ? "保存しました" : "保存済み"
@@ -507,13 +508,13 @@ function Editor({ session, onScanned, visible }) {
                 children: [
                   /* @__PURE__ */ u("p", {
                     role: "alert",
-                    children: ctx?.problem || (model.context.loading.value ? "ロールの文書を読んでいます。" : "ロールの文書を読み込めませんでした。")
+                    children: ctx?.problem || (model.context.loading.value ? `${term("role-document")}を読んでいます。` : `${term("role-document")}を読み込めませんでした。`)
                   }),
                   ctx?.state === "missing" ? /* @__PURE__ */ u("a", {
                     class: "btn",
                     href: `/roles?${query}`,
                     onClick: leave,
-                    children: "ロールの画面で作る"
+                    children: `${term("role")}の画面で作る`
                   }) : null
                 ]
               })
@@ -525,15 +526,15 @@ function Editor({ session, onScanned, visible }) {
           })),
           model.context.error.value ? /* @__PURE__ */ u("p", {
             role: "alert",
-            children: problemText2(model.context.error.value, "ロールと使用先を読み込めませんでした")
+            children: problemText2(model.context.error.value, `${term("role")}と使用先を読み込めませんでした`)
           }) : null,
           model.context.loading.value ? /* @__PURE__ */ u("p", {
             role: "status",
-            children: "ロールと使用先を読んでいます。"
+            children: `${term("role")}と使用先を読んでいます。`
           }) : null,
           model.target.value && ctx && model.target.value.path !== ctx.path ? /* @__PURE__ */ u("p", {
             role: "alert",
-            children: "使われるロールの置き場所が変わりました。ファイルからリロードしてください。"
+            children: `使われる${term("role")}の${term("place")}が変わりました。ファイルからリロードしてください。`
           }) : null,
           e && ctx?.state === "readable" ? /* @__PURE__ */ u("fieldset", {
             disabled: saving() || !model.ready.value,
@@ -573,7 +574,7 @@ function Editor({ session, onScanned, visible }) {
           })),
           editor?.checkingError.value ? /* @__PURE__ */ u("p", {
             role: "alert",
-            children: problemText2(editor.checkingError.value, "ロールを検査できませんでした")
+            children: problemText2(editor.checkingError.value, `${term("role")}を検査できませんでした`)
           }) : null,
           editor?.read.value.refusal ? /* @__PURE__ */ u("p", {
             role: "alert",
@@ -602,8 +603,8 @@ function Editor({ session, onScanned, visible }) {
             children: [
               /* @__PURE__ */ u("a", {
                 class: "btn sm",
-                title: "ロールの画面で開く",
-                "aria-label": "ロールの画面で開く",
+                title: `${term("role")}の画面で開く`,
+                "aria-label": `${term("role")}の画面で開く`,
                 href: `/roles?${query}`,
                 onClick: leave,
                 children: [
@@ -615,7 +616,7 @@ function Editor({ session, onScanned, visible }) {
                     })
                   }),
                   /* @__PURE__ */ u("span", {
-                    children: "ロールの画面で開く"
+                    children: `${term("role")}の画面で開く`
                   })
                 ]
               }),
@@ -655,7 +656,7 @@ function boxOf(id, t) {
     return { w: 76, h: 36 };
   const w = (t.workers || []).find((_worker, i) => "w" + i === id);
   if (w)
-    return { w: Math.max(108, textW(w.purpose || "（目的）") + 26), h: 40 };
+    return { w: Math.max(108, textW(w.purpose || `（${term("purpose")}）`) + 26), h: 40 };
   return { w: Math.max(96, textW(id, true) + 30), h: 46 };
 }
 var GAP = 10;
@@ -785,7 +786,7 @@ var view = document.getElementById("view");
 var tabsEl = document.getElementById("tabs");
 var DATA = JSON.parse((document.getElementById("teams-data") || {}).textContent || "{}");
 var PLACES = ["project", "global"];
-var PLACE = { project: "プロジェクト", global: "グローバル" };
+var PLACE = { project: term("project"), global: term("global") };
 var DIR = DATA.dirs || { project: "", global: "" };
 var PROFILES = DATA.profiles || [];
 var HQ = DATA.hq || null;
@@ -799,14 +800,14 @@ var placeGroups = () => {
     });
   }
   return [
-    { key: "", global: false, name: currentProjectName() || "プロジェクト", display: DIR.project, count: 0 },
-    { key: "global", global: true, name: "グローバル", display: DIR.global, count: 0 }
+    { key: "", global: false, name: currentProjectName() || term("project"), display: DIR.project, count: 0 },
+    { key: "global", global: true, name: term("global"), display: DIR.global, count: 0 }
   ];
 };
 var CURRENT = HQ && HQ.projects && HQ.projects.current ? HQ.projects.current.path || "" : "";
 var rowsIn = (g) => g.list && g.list.items || [];
 var groupKeyOf = (g) => g.global ? "global" : g.project ? g.project.path : "";
-var groupNameOf = (g) => g.global ? "グローバル" : g.project ? g.project.name || "" : "";
+var groupNameOf = (g) => g.global ? term("global") : g.project ? g.project.name || "" : "";
 if (HQ)
   document.body.classList.add("hq-teams");
 var ROLES_BY = {};
@@ -832,7 +833,7 @@ var rolesCame = () => {
 };
 var LIST = DATA.team || { items: [], files: [] };
 var $ = (s, root = document) => root.querySelector(s);
-var nodeName = (x) => x === "human" ? "人間" : x;
+var nodeName = (x) => x === "human" ? term("human") : x;
 var other = (p) => p === "project" ? "global" : "project";
 var hasTurn = (t, a, b) => t.turns.some(([p, q]) => p === a && q === b);
 var memberOf = (t, n) => (t.members || []).find((m) => m.name === n);
@@ -876,7 +877,7 @@ var okOf = (key) => {
   const r = recs.value.find((r) => key.slice(1) === dkey(r));
   return !!r && editorOf(r, key[0]).read.value.savedLine;
 };
-var refusalOf = (r, which) => editorOf(r, which).read.value.refusal || (r.draftRow && !r.seeded.value && r.editing.team.checkingError.value ? problemText2(r.editing.team.checkingError.value, "元にしたチーム定義を読めませんでした") : "");
+var refusalOf = (r, which) => editorOf(r, which).read.value.refusal || (r.draftRow && !r.seeded.value && r.editing.team.checkingError.value ? problemText2(r.editing.team.checkingError.value, `元にした${term("team-definition")}を読めませんでした`) : "");
 var conflictAt = (r, which) => editorOf(r, which).read.value.conflict;
 var setDtab = (dom, t) => {
   put({ dtab: { ...state.value.dtab, [dom]: t } });
@@ -1214,7 +1215,7 @@ var vlistParts = (r) => {
   const own = issues.filter((m) => !m.role);
   const purposeOf = (i) => {
     const w = r.draft.value.workers[i];
-    return w && w.purpose || "ワーカー";
+    return w && w.purpose || term("worker");
   };
   const where = (m) => {
     if (m.node)
@@ -1222,9 +1223,9 @@ var vlistParts = (r) => {
     if (m.worker != null && m.worker >= 0)
       return purposeOf(m.worker);
     if (m.field === "description")
-      return "説明";
+      return term("description");
     if (m.field === "name")
-      return "チーム定義名";
+      return term("team-definition-name");
     return "";
   };
   const file = (m) => m.role + ".md";
@@ -1267,7 +1268,7 @@ async function refreshAfterRoleSave() {
   await Promise.all(recs.value.map(async (r) => {
     await r.editing.refresh();
     if (r.editing.team.checkingError.value || r.editing.agreement.checkingError.value)
-      throw new Error("ロールは保存しましたが、チーム定義を再検査できませんでした。文書を読み直してください");
+      throw new Error(`${term("role")}は保存しましたが、${term("team-definition")}を再検査できませんでした。文書を読み直してください`);
   }));
   const roleList = await list2("role");
   ROLES.value = (roleList.items || []).map((item) => {
@@ -1382,7 +1383,7 @@ async function renamed(r, name, json) {
   recs.value = recs.value.filter((x) => x !== r);
   const item = (json.items || []).find((x) => x.name === name);
   if (!item)
-    throw new Error("保存したチーム定義を読めませんでした。画面を読み直してください");
+    throw new Error(`保存した${term("team-definition")}を読めませんでした。画面を読み直してください`);
   const next = defOf(itemInGroup(item, group), group);
   next.renameNotes.value = json.rename?.notes || [];
   if (GROUPS) {
@@ -1397,7 +1398,7 @@ async function renamed(r, name, json) {
       }
       put({});
     } catch {
-      next.renameNotes.value = [...next.renameNotes.value, "置き場所の表示を更新できませんでした。画面を読み直してください"];
+      next.renameNotes.value = [...next.renameNotes.value, `${term("place")}の表示を更新できませんでした。画面を読み直してください`];
     }
   }
   orderRows(next, at);
@@ -1473,7 +1474,7 @@ function canvasTyping(r, op, field) {
   r.lastAct.value = ++actSeq;
   clearOk(r);
   if (ctyping.key !== k || ctyping.field !== field) {
-    const label = { description: "説明を戻しました", "m-name": "メンバー名を戻しました", "w-purpose": "目的を戻しました" }[field] || "元に戻しました";
+    const label = { description: `${term("description")}を戻しました`, "m-name": `${term("member-name")}を戻しました`, "w-purpose": `${term("purpose")}を戻しました` }[field] || "元に戻しました";
     canvasUndoPoint(r, label);
     ctyping = { key: k, field };
   }
@@ -1585,7 +1586,7 @@ function pressYfile(file) {
   put({ yfile: file });
   syncURL();
 }
-var teamLabel = (r) => r.name.value || "新しいチーム定義";
+var teamLabel = (r) => r.name.value || `新しい${term("team-definition")}`;
 var currentProjectName = () => {
   const p = HQ && HQ.projects || null;
   return p && p.current && p.current.name || "";
@@ -2367,7 +2368,7 @@ function Figure({ r }) {
           "data-cv-e": k,
           tabindex: 0,
           role: "button",
-          "aria-label": `${nodeName(a)} と ${nodeName(b)} のターン`
+          "aria-label": `${nodeName(a)} と ${nodeName(b)} の${term("turn")}`
         }),
         /* @__PURE__ */ u("path", {
           class: "cv-e" + (isNew ? " new" : "") + (selE === k ? " sel" : "") + (r.flash.value === k ? " cv-flash" : ""),
@@ -2421,7 +2422,7 @@ function Figure({ r }) {
         transform: `translate(${x.toFixed(1)},${y.toFixed(1)})`,
         tabindex: 0,
         role: "button",
-        "aria-label": "人間",
+        "aria-label": term("human"),
         children: [
           /* @__PURE__ */ u("rect", {
             x: -b.w / 2,
@@ -2435,7 +2436,7 @@ function Figure({ r }) {
             x: 0,
             y: 5,
             "text-anchor": "middle",
-            children: "人間"
+            children: term("human")
           }),
           is.length ? /* @__PURE__ */ u(Bdg, {
             m: is[0],
@@ -2491,7 +2492,7 @@ function Figure({ r }) {
       transform: `translate(${x.toFixed(1)},${y.toFixed(1)})`,
       tabindex: 0,
       role: "button",
-      "aria-label": `${w.from} の ${w.purpose || "（目的）"}`,
+      "aria-label": `${w.from} の ${w.purpose || `（${term("purpose")}）`}`,
       children: [
         /* @__PURE__ */ u("rect", {
           x: -b.w / 2,
@@ -2505,7 +2506,7 @@ function Figure({ r }) {
           x: 0,
           y: -2,
           "text-anchor": "middle",
-          children: w.purpose || "（目的）"
+          children: w.purpose || `（${term("purpose")}）`
         }),
         /* @__PURE__ */ u("text", {
           class: "rl",
@@ -2532,7 +2533,7 @@ function Figure({ r }) {
       r: 6,
       "data-cv-h": sel.id,
       children: /* @__PURE__ */ u("title", {
-        children: "引いて、ターンを渡す相手につなぐ"
+        children: `引いて、${term("hands-the-turn-to")}相手につなぐ`
       })
     }));
   }
@@ -2610,7 +2611,7 @@ function Menu({ r }) {
   return /* @__PURE__ */ u("div", {
     class: "cv-menu",
     role: "menu",
-    "aria-label": m.workersOnly ? "ワーカーを足す" : "ここに足す",
+    "aria-label": m.workersOnly ? `${term("worker")}を足す` : "ここに足す",
     ref: box,
     style: { left: `${m.x}px`, top: `${m.y}px` },
     children: [
@@ -2619,11 +2620,11 @@ function Menu({ r }) {
         role: "menuitem",
         "data-cv-act": "menu-m",
         disabled: !rolesIn(),
-        children: "メンバーを足す"
+        children: `${term("member")}を足す`
       }),
       /* @__PURE__ */ u("div", {
         class: "cv-mh" + (m.workersOnly ? " cv-mh0" : ""),
-        children: "ワーカーを足す（どのメンバーの？）"
+        children: `${term("worker")}を足す（どの${term("member")}の？）`
       }),
       /* @__PURE__ */ u("div", {
         class: "cv-mw",
@@ -2675,7 +2676,7 @@ function turnRows(changes, id, dir) {
         ...dangerAttrs("removeTurn"),
         "data-a": a,
         "data-b": b,
-        "aria-label": `${nodeName(a)} から ${nodeName(b)} へのターンを外す`,
+        "aria-label": `${nodeName(a)} から ${nodeName(b)} への${term("turn")}を外す`,
         title: "外す",
         children: "×"
       })
@@ -2711,9 +2712,9 @@ function memberMsgs(r, t, m) {
   if (!NAME.test(m.name))
     msgs.push("英小文字で始め、英小文字・数字・ハイフン・下線で 32 文字以内にしてください");
   if (t.members.filter((x) => x.name === m.name).length > 1)
-    msgs.push("このチームにもういます");
+    msgs.push(`この${term("team")}にもういます`);
   if (`${r.name.value}-${m.name}`.length > 32)
-    msgs.push(`herdr 名 ${r.name.value}-${m.name} が 32 文字を超えます`);
+    msgs.push(`${term("herdr-name")} ${r.name.value}-${m.name} が 32 文字を超えます`);
   return msgs;
 }
 function SideAttr({ r }) {
@@ -2730,7 +2731,7 @@ function SideAttr({ r }) {
             }),
             /* @__PURE__ */ u("span", {
               class: "cv-k",
-              children: "チーム定義"
+              children: term("team-definition")
             })
           ]
         }),
@@ -2739,7 +2740,7 @@ function SideAttr({ r }) {
           children: [
             /* @__PURE__ */ u("label", {
               for: `cv-mi-${r.uid}`,
-              children: "説明"
+              children: term("description")
             }),
             /* @__PURE__ */ u(Field, {
               id: `cv-mi-${r.uid}`,
@@ -2754,17 +2755,17 @@ function SideAttr({ r }) {
         /* @__PURE__ */ u("div", {
           class: "cv-note",
           children: [
-            "メンバー ",
+            `${term("member")} `,
             t.members.length,
-            " · ワーカー ",
+            ` · ${term("worker")} `,
             t.workers.length,
-            " · ターン ",
+            ` · ${term("turn")} `,
             t.turns.length
           ]
         }),
         humanIn ? "" : /* @__PURE__ */ u("div", {
           class: "cv-warn",
-          children: "人間に届くターンがありません。人間の点の縁の丸から、または人間へ渡すメンバーの縁の丸から、線を引いてください"
+          children: `${term("human")}に届く${term("turn")}がありません。${term("human")}の点の縁の丸から、または${term("human")}へ渡す${term("member")}の縁の丸から、線を引いてください`
         }),
         d.length ? /* @__PURE__ */ u("div", {
           class: "cv-sec",
@@ -2798,7 +2799,7 @@ function SideAttr({ r }) {
             /* @__PURE__ */ u("span", {
               class: "cv-note",
               children: [
-                "点や線を押すと、ここにその属性が出る。選んだ点の縁の丸から、ほかの点へ引くとターンができる。",
+                `点や線を押すと、ここにその属性が出る。選んだ点の縁の丸から、ほかの点へ引くと${term("turn")}ができる。`,
                 /* @__PURE__ */ u("span", {
                   class: "cv-kbd",
                   children: "Delete"
@@ -2813,7 +2814,7 @@ function SideAttr({ r }) {
                   class: "cv-kbd",
                   children: "⌘Z"
                 }),
-                " で 1 つ取り消す。"
+                ` で 1 つ${term("undo")}。`
               ]
             })
           ]
@@ -2876,7 +2877,7 @@ function SideAttr({ r }) {
             }),
             /* @__PURE__ */ u("span", {
               class: "cv-k",
-              children: "ターン"
+              children: term("turn")
             })
           ]
         }),
@@ -2915,11 +2916,11 @@ function SideAttr({ r }) {
           class: "cv-t",
           children: [
             /* @__PURE__ */ u("code", {
-              children: w.purpose || "（目的）"
+              children: w.purpose || `（${term("purpose")}）`
             }),
             /* @__PURE__ */ u("span", {
               class: "cv-k",
-              children: "ワーカー"
+              children: term("worker")
             })
           ]
         }),
@@ -2928,7 +2929,7 @@ function SideAttr({ r }) {
           children: [
             /* @__PURE__ */ u("label", {
               for: `cv-wp-${r.uid}`,
-              children: "目的"
+              children: term("purpose")
             }),
             /* @__PURE__ */ u(Field, {
               id: `cv-wp-${r.uid}`,
@@ -2945,7 +2946,7 @@ function SideAttr({ r }) {
           children: [
             /* @__PURE__ */ u("label", {
               for: `cv-wf-${r.uid}`,
-              children: "追加するメンバー"
+              children: `追加する${term("member")}`
             }),
             /* @__PURE__ */ u("span", {
               class: "sel",
@@ -2966,7 +2967,7 @@ function SideAttr({ r }) {
           children: [
             /* @__PURE__ */ u("label", {
               for: `cv-wpf-${r.uid}`,
-              children: "プロファイル"
+              children: term("profile")
             }),
             /* @__PURE__ */ u("span", {
               class: "sel",
@@ -2982,7 +2983,7 @@ function SideAttr({ r }) {
             }),
             /* @__PURE__ */ u("span", {
               class: "cv-sub",
-              children: "ワーカーは規則を受けない。安いプロファイルで"
+              children: `${term("worker")}は${term("rule")}を受けない。安い${term("profile")}で`
             })
           ]
         }),
@@ -2991,7 +2992,7 @@ function SideAttr({ r }) {
           type: "button",
           "data-cv-act": "del",
           ...dangerAttrs("removeWorker"),
-          children: "ワーカーを外す"
+          children: `${term("worker")}を外す`
         })
       ]
     });
@@ -3004,11 +3005,11 @@ function SideAttr({ r }) {
           class: "cv-t",
           children: [
             /* @__PURE__ */ u("code", {
-              children: "人間"
+              children: term("human")
             }),
             /* @__PURE__ */ u("span", {
               class: "cv-k",
-              children: "あなた。チームに 1 人だけで、外せない"
+              children: `あなた。${term("team")}に 1 人だけで、外せない`
             })
           ]
         }),
@@ -3017,7 +3018,7 @@ function SideAttr({ r }) {
           children: [
             /* @__PURE__ */ u("span", {
               class: "cv-sl",
-              children: "ターンを渡す相手"
+              children: `${term("hands-the-turn-to")}相手`
             }),
             turnRows(changes, id, "out"),
             addTurnSel(t, id)
@@ -3028,7 +3029,7 @@ function SideAttr({ r }) {
           children: [
             /* @__PURE__ */ u("span", {
               class: "cv-sl",
-              children: "ターンを受け取る相手"
+              children: `${term("turn")}を受け取る相手`
             }),
             turnRows(changes, id, "in")
           ]
@@ -3057,7 +3058,7 @@ function SideAttr({ r }) {
           /* @__PURE__ */ u("span", {
             class: "cv-k",
             children: [
-              "メンバー",
+              term("member"),
               role && role.title ? ` · ${role.title}` : ""
             ]
           })
@@ -3068,7 +3069,7 @@ function SideAttr({ r }) {
         children: [
           /* @__PURE__ */ u("label", {
             for: `cv-mn-${r.uid}`,
-            children: "メンバー名"
+            children: term("member-name")
           }),
           /* @__PURE__ */ u(Field, {
             id: `cv-mn-${r.uid}`,
@@ -3084,7 +3085,7 @@ function SideAttr({ r }) {
           /* @__PURE__ */ u("span", {
             class: "cv-sub",
             children: [
-              "herdr 名 ",
+              `${term("herdr-name")} `,
               `${team}-${m.name}`
             ]
           })
@@ -3095,7 +3096,7 @@ function SideAttr({ r }) {
         children: [
           /* @__PURE__ */ u("label", {
             for: `cv-mr-${r.uid}`,
-            children: "ロール"
+            children: term("role")
           }),
           /* @__PURE__ */ u("span", {
             class: "sel",
@@ -3107,7 +3108,7 @@ function SideAttr({ r }) {
                   value: "",
                   disabled: true,
                   selected: true,
-                  children: "ロールを選ぶ"
+                  children: `${term("role")}を選ぶ`
                 }),
                 (rolesFor(r) || []).map((x) => /* @__PURE__ */ u(Opt, {
                   v: x.name,
@@ -3131,7 +3132,7 @@ function SideAttr({ r }) {
         children: [
           /* @__PURE__ */ u("label", {
             for: `cv-mp-${r.uid}`,
-            children: "プロファイル"
+            children: term("profile")
           }),
           /* @__PURE__ */ u("span", {
             class: "sel",
@@ -3143,7 +3144,7 @@ function SideAttr({ r }) {
                   value: "",
                   disabled: true,
                   selected: true,
-                  children: "プロファイルを選ぶ"
+                  children: `${term("profile")}を選ぶ`
                 }),
                 profilesFor(r).map((p) => /* @__PURE__ */ u(Opt, {
                   v: p,
@@ -3160,12 +3161,12 @@ function SideAttr({ r }) {
         children: [
           /* @__PURE__ */ u("span", {
             class: "cv-sl",
-            children: "ターンを渡す相手"
+            children: `${term("hands-the-turn-to")}相手`
           }),
           turnRows(changes, id, "out"),
           outs.length ? "" : /* @__PURE__ */ u("span", {
             class: "cv-note",
-            children: "まだ誰にもターンを渡していません。縁の丸から、渡す相手の点へ引いてください"
+            children: `まだ誰にも${term("turn")}を渡していません。縁の丸から、渡す相手の点へ引いてください`
           }),
           addTurnSel(t, id)
         ]
@@ -3175,7 +3176,7 @@ function SideAttr({ r }) {
         children: [
           /* @__PURE__ */ u("span", {
             class: "cv-sl",
-            children: "ターンを受け取る相手"
+            children: `${term("turn")}を受け取る相手`
           }),
           turnRows(changes, id, "in")
         ]
@@ -3185,13 +3186,13 @@ function SideAttr({ r }) {
         children: [
           /* @__PURE__ */ u("span", {
             class: "cv-sl",
-            children: "ワーカー"
+            children: term("worker")
           }),
           ws.length ? ws.map(({ w, i }) => /* @__PURE__ */ u("div", {
             class: "cv-li" + (changes.workers[i]?.added ? " new" : ""),
             children: [
               /* @__PURE__ */ u("span", {
-                children: `${w.purpose || "（目的）"} · ${w.profile}`
+                children: `${w.purpose || `（${term("purpose")}）`} · ${w.profile}`
               }),
               /* @__PURE__ */ u("span", {
                 class: "cv-liend",
@@ -3224,7 +3225,7 @@ function SideAttr({ r }) {
             class: "btn sm cv-danger",
             type: "button",
             "data-cv-act": "w-add",
-            children: "＋ ワーカー"
+            children: `＋ ${term("worker")}`
           })
         ]
       }),
@@ -3239,7 +3240,7 @@ function SideAttr({ r }) {
           }),
           /* @__PURE__ */ u("span", {
             class: "cv-note",
-            children: "同じロール・プロファイル・ターンの相手・ワーカーの目的で、もう 1 人足す"
+            children: `同じ${term("role")}・${term("profile")}・${term("turn")}の相手・${term("worker")}の${term("purpose")}で、もう 1 人足す`
           })
         ]
       }),
@@ -3251,14 +3252,14 @@ function SideAttr({ r }) {
             type: "button",
             "data-cv-act": "del",
             ...dangerAttrs("removeMember"),
-            children: "メンバーを外す"
+            children: `${term("member")}を外す`
           }),
           /* @__PURE__ */ u("span", {
             class: "cv-note",
             children: [
-              "ターン ",
+              `${term("turn")} `,
               nt,
-              " 本とワーカー ",
+              ` 本と${term("worker")} `,
               ws.length,
               " 件も一緒に外れる。",
               /* @__PURE__ */ u("span", {
@@ -3278,16 +3279,16 @@ function SideAttr({ r }) {
 var topologySections = [
   ["roster", "名簿"],
   ["herdr", "連絡"],
-  ["turns", "ターンを渡す相手"],
-  ["workers", "ワーカーの追加"]
+  ["turns", `${term("hands-the-turn-to")}相手`],
+  ["workers", `${term("worker")}の追加`]
 ];
 var labels = {
   roster: "名簿",
   herdr: "連絡",
-  turns: "ターン",
-  workers: "ワーカー",
-  role_doc: "ロールの規則",
-  team_rules: "チームの規則"
+  turns: term("turn"),
+  workers: term("worker"),
+  role_doc: `${term("role")}の${term("rule")}`,
+  team_rules: term("team-agreement")
 };
 function originLines(text, segments) {
   if (segments.map((segment) => segment.text).join("") !== text)
@@ -3329,8 +3330,8 @@ function OriginMarks({ segments }) {
   return /* @__PURE__ */ u("span", {
     class: "prompt-origins",
     children: segments.map((segment) => {
-      const group = segment.kind === "role_doc" || segment.kind === "team_rules" ? "規則" : "トポロジー";
-      const place = segment.origin.place === "global" ? "グローバル" : segment.origin.place === "project" ? "プロジェクト" : "";
+      const group = segment.kind === "role_doc" || segment.kind === "team_rules" ? term("rule") : "トポロジー";
+      const place = segment.origin.place === "global" ? term("global") : segment.origin.place === "project" ? term("project") : "";
       const description = [group, labels[segment.kind], segment.origin.name, place, segment.origin.path].filter(Boolean).join(" · ");
       return /* @__PURE__ */ u("span", {
         class: "prompt-origin",
@@ -3346,8 +3347,8 @@ function OriginLegend({ diff }) {
   return /* @__PURE__ */ u("p", {
     class: "prompt-origin-legend",
     children: [
-      "トポロジー由来: 名簿・連絡・ターン・ワーカー ／ 規則: ロールの規則・チームの規則。",
-      diff && "印は今の文の由来。削除行の由来は記録にありません。",
+      `トポロジー${term("origin")}: 名簿・連絡・${term("turn")}・${term("worker")} ／ ${term("rule")}: ${term("role")}の${term("rule")}・${term("team-agreement")}。`,
+      diff && `印は今の文の${term("origin")}。削除行の${term("origin")}は記録にありません。`,
       "トポロジーの 4 節は、見出しから節の終わりまでを帯で示します。見出しがひな形の文字でも、印は付けません。"
     ]
   });
@@ -3358,7 +3359,7 @@ function CurrentPrompt({ text, lines }) {
       children: [
         /* @__PURE__ */ u("p", {
           role: "alert",
-          children: "本文と由来が一致しないため、印を表示できません。再取得してください。"
+          children: `本文と${term("origin")}が一致しないため、印を表示できません。再取得してください。`
         }),
         /* @__PURE__ */ u("pre", {
           class: "prompt-full",
@@ -3580,14 +3581,14 @@ function noteOf(answer, name, error) {
   if (!answer)
     return "";
   if (answer.status === "error")
-    return `${answer.reason || "チームの状態を読めませんでした"} そのため、定義名 ${name} で作っています。`;
+    return `${answer.reason || `${term("team")}の${term("status")}を読めませんでした`} そのため、定義名 ${name} で作っています。`;
   if (answer.selected)
-    return `実行中のチーム ${answer.team} の名前で作っています。`;
+    return `実行中の${term("team")} ${answer.team} の名前で作っています。`;
   const runs = answer.runs || [];
   if (runs.length > 1)
-    return `動いているチームが ${runs.length} つあるため、定義名 ${name} で作っています。全文と差分のパネルでチームを選ぶと、その名前で作ります。`;
+    return `動いている${term("team")}が ${runs.length} つあるため、定義名 ${name} で作っています。全文と差分のパネルで${term("team")}を選ぶと、その名前で作ります。`;
   if (runs.length === 0)
-    return `この定義から動いているチームが無いため、定義名 ${name} で作っています。`;
+    return `この定義から動いている${term("team")}が無いため、定義名 ${name} で作っています。`;
   return `定義名 ${name} で作っています。`;
 }
 
@@ -3655,7 +3656,7 @@ function PromptComparison({ r, member, close }) {
         children: [
           !!answer?.runs.length && /* @__PURE__ */ u("label", {
             children: [
-              "実行中のチーム ",
+              `実行中の${term("team")} `,
               /* @__PURE__ */ u("select", {
                 value: picked || answer.selected?.team || "",
                 onChange: (event) => {
@@ -3665,7 +3666,7 @@ function PromptComparison({ r, member, close }) {
                 children: [
                   /* @__PURE__ */ u("option", {
                     value: "",
-                    children: "チームを選ぶ"
+                    children: `${term("team")}を選ぶ`
                   }),
                   answer.runs.map((run) => /* @__PURE__ */ u("option", {
                     value: run.team,
@@ -3731,7 +3732,7 @@ function PromptComparison({ r, member, close }) {
                     ]
                   }),
                   /* @__PURE__ */ u("p", {
-                    children: "反映・送り直しの変更理由の前置きは記録に含まれません。送信後の記録であり、受信の確認ではありません。送信の途中や記録に失敗した場合は、実際の送信より古い記録です。"
+                    children: `${term("apply")}・${term("reprompt")}の変更理由の前置きは記録に含まれません。送信後の記録であり、受信の確認ではありません。送信の途中や記録に失敗した場合は、実際の送信より古い記録です。`
                   })
                 ]
               }),
@@ -3863,7 +3864,7 @@ function Difference({ answer, lines }) {
     children: [
       !lines && /* @__PURE__ */ u("p", {
         role: "alert",
-        children: "本文と由来が一致しないため、印を表示できません。再取得してください。"
+        children: `本文と${term("origin")}が一致しないため、印を表示できません。再取得してください。`
       }),
       answer.recorded.text === answer.current && /* @__PURE__ */ u("p", {
         children: "差はありません。"
@@ -3999,7 +4000,7 @@ function PLines({ lines, a, b, slot }) {
   }));
 }
 var prange = (a, b) => b - a > 1 ? `${a + 1}–${b}` : `${a + 1}`;
-var PROMPT_BLOCKED = "このチーム定義には問題があるので、hergy はプロンプトを組みません（hergy up も止まります）。下の設定の検査の欄の問題を直すと、ここに出ます。";
+var PROMPT_BLOCKED = `この${term("team-definition")}には問題があるので、hergy はプロンプトを組みません（hergy up も止まります）。下の${term("settings-check")}の欄の問題を直すと、ここに出ます。`;
 function MemberPrompt({ r, m }) {
   const [opened, setOpened] = d(false);
   const prompt = usePrompt(r, { member: m.name });
@@ -4010,7 +4011,7 @@ function MemberPrompt({ r, m }) {
     class: "cv-sec cv-prompt cv-topology-prompt",
     children: [
       /* @__PURE__ */ u("h3", {
-        children: "このメンバーにトポロジーから渡る文"
+        children: `この${term("member")}にトポロジーから渡る文`
       }),
       /* @__PURE__ */ u("button", {
         class: "btn sm cv-prompt-open",
@@ -4096,7 +4097,7 @@ function WorkerPromptSection({ r, w, i }) {
         }),
         /* @__PURE__ */ u("span", {
           class: "cv-note",
-          children: "目的を書くと、hire のときに渡る文が出ます。"
+          children: `${term("purpose")}を書くと、hire のときに渡る文が出ます。`
         })
       ]
     });
@@ -4130,7 +4131,7 @@ function WorkerPromptSection({ r, w, i }) {
           out.push(/* @__PURE__ */ u("span", {
             class: "cv-slot",
             "data-v": pv.name,
-            children: "<ワーカー名>"
+            children: `<${term("worker")}名>`
           }));
           s = s.slice(at + full.length);
         } else {
@@ -4163,7 +4164,7 @@ function WorkerPromptSection({ r, w, i }) {
                   children: [
                     "連絡のしかた",
                     /* @__PURE__ */ u("span", {
-                      children: " · hergy の決まった文 · どのワーカーでも同じ"
+                      children: ` · hergy の決まった文 · どの${term("worker")}でも同じ`
                     })
                   ]
                 }),
@@ -4212,7 +4213,7 @@ function WorkerPromptSection({ r, w, i }) {
               children: "報告"
             }),
             /* @__PURE__ */ u("span", {
-              children: "追加したメンバーへ"
+              children: `追加した${term("member")}へ`
             })
           ]
         });
@@ -4263,7 +4264,7 @@ function PromptView({ r }) {
   }
   return /* @__PURE__ */ u("p", {
     class: "cv-note cv-prompt-none",
-    children: "メンバーかワーカーを選ぶと、そのプロンプトがここに出ます。"
+    children: `${term("member")}か${term("worker")}を選ぶと、そのプロンプトがここに出ます。`
   });
 }
 
@@ -4319,8 +4320,8 @@ function addMember(r, at) {
     putPlace(r, name, at);
   select(r, { how: "field", what: { type: "node", id: name } });
   canvasAct(r, [teamActions.addMember(name, role, profile)], {
-    message: `メンバー ${name} を足しました。メンバー名・ロール・プロファイルを右で決める`,
-    undo: `メンバー ${name} を足したのを取り消しました`,
+    message: `${term("member")} ${name} を足しました。${term("member-name")}・${term("role")}・${term("profile")}を右で決める`,
+    undo: `${term("member")} ${name} を足したのを取り消しました`,
     focus: '[data-cv-f="m-name"]'
   });
 }
@@ -4340,7 +4341,7 @@ function copyMember(r) {
     return;
   const name = copyName(r, t, m);
   if (!name) {
-    canvasToast(r, `メンバー ${m.name} の複製に使える名前がありません（herdr 名が 32 文字を超えます）`, false);
+    canvasToast(r, `${term("member")} ${m.name} の複製に使える名前がありません（${term("herdr-name")}が 32 文字を超えます）`, false);
     return;
   }
   const ops = [teamActions.addMember(name, m.role, m.profile)];
@@ -4356,8 +4357,8 @@ function copyMember(r) {
   });
   select(r, { how: "field", what: { type: "node", id: name } });
   canvasAct(r, ops, {
-    message: `メンバー ${m.name} を複製しました（${name}）`,
-    undo: `メンバー ${m.name} の複製を取り消しました`,
+    message: `${term("member")} ${m.name} を複製しました（${name}）`,
+    undo: `${term("member")} ${m.name} の複製を取り消しました`,
     focus: '[data-cv-f="m-name"]'
   });
 }
@@ -4367,7 +4368,7 @@ function addWorker(r, from, at) {
   if (at)
     putPlace(r, "w" + idx, at);
   select(r, { how: "field", what: { type: "worker", i: idx } });
-  canvasAct(r, ops, { message: `${from} のワーカーを足しました。目的を右で決める`, undo: "ワーカーを足したのを取り消しました", focus: '[data-cv-f="w-purpose"]' });
+  canvasAct(r, ops, { message: `${from} の${term("worker")}を足しました。${term("purpose")}を右で決める`, undo: `${term("worker")}を足したのを取り消しました`, focus: '[data-cv-f="w-purpose"]' });
 }
 function panelOf(r) {
   return document.querySelector(`.panel.team-p[data-key="${CSS.escape(dkey(r))}"]`);
@@ -4394,7 +4395,7 @@ function del(r) {
   if (sel.type === "node" && sel.id !== "human") {
     const id = sel.id, nt = t.turns.filter(([a, b]) => a === id || b === id).length, nw = t.workers.filter((w) => w.from === id).length;
     select(r, { how: "let" });
-    remove(r, "removeMember", [teamActions.removeMember(id)], { said: `${id} を外しました（ターン ${nt} 本・ワーカー ${nw} 件も）`, undo: `${id} を外したのを取り消しました` });
+    remove(r, "removeMember", [teamActions.removeMember(id)], { said: `${id} を外しました（${term("turn")} ${nt} 本・${term("worker")} ${nw} 件も）`, undo: `${id} を外したのを取り消しました` });
   } else if (sel.type === "edge") {
     const [a, b] = sel.k.split("|"), ops = [];
     if (hasTurn(t, a, b))
@@ -4404,14 +4405,14 @@ function del(r) {
     select(r, { how: "let" });
     if (ops.length) {
       const direction = turnDirection(ops);
-      remove(r, "removeTurn", ops, { said: `${direction} のターンを外しました`, undo: `${direction} のターンを外したのを取り消しました` });
+      remove(r, "removeTurn", ops, { said: `${direction} の${term("turn")}を外しました`, undo: `${direction} の${term("turn")}を外したのを取り消しました` });
     }
   } else if (sel.type === "worker") {
     const w = t.workers[sel.i];
     if (!w)
       return;
     select(r, { how: "let" });
-    remove(r, "removeWorker", [teamActions.removeWorker(w.from, w.purpose)], { said: `ワーカー ${w.purpose || "（目的）"} を外しました`, undo: "ワーカーを外したのを取り消しました" });
+    remove(r, "removeWorker", [teamActions.removeWorker(w.from, w.purpose)], { said: `${term("worker")} ${w.purpose || `（${term("purpose")}）`} を外しました`, undo: `${term("worker")}を外したのを取り消しました` });
   }
 }
 var lastPress = null;
@@ -4533,7 +4534,7 @@ function onPointerUp(e) {
     return;
   }
   const k = pair(d.from, to);
-  canvasAct(r, [teamActions.addTurn(d.from, to)], { message: `${nodeName(d.from)} → ${nodeName(to)} のターンを足しました`, undo: `${nodeName(d.from)} → ${nodeName(to)} のターンを足しましたのを取り消しました` });
+  canvasAct(r, [teamActions.addTurn(d.from, to)], { message: `${nodeName(d.from)} → ${nodeName(to)} の${term("turn")}を足しました`, undo: `${nodeName(d.from)} → ${nodeName(to)} の${term("turn")}を足しましたのを取り消しました` });
   select(r, { how: "press", what: { type: "edge", k } });
   r.flash.value = k;
   setTimeout(() => {
@@ -4614,23 +4615,23 @@ function onClick(r, e) {
     select(r, { how: "let" });
     if (ops.length) {
       const direction = turnDirection(ops);
-      remove(r, "removeTurn", ops, { said: `${direction} のターンを外しました`, undo: `${direction} のターンを外したのを取り消しました` });
+      remove(r, "removeTurn", ops, { said: `${direction} の${term("turn")}を外しました`, undo: `${direction} の${term("turn")}を外したのを取り消しました` });
     }
     return;
   }
   if (a === "turn-del") {
-    remove(r, "removeTurn", [teamActions.removeTurn(b.dataset.a || "", b.dataset.b || "")], { said: `${nodeName(b.dataset.a || "")} → ${nodeName(b.dataset.b || "")} のターンを外しました`, undo: `${nodeName(b.dataset.a || "")} → ${nodeName(b.dataset.b || "")} のターンを外したのを取り消しました` });
+    remove(r, "removeTurn", [teamActions.removeTurn(b.dataset.a || "", b.dataset.b || "")], { said: `${nodeName(b.dataset.a || "")} → ${nodeName(b.dataset.b || "")} の${term("turn")}を外しました`, undo: `${nodeName(b.dataset.a || "")} → ${nodeName(b.dataset.b || "")} の${term("turn")}を外したのを取り消しました` });
     return;
   }
   if (a === "turn-add") {
-    canvasAct(r, [teamActions.addTurn(b.dataset.a || "", b.dataset.b || "")], { message: `${nodeName(b.dataset.a || "")} → ${nodeName(b.dataset.b || "")} のターンを足しました`, undo: `${nodeName(b.dataset.a || "")} → ${nodeName(b.dataset.b || "")} のターンを足しましたのを取り消しました` });
+    canvasAct(r, [teamActions.addTurn(b.dataset.a || "", b.dataset.b || "")], { message: `${nodeName(b.dataset.a || "")} → ${nodeName(b.dataset.b || "")} の${term("turn")}を足しました`, undo: `${nodeName(b.dataset.a || "")} → ${nodeName(b.dataset.b || "")} の${term("turn")}を足しましたのを取り消しました` });
     return;
   }
   if (a === "w-del") {
     const w = t.workers[Number(b.dataset.i)];
     if (!w)
       return;
-    remove(r, "removeWorker", [teamActions.removeWorker(w.from, w.purpose)], { said: `ワーカー ${w.purpose || "（目的）"} を外しました`, undo: "ワーカーを外したのを取り消しました" });
+    remove(r, "removeWorker", [teamActions.removeWorker(w.from, w.purpose)], { said: `${term("worker")} ${w.purpose || `（${term("purpose")}）`} を外しました`, undo: `${term("worker")}を外したのを取り消しました` });
     return;
   }
   if (a === "pick-w")
@@ -4646,7 +4647,7 @@ function onInput(r, e) {
   const t = r.draft.value, sel = pickOf(r), v = el.value;
   if (f === "turn-add") {
     if (v && sel && sel.type === "node") {
-      canvasAct(r, [teamActions.addTurn(sel.id, v)], { message: `${nodeName(sel.id)} → ${nodeName(v)} のターンを足しました`, undo: `${nodeName(sel.id)} → ${nodeName(v)} のターンを足しましたのを取り消しました` });
+      canvasAct(r, [teamActions.addTurn(sel.id, v)], { message: `${nodeName(sel.id)} → ${nodeName(v)} の${term("turn")}を足しました`, undo: `${nodeName(sel.id)} → ${nodeName(v)} の${term("turn")}を足しましたのを取り消しました` });
       el.value = "";
     }
     return;
@@ -4678,7 +4679,7 @@ function onInput(r, e) {
   if (f === "m-role" || f === "m-profile") {
     if (!sel || sel.type !== "node")
       return;
-    canvasAct(r, [f === "m-role" ? teamActions.memberRole(sel.id, v) : teamActions.memberProfile(sel.id, v)], { message: `メンバー ${sel.id} の${f === "m-role" ? "ロール" : "プロファイル"}を変えました`, undo: `メンバー ${sel.id} の${f === "m-role" ? "ロール" : "プロファイル"}を変えたのを取り消しました` });
+    canvasAct(r, [f === "m-role" ? teamActions.memberRole(sel.id, v) : teamActions.memberProfile(sel.id, v)], { message: `${term("member")} ${sel.id} の${f === "m-role" ? term("role") : term("profile")}を変えました`, undo: `${term("member")} ${sel.id} の${f === "m-role" ? term("role") : term("profile")}を変えたのを取り消しました` });
     return;
   }
   if (f === "w-purpose" || f === "w-from" || f === "w-profile") {
@@ -4690,10 +4691,10 @@ function onInput(r, e) {
       return;
     }
     if (f === "w-from") {
-      canvasAct(r, [teamActions.moveWorker(w.from, w.purpose, v)], { message: `ワーカー ${w.purpose || "（目的）"} を ${v} の下へ移しました`, undo: `ワーカー ${w.purpose || "（目的）"} を移したのを取り消しました` });
+      canvasAct(r, [teamActions.moveWorker(w.from, w.purpose, v)], { message: `${term("worker")} ${w.purpose || `（${term("purpose")}）`} を ${v} の下へ移しました`, undo: `${term("worker")} ${w.purpose || `（${term("purpose")}）`} を移したのを取り消しました` });
       return;
     }
-    canvasAct(r, [teamActions.workerProfile(w.from, w.purpose, v)], { message: `ワーカー ${w.purpose || "（目的）"} のプロファイルを変えました`, undo: "ワーカーのプロファイルを変えたのを取り消しました" });
+    canvasAct(r, [teamActions.workerProfile(w.from, w.purpose, v)], { message: `${term("worker")} ${w.purpose || `（${term("purpose")}）`} の${term("profile")}を変えました`, undo: `${term("worker")}の${term("profile")}を変えたのを取り消しました` });
   }
 }
 var nameTaken = (t, m, v) => t.members.some((x) => x !== m && x.name === v);
@@ -4702,9 +4703,9 @@ function nameMsgs(r, t, m, v) {
   if (!NAME.test(v))
     msgs.push("英小文字で始め、英小文字・数字・ハイフン・下線で 32 文字以内にしてください");
   if (nameTaken(t, m, v))
-    msgs.push("このチームにもういます");
+    msgs.push(`この${term("team")}にもういます`);
   if (`${r.name.value}-${v}`.length > 32)
-    msgs.push(`herdr 名 ${r.name.value}-${v} が 32 文字を超えます`);
+    msgs.push(`${term("herdr-name")} ${r.name.value}-${v} が 32 文字を超えます`);
   return msgs;
 }
 var menuRow = () => recs.value.find((x) => menuOf(x)) || null;
@@ -4844,7 +4845,7 @@ function Canvas({ r, vlist }) {
   const sel = pickOf(r);
   const cur = sel, side = sideOf(r);
   const picked = cur && cur.type === "node" && cur.id !== "human" ? cur.id : "";
-  const hint = picked ? `${picked} を選んでいる。縁の丸から引くとターン、Delete で外す` : "点や線を押すと属性が出る。余白をダブルクリックすると、そこに足せる";
+  const hint = picked ? `${picked} を選んでいる。縁の丸から引くと${term("turn")}、Delete で外す` : "点や線を押すと属性が出る。余白をダブルクリックすると、そこに足せる";
   return /* @__PURE__ */ u("div", {
     class: "cv-main",
     ref: box,
@@ -4864,13 +4865,13 @@ function Canvas({ r, vlist }) {
                 type: "button",
                 "data-cv-act": "m-add",
                 disabled: !rolesIn(),
-                children: "＋ メンバー"
+                children: `＋ ${term("member")}`
               }),
               /* @__PURE__ */ u("button", {
                 class: "btn sm",
                 type: "button",
                 "data-cv-act": "w-add",
-                children: "＋ ワーカー"
+                children: `＋ ${term("worker")}`
               }),
               /* @__PURE__ */ u("button", {
                 class: "btn sm",
@@ -4879,7 +4880,7 @@ function Canvas({ r, vlist }) {
                   event.stopPropagation();
                   select(r, { how: "field", what: null });
                 },
-                children: "チームの説明を編集"
+                children: `${term("team")}の${term("description")}を編集`
               }),
               /* @__PURE__ */ u("span", {
                 class: "cv-hint",
@@ -5001,7 +5002,7 @@ function Rename({ r }) {
   }
   return /* @__PURE__ */ u("section", {
     class: "team-rename",
-    "aria-label": "チーム定義名の変更",
+    "aria-label": `${term("team-definition-name")}の変更`,
     children: [
       /* @__PURE__ */ u("button", {
         class: "btn",
@@ -5018,7 +5019,7 @@ function Rename({ r }) {
         children: [
           /* @__PURE__ */ u("label", {
             children: [
-              "新しいチーム定義名 ",
+              `新しい${term("team-definition-name")} `,
               /* @__PURE__ */ u("input", {
                 value: name,
                 disabled: saving,
@@ -5074,7 +5075,7 @@ function Rename({ r }) {
               r.editing.renameInput(null);
               setOpen(false);
             },
-            children: "取り消す"
+            children: term("undo")
           })
         ]
       }) : null,
@@ -5140,23 +5141,23 @@ function List() {
     children: [
       /* @__PURE__ */ u("span", {}),
       /* @__PURE__ */ u("span", {
-        children: "チーム定義名"
+        children: term("team-definition-name")
       }),
       /* @__PURE__ */ u("span", {
-        children: "説明"
+        children: term("description")
       }),
       /* @__PURE__ */ u("span", {
-        children: "メンバー"
+        children: term("member")
       }),
       /* @__PURE__ */ u("span", {
-        children: "ワーカー"
+        children: term("worker")
       }),
       /* @__PURE__ */ u("span", {
-        children: "規則とひな形（目安 1,200 字）"
+        children: `${term("rule")}とひな形（目安 1,200 字）`
       }),
       HQ ? /* @__PURE__ */ u("span", {
         class: "hq-runh",
-        children: "状態と操作"
+        children: term("running-column")
       }) : null
     ]
   });
@@ -5174,7 +5175,7 @@ function List() {
             class: "none",
             children: [
               g.name,
-              " にはチーム定義がありません。"
+              ` には${term("team-definition")}がありません。`
             ]
           })
         }) : null
@@ -5186,7 +5187,7 @@ function List() {
       missingOpen.value.length ? /* @__PURE__ */ u("p", {
         role: "status",
         children: [
-          "チーム定義 ",
+          `${term("team-definition")} `,
           missingOpen.value.join("、"),
           " が見つかりません。",
           /* @__PURE__ */ u("a", {
@@ -5208,14 +5209,14 @@ function List() {
 function PlaceHead({ g }) {
   const key = g.key;
   const target = key === "global" ? "global" : "project";
-  const said = key === "global" ? "グローバル" : g.name;
+  const said = key === "global" ? term("global") : g.name;
   const count = rowsInGroup(key);
   const live = (st.running.value && st.running.value.teams || []).filter((t) => t.project === (key || CURRENT || HQ?.projects?.current?.path)).length;
   return /* @__PURE__ */ u("div", {
     class: "hq-gh" + (g.global ? " global" : ""),
     "data-group": key,
     "data-place": target,
-    "aria-label": `置き場所: ${said}`,
+    "aria-label": `${term("place")}: ${said}`,
     children: [
       /* @__PURE__ */ u("span", {
         class: "hq-gn",
@@ -5227,17 +5228,17 @@ function PlaceHead({ g }) {
       }),
       g.global ? /* @__PURE__ */ u("span", {
         class: "hq-gc",
-        children: "どのプロジェクトからも使える。同じ名前があれば、そのプロジェクトのほうが使われる"
+        children: `どの${term("project")}からも使える。同じ名前があれば、その${term("project")}のほうが使われる`
       }) : /* @__PURE__ */ u("span", {
         class: "hq-gc",
         children: [
-          "チーム定義 ",
+          `${term("team-definition")} `,
           /* @__PURE__ */ u("b", {
             children: count
           }),
           HQ ? /* @__PURE__ */ u(S, {
             children: [
-              " · 動いているチーム ",
+              ` · 動いている${term("team")} `,
               /* @__PURE__ */ u("b", {
                 children: live
               })
@@ -5254,7 +5255,7 @@ function PlaceHead({ g }) {
         children: [
           "＋ ",
           said,
-          " にチーム定義を追加"
+          ` に${term("team-definition")}を追加`
         ]
       })
     ]
@@ -5345,17 +5346,17 @@ function NameCell({ r, open }) {
         class: "in-name" + ((r.nameIssues.value || []).length ? " bad" : ""),
         "data-f": "name",
         value: name,
-        placeholder: "チーム定義名",
+        placeholder: term("team-definition-name"),
         spellcheck: false,
         autocomplete: "off",
-        "aria-label": "チーム定義名",
+        "aria-label": term("team-definition-name"),
         onInput: (e) => pressName(r, inputValue(e))
       }),
       tag
     ]
   });
 }
-var groupLabel = (r) => r.project === "global" ? "グローバル" : r.project ? projectName2(r.project) : currentProjectName();
+var groupLabel = (r) => r.project === "global" ? term("global") : r.project ? projectName2(r.project) : currentProjectName();
 function placePills(r) {
   const label = groupLabel(r);
   const globalGroup = (HQ && HQ.teams || GROUPS || []).find((g) => g.global);
@@ -5371,7 +5372,7 @@ function placePills(r) {
       }),
       shadow ? /* @__PURE__ */ u("span", {
         class: "pill shadow",
-        children: "グローバル"
+        children: term("global")
       }) : null,
       overriding.map((p) => /* @__PURE__ */ u("span", {
         class: "pill hq-ov",
@@ -5414,7 +5415,7 @@ function Sum({ r, open }) {
           }),
           r.mark.value ? /* @__PURE__ */ u("span", {
             class: "state " + (r.mark.value === "hidden" ? "off" : "on"),
-            children: r.mark.value === "hidden" ? "無効" : "優先"
+            children: r.mark.value === "hidden" ? term("inactive") : term("preferred")
           }) : null,
           /* @__PURE__ */ u("span", {
             class: "vcount",
@@ -5447,7 +5448,7 @@ function Sum({ r, open }) {
           children: "—"
         }) : /* @__PURE__ */ u("span", {
           class: "amt" + (size > r.limit.value ? " over" : ""),
-          title: `暫定の目安：${num(r.limit.value)}字。超えても保存・起動できます。`,
+          title: `${term("size-guide")}：${num(r.limit.value)}字。超えても保存・${term("start")}できます。`,
           children: /* @__PURE__ */ u("span", {
             class: "v",
             children: [
@@ -5520,14 +5521,14 @@ function DtabsNav({ r }) {
   const cur = dtabOf(r);
   const tabs = [
     ["shape", "トポロジー", "", teamChanges(r) > 0],
-    ["agree", "規則", num(chars(r.agreeDraft.value.text)), r.agreeSaved.value ? agreementChanged(r) : false]
+    ["agree", term("rule"), num(chars(r.agreeDraft.value.text)), r.agreeSaved.value ? agreementChanged(r) : false]
   ];
   return /* @__PURE__ */ u(S, {
     children: [
       /* @__PURE__ */ u("span", {
         class: "dtl",
         role: "tablist",
-        "aria-label": "チーム定義の編集",
+        "aria-label": `${term("team-definition")}の編集`,
         children: tabs.map(([t, label, n, ch]) => /* @__PURE__ */ u("button", {
           class: "dtab" + (cur === t ? " on" : ""),
           "data-act": "dtab",
@@ -5628,7 +5629,7 @@ function TeamPanel({ r }) {
         class: "phr",
         children: both ? /* @__PURE__ */ u("span", {
           class: "state " + (r.mark.value === "hidden" ? "off" : "on"),
-          children: r.mark.value === "hidden" ? "無効" : "優先"
+          children: r.mark.value === "hidden" ? term("inactive") : term("preferred")
         }) : null
       })
     ]
@@ -5707,7 +5708,7 @@ function StarterNote({ r }) {
         class: "st-item",
         children: [
           /* @__PURE__ */ u("span", {
-            children: "プロジェクトにもグローバルにも、ロールがありません。メンバーのロールを選ぶには、ロールが要ります。"
+            children: `${term("project")}にも${term("global")}にも、${term("role")}がありません。${term("member")}の${term("role")}を選ぶには、${term("role")}が要ります。`
           }),
           /* @__PURE__ */ u("button", {
             class: "btn sm",
@@ -5715,7 +5716,7 @@ function StarterNote({ r }) {
             "data-act": "starter-roles",
             "aria-pressed": r.starterRoles.value,
             onClick: () => pressStarterRoles(r),
-            children: r.starterRoles.value ? "ひな形のロールを使わない" : "ひな形のロール lead と builder を使う"
+            children: r.starterRoles.value ? `ひな形の${term("role")}を使わない` : `ひな形の${term("role")} lead と builder を使う`
           })
         ]
       }) : null,
@@ -5723,7 +5724,7 @@ function StarterNote({ r }) {
         class: "st-item",
         children: [
           /* @__PURE__ */ u("span", {
-            children: "プロジェクトにもグローバルにも、プロファイルがありません。メンバーのプロファイルを選ぶには、プロファイルが要ります。"
+            children: `${term("project")}にも${term("global")}にも、${term("profile")}がありません。${term("member")}の${term("profile")}を選ぶには、${term("profile")}が要ります。`
           }),
           /* @__PURE__ */ u("button", {
             class: "btn sm",
@@ -5731,7 +5732,7 @@ function StarterNote({ r }) {
             "data-act": "starter-profile",
             "aria-pressed": r.starterProfile.value,
             onClick: () => pressStarterProfile(r),
-            children: r.starterProfile.value ? "ひな形のプロファイルを使わない" : "ひな形のプロファイル claude-default を使う"
+            children: r.starterProfile.value ? `ひな形の${term("profile")}を使わない` : `ひな形の${term("profile")} claude-default を使う`
           })
         ]
       }) : null
@@ -5750,8 +5751,8 @@ function CarryNote({ r }) {
         class: "st-item",
         children: /* @__PURE__ */ u("span", {
           children: [
-            "グローバルに書くのは、このチーム定義（team.yaml と agreement.md）だけです。",
-            missing ? "メンバーが使うロールとプロファイルのうち、グローバルに無いものは、選んだものだけを一緒に書きます。" : "メンバーが使うロールとプロファイルはグローバルにそろっているので、どのプロジェクトからも起動できます。"
+            `${term("global")}に書くのは、この${term("team-definition")}（team.yaml と agreement.md）だけです。`,
+            missing ? `${term("member")}が使う${term("role")}と${term("profile")}のうち、${term("global")}に無いものは、選んだものだけを一緒に書きます。` : `${term("member")}が使う${term("role")}と${term("profile")}は${term("global")}にそろっているので、どの${term("project")}からも${term("start")}できます。`
           ]
         })
       }),
@@ -5760,9 +5761,9 @@ function CarryNote({ r }) {
         children: [
           /* @__PURE__ */ u("span", {
             children: [
-              "ロール ",
+              `${term("role")} `,
               name,
-              " の文書はグローバルにありません。"
+              ` の文書は${term("global")}にありません。`
             ]
           }),
           /* @__PURE__ */ u("button", {
@@ -5772,7 +5773,7 @@ function CarryNote({ r }) {
             "data-name": name,
             "aria-pressed": c.chosenRoles.includes(name),
             onClick: () => pressCarry(r, "role", name),
-            children: c.chosenRoles.includes(name) ? `ロール ${name} を書かない` : `ロール ${name} をグローバルに書く`
+            children: c.chosenRoles.includes(name) ? `${term("role")} ${name} を書かない` : `${term("role")} ${name} を${term("global")}に書く`
           })
         ]
       })),
@@ -5781,9 +5782,9 @@ function CarryNote({ r }) {
         children: [
           /* @__PURE__ */ u("span", {
             children: [
-              "プロファイル ",
+              `${term("profile")} `,
               name,
-              " はグローバルにありません。"
+              ` は${term("global")}にありません。`
             ]
           }),
           /* @__PURE__ */ u("button", {
@@ -5793,7 +5794,7 @@ function CarryNote({ r }) {
             "data-name": name,
             "aria-pressed": c.chosenProfiles.includes(name),
             onClick: () => pressCarry(r, "profile", name),
-            children: c.chosenProfiles.includes(name) ? `プロファイル ${name} を書かない` : `プロファイル ${name} をグローバルに書く`
+            children: c.chosenProfiles.includes(name) ? `${term("profile")} ${name} を書かない` : `${term("profile")} ${name} を${term("global")}に書く`
           })
         ]
       }))
@@ -5809,7 +5810,7 @@ function VList({ r }) {
         children: [
           /* @__PURE__ */ u("span", {
             class: "vt",
-            children: "設定の検査"
+            children: term("settings-check")
           }),
           issues.length ? /* @__PURE__ */ u("span", {
             class: "vcount",
@@ -5847,7 +5848,7 @@ function VList({ r }) {
         children: [
           /* @__PURE__ */ u("div", {
             class: "vsub",
-            children: "ロールの文書"
+            children: term("role-document")
           }),
           out.map((m) => /* @__PURE__ */ u("a", {
             class: "vitem",
@@ -5975,7 +5976,7 @@ function Foot({ r, agree }) {
                 ...dangerAttrs("revertDraft"),
                 hidden: empty || !d,
                 onClick: (e) => pressRevert(r, e.currentTarget.closest(".panel")),
-                children: "元に戻す"
+                children: term("revert")
               })
             })
           ]
@@ -6009,7 +6010,7 @@ function Foot({ r, agree }) {
               ...dangerAttrs("revertDraft"),
               hidden: !n,
               onClick: (e) => pressTRevert(r, e.currentTarget.closest(".panel")),
-              children: "元に戻す"
+              children: term("revert")
             })
           }),
           refusal ? /* @__PURE__ */ u("span", {
@@ -6068,8 +6069,8 @@ function AgreePanel({ r }) {
     };
   }, [active.join("|")]);
   const docs = [
-    { key: "agreement", label: `チームの規則 ${r.name.value}`, members: r.draft.value.members.map((m) => m.name).join("、"), status: `${agreementChanged(r) ? "未保存" : "保存済み"}${agreeIssues(r).length ? ` · 問題・警告 ${agreeIssues(r).length}` : ""}` },
-    ...names.map((name) => ({ key: "role:" + name, label: `ロール ${name}`, members: r.draft.value.members.filter((m) => m.role === name).map((m) => m.name).join("、"), status: roleSummary(r, name) }))
+    { key: "agreement", label: `${term("team-agreement")} ${r.name.value}`, members: r.draft.value.members.map((m) => m.name).join("、"), status: `${agreementChanged(r) ? "未保存" : "保存済み"}${agreeIssues(r).length ? ` · 問題・警告 ${agreeIssues(r).length}` : ""}` },
+    ...names.map((name) => ({ key: "role:" + name, label: `${term("role")} ${name}`, members: r.draft.value.members.filter((m) => m.role === name).map((m) => m.name).join("、"), status: roleSummary(r, name) }))
   ];
   return /* @__PURE__ */ u("div", {
     class: "prose-workspace",
@@ -6127,7 +6128,7 @@ function AgreePanel({ r }) {
           "比較中 ",
           active.length,
           " 文書。",
-          active.length > 2 ? "横に収まらない文書は、下のスクロールバーで表示できます。" : "",
+          active.length > 2 ? `横に収まらない文書は、下のスク${term("role")}バーで表示できます。` : "",
           "文書名を押すと、その文書だけを読みます。"
         ]
       }) : null,
@@ -6180,13 +6181,13 @@ function AgreePanel({ r }) {
                   hasName: false,
                   heading: {
                     id: `team-prose-${r.uid}`,
-                    kind: "チーム定義",
+                    kind: term("team-definition"),
                     name: r.name.value,
                     title: r.agreeDraft.value.title,
                     path: `${placeName(r.place.value)} · teams/${r.name.value}/agreement.md`,
                     members: r.draft.value.members.map((m) => m.name).join("、"),
                     template: r.check.value?.templateSize || 0,
-                    state: (agreementChanged(r) ? "未保存" : "保存済み") + (shadowed ? "（無効）" : "")
+                    state: (agreementChanged(r) ? "未保存" : "保存済み") + (shadowed ? `（${term("inactive")}）` : "")
                   },
                   onDraft: (draft) => {
                     r.editing.agreement.change(draft);
@@ -6217,10 +6218,10 @@ function YamlEmpty() {
     class: "yed yempty",
     children: [
       /* @__PURE__ */ u("p", {
-        children: "チーム定義はまだありません。"
+        children: `${term("team-definition")}はまだありません。`
       }),
       /* @__PURE__ */ u("p", {
-        children: "一覧の『＋ チーム定義を追加』で作ると、ここに team.yaml と agreement.md が並びます。"
+        children: `一覧の『＋ ${term("team-definition")}を追加』で作ると、ここに team.yaml と agreement.md が並びます。`
       }),
       /* @__PURE__ */ u("span", {
         children: /* @__PURE__ */ u("button", {
@@ -6322,7 +6323,7 @@ function YamlFile({ f }) {
     children: /* @__PURE__ */ u(YamlTab2, {
       label: f.label,
       path: f.path,
-      badge: both ? { cls: "state " + (mark === "hidden" ? "off" : "on"), text: mark === "hidden" ? "無効" : "優先" } : null,
+      badge: both ? { cls: "state " + (mark === "hidden" ? "off" : "on"), text: mark === "hidden" ? term("inactive") : term("preferred") } : null,
       editing: f.editing,
       text: f.text,
       hash: f.hash,
@@ -6349,7 +6350,7 @@ function CanvasToast() {
         type: "button",
         "data-act": "cv-undo",
         onClick: () => pressToastUndo(),
-        children: "取り消す"
+        children: term("undo")
       }) : null
     ]
   });

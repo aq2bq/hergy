@@ -7,6 +7,7 @@ import (
 
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/profile"
+	"github.com/aq2bq/hergy/internal/words"
 )
 
 // t is one message of the locale in use.
@@ -19,6 +20,7 @@ func tf(key string, args ...any) string { return i18n.Tf(key, args...) }
 // the profile screen offers as buttons, and the rest in a select (r-c683).
 func Funcs() template.FuncMap {
 	return template.FuncMap{
+		"term":       func(id words.TermID) string { return id.Text("ja") },
 		"splitKinds": splitKinds,
 		"otherKinds": otherKinds,
 		"kindClass":  p2KindClass,

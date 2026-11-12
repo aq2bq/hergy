@@ -1,3 +1,4 @@
+import { term } from '../lib/terms.generated.js';
 import { useEffect, useMemo, useState } from '../lib/preact.js';
 import { resource } from '../lib/resource.js';
 import { call, problemText } from '../lib/api.js';
@@ -29,17 +30,17 @@ export function Rename({ r }: { r: Rec }) {
     } catch (err) { setError(problemText(err, '名前を変更できませんでした')); }
     finally { setSaving(false); }
   }
-  return <section class="team-rename" aria-label="チーム定義名の変更">
+  return <section class="team-rename" aria-label={`${term('team-definition-name')}の変更`}>
     <button class="btn" type="button" disabled={dirty || saving} onClick={() => setOpen(!open)}>名前を変更</button>
     {dirty ? <span class="none">保存していない変更があります。保存するか、元に戻してから名前を変更してください</span> : null}
     {open ? <div>
-      <label>新しいチーム定義名 <input value={name} disabled={saving} onInput={(e) => { setName(e.currentTarget.value); if (r.editing.read.value.renameDraft !== null) r.editing.renameInput(e.currentTarget.value); }} /></label>
+      <label>{`新しい${term('team-definition-name')} `}<input value={name} disabled={saving} onInput={(e) => { setName(e.currentTarget.value); if (r.editing.read.value.renameDraft !== null) r.editing.renameInput(e.currentTarget.value); }} /></label>
       {reading.value.value ? <><p><code>{reading.value.value.from}</code> → <code>{reading.value.value.to}</code></p><ul>{reading.value.value.notes.map((note) => <li>{note}</li>)}</ul></> : null}
       {reading.loading.value ? <p>変更先を確認しています。</p> : null}
       {reading.error.value ? <p role="alert">{problemText(reading.error.value, '変更先を確認できませんでした')}</p> : null}
       {error ? <p role="alert">{error}</p> : null}
       <button class="btn primary" disabled={dirty || saving || reading.loading.value || !!reading.error.value || !reading.value.value} onClick={() => void save()}>名前を保存</button>
-      <button class="btn" disabled={saving} onClick={() => { r.editing.renameInput(null); setOpen(false); }}>取り消す</button>
+      <button class="btn" disabled={saving} onClick={() => { r.editing.renameInput(null); setOpen(false); }}>{term('undo')}</button>
     </div> : null}
     {r.renameNotes.value.length ? <ul>{r.renameNotes.value.map((note) => <li>{note}</li>)}</ul> : null}
   </section>;

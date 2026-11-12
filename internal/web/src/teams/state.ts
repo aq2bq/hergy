@@ -1,3 +1,4 @@
+import { term } from '../lib/terms.generated.js';
 import { editTeam, restoreTeam, teamActions, editYaml, teamDocument, type TeamEditing, type TeamCarry, type YamlEditing, type TeamAction } from '../lib/editing.js';
 import { resourceIdentity } from '../lib/resource-identity.js';
 // Team rows own display state only: the selection, addresses and positions.
@@ -62,7 +63,7 @@ export const tabsEl = document.getElementById('tabs');
 const DATA: Island = JSON.parse((document.getElementById('teams-data') || {}).textContent || '{}') as Island;
 export type Place = 'project' | 'global';
 export const PLACES: readonly Place[] = ['project', 'global'];
-export const PLACE: Record<Place, string> = { project: 'プロジェクト', global: 'グローバル' };
+export const PLACE: Record<Place, string> = { project: term('project'), global: term('global') };
 export const DIR = DATA.dirs || { project: '', global: '' };
 export const PROFILES: string[] = DATA.profiles || [];
 // HQ is the headquarters lists (d-73fc): the projects' groups of definitions,
@@ -88,8 +89,8 @@ export const placeGroups = (): TeamGroup[] => {
     });
   }
   return [
-    { key: '', global: false, name: currentProjectName() || 'プロジェクト', display: DIR.project, count: 0 },
-    { key: 'global', global: true, name: 'グローバル', display: DIR.global, count: 0 },
+    { key: '', global: false, name: currentProjectName() || term('project'), display: DIR.project, count: 0 },
+    { key: 'global', global: true, name: term('global'), display: DIR.global, count: 0 },
   ];
 };
 // currentGroup is the key of the project this serve was started in: a row the
@@ -97,7 +98,7 @@ export const placeGroups = (): TeamGroup[] => {
 export const CURRENT = HQ && HQ.projects && HQ.projects.current ? (HQ.projects.current.path || '') : '';
 export const rowsIn = (g: Schemas['HQTeamGroup']): Schemas['TeamItem'][] => (g.list && g.list.items) || [];
 export const groupKeyOf = (g: Schemas['HQTeamGroup'] | Schemas['HQRoleGroup'] | Schemas['HQProfileGroup']): string => (g.global ? 'global' : (g.project ? g.project.path : ''));
-export const groupNameOf = (g: Schemas['HQTeamGroup'] | Schemas['HQRoleGroup'] | Schemas['HQProfileGroup']): string => (g.global ? 'グローバル' : (g.project ? (g.project.name || '') : ''));
+export const groupNameOf = (g: Schemas['HQTeamGroup'] | Schemas['HQRoleGroup'] | Schemas['HQProfileGroup']): string => (g.global ? term('global') : (g.project ? (g.project.name || '') : ''));
 if (HQ) document.body.classList.add('hq-teams');
 
 // ROLES_BY and PROFILES_BY are the names each project's member 属性 offers:
@@ -135,7 +136,7 @@ export const rolesCame = () => { ROLES_IN.value = true; };
 const LIST = DATA.team || { items: [], files: [] };
 
 export const $ = <T extends Element = HTMLElement>(s: string, root: ParentNode = document): T | null => root.querySelector<T>(s);
-export const nodeName = (x: string): string => (x === 'human' ? '人間' : x);
+export const nodeName = (x: string): string => (x === 'human' ? term('human') : x);
 export const other = (p: Place): Place => (p === 'project' ? 'global' : 'project');
 const hasTurn = (t: Team, a: string, b: string): boolean => t.turns.some(([p, q]) => p === a && q === b);
 const memberOf = (t: Team, n: string): Member | undefined => (t.members || []).find((m) => m.name === n);
@@ -196,7 +197,7 @@ export const dtabOf = (r: Rec): string => state.value.dtab[r.dom] || 'shape';
 export const pmodeOf = (r: Rec): string => state.value.pmode[dkey(r)] || 'edit';
 const editorOf = (r: Rec, which: string) => which === 'a' ? r.editing.agreement : r.editing.team;
 export const okOf = (key: string): boolean => { const r = recs.value.find((r) => key.slice(1) === dkey(r)); return !!r && editorOf(r, key[0]).read.value.savedLine; };
-export const refusalOf = (r: Rec, which: string): string => editorOf(r, which).read.value.refusal || (r.draftRow && !r.seeded.value && r.editing.team.checkingError.value ? apiProblemText(r.editing.team.checkingError.value, '元にしたチーム定義を読めませんでした') : '');
+export const refusalOf = (r: Rec, which: string): string => editorOf(r, which).read.value.refusal || (r.draftRow && !r.seeded.value && r.editing.team.checkingError.value ? apiProblemText(r.editing.team.checkingError.value, `元にした${term('team-definition')}を読めませんでした`) : '');
 export const conflictAt = (r: Rec, which: string) => editorOf(r, which).read.value.conflict;
 const setDtab = (dom: string, t: string) => { put({ dtab: { ...state.value.dtab, [dom]: t } }); };
 const dropDtab = (dom: string) => { const m = { ...state.value.dtab }; delete m[dom]; put({ dtab: m }); };
@@ -628,13 +629,13 @@ export const vlistParts = (r: Rec) => {
   const own = issues.filter((m) => !m.role);
   const purposeOf = (i: number): string => {
     const w = r.draft.value.workers[i];
-    return (w && w.purpose) || 'ワーカー';
+    return (w && w.purpose) || term('worker');
   };
   const where = (m: Finding): string => {
     if (m.node) return nodeName(m.node);
     if (m.worker != null && m.worker >= 0) return purposeOf(m.worker);
-    if (m.field === 'description') return '説明';
-    if (m.field === 'name') return 'チーム定義名';
+    if (m.field === 'description') return term('description');
+    if (m.field === 'name') return term('team-definition-name');
     return '';
   };
   const file = (m: Finding): string => m.role + '.md';
@@ -670,7 +671,7 @@ export async function refreshAfterRoleSave(): Promise<void> {
   apiSaved();
   await Promise.all(recs.value.map(async (r) => {
     await r.editing.refresh();
-    if (r.editing.team.checkingError.value || r.editing.agreement.checkingError.value) throw new Error('ロールは保存しましたが、チーム定義を再検査できませんでした。文書を読み直してください');
+    if (r.editing.team.checkingError.value || r.editing.agreement.checkingError.value) throw new Error(`${term('role')}は保存しましたが、${term('team-definition')}を再検査できませんでした。文書を読み直してください`);
   }));
   const roleList = await apiList('role');
   ROLES.value = (roleList.items || []).map((item) => {
@@ -766,7 +767,7 @@ export async function renamed(r: Rec, name: string, json: Schemas['TeamSaved']):
   withOpen(r, false);
   recs.value = recs.value.filter((x) => x !== r);
   const item = (json.items || []).find((x) => x.name === name);
-  if (!item) throw new Error('保存したチーム定義を読めませんでした。画面を読み直してください');
+  if (!item) throw new Error(`保存した${term('team-definition')}を読めませんでした。画面を読み直してください`);
   const next = defOf(itemInGroup(item, group), group);
   next.renameNotes.value = json.rename?.notes || [];
   if (GROUPS) {
@@ -777,7 +778,7 @@ export async function renamed(r: Rec, name: string, json: Schemas['TeamSaved']):
         if (item) { g.overridden_by = item.overridden_by; g.list = item.list; }
       }
       put({});
-    } catch { next.renameNotes.value = [...next.renameNotes.value, '置き場所の表示を更新できませんでした。画面を読み直してください']; }
+    } catch { next.renameNotes.value = [...next.renameNotes.value, `${term('place')}の表示を更新できませんでした。画面を読み直してください`]; }
   }
 
   orderRows(next, at);
@@ -851,7 +852,7 @@ export function canvasTyping(r: Rec, op: Op, field: string) {
   r.lastAct.value = ++actSeq;
   clearOk(r);
   if (ctyping.key !== k || ctyping.field !== field) {
-    const label = { description: '説明を戻しました', 'm-name': 'メンバー名を戻しました', 'w-purpose': '目的を戻しました' }[field] || '元に戻しました';
+    const label = { description: `${term('description')}を戻しました`, 'm-name': `${term('member-name')}を戻しました`, 'w-purpose': `${term('purpose')}を戻しました` }[field] || '元に戻しました';
     canvasUndoPoint(r, label);
     ctyping = { key: k, field };
   }
@@ -952,7 +953,7 @@ export const chosenFile = () => { const keys = fileKeys(), y = state.value.yfile
 export function pressYfile(file: string) { put({ yfile: file }); syncURL(); }
 
 // ---- 描くための小さな問い ----------------------------------------------
-export const teamLabel = (r: Rec) => r.name.value || '新しいチーム定義';
+export const teamLabel = (r: Rec) => r.name.value || `新しい${term('team-definition')}`;
 export const currentProjectName = (): string => {
   const p: Schemas['HQProjects'] | null = (HQ && HQ.projects) || null;
   return (p && p.current && p.current.name) || '';

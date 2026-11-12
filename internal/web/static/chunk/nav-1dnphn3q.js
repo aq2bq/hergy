@@ -18,8 +18,9 @@ import {
 } from "./nav-zn7g81kr.js";
 import {
   mark,
+  term,
   read2
-} from "./nav-ncqt2ghs.js";
+} from "./nav-4q8266gs.js";
 
 // lib/confirm.tsx
 var currentAsk = y(null);
@@ -245,7 +246,7 @@ function UndoNotice() {
         type: "button",
         class: "btn sm",
         onClick: takeUndo,
-        children: "取り消す"
+        children: term("undo")
       })
     ]
   });

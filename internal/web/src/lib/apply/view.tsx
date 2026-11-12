@@ -3,6 +3,7 @@
 // 帯のボタン、反映の欄（チーム・メンバー・反映の仕方の札・変わったこと・選ぶ）、
 // 下の知らせ。どれも Preact が描く。押し込みは部品が自分で受ける（シートは画面から
 // 出た所に立つ 1 枚なので、画面の委譲と二重にならない）。
+import { term } from '../terms.generated.js';
 import { useRef, useEffect } from '../preact.js';
 import type { JSX } from 'preact';
 import type { components } from '../../../../apicontract/api-types';
@@ -18,19 +19,19 @@ import {
 // 状態の語と、何が起きているか・反映にどう関わるかの文（d-7b45）。語は枠の
 // 無い字で、文はそのまま知らせとして置く（押せない）。
 const STATE: Record<string, { word: string; why: string }> = {
-  idle: { word: '止まっている', why: 'ターンを持たずに待っています。今、反映できます。' },
-  handed: { word: '人間の返事待ち', why: 'ターンを人間に渡して、返事を待っています。今、反映できます。' },
-  active: { word: '仕事中', why: '仕事が終わると、反映できます。' },
-  blocked: { word: '許可待ち', why: 'ペインで許可を求めています。答えると、反映できます。' },
-  absent: { word: '動いていない', why: 'このメンバーの起動中のエージェントがいません。起動すると、定義のとおりに加わります。' },
+  idle: { word: '止まっている', why: `${term('turn')}を持たずに待っています。今、${term('apply')}できます。` },
+  handed: { word: term('handed'), why: `${term('turn')}を${term('human')}に渡して、返事を待っています。今、${term('apply')}できます。` },
+  active: { word: '仕事中', why: `仕事が終わると、${term('apply')}できます。` },
+  blocked: { word: term('waiting-for-permission'), why: `ペインで許可を求めています。答えると、${term('apply')}できます。` },
+  absent: { word: '動いていない', why: `この${term('member')}の${term('start')}中のエージェントがいません。${term('start')}すると、定義のとおりに加わります。` },
 };
 
 // HOW is the mark of the way hergy would apply one member's change (d-3d30),
 // written as the check's own name: a noun, so it is not read as a button
 // (d-7b45). The parenthesis says what happens to the conversation.
-const HOW: Record<string, string> = { resend: '送り直し', start: '起動', restart: '起動し直し' };
+const HOW: Record<string, string> = { resend: term('reprompt'), start: term('start'), restart: term('refresh') };
 const COST: Record<string, string> = { resend: '（会話は残る）', start: '（新しいペインで始める）', restart: '（会話が消える）' };
-const INTRO = 'チェックしたメンバーに、保存した定義の変更を反映します。送り直しは会話が残り、起動し直しは会話が消えます。仕事中と許可待ちのメンバーには、今は反映できません。チーム定義の説明だけを変えたときは、ずれが出ないので、ここには出ません。';
+const INTRO = `チェックした${term('member')}に、保存した定義の変更を${term('apply')}します。${term('reprompt')}は会話が残り、${term('refresh')}は会話が消えます。仕事中と${term('waiting-for-permission')}の${term('member')}には、今は${term('apply')}できません。${term('team-definition')}の${term('description')}だけを変えたときは、ずれが出ないので、ここには出ません。`;
 
 // press keeps a press out of the page underneath and calls the action.
 const press = (fn: () => unknown) => (e: { preventDefault: () => void }): void => { e.preventDefault(); fn(); };
@@ -45,11 +46,11 @@ export function BandButton(): JSX.Element {
     class="apl-bandbtn"
     data-apl="open"
     aria-haspopup="dialog"
-    title="定義を直したあと、まだ反映していない人"
-    aria-label={`反映していない変更 ${n}`}
+    title={`定義を直したあと、まだ${term('apply')}していない人`}
+    aria-label={`${term('apply')}していない変更 ${n}`}
     hidden={n <= 0}
     onClick={press(openSheet)}
-  >反映していない変更 <b>{n}</b></button>;
+  >{`${term('apply')}していない変更 `}<b>{n}</b></button>;
 }
 
 // ---- 変わったことの行き先 ------------------------------------------------
@@ -96,11 +97,11 @@ function Sheet(): JSX.Element | null {
   const a = answer.value;
   if (!a) return null;
   const groups = teams.value;
-  return <section class="apl-sheet" role="dialog" aria-label="反映" tabIndex={-1} ref={box}>
-    <div class="apl-h"><b>反映{scope.value ? `: ${scope.value}` : ''}</b><button class="apl-x" type="button" data-apl="close" aria-label="閉じる" onClick={press(close)}>×</button></div>
+  return <section class="apl-sheet" role="dialog" aria-label={term('apply')} tabIndex={-1} ref={box}>
+    <div class="apl-h"><b>{term('apply')}{scope.value ? `: ${scope.value}` : ''}</b><button class="apl-x" type="button" data-apl="close" aria-label="閉じる" onClick={press(close)}>×</button></div>
     <div class="apl-intro">{INTRO}</div>
     <p class="apl-note err" data-apl-note hidden={!note.value}>{note.value}</p>
-    {groups.length ? groups.map((g) => <Team group={g} />) : <p class="apl-empty">反映していない変更はありません。</p>}
+    {groups.length ? groups.map((g) => <Team group={g} />) : <p class="apl-empty">{`${term('apply')}していない変更はありません。`}</p>}
     <div class="apl-acts"><button class="apl-btn apl-primary" type="button" data-apl="send" disabled={!canApply.value} onClick={press(send)}>{applyLabel.value}</button><button class="apl-btn" type="button" data-apl="close" onClick={press(close)}>やめる</button></div>
   </section>;
 }
@@ -115,7 +116,7 @@ function Team({ group }: { group: ApplyTeam }): JSX.Element {
   // stands in the same words hergy status uses (the row of 動き says the same).
   const broken = group.error ? <p class="apl-err" data-role="definition-error">{group.error}</p> : '';
   return <div class="apl-team">
-    <div class="apl-th">チーム <code>{group.team}</code>{def}{where}</div>
+    <div class="apl-th">{`${term('team')} `}<code>{group.team}</code>{def}{where}</div>
     {broken}
     {notes}
     <div class="apl-ms">{(group.members || []).map((m) => <Member m={m} group={group} />)}</div>
@@ -133,7 +134,7 @@ function Member({ m, group }: { m: ApplyMember; group: ApplyTeam }): JSX.Element
   const pick = (
     <span class="apl-pick"><code>{m.name}</code>
       {can ? <span class={'apl-how ' + m.how}>{how}{COST[m.how] ? <span class={'apl-cost' + (m.how === 'restart' ? ' lost' : '')}>{COST[m.how]}</span> : null}</span>
-        : <span class="apl-how cannot">反映できない</span>}
+        : <span class="apl-how cannot">{`${term('apply')}できない`}</span>}
     </span>
   );
   return <div class={'apl-m' + (can ? '' : ' no')}>

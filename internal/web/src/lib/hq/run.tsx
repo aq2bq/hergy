@@ -20,6 +20,7 @@
 // はこの部品が受ける（webui-components 2 章）: 起動のボタンは起動の欄、終了する は
 // 終了する欄、反映していない変更 N は反映の欄を開く。data-hq は e2e と CSS が読むので
 // 残す。
+import { term } from '../terms.generated.js';
 import type { JSX } from 'preact';
 import { runningFor, lastWorkspaceOf, projectName } from './state.js';
 import type { RunningTeam } from './state.js';
@@ -28,7 +29,7 @@ import { openSheet, teamCount } from '../apply/state.js';
 
 // startLabel is what the row's button says it will do: a global definition asks
 // for the project first, and a project's starts here (r-df61, d-b023).
-const startLabel = (place: string): string => (place === 'global' ? 'プロジェクトを選んで起動する' : 'このプロジェクトで起動する');
+const startLabel = (place: string): string => (place === 'global' ? `${term('project')}を選んで${term('start')}する` : `この${term('project')}で${term('start')}する`);
 
 // RunCell is one row's 動き: the running teams, and the start button (spec 5 章).
 // The headquarters holds the reading; the cell reads it and draws it. A team
@@ -36,11 +37,11 @@ const startLabel = (place: string): string => (place === 'global' ? 'プロジ�
 export function RunCell({ definition, place, project }: { definition: string; place: string; project?: string }): JSX.Element {
   const live: RunningTeam[] = runningFor(definition, place, project || '');
   return <>{live.map((t) => {
-    const label = t.starting ? '起動の途中 · 許可待ち' : (t.waiting || []).length ? '動いている · 許可待ち' : '動いている';
+    const label = t.starting ? `${term('start')}の途中 · ${term('waiting-for-permission')}` : (t.waiting || []).length ? `動いている · ${term('waiting-for-permission')}` : '動いている';
     const where = [place === 'global' ? (t.project_name || projectName(t.project)) : '', t.workspace.label || t.workspace.id || ''].filter(Boolean).join(' · ');
     const notUp = t.not_up || [];
     const changed = teamCount(t.team);
-      return <><span class={'hq-on' + (t.starting || (t.waiting || []).length ? ' wait' : '')}>{label}</span>{t.team !== definition ? <code class="hq-tn" data-role="team-name">{t.team}</code> : ''}{where ? <span class="hq-wsn">{where}</span> : ''}<button type="button" class="hq-btn sm danger" data-hq="stop" data-team={t.team} onClick={() => stopSheet(t.team)}>終了する</button>{t.error ? <span class="hq-why" data-role="running-error">{t.error}</span> : ''}{changed ? <button type="button" class="hq-btn sm" data-hq="apply" data-team={t.team} onClick={() => openSheet(t.team)}>反映していない変更 <b>{changed}</b></button> : ''}{notUp.length ? <span class="hq-up" data-role="not-up">{notUp.map((n) => <span class="hq-upm"><code>{n}</code></span>)}</span> : ''}</>;
+      return <><span class={'hq-on' + (t.starting || (t.waiting || []).length ? ' wait' : '')}>{label}</span>{t.team !== definition ? <code class="hq-tn" data-role="team-name">{t.team}</code> : ''}{where ? <span class="hq-wsn">{where}</span> : ''}<button type="button" class="hq-btn sm danger" data-hq="stop" data-team={t.team} onClick={() => stopSheet(t.team)}>{term('down')}</button>{t.error ? <span class="hq-why" data-role="running-error">{t.error}</span> : ''}{changed ? <button type="button" class="hq-btn sm" data-hq="apply" data-team={t.team} onClick={() => openSheet(t.team)}>{`${term('apply')}していない変更 `}<b>{changed}</b></button> : ''}{notUp.length ? <span class="hq-up" data-role="not-up">{notUp.map((n) => <span class="hq-upm"><code>{n}</code></span>)}</span> : ''}</>;
   })}{!live.length || place === 'global' ? <><button type="button" class="hq-btn sm" data-hq="start" data-def={definition} data-place={place || 'project'} data-project={place === 'global' ? '' : (project || '')} onClick={() => startSheet(definition, place || 'project', place === 'global' ? '' : (project || ''))}>{startLabel(place || 'project')}</button>{!live.length && lastWorkspaceOf(definition) ? <span class="hq-last">前は {lastWorkspaceOf(definition)}</span> : ''}</> : ''}</>;
 }
 

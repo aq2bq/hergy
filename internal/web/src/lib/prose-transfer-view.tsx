@@ -1,3 +1,4 @@
+import { term } from './terms.generated.js';
 import { useEffect, useRef, useState } from './preact.js';
 import { blocks } from './prose-blocks.js';
 import { blockRange, transferDraft, saveTransfer } from './prose-transfer.js';
@@ -39,7 +40,7 @@ export function TransferMenu({ source, index, target: initialTarget, at: initial
  const parts = blocks(original), [start, end] = blockRange(parts, index, children);
  const destination = prepared?.destination ?? target?.text() ?? '';
  const choice = targets.find((x) => x.id === selected);
- const groups = [...new Set(targets.map((t) => `${t.kind === 'team' ? 'チーム定義' : 'ロール'} · ${t.group}`))];
+ const groups = [...new Set(targets.map((t) => `${t.kind === 'team' ? term('team-definition') : term('role')} · ${t.group}`))];
  const insertion = at < 0 ? destination.length : at;
  useEffect(() => { dialog.current?.showModal(); source.targets().then((items) => setTargets(items.filter((x) => x.id !== source.id))).catch((err) => setError(problemText(err, '宛先を読めませんでした'))); }, []);
  useEffect(() => {
@@ -85,12 +86,12 @@ export function TransferMenu({ source, index, target: initialTarget, at: initial
   {done ? <p role="status">{done}</p> : <>
    <fieldset disabled={busy || !!prepared}>
     <label>操作<select aria-label="操作" value={move ? 'move' : 'copy'} onChange={(e) => setMove(e.currentTarget.value === 'move')}><option value="copy">写す（元に残す）</option><option value="move">移す</option></select></label>
-    <label>宛先<select aria-label="宛先" value={selected} onChange={(e) => { setSelected(e.currentTarget.value); setAt(-1); setError(''); }}><option value="">選んでください</option>{groups.map((group) => <optgroup label={group}>{targets.filter((t) => `${t.kind === 'team' ? 'チーム定義' : 'ロール'} · ${t.group}` === group).map((t) => <option value={t.id}>{t.label}</option>)}</optgroup>)}</select></label>
+    <label>宛先<select aria-label="宛先" value={selected} onChange={(e) => { setSelected(e.currentTarget.value); setAt(-1); setError(''); }}><option value="">選んでください</option>{groups.map((group) => <optgroup label={group}>{targets.filter((t) => `${t.kind === 'team' ? term('team-definition') : term('role')} · ${t.group}` === group).map((t) => <option value={t.id}>{t.label}</option>)}</optgroup>)}</select></label>
     <label>挿入位置<select aria-label="挿入位置" value={at} disabled={!target} onChange={(e) => setAt(Number(e.currentTarget.value))}><option value={-1}>末尾</option>{target ? blocks(destination).map((part) => <option value={part.start}>{'　'.repeat(Math.max(0, part.depth - 1)) + (part.start === 0 ? `題（${part.heading}）の前` : part.heading + ' の前')}</option>) : null}</select></label>
     <label class="transfer-children"><input type="checkbox" checked={children} onChange={(e) => setChildren(e.currentTarget.checked)} />子見出しを含める</label>
    </fieldset>
-   <p>選んだ範囲の空白と改行はそのまま写し、境目に空行がないときだけ補います。{choice?.kind === 'role' ? '共有ロールへの保存は、その文書を読むすべてのチームに反映されます。' : ''}</p>
-   {choice?.otherProject ? <p class="transfer-notice">宛先は、いま開いているプロジェクトとは別の場所です：{choice.label}</p> : null}
+   <p>選んだ範囲の空白と改行はそのまま写し、境目に空行がないときだけ補います。{choice?.kind === 'role' ? `共有${term('role')}への保存は、その文書を読むすべての${term('team')}に${term('apply')}されます。` : ''}</p>
+   {choice?.otherProject ? <p class="transfer-notice">{`宛先は、いま開いている${term('project')}とは別の場所です：`}{choice.label}</p> : null}
    {target && at === 0 && destination ? <p class="transfer-notice">題の前へ挿入すると、文書の題が変わります。</p> : null}
    {prepared ? <div class={'transfer-preview' + (move ? '' : ' copy')}>
     {move ? <div><b>元から削除する範囲</b><ChangedText text={prepared.source} start={start} end={end} removed /></div> : null}
@@ -100,7 +101,7 @@ export function TransferMenu({ source, index, target: initialTarget, at: initial
   </>}
   <footer>
    <button class="btn" disabled={busy} onClick={cancel}>{done ? '閉じる' : '取り消して閉じる'}</button>
-   {!done ? <span class="transfer-submit">{prepared ? <><button class="btn" disabled={busy} onClick={undo}>下書きをやめる</button><button class="btn primary" disabled={busy} onClick={() => void persist()}>{busy ? '保存中…' : move ? '宛先から順に保存' : '写した先を保存'}</button></> : <button class="btn primary" disabled={!target} onClick={prepare}>下書きに反映</button>}</span> : null}
+   {!done ? <span class="transfer-submit">{prepared ? <><button class="btn" disabled={busy} onClick={undo}>下書きをやめる</button><button class="btn primary" disabled={busy} onClick={() => void persist()}>{busy ? '保存中…' : move ? '宛先から順に保存' : '写した先を保存'}</button></> : <button class="btn primary" disabled={!target} onClick={prepare}>{`下書きに${term('apply')}`}</button>}</span> : null}
   </footer>
  </dialog>;
 }

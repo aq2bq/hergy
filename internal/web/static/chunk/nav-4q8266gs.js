@@ -14,6 +14,257 @@ function mark(name, detail) {
     collector.mark(name, typeof detail === "function" ? detail() : detail);
 }
 
+// lib/terms.generated.ts
+var terms = {
+  activity: {
+    en: "activity",
+    ja: "アクティビティ"
+  },
+  apply: {
+    en: "apply",
+    ja: "反映"
+  },
+  "bootstrap-prompt": {
+    en: "bootstrap prompt",
+    ja: "初期プロンプト"
+  },
+  cheatsheet: {
+    en: "cheatsheet",
+    ja: "チートシート"
+  },
+  check: {
+    en: "check",
+    ja: "検証方法"
+  },
+  description: {
+    en: "description",
+    ja: "説明"
+  },
+  down: {
+    en: "down",
+    ja: "終了する"
+  },
+  edge: {
+    en: "edge",
+    ja: "エッジ"
+  },
+  find: {
+    en: "Find",
+    ja: "探す"
+  },
+  flag: {
+    en: "flag",
+    ja: "オプション"
+  },
+  global: {
+    en: "global",
+    ja: "グローバル"
+  },
+  handed: {
+    en: "waiting for a reply",
+    ja: "人間の返事待ち"
+  },
+  "hands-the-turn-to": {
+    en: "hands the turn to",
+    ja: "ターンを渡す"
+  },
+  headquarters: {
+    en: "headquarters",
+    ja: "本部"
+  },
+  "herdr-name": {
+    en: "herdr name",
+    ja: "herdr 名"
+  },
+  human: {
+    en: "human",
+    ja: "人間"
+  },
+  "in-prompt": {
+    en: "in the prompt",
+    ja: "プロンプトに含める"
+  },
+  inactive: {
+    en: "inactive",
+    ja: "無効"
+  },
+  incident: {
+    en: "incident",
+    ja: "インシデント"
+  },
+  kind: {
+    en: "kind",
+    ja: "kind"
+  },
+  "launch-record": {
+    en: "launch record",
+    ja: "起動記録"
+  },
+  layer: {
+    en: "layer",
+    ja: "層"
+  },
+  member: {
+    en: "member",
+    ja: "メンバー"
+  },
+  "member-name": {
+    en: "member name",
+    ja: "メンバー名"
+  },
+  node: {
+    en: "node",
+    ja: "ノード"
+  },
+  origin: {
+    en: "origin",
+    ja: "由来"
+  },
+  place: {
+    en: "place",
+    ja: "置き場所"
+  },
+  preferred: {
+    en: "preferred",
+    ja: "優先"
+  },
+  profile: {
+    en: "profile",
+    ja: "プロファイル"
+  },
+  "profile-name": {
+    en: "profile name",
+    ja: "プロファイル名"
+  },
+  project: {
+    en: "project",
+    ja: "プロジェクト"
+  },
+  purpose: {
+    en: "purpose",
+    ja: "目的"
+  },
+  reason: {
+    en: "reason",
+    ja: "理由"
+  },
+  refresh: {
+    en: "refresh",
+    ja: "起動し直し"
+  },
+  "report-shape": {
+    en: "report shape",
+    ja: "報告の形"
+  },
+  reprompt: {
+    en: "reprompt",
+    ja: "送り直し"
+  },
+  revert: {
+    en: "revert",
+    ja: "元に戻す"
+  },
+  "revision-number": {
+    en: "revision",
+    ja: "改訂番号"
+  },
+  role: {
+    en: "role",
+    ja: "ロール"
+  },
+  "role-document": {
+    en: "role document",
+    ja: "ロールの文書"
+  },
+  "role-name": {
+    en: "role name",
+    ja: "ロール名"
+  },
+  rule: {
+    en: "rule",
+    ja: "規則"
+  },
+  "rule-note": {
+    en: "note",
+    ja: "メモ"
+  },
+  "running-column": {
+    en: "Running",
+    ja: "状態と操作"
+  },
+  "settings-check": {
+    en: "settings check",
+    ja: "設定の検査"
+  },
+  "shared-agreement": {
+    en: "shared agreement",
+    ja: "全チームの規則"
+  },
+  "size-guide": {
+    en: "provisional size guide",
+    ja: "暫定の目安"
+  },
+  start: {
+    en: "start",
+    ja: "起動"
+  },
+  status: {
+    en: "status",
+    ja: "状態"
+  },
+  stop: {
+    en: "stop",
+    ja: "止める"
+  },
+  team: {
+    en: "team",
+    ja: "チーム"
+  },
+  "team-agreement": {
+    en: "team agreement",
+    ja: "チームの規則"
+  },
+  "team-definition": {
+    en: "team definition",
+    ja: "チーム定義"
+  },
+  "team-definition-name": {
+    en: "team definition name",
+    ja: "チーム定義名"
+  },
+  "team-name": {
+    en: "team name",
+    ja: "チーム名"
+  },
+  tell: {
+    en: "tell",
+    ja: "伝える"
+  },
+  turn: {
+    en: "turn",
+    ja: "ターン"
+  },
+  undo: {
+    en: "undo",
+    ja: "取り消す"
+  },
+  "waiting-for-permission": {
+    en: "waiting for permission",
+    ja: "許可待ち"
+  },
+  "waiting-for-the-human": {
+    en: "waiting for the human",
+    ja: "人間を待っている"
+  },
+  worker: {
+    en: "worker",
+    ja: "ワーカー"
+  }
+};
+function term(id, lang = "ja") {
+  return terms[id][lang];
+}
+
 // lib/api.ts
 var token3 = document.querySelector("[data-token]")?.dataset?.token || "";
 var enc = (s) => encodeURIComponent(String(s == null ? "" : s));
@@ -128,7 +379,7 @@ function nestedSentence(value) {
   return sentenceOf(value.json);
 }
 var PLACES = ["project", "global"];
-var PLACE_LABEL = { project: "プロジェクト", global: "グローバル" };
+var PLACE_LABEL = { project: term("project"), global: term("global") };
 var placeLabel = (place) => place === "project" || place === "global" ? PLACE_LABEL[place] : "";
 var countOf = (c) => ({ err: c && c.err || 0, warn: c && c.warn || 0 });
 var jsonOf = (v) => JSON.stringify(v || []);
@@ -246,4 +497,4 @@ function teamModel2(list) {
   };
 }
 
-export { mark, token3, Refusal2, call2, readPromptComparison2, read2, list2, get2, check2, save2, del2, applyList2, applyCount2, applyMembers2, hqList2, saved2, bases2, problemText2, profileModel2, roleModel2, teamModel2 };
+export { mark, term, token3, Refusal2, call2, readPromptComparison2, read2, list2, get2, check2, save2, del2, applyList2, applyCount2, applyMembers2, hqList2, saved2, bases2, problemText2, profileModel2, roleModel2, teamModel2 };

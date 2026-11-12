@@ -1,5 +1,6 @@
 // roles/state.ts — role rows, navigation and read-through projections of editing.
 // Resource drafts, checks, conflicts and save requests belong to lib/editing.
+import { term } from '../lib/terms.generated.js';
 import { editRole, restoreRole, editRoleAssignments, type RoleCarry, type CompleteCarry, type RoleEditing, type RoleAssignments, type ReadonlyDeep } from '../lib/editing.js';
 import { resourceIdentity, type ResourceIdentity } from '../lib/resource-identity.js';
 import { signal } from '../lib/preact.js';
@@ -101,7 +102,7 @@ export const TEXT: Record<string, string> = ISLAND.texts || {};
 // fill is the server's sentence with the screen's numbers in it: the words stay
 // the server's (the same ones hergy validate prints).
 export const fill = (s: string | undefined, ...a: string[]): string => String(s || '').replace(/%[sd]/g, () => (a.length ? a.shift() || '' : ''));
-export const LNAME: Record<Place, string> = { project: 'プロジェクト', global: 'グローバル' };
+export const LNAME: Record<Place, string> = { project: term('project'), global: term('global') };
 export const clone = <T,>(o: T): T => structuredClone(o);
 const other = (l: Place): Place => (l === 'project' ? 'global' : 'project');
 let uid = 0;
@@ -116,7 +117,7 @@ export const HQ = ISLAND.hq || null;
 export const GROUPED = !!(HQ && HQ.projects && HQ.projects.mode === 'listed');
 export const CURRENT = GROUPED && HQ ? ((HQ.projects.current && HQ.projects.current.path) || '') : '';
 export const groupKeyOf = (g: components['schemas']['HQRoleGroup'] | components['schemas']['HQTeamGroup']): string => (g.global ? 'global' : (g.project ? g.project.path : ''));
-export const groupNameOf = (g: components['schemas']['HQRoleGroup'] | components['schemas']['HQTeamGroup']): string => (g.global ? 'グローバル' : (g.project ? g.project.name : ''));
+export const groupNameOf = (g: components['schemas']['HQRoleGroup'] | components['schemas']['HQTeamGroup']): string => (g.global ? term('global') : (g.project ? g.project.name : ''));
 export const currentGroup = () => (GROUPED ? CURRENT : '');
 // currentProjectName is the name the プロジェクト column gives this serve's
 // project, whether or not it is listed (d-8a45, r-5b96 audit 5).
@@ -304,7 +305,7 @@ export const whoReads = (n: string, group: string) => {
   return pool.flatMap((t) => t.members.filter((m) => m.saved === n).map((m) => ({ t, m })));
 };
 export const projectNameOf = (key: string): string => {
-  if (key === 'global') return 'グローバル';
+  if (key === 'global') return term('global');
   if (key === '' || key === CURRENT) return currentGroupName();
   const found = HQ && ((HQ.projects || {}).projects || []).find((x) => x.path === key);
   return found ? found.name : String(key || '').split('/').filter(Boolean).pop() || '';

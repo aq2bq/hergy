@@ -1,3 +1,4 @@
+import { term } from '../lib/terms.generated.js';
 import { runDanger, dangerAttrs } from '../lib/danger.js';
 import { ProjectView } from '../lib/project-view';
 // teams/view.tsx — チーム定義の画面の一覧とパネル（webui-preact-design 4 章）。
@@ -84,15 +85,15 @@ export function List() {
   // the one project's lists as though the projects were not there (r-1db7 L1).
   if (HQ && HQ.error) return <p class="hq-err" data-role="hq-error">{HQ.error}</p>;
   const head = (
-    <div class="head"><span></span><span>チーム定義名</span><span>説明</span><span>メンバー</span><span>ワーカー</span><span>規則とひな形（目安 1,200 字）</span>{HQ ? <span class="hq-runh">状態と操作</span> : null}</div>
+    <div class="head"><span></span><span>{term('team-definition-name')}</span><span>{term('description')}</span><span>{term('member')}</span><span>{term('worker')}</span><span>{`${term('rule')}とひな形（目安 1,200 字）`}</span>{HQ ? <span class="hq-runh">{term('running-column')}</span> : null}</div>
   );
   const body = placeGroups().map((g) => {
     const rows = groupRecs(g.key);
     return <>{PlaceHead({ g })}{rows.map((r) => <Row key={r.key.value} r={r} />)}
-      {rowsInGroup(g.key) === 0 ? <div class="hq-empty"><span class="none">{g.name} にはチーム定義がありません。</span></div> : null}
+      {rowsInGroup(g.key) === 0 ? <div class="hq-empty"><span class="none">{g.name}{` には${term('team-definition')}がありません。`}</span></div> : null}
     </>;
   });
-  return <>{missingOpen.value.length ? <p role="status">チーム定義 {missingOpen.value.join('、')} が見つかりません。<a href="/teams">一覧を見る</a></p> : null}<div class="list hq-grouped">{head}{body}</div></>;
+  return <>{missingOpen.value.length ? <p role="status">{`${term('team-definition')} `}{missingOpen.value.join('、')} が見つかりません。<a href="/teams">一覧を見る</a></p> : null}<div class="list hq-grouped">{head}{body}</div></>;
 }
 
 // PlaceHead is one place's head (spec 4 章, d-e77c): its name, where it is,
@@ -101,15 +102,15 @@ export function List() {
 function PlaceHead({ g }: { g: TeamGroup }) {
   const key = g.key;
   const target = key === 'global' ? 'global' : 'project';
-  const said = key === 'global' ? 'グローバル' : g.name;
+  const said = key === 'global' ? term('global') : g.name;
   const count = rowsInGroup(key);
   const live = ((hq.running.value && hq.running.value.teams) || []).filter((t: { project?: string }) => t.project === (key || CURRENT || HQ?.projects?.current?.path)).length;
-  return <div class={'hq-gh' + (g.global ? ' global' : '')} data-group={key} data-place={target} aria-label={`置き場所: ${said}`}>
+  return <div class={'hq-gh' + (g.global ? ' global' : '')} data-group={key} data-place={target} aria-label={`${term('place')}: ${said}`}>
       <span class="hq-gn">{g.name}</span><span class="hq-gp">{g.display || ''}</span>
       {g.global
-        ? <span class="hq-gc">どのプロジェクトからも使える。同じ名前があれば、そのプロジェクトのほうが使われる</span>
-        : <span class="hq-gc">チーム定義 <b>{count}</b>{HQ ? <> · 動いているチーム <b>{live}</b></> : null}</span>}
-      <button class="btn sm hq-add" data-act="new" data-group={key} data-place={target} onClick={() => pressNew(key)}>＋ {said} にチーム定義を追加</button>
+        ? <span class="hq-gc">{`どの${term('project')}からも使える。同じ名前があれば、その${term('project')}のほうが使われる`}</span>
+        : <span class="hq-gc">{`${term('team-definition')} `}<b>{count}</b>{HQ ? <>{` · 動いている${term('team')} `}<b>{live}</b></> : null}</span>}
+      <button class="btn sm hq-add" data-act="new" data-group={key} data-place={target} onClick={() => pressNew(key)}>＋ {said}{` に${term('team-definition')}を追加`}</button>
     </div>;
 }
 
@@ -163,14 +164,14 @@ function NameCell({ r, open }: { r: Rec; open: boolean }) {
   if (!open) return <><span class="nm">{name || <span class="none">—</span>}</span>{tag}</>;
   return (
     <>
-      <Field id={'nm-' + r.dom} class={'in-name' + ((r.nameIssues.value || []).length ? ' bad' : '')} data-f="name" value={name} placeholder="チーム定義名" spellcheck={false} autocomplete="off" aria-label="チーム定義名" onInput={(e: Event) => pressName(r, inputValue(e))} />{tag}
+      <Field id={'nm-' + r.dom} class={'in-name' + ((r.nameIssues.value || []).length ? ' bad' : '')} data-f="name" value={name} placeholder={term('team-definition-name')} spellcheck={false} autocomplete="off" aria-label={term('team-definition-name')} onInput={(e: Event) => pressName(r, inputValue(e))} />{tag}
     </>
   );
 }
 
 // groupLabel is the name a place is drawn by inside a row: the project's name
 // (proj), グローバル, or プロジェクト when no headquarters reading names it.
-const groupLabel = (r: Rec): string => (r.project === 'global' ? 'グローバル' : (r.project ? hqProjectName(r.project) : currentProjectName()));
+const groupLabel = (r: Rec): string => (r.project === 'global' ? term('global') : (r.project ? hqProjectName(r.project) : currentProjectName()));
 
 // placePills is the row's 置き場所 column (spec 4 章, d-e77c): the place's name.
 // A project that overrides a global name carries the crossed-out グローバル, and
@@ -184,7 +185,7 @@ function placePills(r: Rec): ComponentChildren {
   // global row names the listed projects that override it (r-ea17).
   const shadow = r.mark.value === 'in_effect';
   const overriding = r.place.value === 'global' ? (over[name] || []) : [];
-  return <><span class="pill on">{label}</span>{shadow ? <span class="pill shadow">グローバル</span> : null}{overriding.map((p) => <span class="pill hq-ov">{hqProjectName(p)} で上書き</span>)}</>;
+  return <><span class="pill on">{label}</span>{shadow ? <span class="pill shadow">{term('global')}</span> : null}{overriding.map((p) => <span class="pill hq-ov">{hqProjectName(p)} で上書き</span>)}</>;
 }
 
 // runProject is the project a row's team runs in: without projects:, it is the
@@ -208,13 +209,13 @@ function Sum({ r, open }: { r: Rec; open: boolean }) {
   return (
     <>
       <button type="button" class="chev disclosure" aria-label={`${teamLabel(r)} を開閉する`} aria-expanded={open} onClick={(e) => { e.stopPropagation(); pressToggle(r); }}></button>
-      <span class="c-name"><NameCell r={r} open={open} />{r.mark.value ? <span class={'state ' + (r.mark.value === 'hidden' ? 'off' : 'on')}>{r.mark.value === 'hidden' ? '無効' : '優先'}</span> : null}<span class="vcount"><Counts list={messagesOf(rowIssues(r))} /></span></span>
+      <span class="c-name"><NameCell r={r} open={open} />{r.mark.value ? <span class={'state ' + (r.mark.value === 'hidden' ? 'off' : 'on')}>{r.mark.value === 'hidden' ? term('inactive') : term('preferred')}</span> : null}<span class="vcount"><Counts list={messagesOf(rowIssues(r))} /></span></span>
       <span class={'c-description' + (broken || !(t.description || open) ? ' none' : '')}>{cell}</span>
       <span class="c-place">{pills}</span>
       <span class="c-members c-num">{broken ? '—' : t.members.length}</span>
       <span class="c-turns c-num">{broken ? '—' : t.workers.length}</span>
 
-      <span class="c-size">{broken || !r.limit.value ? <span class="none">—</span> : <span class={'amt' + (size > r.limit.value ? ' over' : '')} title={`暫定の目安：${num(r.limit.value)}字。超えても保存・起動できます。`}><span class="v">{num(size)} 字</span></span>}</span>
+      <span class="c-size">{broken || !r.limit.value ? <span class="none">—</span> : <span class={'amt' + (size > r.limit.value ? ' over' : '')} title={`${term('size-guide')}：${num(r.limit.value)}字。超えても保存・${term('start')}できます。`}><span class="v">{num(size)} 字</span></span>}</span>
       {HQ && !r.draftRow ? <span class="hq-runc"><RunCell definition={r.name.value} place={r.place.value} project={runProject(r)} /></span> : null}
     </>
   );
@@ -258,11 +259,11 @@ function DtabsNav({ r }: { r: Rec }) {
   const cur = dtabOf(r);
   const tabs: [string, string, string, boolean][] = [
     ['shape', 'トポロジー', '', teamChanges(r) > 0],
-    ['agree', '規則', num(chars(r.agreeDraft.value.text)), r.agreeSaved.value ? agreementChanged(r) : false],
+    ['agree', term('rule'), num(chars(r.agreeDraft.value.text)), r.agreeSaved.value ? agreementChanged(r) : false],
   ];
   return (
     <>
-      <span class="dtl" role="tablist" aria-label="チーム定義の編集">{tabs.map(([t, label, n, ch]) => <button class={'dtab' + (cur === t ? ' on' : '')} data-act="dtab" data-t={t} role="tab" aria-selected={cur === t} tabIndex={cur === t ? 0 : -1} onClick={() => pressDtab(r, t)}>{label}{n !== '' ? <span class="n">{n}</span> : null}{ch ? <i class="dot"></i> : null}</button>)}</span>
+      <span class="dtl" role="tablist" aria-label={`${term('team-definition')}の編集`}>{tabs.map(([t, label, n, ch]) => <button class={'dtab' + (cur === t ? ' on' : '')} data-act="dtab" data-t={t} role="tab" aria-selected={cur === t} tabIndex={cur === t ? 0 : -1} onClick={() => pressDtab(r, t)}>{label}{n !== '' ? <span class="n">{n}</span> : null}{ch ? <i class="dot"></i> : null}</button>)}</span>
       <span class="dacts">{!r.draftRow ? <Rename r={r} /> : null}<Dacts r={r} /></span>
     </>
   );
@@ -319,7 +320,7 @@ function TeamPanel({ r }: { r: Rec }) {
   const both = !!r.mark.value;
   const head = (
     <header class="ph"><code class="path">{r.teamPath.value}</code>
-      <span class="phr">{both ? <span class={'state ' + (r.mark.value === 'hidden' ? 'off' : 'on')}>{r.mark.value === 'hidden' ? '無効' : '優先'}</span> : null}</span></header>
+      <span class="phr">{both ? <span class={'state ' + (r.mark.value === 'hidden' ? 'off' : 'on')}>{r.mark.value === 'hidden' ? term('inactive') : term('preferred')}</span> : null}</span></header>
   );
   // A team.yaml that does not read draws no figure, and a saved one offers no
   // shape save: the check column alone says what stopped it, and the YAML tab is
@@ -368,14 +369,14 @@ function StarterNote({ r }: { r: Rec }) {
     <div class="starter">
       {roles ? (
         <div class="st-item">
-          <span>プロジェクトにもグローバルにも、ロールがありません。メンバーのロールを選ぶには、ロールが要ります。</span>
-          <button class="btn sm" type="button" data-act="starter-roles" aria-pressed={r.starterRoles.value} onClick={() => pressStarterRoles(r)}>{r.starterRoles.value ? 'ひな形のロールを使わない' : 'ひな形のロール lead と builder を使う'}</button>
+          <span>{`${term('project')}にも${term('global')}にも、${term('role')}がありません。${term('member')}の${term('role')}を選ぶには、${term('role')}が要ります。`}</span>
+          <button class="btn sm" type="button" data-act="starter-roles" aria-pressed={r.starterRoles.value} onClick={() => pressStarterRoles(r)}>{r.starterRoles.value ? `ひな形の${term('role')}を使わない` : `ひな形の${term('role')} lead と builder を使う`}</button>
         </div>
       ) : null}
       {profiles ? (
         <div class="st-item">
-          <span>プロジェクトにもグローバルにも、プロファイルがありません。メンバーのプロファイルを選ぶには、プロファイルが要ります。</span>
-          <button class="btn sm" type="button" data-act="starter-profile" aria-pressed={r.starterProfile.value} onClick={() => pressStarterProfile(r)}>{r.starterProfile.value ? 'ひな形のプロファイルを使わない' : 'ひな形のプロファイル claude-default を使う'}</button>
+          <span>{`${term('project')}にも${term('global')}にも、${term('profile')}がありません。${term('member')}の${term('profile')}を選ぶには、${term('profile')}が要ります。`}</span>
+          <button class="btn sm" type="button" data-act="starter-profile" aria-pressed={r.starterProfile.value} onClick={() => pressStarterProfile(r)}>{r.starterProfile.value ? `ひな形の${term('profile')}を使わない` : `ひな形の${term('profile')} claude-default を使う`}</button>
         </div>
       ) : null}
     </div>
@@ -393,19 +394,19 @@ function CarryNote({ r }: { r: Rec }) {
   const missing = c.roles.length + c.profiles.length;
   return (
     <div class="carry">
-      <div class="st-item"><span>グローバルに書くのは、このチーム定義（team.yaml と agreement.md）だけです。{missing
-        ? 'メンバーが使うロールとプロファイルのうち、グローバルに無いものは、選んだものだけを一緒に書きます。'
-        : 'メンバーが使うロールとプロファイルはグローバルにそろっているので、どのプロジェクトからも起動できます。'}</span></div>
+      <div class="st-item"><span>{`${term('global')}に書くのは、この${term('team-definition')}（team.yaml と agreement.md）だけです。`}{missing
+        ? `${term('member')}が使う${term('role')}と${term('profile')}のうち、${term('global')}に無いものは、選んだものだけを一緒に書きます。`
+        : `${term('member')}が使う${term('role')}と${term('profile')}は${term('global')}にそろっているので、どの${term('project')}からも${term('start')}できます。`}</span></div>
       {c.roles.map((name) => (
         <div class="st-item">
-          <span>ロール {name} の文書はグローバルにありません。</span>
-          <button class="btn sm" type="button" data-act="carry-role" data-name={name} aria-pressed={c.chosenRoles.includes(name)} onClick={() => pressCarry(r, 'role', name)}>{c.chosenRoles.includes(name) ? `ロール ${name} を書かない` : `ロール ${name} をグローバルに書く`}</button>
+          <span>{`${term('role')} `}{name}{` の文書は${term('global')}にありません。`}</span>
+          <button class="btn sm" type="button" data-act="carry-role" data-name={name} aria-pressed={c.chosenRoles.includes(name)} onClick={() => pressCarry(r, 'role', name)}>{c.chosenRoles.includes(name) ? `${term('role')} ${name} を書かない` : `${term('role')} ${name} を${term('global')}に書く`}</button>
         </div>
       ))}
       {c.profiles.map((name) => (
         <div class="st-item">
-          <span>プロファイル {name} はグローバルにありません。</span>
-          <button class="btn sm" type="button" data-act="carry-profile" data-name={name} aria-pressed={c.chosenProfiles.includes(name)} onClick={() => pressCarry(r, 'profile', name)}>{c.chosenProfiles.includes(name) ? `プロファイル ${name} を書かない` : `プロファイル ${name} をグローバルに書く`}</button>
+          <span>{`${term('profile')} `}{name}{` は${term('global')}にありません。`}</span>
+          <button class="btn sm" type="button" data-act="carry-profile" data-name={name} aria-pressed={c.chosenProfiles.includes(name)} onClick={() => pressCarry(r, 'profile', name)}>{c.chosenProfiles.includes(name) ? `${term('profile')} ${name} を書かない` : `${term('profile')} ${name} を${term('global')}に書く`}</button>
         </div>
       ))}
     </div>
@@ -418,9 +419,9 @@ function VList({ r }: { r: Rec }) {
   const { issues, own, out, where, file, roleHref } = vlistParts(r);
   return (
     <>
-      <div class="vhead"><span class="vt">設定の検査</span>{issues.length ? <span class="vcount"><Counts list={messagesOf(issues)} /></span> : <span class="vclean">✓ 問題なし</span>}</div>
+      <div class="vhead"><span class="vt">{term('settings-check')}</span>{issues.length ? <span class="vcount"><Counts list={messagesOf(issues)} /></span> : <span class="vclean">✓ 問題なし</span>}</div>
       {own.map((m) => <button class="vitem" data-act="vpick" data-node={m.node || null} data-worker={m.worker != null && m.worker >= 0 ? m.worker : null} data-name-field={m.field === 'name' ? 1 : null} onClick={() => pressVpick(r, { ...m, node: m.node, worker: m.worker != null && m.worker >= 0 ? m.worker : null, nameField: m.field === 'name' })}><Sev sev={m.sev} /><span class="lno">{where(m)}</span><span class="msg">{m.text}</span></button>)}
-      {out.length ? <><div class="vsub">ロールの文書</div>{out.map((m) => <a class="vitem" href={roleHref(m)}><Sev sev={m.sev} /><span class="lno">{file(m)}</span><span class="msg">{m.text}</span></a>)}</> : null}
+      {out.length ? <><div class="vsub">{term('role-document')}</div>{out.map((m) => <a class="vitem" href={roleHref(m)}><Sev sev={m.sev} /><span class="lno">{file(m)}</span><span class="msg">{m.text}</span></a>)}</> : null}
     </>
   );
 }
@@ -480,14 +481,14 @@ function Foot({ r, agree }: { r: Rec; agree?: boolean }) {
     return (
       <>{notice}<footer class="pf">
         <button class="btn primary" data-act="save" disabled={blocked} onClick={() => pressSave(r)}>保存</button><span class="errline doc" hidden={!refusal}>{refusal}</span><span class="dirty">{s && d ? `${d} か所` : ''}</span>{ok}
-        <span class="acts"><button class="btn" data-act="revert" {...dangerAttrs('revertDraft')} hidden={empty || !d} onClick={(e) => pressRevert(r, (e.currentTarget as HTMLElement).closest('.panel') as HTMLElement | null)}>元に戻す</button></span>
+        <span class="acts"><button class="btn" data-act="revert" {...dangerAttrs('revertDraft')} hidden={empty || !d} onClick={(e) => pressRevert(r, (e.currentTarget as HTMLElement).closest('.panel') as HTMLElement | null)}>{term('revert')}</button></span>
       </footer></>
     );
   }
   return (
     <>{notice}<footer class="pf">
       <button class="btn primary" data-act="t-save" disabled={!n || grew} onClick={() => pressTSave(r)}>保存</button><span class="dirty">{n ? `${n} か所` : ''}</span>{ok}
-      <span class="acts"><button class="btn" data-act="t-revert" {...dangerAttrs('revertDraft')} hidden={!n} onClick={(e) => pressTRevert(r, (e.currentTarget as HTMLElement).closest('.panel') as HTMLElement | null)}>元に戻す</button></span>{refusal ? <span class="sev err refusal">{refusal}</span> : null}
+      <span class="acts"><button class="btn" data-act="t-revert" {...dangerAttrs('revertDraft')} hidden={!n} onClick={(e) => pressTRevert(r, (e.currentTarget as HTMLElement).closest('.panel') as HTMLElement | null)}>{term('revert')}</button></span>{refusal ? <span class="sev err refusal">{refusal}</span> : null}
     </footer></>
   );
 }
@@ -531,8 +532,8 @@ function AgreePanel({ r }: { r: Rec }) {
    window.addEventListener('resize', fit);
    return () => { cancelAnimationFrame(frame); observer.disconnect(); window.removeEventListener('resize', fit); };
   }, [active.join('|')]);
-  const docs = [{key: 'agreement', label: `チームの規則 ${r.name.value}`, members: r.draft.value.members.map(m => m.name).join('、'), status: `${agreementChanged(r) ? '未保存' : '保存済み'}${agreeIssues(r).length ? ` · 問題・警告 ${agreeIssues(r).length}` : ''}`},
-   ...names.map(name => ({key: 'role:' + name, label: `ロール ${name}`, members: r.draft.value.members.filter(m => m.role === name).map(m => m.name).join('、'), status: roleSummary(r, name)}))];
+  const docs = [{key: 'agreement', label: `${term('team-agreement')} ${r.name.value}`, members: r.draft.value.members.map(m => m.name).join('、'), status: `${agreementChanged(r) ? '未保存' : '保存済み'}${agreeIssues(r).length ? ` · 問題・警告 ${agreeIssues(r).length}` : ''}`},
+   ...names.map(name => ({key: 'role:' + name, label: `${term('role')} ${name}`, members: r.draft.value.members.filter(m => m.role === name).map(m => m.name).join('、'), status: roleSummary(r, name)}))];
   return (
     <div class="prose-workspace" ref={workspace} data-mode={active.length === 1 ? 'single' : active.length === 2 ? 'compare' : 'all'}>
      <div class="prose-documents" aria-label="読む文書">
@@ -542,12 +543,12 @@ function AgreePanel({ r }: { r: Rec }) {
       </div>)}
       <button class="btn" type="button" onClick={() => { ruleSelection.value = { ...ruleSelection.value, [r.uid]: available }; }}>すべて表示</button>
      </div>
-     {active.length > 1 ? <p class="prose-compare-note">比較中 {active.length} 文書。{active.length > 2 ? '横に収まらない文書は、下のスクロールバーで表示できます。' : ''}文書名を押すと、その文書だけを読みます。</p> : null}
+     {active.length > 1 ? <p class="prose-compare-note">比較中 {active.length} 文書。{active.length > 2 ? `横に収まらない文書は、下のスク${term('role')}バーで表示できます。` : ''}文書名を押すと、その文書だけを読みます。</p> : null}
      <div class="prose-tools"><EqualWidths /><span class="prose-drag-hint">見出しだけの表示で、行の左の ⠿ をつかんで別の列へ落とすと移します。{transferKeys()}</span><span class="prose-wheel-hint">本文を読み進めるときは、欄を一度押してからホイールを回します。</span>{places.length ? <span class="prose-scope"><span>確認できた範囲</span>{places.map((place) => <span class="scope-place">{place}</span>)}</span> : null}</div><div class="prose-board"><section hidden={!active.includes('agreement')} class={'prose-column panel agree-p' + (shadowed ? ' shadowed' : '')} data-uid={r.uid} data-l={r.place.value} data-key={dkey(r)} data-mode={mode}>
       <div class="pmain">
-        <RuleDoc transfer={r.draftRow ? undefined : teamTransfer(r)} row={rowOfPanel(r)} issues={agreeIssues(r)} hasName={false} heading={{ id: `team-prose-${r.uid}`, kind: 'チーム定義', name: r.name.value, title: r.agreeDraft.value.title,
+        <RuleDoc transfer={r.draftRow ? undefined : teamTransfer(r)} row={rowOfPanel(r)} issues={agreeIssues(r)} hasName={false} heading={{ id: `team-prose-${r.uid}`, kind: term('team-definition'), name: r.name.value, title: r.agreeDraft.value.title,
             path: `${placeName(r.place.value)} · teams/${r.name.value}/agreement.md`, members: r.draft.value.members.map((m) => m.name).join('、'),
-            template: r.check.value?.templateSize || 0, state: (agreementChanged(r) ? '未保存' : '保存済み') + (shadowed ? '（無効）' : '') }}
+            template: r.check.value?.templateSize || 0, state: (agreementChanged(r) ? '未保存' : '保存済み') + (shadowed ? `（${term('inactive')}）` : '') }}
           onDraft={(draft) => { r.editing.agreement.change(draft); scheduleAgree(r); }}
  />
       </div>
@@ -568,8 +569,8 @@ const keyOfFile = (f: YFile): string => f.file;
 function YamlEmpty() {
   return (
     <section class="yed yempty">
-      <p>チーム定義はまだありません。</p>
-      <p>一覧の『＋ チーム定義を追加』で作ると、ここに team.yaml と agreement.md が並びます。</p>
+      <p>{`${term('team-definition')}はまだありません。`}</p>
+      <p>{`一覧の『＋ ${term('team-definition')}を追加』で作ると、ここに team.yaml と agreement.md が並びます。`}</p>
       <span><button class="btn" data-act="tab" data-t="list" onClick={() => pressTab('list')}>一覧へ</button></span></section>
   );
 }
@@ -608,7 +609,7 @@ function YamlFile({ f }: { f: YFile }) {
   return (
     <section class="yed" data-key={keyOfFile(f)} data-hash={f.hash}>
       <YamlTab label={f.label} path={f.path}
-        badge={both ? { cls: 'state ' + (mark === 'hidden' ? 'off' : 'on'), text: mark === 'hidden' ? '無効' : '優先' } : null}
+        badge={both ? { cls: 'state ' + (mark === 'hidden' ? 'off' : 'on'), text: mark === 'hidden' ? term('inactive') : term('preferred') } : null}
         editing={f.editing} text={f.text} hash={f.hash} kind="team" place={f.place} name={f.name} extra={{ part: f.kind }}
         problems={yIssues(f.file)} problem={f.problem || ''}
  />
@@ -622,5 +623,5 @@ function YamlFile({ f }: { f: YFile }) {
 function CanvasToast() {
   const t = state.value.toast;
   if (!t) return null;
-  return <div class="cv-toast"><span>{t.msg}</span>{t.undo ? <button type="button" data-act="cv-undo" onClick={() => pressToastUndo()}>取り消す</button> : null}</div>;
+  return <div class="cv-toast"><span>{t.msg}</span>{t.undo ? <button type="button" data-act="cv-undo" onClick={() => pressToastUndo()}>{term('undo')}</button> : null}</div>;
 }

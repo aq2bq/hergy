@@ -7,11 +7,15 @@
 // templates load (webui-preact-design 3 章). The versions are pinned in
 // tools/webvendor/package.json and bun.lock.
 
+import {
+  term
+} from "./nav-4q8266gs.js";
+
 // lib/address.ts
 var addressBrand = Symbol("RowAddress");
 function rowAddress(name, group) {
   if (!group)
-    throw new Error(`置き場所の無い行は URL に書けません: ${name}`);
+    throw new Error(`${term("place")}の無い行は URL に書けません: ${name}`);
   return Object.freeze({ name, group, [addressBrand]: true });
 }
 var token2 = (name, group) => group ? `${name}|${group}` : name;
@@ -27,7 +31,7 @@ var readOpen2 = (params) => parseOpen2(params.get("open"));
 function writeOpen2(params, refs) {
   const tokens = refs.map((one) => {
     if (!one.group)
-      throw new Error(`置き場所の無い行は URL に書けません: ${one.name}`);
+      throw new Error(`${term("place")}の無い行は URL に書けません: ${one.name}`);
     return token2(one.name, one.group);
   });
   if (tokens.length)

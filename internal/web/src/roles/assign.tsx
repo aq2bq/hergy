@@ -1,3 +1,4 @@
+import { term } from '../lib/terms.generated.js';
 import { ProjectView } from '../lib/project-view';
 // roles/assign.js — 割り当てのタブ（spec 4 章、spec-roles 2「割り当てのタブ」）。
 //
@@ -34,7 +35,7 @@ function ARow({ t, m, i }: { t: TeamCard; m: TeamMember; i: number }) {
   const places = [DIR.project + m.draft + '.md', DIR.global + m.draft + '.md'].join(TEXT.separator || '、');
   return <div class={['arow', m.changed ? 'changed' : '', r ? '' : 'missing', dim ? 'dim' : ''].filter(Boolean).join(' ')} data-m={m.name}>
       <div class="who"><code>{m.name}</code></div>
-      <div class="pick">{m.changed ? <s class="was">{m.saved}</s> : ''}<span class="sel"><select class="pickrole" id={`s-${t.id}-${i}`} data-t={t.id} data-i={i} aria-label={`${m.name} のロール`} onChange={(e: Event) => { if (e.currentTarget instanceof HTMLSelectElement) pickRole(t.id, i, e.currentTarget.value); }}>{roleOptions(m.draft)}</select></span></div>
+      <div class="pick">{m.changed ? <s class="was">{m.saved}</s> : ''}<span class="sel"><select class="pickrole" id={`s-${t.id}-${i}`} data-t={t.id} data-i={i} aria-label={`${m.name} の${term('role')}`} onChange={(e: Event) => { if (e.currentTarget instanceof HTMLSelectElement) pickRole(t.id, i, e.currentTarget.value); }}>{roleOptions(m.draft)}</select></span></div>
       {r ? '' : <ul class="vm"><Vm list={[{ sev: 'err', text: fill(TEXT.no_role_doc, m.name, m.draft, places) }]} /></ul>}
     </div>;
 }
@@ -58,9 +59,9 @@ function Team({ t }: { t: TeamCard }) {
   const errs = t.members.filter((m) => !roleByName(m.draft)).length;
   const refusal = teamErrorOf(t.id);
   return <section class="team" data-t={t.id} data-place={t.place || 'project'} ref={el}>
-      <header class="th"><span class="tl">チーム定義</span><code class="tid">{t.id}</code><span class="pill on">{LNAME[t.place] || LNAME.project}</span>
+      <header class="th"><span class="tl">{term('team-definition')}</span><code class="tid">{t.id}</code><span class="pill on">{LNAME[t.place] || LNAME.project}</span>
         <span class="tside">{errs ? <span class="sev err">問題 {errs}</span> : ''}{dirty ? <><span class="dirty">{dirty} 人</span><button class="btn primary" data-act="t-save" disabled={errs > 0} onClick={() => doAssignSave(t.id)}>保存</button></> : okOf('t' + t.id) ? <span class="ok">保存しました</span> : ''}</span>
-        {t.place === 'global' ? <span class="tnote" data-role="place-note">グローバルの定義です。直すと、すべてのプロジェクトの同じチーム定義が変わります</span> : ''}
+        {t.place === 'global' ? <span class="tnote" data-role="place-note">{`${term('global')}の定義です。直すと、すべての${term('project')}の同じ${term('team-definition')}が変わります`}</span> : ''}
         {refusal ? <span class="errline">{refusal}</span> : ''}
       </header>
       {t.members.map((m, i) => <ARow key={m.name} t={t} m={m} i={i} />)}
@@ -75,12 +76,12 @@ function RoleBar() {
   teams.value.forEach((t) => t.members.forEach((m) => { cnt[m.draft] = (cnt[m.draft] || 0) + 1; }));
   return <div class="rolebar">{savedRoles().filter((r) => (!r.group || r.group === CURRENT || r.group === 'global') && cnt[curName(r)]).map((r) => {
     const n = curName(r);
-    return <button class={'rseg' + (hi === n ? ' on' : hi ? ' dim' : '')} data-act="role-hi" data-n={n} aria-pressed={hi === n} onClick={() => pressRoleHi(n)}><code>{n}</code><span>{cur(r).title} · {r.group === 'global' ? 'グローバル' : HQ?.projects.current?.name || 'プロジェクト'}</span><b>{cnt[n]}</b></button>;
+    return <button class={'rseg' + (hi === n ? ' on' : hi ? ' dim' : '')} data-act="role-hi" data-n={n} aria-pressed={hi === n} onClick={() => pressRoleHi(n)}><code>{n}</code><span>{cur(r).title} · {r.group === 'global' ? term('global') : HQ?.projects.current?.name || term('project')}</span><b>{cnt[n]}</b></button>;
   })}</div>;
 }
 
 export function AssignPage() {
   const list = teams.value;
-  if (!list.length) return <><ProjectView projects={HQ?.projects} /><p class="none">チーム定義はありません</p></>;
+  if (!list.length) return <><ProjectView projects={HQ?.projects} /><p class="none">{`${term('team-definition')}はありません`}</p></>;
   return <><ProjectView projects={HQ?.projects} /><RoleBar /><div class="teams">{list.map((t) => <Team key={t.id} t={t} />)}</div></>;
 }

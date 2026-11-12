@@ -8,6 +8,7 @@
 // 描くのは lib/hq/figure.js（図）、lib/hq/sheets.js（欄と探す欄）、
 // lib/hq/run.js（チーム定義の一覧の「動き」の欄）。入口は lib/hq.js で、
 // 画面は lib/hq.js から import して読む。
+import { term } from '../terms.generated.js';
 import { runDanger } from '../danger.js';
 import type { DangerOptions } from '../danger.js';
 import { signal } from '../preact.js';
@@ -62,7 +63,7 @@ export function setRunning(running: HQRunning): void {
 }
 
 export const groupKey = (g: AnyGroup): string => (g && g.global ? 'global' : (g.project ? g.project.path : ''));
-export const groupLabel = (g: AnyGroup): string | undefined => (g && g.global ? 'グローバル' : (g.project ? g.project.name : ''));
+export const groupLabel = (g: AnyGroup): string | undefined => (g && g.global ? term('global') : (g.project ? g.project.name : ''));
 export const groupDisplay = (g: AnyGroup): string | undefined => (g && g.global ? g.display : (g.project ? g.project.display : ''));
 // projectOfGroup is the key a row of one group carries in the URL and in the API:
 // the project's path, or "global".
@@ -72,7 +73,7 @@ export const projectName = (path: string): string => {
   if (!path) return '';
   const found = ((st.projects.value && st.projects.value.projects) || []).find((p) => p.path === path);
   if (found) return found.name;
-  if (path === 'global') return 'グローバル';
+  if (path === 'global') return term('global');
   return String(path).split('/').filter(Boolean).pop() || path;
 };
 

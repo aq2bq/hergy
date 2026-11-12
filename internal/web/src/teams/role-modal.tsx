@@ -1,3 +1,4 @@
+import { term } from '../lib/terms.generated.js';
 import { editRole, type RoleEditing, type RoleCarry } from '../lib/editing.js';
 import { resourceIdentity } from '../lib/resource-identity.js';
 import { runDanger } from '../lib/danger.js';
@@ -21,7 +22,7 @@ import type { Rec } from './state.js';
 type Session = { id: number; r: Rec; name: string; expectedPlace?: string; trigger: HTMLElement | null };
 let ids = 1000000;
 const focusTarget = signal('');
-export function RoleButton({ r, name, children = 'ロールを確認・編集' }: { r: Rec; name: string; expectedPlace?: string; children?: string }) {
+export function RoleButton({ r, name, children = `${term('role')}を確認・編集` }: { r: Rec; name: string; expectedPlace?: string; children?: string }) {
   return <button class="btn sm" type="button" disabled={!name} onClick={() => {
     showOnly(r.uid, 'role:' + name);
     focusTarget.value = `prose-${r.uid}-${name}`;
@@ -130,7 +131,7 @@ function Editor({ session, onScanned, visible }: { session: Session; onScanned: 
     const answer = await (overwrite ? editor.overwrite() : editor.save());
     if (!answer?.json) return false;
     try { await check(); await model.context.run(); } catch { model.error.value = '保存しましたが、文書の再検査に失敗しました。'; }
-    void refreshAfterRoleSave().catch(() => { model.error.value = '保存しましたが、チーム定義を再検査できませんでした。'; });
+    void refreshAfterRoleSave().catch(() => { model.error.value = `保存しましたが、${term('team-definition')}を再検査できませんでした。`; });
     return true;
   }
 
@@ -158,48 +159,48 @@ function Editor({ session, onScanned, visible }: { session: Session; onScanned: 
     // The link goes with the page: hold it until the person answers (d-021e).
     event.preventDefault();
     const href = (event.currentTarget as HTMLAnchorElement).href;
-    askDiscard('ロールに保存していない変更があります。変更を破棄して閉じますか？', '破棄して閉じる', () => {
+    askDiscard(`${term('role')}に保存していない変更があります。変更を破棄して閉じますか？`, '破棄して閉じる', () => {
       carryTo('roles', model.project);
       location.assign(href);
     });
   }
   const transfer: TransferSource | undefined = e && ctx?.state === 'readable' ? {
     id: documentID('role', session.name, ctx.place, model.project || CURRENT),
-    label: `ロール ${session.name}（${ctx.place === 'global' ? 'グローバル' : model.project || CURRENT}）`,
+    label: `${term('role')} ${session.name}（${ctx.place === 'global' ? term('global') : model.project || CURRENT}）`,
     text: () => model.editor.value!.read.value.draft.text,
     set: (text) => { const editor = model.editor.value!; editor.change({ ...editor.read.value.draft, text, title: title(text, session.name) }); void check(); },
     save: async () => !!await save(), targets: transferTargets,
   } : undefined;
   if (transfer) documents.set(transfer.id, transfer);
-  const heading: ProseHeading = { kind: 'ロール', name: session.name, title: e?.draft.title,
-    id: `role-title-${session.id}`, path: ctx ? `${ctx.place === 'global' ? 'グローバル' : 'プロジェクト'} · roles/${session.name}.md` : '',
+  const heading: ProseHeading = { kind: term('role'), name: session.name, title: e?.draft.title,
+    id: `role-title-${session.id}`, path: ctx ? `${ctx.place === 'global' ? term('global') : term('project')} · roles/${session.name}.md` : '',
     members: session.r.draft.value.members.filter((m) => m.role === session.name).map((m) => m.name).join('、'),
     otherTeams: other.map((u) => `${u.project_name} ${u.name}（${u.members.join('、')}）`).join('、'),
     state: ctx?.state === 'missing' ? '文書なし' : ctx?.state === 'unreadable' ? '読み込み不可' : dirty() ? '未保存' : editor?.read.value.savedLine ? '保存しました' : '保存済み' };
   return <section hidden={!visible} class={'prose-column role-column' + (ctx?.state === 'missing' ? ' missing-document' : '')} ref={dialog} id={`prose-${session.r.uid}-${session.name}`} aria-labelledby={`role-title-${session.id}`}>
     <div class="role-dialog-body">
     {!e || ctx?.state !== 'readable' ? <><header class="prose-head prose-head-unavailable"><ProseIdentity heading={heading} /></header><div class="prose-unavailable">
-      <p role="alert">{ctx?.problem || (model.context.loading.value ? 'ロールの文書を読んでいます。' : 'ロールの文書を読み込めませんでした。')}</p>
-      {ctx?.state === 'missing' ? <a class="btn" href={`/roles?${query}`} onClick={leave}>ロールの画面で作る</a> : null}
+      <p role="alert">{ctx?.problem || (model.context.loading.value ? `${term('role-document')}を読んでいます。` : `${term('role-document')}を読み込めませんでした。`)}</p>
+      {ctx?.state === 'missing' ? <a class="btn" href={`/roles?${query}`} onClick={leave}>{`${term('role')}の画面で作る`}</a> : null}
     </div></> : null}
     {ctx?.errors.map((text) => <p role="alert">{text}</p>)}
-    {model.context.error.value ? <p role="alert">{problemText(model.context.error.value, 'ロールと使用先を読み込めませんでした')}</p> : null}
-    {model.context.loading.value ? <p role="status">ロールと使用先を読んでいます。</p> : null}
-    {model.target.value && ctx && model.target.value.path !== ctx.path ? <p role="alert">使われるロールの置き場所が変わりました。ファイルからリロードしてください。</p> : null}
+    {model.context.error.value ? <p role="alert">{problemText(model.context.error.value, `${term('role')}と使用先を読み込めませんでした`)}</p> : null}
+    {model.context.loading.value ? <p role="status">{`${term('role')}と使用先を読んでいます。`}</p> : null}
+    {model.target.value && ctx && model.target.value.path !== ctx.path ? <p role="alert">{`使われる${term('role')}の${term('place')}が変わりました。ファイルからリロードしてください。`}</p> : null}
     {e && ctx?.state === 'readable' ? <fieldset disabled={saving() || !model.ready.value}><div class="pmain"><RuleDoc transfer={transfer} hasName={false} heading={heading}
       row={{ saved: e.saved, draft: e.draft }}
       issues={issues} onDraft={(draft) => { editor!.change(draft); void check(); }} /></div></fieldset> : null}
     {editor?.read.value.conflict && e ? <ConflictNotice c={editor.read.value.conflict.c} mine={e.text || ''} busy={saving()} undone={editor.read.value.conflict.undone}
       onOverwrite={() => void save(true)} onRevert={() => { editor.readConflict(); void check(); }} onUndo={() => { editor.undoConflict(); void check(); }} /> : null}
     {errors.map((error) => <p role="alert">{error.text}</p>)}
-    {editor?.checkingError.value ? <p role="alert">{problemText(editor.checkingError.value, 'ロールを検査できませんでした')}</p> : null}
+    {editor?.checkingError.value ? <p role="alert">{problemText(editor.checkingError.value, `${term('role')}を検査できませんでした`)}</p> : null}
     {editor?.read.value.refusal ? <p role="alert">{editor.read.value.refusal}</p> : null}
     {model.error.value ? <p role="alert">{model.error.value}</p> : null}
     </div>
     {ctx?.state !== 'missing' ? <footer class="prose-foot"><div class="prose-save">
       <button class="btn primary" disabled={blocked} onClick={() => void save()}>保存</button>
     </div><div class="prose-actions">
-      <a class="btn sm" title="ロールの画面で開く" aria-label="ロールの画面で開く" href={`/roles?${query}`} onClick={leave}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3h7v7M21 3 10 14M10 5H4v15h15v-6" /></svg><span>ロールの画面で開く</span></a>
+      <a class="btn sm" title={`${term('role')}の画面で開く`} aria-label={`${term('role')}の画面で開く`} href={`/roles?${query}`} onClick={leave}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3h7v7M21 3 10 14M10 5H4v15h15v-6" /></svg><span>{`${term('role')}の画面で開く`}</span></a>
       <button class="btn sm" title="ファイルからリロード" aria-label="ファイルからリロード" disabled={saving()} onClick={() => askDiscard('保存していない変更を捨てて、ファイルからリロードしますか？', '破棄して読み直す', () => { void load(); })}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 4v6h-6M20 10a8 8 0 1 0 0 6" /></svg><span>ファイルからリロード</span></button></div>
 
 </footer> : null}

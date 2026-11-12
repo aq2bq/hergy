@@ -5,6 +5,7 @@
 // 5 章 6）。ここは state.ts の signal を読んで描き、押し込みは自分の onClick /
 // onInput から actions.ts の関数を直接呼ぶ（5 章 1）。DOM は自分では書かない
 // （ドラッグの途中の class だけは、動かしている間の印として付ける）。
+import { term } from '../lib/terms.generated.js';
 import { useEffect, useRef } from '../lib/preact.js';
 import { Field } from '../lib/field.js';
 import { ConflictNotice } from '../lib/conflict.js';
@@ -60,7 +61,7 @@ export function Toolbar() {
           </a>
         ))}
       </div>
-      <Field id="q" class="search" type="search" placeholder="プロファイル名" value={query.value} autocomplete="off" onInput={(e: Event) => pressQuery(inputValue(e))} />
+      <Field id="q" class="search" type="search" placeholder={term('profile-name')} value={query.value} autocomplete="off" onInput={(e: Event) => pressQuery(inputValue(e))} />
     </div>
   );
 }
@@ -69,7 +70,7 @@ export function Toolbar() {
 // role, and where the assign tab puts the cursor (P11).
 function PersonChip({ c }: { c: ProfileChip }) {
   const inner = c.worker
-    ? <><span class="wk">ワーカー</span><span class="r">{c.role}</span></>
+    ? <><span class="wk">{term('worker')}</span><span class="r">{c.role}</span></>
     : <>{c.who}<span class="g">{c.role}</span></>;
   return (
     <a class="uchip" href={'/profiles/assign#' + c.def + '.' + c.id} data-act="goto" data-g={c.def} data-k={c.id}>
@@ -86,8 +87,8 @@ function PlacePills({ row }: { row: Row }) {
   const over = (globalGroup && globalGroup.overridden_by) || {};
   return (
     <>
-      <span class="pill on">{row.group === 'global' ? 'グローバル' : groupName(row.group)}</span>
-      {row.group && row.group !== 'global' && (over[row.name] || []).includes(row.group) ? <span class="pill shadow">グローバル</span> : ''}
+      <span class="pill on">{row.group === 'global' ? term('global') : groupName(row.group)}</span>
+      {row.group && row.group !== 'global' && (over[row.name] || []).includes(row.group) ? <span class="pill shadow">{term('global')}</span> : ''}
       {row.group === 'global' ? (over[row.name] || []).map((p) => <span class="pill hq-ov">{groupName(p)} で上書き</span>) : ''}
     </>
   );
@@ -106,10 +107,10 @@ export function Row({ row }: { row: Row }) {
   return (
     <div class={'row' + (row.open ? ' open' : '') + (rowUnsaved(row) ? ' unsaved' : '')} data-key={row.key} data-name={row.name} data-group={row.group || ''} data-kind={row.isNew ? 'claude' : kind}>
       <div class="sum" role="group" data-act="toggle" onClick={() => pressToggle(row.key)}>
-        <button type="button" class="chev disclosure" ref={sum} aria-label={`${name || '新しいプロファイル'} を開閉する`} aria-expanded={row.open} onClick={(e) => { e.stopPropagation(); pressToggle(row.key); }}></button>
+        <button type="button" class="chev disclosure" ref={sum} aria-label={`${name || `新しい${term('profile')}`} を開閉する`} aria-expanded={row.open} onClick={(e) => { e.stopPropagation(); pressToggle(row.key); }}></button>
         <span class="c-name">
           <span class="nm">{name ? name : <span class="none">—</span>}</span>
-          {row.mark ? <span class={'state ' + (row.mark === 'hidden' ? 'off' : 'on')}>{row.mark === 'hidden' ? '無効' : '優先'}</span> : null}
+          {row.mark ? <span class={'state ' + (row.mark === 'hidden' ? 'off' : 'on')}>{row.mark === 'hidden' ? term('inactive') : term('preferred')}</span> : null}
           {row.isNew ? <span class="tag">新規</span> : ''}
           {row.err > 0 ? <span class="sev err">問題 {row.err}</span> : row.warn > 0 ? <span class="sev warn">警告 {row.warn}</span> : ''}
         </span>
@@ -158,7 +159,7 @@ function Panel({ panel }: { panel: PanelState }) {
   // and the way to fix a shut save stands beside the save too.
   const held: string[] = [];
   const say = (text: string | undefined) => { if (text && !held.includes(text)) held.push(text); };
-  if (!panel.draft.name.trim()) say("プロファイル名を入力してください。");
+  if (!panel.draft.name.trim()) say(`${term('profile-name')}を入力してください。`);
   say(panel.refusal);
   (panel.problems || []).filter((p) => p.sev === 'err').forEach((p) => say(p.text));
   const nameInput = useRef<HTMLInputElement>(null);
@@ -197,7 +198,7 @@ function Panel({ panel }: { panel: PanelState }) {
     <>
       {saved ? <button class="btn" data-act="dup" onClick={() => pressDup(panel.key)}>複製</button> : ''}
       {saved && canCopy(panel) ? <button class="btn" data-act="copy" onClick={() => pressCopy(panel.key)}>{panel.otherLabel}にコピー</button> : ''}
-      {saved ? <button class="btn danger" data-act="del" {...dangerAttrs('deleteProfile')} onClick={() => runDanger('deleteProfile', { run: () => pressDelYes(panel.key), loss: { kind: 'profile', name: panel.draft.name || panel.saved?.name || '', place: panel.file, project: panel.group }, confirm: { title: `プロファイル ${panel.draft.name || panel.saved?.name || ''} を削除しますか`, label: `削除する${panel.users ? `（${panel.users} 人が使っている）` : ''}` } })}>削除</button> : <button class="btn danger" data-act="discard" {...dangerAttrs('discardRow')} onClick={() => {
+      {saved ? <button class="btn danger" data-act="del" {...dangerAttrs('deleteProfile')} onClick={() => runDanger('deleteProfile', { run: () => pressDelYes(panel.key), loss: { kind: 'profile', name: panel.draft.name || panel.saved?.name || '', place: panel.file, project: panel.group }, confirm: { title: `${term('profile')} ${panel.draft.name || panel.saved?.name || ''} を削除しますか`, label: `削除する${panel.users ? `（${panel.users} 人が使っている）` : ''}` } })}>削除</button> : <button class="btn danger" data-act="discard" {...dangerAttrs('discardRow')} onClick={() => {
         // A panel nobody touched since it was made goes at once (r-d480).
         if (!panel.saved && !panel.editing.bornLost.value.length) { pressDiscard(panel.key); return; }
         runDanger('discardRow', { run: () => pressDiscard(panel.key), lost: panel.editing.bornLost.value, confirm: { title: '入力した内容を捨てますか', label: '破棄する' } });
@@ -209,15 +210,15 @@ function Panel({ panel }: { panel: PanelState }) {
       <header class="ph">
         <span class="ln">{groupName(panel.group)}</span>
         <code class="path">{panel.path}</code>
-        {panel.mark ? <span class={'state ' + (panel.mark === 'hidden' ? 'off' : 'on')}>{panel.mark === 'hidden' ? '無効' : '優先'}</span> : ''}
+        {panel.mark ? <span class={'state ' + (panel.mark === 'hidden' ? 'off' : 'on')}>{panel.mark === 'hidden' ? term('inactive') : term('preferred')}</span> : ''}
         <span class="acts">{acts}</span>
       </header>
-      <div class="field"><label>プロファイル名</label><div>
-        <Field aria-label="プロファイル名" class={'in-name' + (changed.name ? ' changed' : '') + (bad.name ? ' bad' : '')} data-f="name" value={panel.draft.name} spellcheck={false} autocomplete="off" fieldRef={nameInput} onInput={(e: Event) => inputField(panel.key, 'name', 0, inputValue(e))} />
+      <div class="field"><label>{term('profile-name')}</label><div>
+        <Field aria-label={term('profile-name')} class={'in-name' + (changed.name ? ' changed' : '') + (bad.name ? ' bad' : '')} data-f="name" value={panel.draft.name} spellcheck={false} autocomplete="off" fieldRef={nameInput} onInput={(e: Event) => inputField(panel.key, 'name', 0, inputValue(e))} />
         <label class="rename" hidden={!hints}><input type="checkbox" data-f="rename" checked={panel.rename} onChange={(e: Event) => pressRename(panel.key, checkedOf(e))} /><span>{hints ? `使っている ${panel.rename_targets} 人の指定も ${panel.draft.name} に書き換える` : ''}</span></label>
         <ul class="vm" data-for="name">{problemsOf(panel, 'name')}</ul>
       </div></div>
-      <div class="field"><label>kind</label><div>
+      <div class="field"><label>{term('kind')}</label><div>
         <div class={'seg' + (changed.kind ? ' changed' : '') + (bad.kind ? ' bad' : '')} data-f="kind">
           {BASE_KINDS.map((k) => <button class={panel.draft.kind === k ? 'on' : ''} data-act="set-kind" data-k={k} aria-pressed={panel.draft.kind === k ? 'true' : 'false'} onClick={() => pressSetKind(panel.key, k)}><i class={'sw ' + classOf(k)}></i>{k}</button>)}
           {kindSelect(panel)}
@@ -298,7 +299,7 @@ function kindSelect(panel: PanelState) {
   const chosen = BASE_KINDS.includes(kind) ? '' : kind;
   return (
     <span class="sel">
-      <select data-f="kind-other" aria-label="ほかの kind" value={chosen} onChange={(e: Event) => pressKindOther(panel.key, inputValue(e))}>
+      <select data-f="kind-other" aria-label={`ほかの ${term('kind')}`} value={chosen} onChange={(e: Event) => pressKindOther(panel.key, inputValue(e))}>
         <option value="">ほか</option>
         {rest.map((k) => <option value={k}>{k}</option>)}
       </select>
@@ -358,13 +359,13 @@ export function List() {
       {HQ && HQ.error
         ? <p class="hq-err" data-role="hq-error">{HQ.error}</p>
         : <div class="list">
-          <div class="head"><span></span><span>プロファイル名</span><span>kind</span><span>置き場所</span><span>引数</span><span>環境変数</span><span>使っている人</span></div>
+          <div class="head"><span></span><span>{term('profile-name')}</span><span>{term('kind')}</span><span>{term('place')}</span><span>引数</span><span>環境変数</span><span>使っている人</span></div>
           <div id="rows">
-            {visible.length === 0 && rows.value.length > 0 ? <p class="none" id="no-match">合うプロファイルはありません</p> : ''}
+            {visible.length === 0 && rows.value.length > 0 ? <p class="none" id="no-match">{`合う${term('profile')}はありません`}</p> : ''}
             {placeGroups().map((g) => {
               const list = visible.filter((row) => (row.group || '') === g.key);
               return <>{GroupHead({ group: g })}{list.map((row) => <Row key={row.key} row={row} />)}
-                {list.length === 0 && rows.value.length === 0 ? <div class="hq-empty"><span class="none">{g.name} にはプロファイルがありません。</span></div> : null}
+                {list.length === 0 && rows.value.length === 0 ? <div class="hq-empty"><span class="none">{g.name}{` には${term('profile')}がありません。`}</span></div> : null}
               </>;
             })}
           </div>
@@ -377,13 +378,13 @@ export function List() {
 // writes, and the button that adds a profile to this place alone.
 function GroupHead({ group }: { group: PlaceGroup }) {
   const target = group.key === 'global' ? 'global' : 'project';
-  const said = group.key === 'global' ? 'グローバル' : group.name;
+  const said = group.key === 'global' ? term('global') : group.name;
   const count = rows.value.filter((row) => (row.group || '') === group.key).length;
-  return <div class={'hq-gh' + (group.global ? ' global' : '')} data-group={group.key} data-place={target} aria-label={`置き場所: ${said}`}>
+  return <div class={'hq-gh' + (group.global ? ' global' : '')} data-group={group.key} data-place={target} aria-label={`${term('place')}: ${said}`}>
       <span class="hq-gn">{group.name}</span><span class="hq-gp">{group.display || ''}</span>
       {group.global
-        ? <span class="hq-gc">どのプロジェクトからも使える。同じ名前があれば、そのプロジェクトのほうが使われる</span>
-        : <span class="hq-gc">プロファイル <b>{count}</b></span>}
-      <button class="btn sm hq-add" data-act="new" data-group={group.key} data-place={target} onClick={() => pressNew(group.key)}>＋ {said} にプロファイルを追加</button>
+        ? <span class="hq-gc">{`どの${term('project')}からも使える。同じ名前があれば、その${term('project')}のほうが使われる`}</span>
+        : <span class="hq-gc">{`${term('profile')} `}<b>{count}</b></span>}
+      <button class="btn sm hq-add" data-act="new" data-group={group.key} data-place={target} onClick={() => pressNew(group.key)}>＋ {said}{` に${term('profile')}を追加`}</button>
     </div>;
 }

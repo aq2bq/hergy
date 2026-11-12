@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>hergy プロファイル</title>
+<title>hergy {{term "profile"}}</title>
 {{template "theme_head"}}
 <link rel="stylesheet" href="/static/profiles-v2.css">
 <link rel="stylesheet" href="/static/conflict.css">
@@ -21,7 +21,7 @@
 <body>
 <div class="wrap">
   {{template "nav_band" .Nav}}
-  <h1 class="page-title">プロファイル</h1>
+  <h1 class="page-title">{{term "profile"}}</h1>
   <header class="top">
     <nav class="tabs" id="tabs" role="tablist" aria-label="表示方法">
       <a class="tab {{if eq .Tab "profiles"}}on{{end}}" href="/profiles" role="tab" aria-controls="view" aria-selected="{{if eq .Tab "profiles"}}true{{else}}false{{end}}" tabindex="{{if eq .Tab "profiles"}}0{{else}}-1{{end}}"{{if eq .Tab "profiles"}} aria-current="page"{{end}}>一覧</a>
@@ -40,17 +40,17 @@
 
 {{define "p2_body_profiles"}}
 <div class="toolbar">
-  <button class="btn primary" data-act="new">＋ プロファイルを追加</button>
+  <button class="btn primary" data-act="new">＋ {{term "profile"}}を追加</button>
   <div class="filters">
     <a class="fchip {{if eq .KindFilter ""}}on{{end}}" data-act="kind-filter" data-k="" href="/profiles{{if .Query}}?q={{.Query}}{{end}}" aria-pressed="{{if eq .KindFilter ""}}true{{else}}false{{end}}">すべて<span class="n">{{.ProfileCount}}</span></a>
     {{range .Kinds}}{{if .Name}}<a class="fchip {{if .On}}on{{end}}" data-act="kind-filter" data-k="{{.Name}}" href="/profiles?kind={{.Name}}{{if $.Query}}&amp;q={{$.Query}}{{end}}" aria-pressed="{{if .On}}true{{else}}false{{end}}"><i class="sw {{.KindClass}}"></i>{{.Name}}<span class="n">{{.Count}}</span></a>{{end}}{{end}}
   </div>
-  <input id="q" class="search" type="search" placeholder="プロファイル名" value="{{.Query}}" autocomplete="off">
+  <input id="q" class="search" type="search" placeholder="{{term "profile-name"}}" value="{{.Query}}" autocomplete="off">
 </div>
 <div class="list">
-  <div class="head"><span></span><span>プロファイル名</span><span>kind</span><span>プロジェクト</span><span>引数</span><span>環境変数</span><span>使っている人</span></div>
+  <div class="head"><span></span><span>{{term "profile-name"}}</span><span>{{term "kind"}}</span><span>{{term "project"}}</span><span>引数</span><span>環境変数</span><span>使っている人</span></div>
   <div id="rows">
-    <p class="none" id="no-match" hidden>合うプロファイルはありません</p>
+    <p class="none" id="no-match" hidden>合う{{term "profile"}}はありません</p>
   </div>
 </div>
 {{end}}
