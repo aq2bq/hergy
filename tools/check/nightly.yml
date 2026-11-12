@@ -10,7 +10,7 @@
 mutation:
   timeout_coefficient: 10
   packages:
-    internal/cheat: 70      # 実測 75.0
+    internal/cheat: 85      # 実測 100
     internal/definition: 85 # 実測 90.1（段 3 で config から移した読み）
     internal/ops/internal/herdr: 95      # 実測 100
     internal/ops/internal/herdrcli: 70   # 実測 75.0

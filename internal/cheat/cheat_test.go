@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/options"
 )
 
@@ -71,6 +72,40 @@ func TestCheatMachineDoesNotNameGoneKeys(t *testing.T) {
 		}
 		if inMembers && strings.Contains(line, "kind:") {
 			t.Errorf("cheat --ai writes kind: under a member: %q", line)
+		}
+	}
+}
+
+// TestFlagLinesAlignAndNameCommandsOnlyWhenTheyExist: every flag's meaning
+// starts at the same column (the widest label plus two spaces), and a flag every
+// command takes ends with its meaning, not with an empty "Commands: ." list.
+func TestFlagLinesAlignAndNameCommandsOnlyWhenTheyExist(t *testing.T) {
+	summaries := options.FlagSummaries()
+	width, global := 0, 0
+	for _, sum := range summaries {
+		width = max(width, i18n.Width(sum.Label))
+		if len(sum.Commands) == 0 {
+			global++
+		}
+	}
+	if global == 0 {
+		t.Fatal("no flag without a command list: the empty-list case is not measured")
+	}
+	lines := strings.Split(strings.TrimSuffix(flagLines("en"), "\n"), "\n")
+	if len(lines) != len(summaries) {
+		t.Fatalf("flagLines wrote %d lines for %d flags", len(lines), len(summaries))
+	}
+	for i, sum := range summaries {
+		meaning := options.FlagDescriptions(sum.Name, "en")
+		if len(sum.Commands) > 0 {
+			meaning += " Commands: " + strings.Join(sum.Commands, ", ") + "."
+		}
+		want := "  " + sum.Label + strings.Repeat(" ", width-i18n.Width(sum.Label)) + "  " + meaning
+		if lines[i] != want {
+			t.Errorf("flag line %d:\n got %q\nwant %q", i, lines[i], want)
+		}
+		if len(sum.Commands) == 0 && strings.Contains(lines[i], "Commands:") {
+			t.Errorf("--%s is taken by every command but its line lists commands: %q", sum.Name, lines[i])
 		}
 	}
 }
