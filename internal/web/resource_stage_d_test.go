@@ -223,3 +223,19 @@ func TestResourcesTeamYAMLSaveKeepsErrorText(t *testing.T) {
 		t.Fatalf("YAML refusal changed its existing text: %s", refusal.Text)
 	}
 }
+
+func TestResourcesFolderKeepsCarryIOFailure(t *testing.T) {
+	c := newCopyFixture(t)
+	role := filepath.Join(c.other, ".hergy/roles/lead.md")
+	if err := os.Chmod(role, 0000); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(role, 0644) })
+	status, body := put(t, c.twoProjects(t), "/api/team/failed-copy", `{"place":"global","name":"failed-copy","part":"folder","base":{"place":"project","project":`+strconvQuote(c.other)+`,"name":"other-dev"},"carry_roles":["lead"],"doc":{"ops":[]}}`)
+	if status != 500 || !strings.Contains(body, "lead.md") {
+		t.Fatalf("carry I/O failure changed: %d %s", status, body)
+	}
+	if _, err := os.Stat(filepath.Join(c.global, "teams/failed-copy/team.yaml")); !os.IsNotExist(err) {
+		t.Fatalf("failed write kept the definition: %v", err)
+	}
+}

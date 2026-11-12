@@ -440,7 +440,7 @@ func (s ResourceScope) editResourceText(path string, before ResourceFile, in Res
 }
 
 // CopyResource saves the role/profile snapshot supplied by the caller. A
-// definition copy uses CreateDefinition and reads its source again.
+// definition copy uses SaveDefinitionDraft and reads its source again.
 func (s ResourceScope) CopyResource(ref domainplace.Ref, in ResourceEdit) (ResourceSaved, *ResourceFailure) {
 	in.Original = nil
 	in.Create = true

@@ -432,11 +432,15 @@ func (s ResourceScope) CheckDefinitionDraftAgreement(in ResourceDraftInput, text
 	if bad != nil {
 		return check.DocReport{}, bad
 	}
+	return s.checkDefinitionDraftAgreement(in, row, text), nil
+}
+
+func (s ResourceScope) checkDefinitionDraftAgreement(in ResourceDraftInput, row ResourceDraft, text string) check.DocReport {
 	name := in.Name
 	if name == "" {
 		name = "t2draft"
 	}
 	path := s.Catalog.TeamYAML(name, row.Layer)
 	cat := s.Catalog.With(path, row.Team).With(filepath.Join(filepath.Dir(path), "agreement.md"), row.Agree)
-	return check.Agreement(check.AgreementInput{Catalog: cat, Name: name, Place: row.Layer, Text: text}), nil
+	return check.Agreement(check.AgreementInput{Catalog: cat, Name: name, Place: row.Layer, Text: text})
 }

@@ -11,7 +11,6 @@ import (
 	domainplace "github.com/aq2bq/hergy/internal/domain/place"
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/ops/internal/catalog"
-	"github.com/aq2bq/hergy/internal/ops/internal/check"
 	"github.com/aq2bq/hergy/internal/ops/internal/newteam"
 	"github.com/aq2bq/hergy/internal/scaffold"
 	"github.com/aq2bq/hergy/internal/source"
@@ -42,7 +41,8 @@ func ReadDefinitionDraft(cat *catalog.Catalog, target ResourceTarget) (Definitio
 }
 
 // definitionFolder carries the kind-specific plan, never a caller-supplied write
-// function. The operation validates every planned file before writing the folder.
+// function. The operation checks the draft before writing the folder; dependency
+// I/O remains in newteam.Write, with its existing failure and cleanup behavior.
 type definitionFolder struct {
 	Draft     ResourceDraft
 	Input     ResourceDraftInput
@@ -104,10 +104,6 @@ func (s ResourceScope) checkDefinitionFolder(ref domainplace.Ref, in definitionF
 		files = append(files, scaffold.File{Path: "agreement.md", Data: []byte(agree)})
 	}
 	written := newteam.In{Catalog: s.Catalog, Layer: ref.Place().Layer(), Name: ref.Name(), Lang: i18n.Language(), Files: files, Starter: in.Draft.Starter, StarterRoles: in.Draft.StarterRoles, StarterProfile: in.Draft.StarterProfile, Carry: s.carryIn(in.Input)}
-	planned, err := newteam.Overlay(written)
-	if err != nil {
-		return written, &ResourceFailure{Text: err.Error()}
-	}
 	// The screen compares the checked starter/copy basis with its edits.
 	// Keep its existing errors, including missing unchosen dependencies;
 	// only a new stopping sentence outside node: closes the save.
@@ -130,7 +126,7 @@ func (s ResourceScope) checkDefinitionFolder(ref domainplace.Ref, in definitionF
 			return written, &ResourceFailure{Text: finding.Text}
 		}
 	}
-	for _, problem := range check.Agreement(check.AgreementInput{Catalog: planned, Name: ref.Name(), Place: ref.Place().Layer(), Text: agree}).Problems {
+	for _, problem := range s.checkDefinitionDraftAgreement(in.Input, in.Draft, agree).Problems {
 		if problem.Sev == "err" {
 			return written, &ResourceFailure{Text: problem.Text}
 		}
