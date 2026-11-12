@@ -4,6 +4,7 @@
 // 描くだけで、捕まえておいた要素に書き込まない。画面は 3 つのタブを持つ:
 // 一覧（プロファイルの行と、行の中のプロジェクト/グローバルの面）、
 // 割り当て（チーム定義のメンバーのプロファイル）、YAML（profiles.yaml の面）。
+import { term } from '../lib/terms.generated.js';
 import { signal, computed } from '../lib/preact.js';
 import { editProfile, editProfileAssignments, editYaml, profileFiles, type ProfileAssignments, type YamlEditing, type ProfileEditing } from '../lib/editing.js';
 import { resourceIdentity } from '../lib/resource-identity.js';
@@ -71,7 +72,7 @@ export const PLACES: readonly Place[] = ['project', 'global'];
 // placeOf is a place a string names: the address and the band carry words, and
 // anything that is not the global one is this project's (the two the screen has).
 export const placeOf = (file: string): Place => (file === 'global' ? 'global' : 'project');
-export const labelOf = (file: string): string => (file === 'global' ? 'グローバル' : 'プロジェクト');
+export const labelOf = (file: string): string => (file === 'global' ? term('global') : term('project'));
 export const otherOf = (file: Place): Place => (file === 'global' ? 'project' : 'global');
 const pathOf = (file: Place): string => (file === 'global' ? view.dataset.pathShared : view.dataset.pathProject) || '';
 
@@ -83,7 +84,7 @@ export const HQ: IslandHQ | null = ISLAND.hq || null;
 export const GROUPED = !!(HQ && HQ.projects && HQ.projects.mode === 'listed');
 export const CURRENT = HQ ? ((HQ.projects && HQ.projects.current && HQ.projects.current.path) || '') : '';
 export const groupKeyOf = (g: HQProfileGroup): string => (g.global ? 'global' : (g.project ? g.project.path : ''));
-const groupNameOf = (g: HQProfileGroup): string => (g.global ? 'グローバル' : (g.project ? g.project.name : ''));
+const groupNameOf = (g: HQProfileGroup): string => (g.global ? term('global') : (g.project ? g.project.name : ''));
 export const GROUPS: HQProfileGroup[] | null = HQ ? (HQ.profiles || []) : null;
 
 // PlaceGroup is one place the list draws a head for (r-410c, d-e77c): the
@@ -102,7 +103,7 @@ export const placeGroups = (): PlaceGroup[] => {
   }
   return [
     { key: '', global: false, name: currentProjectName(), display: pathOf('project') },
-    { key: 'global', global: true, name: 'グローバル', display: pathOf('global') },
+    { key: 'global', global: true, name: term('global'), display: pathOf('global') },
   ];
 };
 const groupOrder = (): string[] => placeGroups().map((g) => g.key);
@@ -111,13 +112,13 @@ const groupRank = (group: string): number => {
   return at < 0 ? groupOrder().length : at;
 };
 export const groupName = (key: string): string => {
-  if (key === 'global') return 'グローバル';
+  if (key === 'global') return term('global');
   if (!key || key === CURRENT) {
-    if (!HQ) return 'プロジェクト';
+    if (!HQ) return term('project');
     const p = HQ.projects;
-    if (p.mode === 'current') return (p.current && p.current.name) || 'プロジェクト';
+    if (p.mode === 'current') return (p.current && p.current.name) || term('project');
     const found = (p.projects || []).find((x) => x.path === CURRENT);
-    return found ? found.name : ((p.current && p.current.name) || 'プロジェクト');
+    return found ? found.name : ((p.current && p.current.name) || term('project'));
   }
   const g = (GROUPS || []).find((x) => groupKeyOf(x) === key);
   return g ? groupNameOf(g) : String(key).split('/').filter(Boolean).pop() || '';
@@ -125,7 +126,7 @@ export const groupName = (key: string): string => {
 // currentProjectName is the name the 置き場所 column gives this serve's
 // project, whether or not it is listed (d-8a45, r-5b96 audit 5).
 export const currentProjectName = (): string => {
-  if (!HQ) return 'プロジェクト';
+  if (!HQ) return term('project');
   const p = HQ.projects;
   return (p.current && p.current.name) || '';
 };

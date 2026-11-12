@@ -1,3 +1,4 @@
+import { term } from '../../lib/terms.generated.js';
 import { dangerAttrs } from '../../lib/danger.js';
 // teams/canvas/attr.tsx — 構成図の右の列（属性）（spec-teams B7、n-6be7）。
 //
@@ -29,7 +30,7 @@ function turnRows(changes: TeamChanges, id: string, dir: 'out' | 'in'): JSX.Elem
   return list.map(([a, b]) => (
     <div class={'cv-li' + (changes.turns.some((t) => t.from === a && t.to === b && t.added) ? ' new' : '')}>
       <span>{dir === 'out' ? '→' : '←'} {nodeName(dir === 'out' ? b : a)}</span>
-      <button class="cv-x" type="button" data-cv-act="turn-del" {...dangerAttrs('removeTurn')} data-a={a} data-b={b} aria-label={`${nodeName(a)} から ${nodeName(b)} へのターンを外す`} title="外す">×</button>
+      <button class="cv-x" type="button" data-cv-act="turn-del" {...dangerAttrs('removeTurn')} data-a={a} data-b={b} aria-label={`${nodeName(a)} から ${nodeName(b)} への${term('turn')}を外す`} title="外す">×</button>
     </div>
   ));
 }
@@ -55,8 +56,8 @@ function fieldFindings(r: Rec, id: string): Finding[] {
 function memberMsgs(r: Rec, t: Team, m: Member): string[] {
   const msgs: string[] = [];
   if (!NAME.test(m.name)) msgs.push('英小文字で始め、英小文字・数字・ハイフン・下線で 32 文字以内にしてください');
-  if (t.members.filter((x) => x.name === m.name).length > 1) msgs.push('このチームにもういます');
-  if (`${r.name.value}-${m.name}`.length > 32) msgs.push(`herdr 名 ${r.name.value}-${m.name} が 32 文字を超えます`);
+  if (t.members.filter((x) => x.name === m.name).length > 1) msgs.push(`この${term('team')}にもういます`);
+  if (`${r.name.value}-${m.name}`.length > 32) msgs.push(`${term('herdr-name')} ${r.name.value}-${m.name} が 32 文字を超えます`);
   return msgs;
 }
 
@@ -66,15 +67,15 @@ export function SideAttr({ r }: { r: Rec }): JSX.Element | null {
     const d = changes.list, humanIn = t.turns.some(([, b]) => b === 'human');
     return (
       <>
-        <div class="cv-t"><code>{team}</code><span class="cv-k">チーム定義</span></div>
-        <div class="cv-f"><label for={`cv-mi-${r.uid}`}>説明</label><Field id={`cv-mi-${r.uid}`} class="cv-body in-description" data-cv-f="description" value={t.description} autocomplete="off" spellcheck={false} /></div>
-        <div class="cv-note">メンバー {t.members.length} · ワーカー {t.workers.length} · ターン {t.turns.length}</div>
-        {humanIn ? '' : <div class="cv-warn">人間に届くターンがありません。人間の点の縁の丸から、または人間へ渡すメンバーの縁の丸から、線を引いてください</div>}
+        <div class="cv-t"><code>{team}</code><span class="cv-k">{term('team-definition')}</span></div>
+        <div class="cv-f"><label for={`cv-mi-${r.uid}`}>{term('description')}</label><Field id={`cv-mi-${r.uid}`} class="cv-body in-description" data-cv-f="description" value={t.description} autocomplete="off" spellcheck={false} /></div>
+        <div class="cv-note">{`${term('member')} `}{t.members.length}{` · ${term('worker')} `}{t.workers.length}{` · ${term('turn')} `}{t.turns.length}</div>
+        {humanIn ? '' : <div class="cv-warn">{`${term('human')}に届く${term('turn')}がありません。${term('human')}の点の縁の丸から、または${term('human')}へ渡す${term('member')}の縁の丸から、線を引いてください`}</div>}
         {d.length ? <div class="cv-sec">
           <span class="cv-sl">保存していない変更 {d.length}</span>
           <div class="cv-diff">{d.map(([k, x]) => <span class={'cv-' + k}>{k === 'a' ? '+ ' : k === 'd' ? '− ' : '~ '}{x}</span>)}</div>
         </div> : null}
-        <div class="cv-sec"><span class="cv-sl">操作</span><span class="cv-note">点や線を押すと、ここにその属性が出る。選んだ点の縁の丸から、ほかの点へ引くとターンができる。<span class="cv-kbd">Delete</span> で外す、<span class="cv-kbd">Esc</span> で選ぶのをやめる、<span class="cv-kbd">⌘Z</span> で 1 つ取り消す。</span></div>
+        <div class="cv-sec"><span class="cv-sl">操作</span><span class="cv-note">{`点や線を押すと、ここにその属性が出る。選んだ点の縁の丸から、ほかの点へ引くと${term('turn')}ができる。`}<span class="cv-kbd">Delete</span> で外す、<span class="cv-kbd">Esc</span> で選ぶのをやめる、<span class="cv-kbd">⌘Z</span>{` で 1 つ${term('undo')}。`}</span></div>
       </>
     );
   }
@@ -85,7 +86,7 @@ export function SideAttr({ r }: { r: Rec }): JSX.Element | null {
       : <div class="cv-li"><span class="cv-empty">{nodeName(p)} → {nodeName(q)}</span><button class="btn sm" type="button" data-cv-act="turn-add" data-a={p} data-b={q}>この向きも足す</button></div>);
     return (
       <>
-        <div class="cv-t"><code>{`${nodeName(a)} ⇄ ${nodeName(b)}`}</code><span class="cv-k">ターン</span></div>
+        <div class="cv-t"><code>{`${nodeName(a)} ⇄ ${nodeName(b)}`}</code><span class="cv-k">{term('turn')}</span></div>
         <div class="cv-sec"><span class="cv-sl">向き</span>{row(a, b)}{row(b, a)}</div>
         <div class="cv-note"><span class="cv-kbd">Delete</span> で両方の向きを外す。</div>
       </>
@@ -97,18 +98,18 @@ export function SideAttr({ r }: { r: Rec }): JSX.Element | null {
     const profs = (profilesFor(r).includes(w.profile) ? [] : [w.profile]).concat(profilesFor(r));
     return (
       <>
-        <div class="cv-t"><code>{w.purpose || '（目的）'}</code><span class="cv-k">ワーカー</span></div>
-        <div class="cv-f"><label for={`cv-wp-${r.uid}`}>目的</label><Field id={`cv-wp-${r.uid}`} data-cv-f="w-purpose" value={w.purpose} placeholder="例: 調べ物" autocomplete="off" spellcheck={false} /></div>
+        <div class="cv-t"><code>{w.purpose || `（${term('purpose')}）`}</code><span class="cv-k">{term('worker')}</span></div>
+        <div class="cv-f"><label for={`cv-wp-${r.uid}`}>{term('purpose')}</label><Field id={`cv-wp-${r.uid}`} data-cv-f="w-purpose" value={w.purpose} placeholder="例: 調べ物" autocomplete="off" spellcheck={false} /></div>
         <div class="cv-f">
-          <label for={`cv-wf-${r.uid}`}>追加するメンバー</label>
+          <label for={`cv-wf-${r.uid}`}>{`追加する${term('member')}`}</label>
           <span class="sel"><select id={`cv-wf-${r.uid}`} data-cv-f="w-from">{t.members.map((m) => <Opt v={m.name} on={m.name === w.from}>{m.name}</Opt>)}</select></span>
         </div>
         <div class="cv-f">
-          <label for={`cv-wpf-${r.uid}`}>プロファイル</label>
+          <label for={`cv-wpf-${r.uid}`}>{term('profile')}</label>
           <span class="sel"><select id={`cv-wpf-${r.uid}`} data-cv-f="w-profile">{profs.map((p) => <Opt v={p} on={p === w.profile}>{p}</Opt>)}</select></span>
-          <span class="cv-sub">ワーカーは規則を受けない。安いプロファイルで</span>
+          <span class="cv-sub">{`${term('worker')}は${term('rule')}を受けない。安い${term('profile')}で`}</span>
         </div>
-        <button class="btn danger sm cv-danger" type="button" data-cv-act="del" {...dangerAttrs('removeWorker')}>ワーカーを外す</button>
+        <button class="btn danger sm cv-danger" type="button" data-cv-act="del" {...dangerAttrs('removeWorker')}>{`${term('worker')}を外す`}</button>
       </>
     );
   }
@@ -116,9 +117,9 @@ export function SideAttr({ r }: { r: Rec }): JSX.Element | null {
   if (id === 'human') {
     return (
       <>
-        <div class="cv-t"><code>人間</code><span class="cv-k">あなた。チームに 1 人だけで、外せない</span></div>
-        <div class="cv-sec"><span class="cv-sl">ターンを渡す相手</span>{turnRows(changes, id, 'out')}{addTurnSel(t, id)}</div>
-        <div class="cv-sec"><span class="cv-sl">ターンを受け取る相手</span>{turnRows(changes, id, 'in')}</div>
+        <div class="cv-t"><code>{term('human')}</code><span class="cv-k">{`あなた。${term('team')}に 1 人だけで、外せない`}</span></div>
+        <div class="cv-sec"><span class="cv-sl">{`${term('hands-the-turn-to')}相手`}</span>{turnRows(changes, id, 'out')}{addTurnSel(t, id)}</div>
+        <div class="cv-sec"><span class="cv-sl">{`${term('turn')}を受け取る相手`}</span>{turnRows(changes, id, 'in')}</div>
       </>
     );
   }
@@ -136,40 +137,40 @@ export function SideAttr({ r }: { r: Rec }): JSX.Element | null {
   const role: RoleName | undefined = (rolesFor(r) || []).find((x) => x.name === m.role);
   return (
     <>
-      <div class="cv-t"><code>{m.name}</code><span class="cv-k">メンバー{role && role.title ? ` · ${role.title}` : ''}</span></div>
+      <div class="cv-t"><code>{m.name}</code><span class="cv-k">{term('member')}{role && role.title ? ` · ${role.title}` : ''}</span></div>
       <div class="cv-f">
-        <label for={`cv-mn-${r.uid}`}>メンバー名</label>
+        <label for={`cv-mn-${r.uid}`}>{term('member-name')}</label>
         <Field id={`cv-mn-${r.uid}`} data-cv-f="m-name" value={mine ? mine.value : m.name} spellcheck={false} autocomplete="off" />
         {msgs.map((x) => <span class="cv-msg">{x}</span>)}
-        <span class="cv-sub">herdr 名 {`${team}-${m.name}`}</span>
+        <span class="cv-sub">{`${term('herdr-name')} `}{`${team}-${m.name}`}</span>
       </div>
       <div class="cv-f">
-        <label for={`cv-mr-${r.uid}`}>ロール</label>
-        <span class="sel"><select id={`cv-mr-${r.uid}`} data-cv-f="m-role">{role ? null : <option value="" disabled selected>ロールを選ぶ</option>}{(rolesFor(r) || []).map((x) => <Opt v={x.name} on={x.name === m.role}>{x.name}{x.title ? ` · ${x.title}` : ''}</Opt>)}</select></span>
+        <label for={`cv-mr-${r.uid}`}>{term('role')}</label>
+        <span class="sel"><select id={`cv-mr-${r.uid}`} data-cv-f="m-role">{role ? null : <option value="" disabled selected>{`${term('role')}を選ぶ`}</option>}{(rolesFor(r) || []).map((x) => <Opt v={x.name} on={x.name === m.role}>{x.name}{x.title ? ` · ${x.title}` : ''}</Opt>)}</select></span>
         <RoleButton r={r} name={m.role} />
       </div>
       <div class="cv-f">
-        <label for={`cv-mp-${r.uid}`}>プロファイル</label>
-        <span class="sel"><select id={`cv-mp-${r.uid}`} data-cv-f="m-profile">{profilesFor(r).includes(m.profile) ? null : <option value="" disabled selected>プロファイルを選ぶ</option>}{profilesFor(r).map((p) => <Opt v={p} on={p === m.profile}>{p}</Opt>)}</select></span>
+        <label for={`cv-mp-${r.uid}`}>{term('profile')}</label>
+        <span class="sel"><select id={`cv-mp-${r.uid}`} data-cv-f="m-profile">{profilesFor(r).includes(m.profile) ? null : <option value="" disabled selected>{`${term('profile')}を選ぶ`}</option>}{profilesFor(r).map((p) => <Opt v={p} on={p === m.profile}>{p}</Opt>)}</select></span>
       </div>
       <div class="cv-sec">
-        <span class="cv-sl">ターンを渡す相手</span>{turnRows(changes, id, 'out')}
-        {outs.length ? '' : <span class="cv-note">まだ誰にもターンを渡していません。縁の丸から、渡す相手の点へ引いてください</span>}
+        <span class="cv-sl">{`${term('hands-the-turn-to')}相手`}</span>{turnRows(changes, id, 'out')}
+        {outs.length ? '' : <span class="cv-note">{`まだ誰にも${term('turn')}を渡していません。縁の丸から、渡す相手の点へ引いてください`}</span>}
         {addTurnSel(t, id)}
       </div>
-      <div class="cv-sec"><span class="cv-sl">ターンを受け取る相手</span>{turnRows(changes, id, 'in')}</div>
+      <div class="cv-sec"><span class="cv-sl">{`${term('turn')}を受け取る相手`}</span>{turnRows(changes, id, 'in')}</div>
       <div class="cv-sec">
-        <span class="cv-sl">ワーカー</span>
+        <span class="cv-sl">{term('worker')}</span>
         {ws.length ? ws.map(({ w, i }) => (
           <div class={'cv-li' + (changes.workers[i]?.added ? ' new' : '')}>
-            <span>{`${w.purpose || '（目的）'} · ${w.profile}`}</span>
+            <span>{`${w.purpose || `（${term('purpose')}）`} · ${w.profile}`}</span>
             <span class="cv-liend"><button class="cv-link" type="button" data-cv-act="pick-w" data-i={i}>選ぶ</button><button class="cv-x" type="button" data-cv-act="w-del" {...dangerAttrs('removeWorker')} data-i={i} title="外す" aria-label="外す">×</button></span>
           </div>
         )) : <span class="cv-empty">なし</span>}
-        <button class="btn sm cv-danger" type="button" data-cv-act="w-add">＋ ワーカー</button>
+        <button class="btn sm cv-danger" type="button" data-cv-act="w-add">{`＋ ${term('worker')}`}</button>
       </div>
-      <div class="cv-sec"><button class="btn sm" type="button" data-cv-act="m-copy">複製</button><span class="cv-note">同じロール・プロファイル・ターンの相手・ワーカーの目的で、もう 1 人足す</span></div>
-      <div class="cv-sec"><button class="btn danger sm cv-danger" type="button" data-cv-act="del" {...dangerAttrs('removeMember')}>メンバーを外す</button><span class="cv-note">ターン {nt} 本とワーカー {ws.length} 件も一緒に外れる。<span class="cv-kbd">⌘Z</span> で取り消せる。</span></div>
+      <div class="cv-sec"><button class="btn sm" type="button" data-cv-act="m-copy">複製</button><span class="cv-note">{`同じ${term('role')}・${term('profile')}・${term('turn')}の相手・${term('worker')}の${term('purpose')}で、もう 1 人足す`}</span></div>
+      <div class="cv-sec"><button class="btn danger sm cv-danger" type="button" data-cv-act="del" {...dangerAttrs('removeMember')}>{`${term('member')}を外す`}</button><span class="cv-note">{`${term('turn')} `}{nt}{` 本と${term('worker')} `}{ws.length} 件も一緒に外れる。<span class="cv-kbd">⌘Z</span> で取り消せる。</span></div>
     </>
   );
 }

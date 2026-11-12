@@ -1,3 +1,4 @@
+import { term } from '../lib/terms.generated.js';
 import { editRole } from '../lib/editing.js';
 import { resourceIdentity } from '../lib/resource-identity.js';
 import { get, hqList, read, saved, problemText } from '../lib/api.js';
@@ -12,7 +13,7 @@ import type { Rec } from './state.js';
 export function teamTransfer(r: Rec): TransferSource {
  return {
   id: documentID('team', r.name.value, r.place.value, projectOfGroup(groupOfRecord(r)) || CURRENT),
-  label: `チーム定義 ${r.name.value}（${r.place.value === 'global' ? 'グローバル' : placeGroups().find((g) => g.key === groupOfRecord(r))?.name || currentProjectName() || CURRENT}）`,
+  label: `${term('team-definition')} ${r.name.value}（${r.place.value === 'global' ? term('global') : placeGroups().find((g) => g.key === groupOfRecord(r))?.name || currentProjectName() || CURRENT}）`,
   text: () => r.agreeDraft.value.text,
   set: (text) => { r.editing.agreement.change({ ...r.agreeDraft.value, text, title: title(text) }); scheduleAgree(r); },
   save: async () => { const text = r.agreeDraft.value.text; await saveAgree(r); return r.agreeSaved.value?.text === text; },
@@ -20,7 +21,7 @@ export function teamTransfer(r: Rec): TransferSource {
  };
 }
 export async function transferTargets(): Promise<TransferTarget[]> {
- const out: TransferTarget[] = recs.value.filter((r) => !r.draftRow).map((r) => { const doc = teamTransfer(r); return { id: doc.id, label: doc.label, kind: 'team', group: r.place.value === 'global' ? 'グローバル' : placeGroups().find((g) => g.key === groupOfRecord(r))?.name || currentProjectName(), otherProject: r.place.value !== 'global' && (projectOfGroup(groupOfRecord(r)) || CURRENT) !== CURRENT, load: async () => doc }; });
+ const out: TransferTarget[] = recs.value.filter((r) => !r.draftRow).map((r) => { const doc = teamTransfer(r); return { id: doc.id, label: doc.label, kind: 'team', group: r.place.value === 'global' ? term('global') : placeGroups().find((g) => g.key === groupOfRecord(r))?.name || currentProjectName(), otherProject: r.place.value !== 'global' && (projectOfGroup(groupOfRecord(r)) || CURRENT) !== CURRENT, load: async () => doc }; });
  const groups = await hqList('roles');
  for (const group of groups.groups) for (const item of group.list?.items || []) {
   for (const place of ['project', 'global'] as const) {
@@ -28,8 +29,8 @@ export async function transferTargets(): Promise<TransferTarget[]> {
    const project = group.project?.path || CURRENT;
    const id = documentID('role', item.name, place, project);
    if (out.some((x) => x.id === id)) continue;
-   const label = `ロール ${item.name}（${place === 'global' ? 'グローバル' : group.project?.name || project}）`;
-   out.push({ id, label, kind: 'role', group: place === 'global' ? 'グローバル' : group.project?.name || project, otherProject: place !== 'global' && project !== CURRENT, load: async () => {
+   const label = `${term('role')} ${item.name}（${place === 'global' ? term('global') : group.project?.name || project}）`;
+   out.push({ id, label, kind: 'role', group: place === 'global' ? term('global') : group.project?.name || project, otherProject: place !== 'global' && project !== CURRENT, load: async () => {
     const held = documents.get(id);
     if (held) return held;
     const file = await get('role', item.name, place, project);
@@ -38,12 +39,12 @@ export async function transferTargets(): Promise<TransferTarget[]> {
     const doc: TransferDocument = { id, label, text: () => editing.read.value.draft.text, set: (text) => editing.change({ ...editing.read.value.draft, text, title: title(text) }), save: async () => {
      const query = new URLSearchParams({ context: place, project });
      const context = await read<Schemas['RoleContext']>(`/api/role/${encodeURIComponent(item.name)}/context?${query}`);
-     if (context.state !== 'readable' || context.place !== place || context.errors.length) throw new Error(context.problem || context.errors.join('、') || 'ロールの保存先と使用先を確認できませんでした');
+     if (context.state !== 'readable' || context.place !== place || context.errors.length) throw new Error(context.problem || context.errors.join('、') || `${term('role')}の保存先と使用先を確認できませんでした`);
      try {
       const answer = await editing.save();
       if (!answer?.json) { if (editing.read.value.refusal) throw new Error(editing.read.value.refusal); return false; }
       saved();
-     } catch (err) { throw new Error(problemText(err, 'ロールを保存できませんでした')); }
+     } catch (err) { throw new Error(problemText(err, `${term('role')}を保存できませんでした`)); }
      // A successful file write stays successful even if refreshing the list fails.
      void refreshAfterRoleSave().catch(() => {});
      return true;

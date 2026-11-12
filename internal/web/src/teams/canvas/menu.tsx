@@ -2,6 +2,7 @@
 //
 // A double press on the canvas opens the two ways of adding at that place: a
 // member, or a worker under one member.
+import { term } from '../../lib/terms.generated.js';
 import { useLayoutEffect, useRef } from '../../lib/preact.js';
 import type { JSX } from 'preact';
 import { rolesIn } from '../state.js';
@@ -26,9 +27,9 @@ export function Menu({ r }: { r: Rec }): JSX.Element | null {
   if (!m) return null;
   const t = r.draft.value;
   return (
-    <div class="cv-menu" role="menu" aria-label={m.workersOnly ? 'ワーカーを足す' : 'ここに足す'} ref={box} style={{ left: `${m.x}px`, top: `${m.y}px` }}>
-      {m.workersOnly ? '' : <button type="button" role="menuitem" data-cv-act="menu-m" disabled={!rolesIn()}>メンバーを足す</button>}
-      <div class={'cv-mh' + (m.workersOnly ? ' cv-mh0' : '')}>ワーカーを足す（どのメンバーの？）</div>
+    <div class="cv-menu" role="menu" aria-label={m.workersOnly ? `${term('worker')}を足す` : 'ここに足す'} ref={box} style={{ left: `${m.x}px`, top: `${m.y}px` }}>
+      {m.workersOnly ? '' : <button type="button" role="menuitem" data-cv-act="menu-m" disabled={!rolesIn()}>{`${term('member')}を足す`}</button>}
+      <div class={'cv-mh' + (m.workersOnly ? ' cv-mh0' : '')}>{`${term('worker')}を足す（どの${term('member')}の？）`}</div>
       <div class="cv-mw">{t.members.map((x) => <button type="button" role="menuitem" data-cv-act="menu-w" data-from={x.name}>{x.name}</button>)}</div>
     </div>
   );

@@ -1,3 +1,4 @@
+import { term } from '../lib/terms.generated.js';
 import { HQ } from './state';
 import { ProjectView } from '../lib/project-view';
 // The file list and selection are the screen's. The text, validation and
@@ -27,7 +28,7 @@ function YamlFile({ file }: { file: SavedFileEntry }) {
   const name = e.saved.name;
   return <section class="yed" data-key={keyOfYed(r, l)} data-hash={e.hash || ''}>
     <YamlTab key={keyOfYed(r, l)} label={LNAME[l]} path={pathOf(l, e.saved)}
-      badge={both ? { cls: 'state ' + (hid ? 'off' : 'on'), text: hid ? '無効' : '優先' } : null}
+      badge={both ? { cls: 'state ' + (hid ? 'off' : 'on'), text: hid ? term('inactive') : term('preferred') } : null}
       editing={e.editing.yaml} text={e.editing.yaml.read.value.saved || ''} hash={e.hash || ''} kind="role" place={l} name={name}
       problems={e.editing.yaml.read.value.problems.map((p) => ({ ...p }))} problem={e.problem || ''}
       onState={() => tellDirty()}
@@ -55,17 +56,17 @@ function YamlPageBody() {
   useEffect(() => { if (chosen && picked !== chosen) setYfile(chosen); }, [chosen]);
   if (!files.length) {
     return <section class="yed yempty">
-      <p>ロールの文書はまだありません。</p>
-      <p>一覧の『＋ ロールを追加』で作ると、ここに roles/&lt;ロール名&gt;.md が並びます。</p>
+      <p>{`${term('role-document')}はまだありません。`}</p>
+      <p>{`一覧の『＋ ${term('role')}を追加』で作ると、ここに roles/<${term('role-name')}>.md が並びます。`}</p>
       <span><button class="btn" data-act="tab" data-t="roles" onClick={() => pressTab('roles')}>一覧へ</button></span></section>;
   }
   const one = files.find(({ r, l }) => keyOfYed(r, l) === chosen) || null;
   return <div class="ylay">
       <nav class="files">{PLACES.map((l) => <div class="fgroup"><div class="gh"><b>{LNAME[l]}</b><code>{DIR[l]}</code></div>{files.filter((f) => f.l === l).map(({ r, e }) => {
         const key = keyOfYed(r, l), is = issuesOf(r, l), hid = r.mark === 'hidden';
-        return <button class={['file', chosen === key ? 'on' : '', hid ? 'hid' : ''].filter(Boolean).join(' ')} data-act="yfile" data-key={key} aria-pressed={chosen === key} onClick={() => pressYfile(key)}><code>{e.saved.name}.md</code><span class="fs">{ychecksText({ r, l, e })}{badgeOrCount(is, e.saved)}</span><span class="ft">{e.saved.title}{hid ? '・無効' : ''}</span></button>;
+        return <button class={['file', chosen === key ? 'on' : '', hid ? 'hid' : ''].filter(Boolean).join(' ')} data-act="yfile" data-key={key} aria-pressed={chosen === key} onClick={() => pressYfile(key)}><code>{e.saved.name}.md</code><span class="fs">{ychecksText({ r, l, e })}{badgeOrCount(is, e.saved)}</span><span class="ft">{e.saved.title}{hid ? `・${term('inactive')}` : ''}</span></button>;
       })}</div>)}</nav>
-      {one ? <YamlFile key={chosen} file={one} /> : <div class="none">ロールの文書はありません</div>}
+      {one ? <YamlFile key={chosen} file={one} /> : <div class="none">{`${term('role-document')}はありません`}</div>}
     </div>;
 }
 

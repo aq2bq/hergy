@@ -10,6 +10,7 @@
 // 押し込みは部品が自分の器で受ける（5 章 1）。図は canvas/figure.tsx、右の列は
 // canvas/attr.tsx、右の YAML は canvas/yaml.tsx、余白のメニューは
 // canvas/menu.tsx、押し込みとキーとドラッグは canvas/act.ts が持つ。
+import { term } from '../lib/terms.generated.js';
 import { useLayoutEffect, useRef } from '../lib/preact.js';
 import type { JSX } from 'preact';
 import { dkey, recs, rolesIn, setWide } from './state.js';
@@ -87,14 +88,14 @@ export function Canvas({ r, vlist }: { r: Rec; vlist: JSX.Element }): JSX.Elemen
   const sel = pickOf(r);
   const cur = sel, side = sideOf(r);
   const picked = cur && cur.type === 'node' && cur.id !== 'human' ? cur.id : '';
-  const hint = picked ? `${picked} を選んでいる。縁の丸から引くとターン、Delete で外す` : '点や線を押すと属性が出る。余白をダブルクリックすると、そこに足せる';
+  const hint = picked ? `${picked} を選んでいる。縁の丸から引くと${term('turn')}、Delete で外す` : '点や線を押すと属性が出る。余白をダブルクリックすると、そこに足せる';
   return (
     <div class="cv-main" ref={box} onPointerDown={(e: PointerEvent) => onPointerDown(r, e)} onClick={(e: MouseEvent) => onClick(r, e)} onInput={(e: Event) => onInput(r, e)} onChange={(e: Event) => onInput(r, e)}>
       <div class="cv-left">
         <div class="cv-tools">
-          <button class="btn sm" type="button" data-cv-act="m-add" disabled={!rolesIn()}>＋ メンバー</button>
-          <button class="btn sm" type="button" data-cv-act="w-add">＋ ワーカー</button>
-          <button class="btn sm" type="button" onClick={(event) => { event.stopPropagation(); select(r, { how: 'field', what: null }); }}>チームの説明を編集</button>
+          <button class="btn sm" type="button" data-cv-act="m-add" disabled={!rolesIn()}>{`＋ ${term('member')}`}</button>
+          <button class="btn sm" type="button" data-cv-act="w-add">{`＋ ${term('worker')}`}</button>
+          <button class="btn sm" type="button" onClick={(event) => { event.stopPropagation(); select(r, { how: 'field', what: null }); }}>{`${term('team')}の${term('description')}を編集`}</button>
           <span class="cv-hint">{hint}</span>
           {cur ? <button class="btn sm cv-edit-selection" type="button" onClick={(event) => { event.stopPropagation(); const panel = box.current?.querySelector<HTMLElement>('.cv-side'); if (!panel) return; const summary = box.current?.closest('.tdef')?.querySelector<HTMLElement>(':scope > .sum')?.offsetHeight || 0; movePage('editSelection', panel, { extra: summary + 12 }); (panel.querySelector<HTMLElement>('input, select') || panel.querySelector<HTMLElement>('button'))?.focus({ preventScroll: true }); }}>選択した属性を編集</button> : null}
         </div>

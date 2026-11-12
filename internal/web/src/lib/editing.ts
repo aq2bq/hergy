@@ -103,7 +103,7 @@ const TEAM_AGREEMENT: Shape<Agreement> = { fields: [
 type ProfileWritten = { name: string; kind: string; args: string[]; env: { key: string; value: string }[] };
 const PROFILE: Shape<ProfileWritten> = { fields: [
   { key: 'name', label: '名前（保存先のファイルも変わる）', get: (v) => v.name },
-  { key: 'kind', label: 'kind', get: (v) => v.kind },
+  { key: 'kind', label: term('kind'), get: (v) => v.kind },
   { key: 'args', label: '引数', get: (v) => v.args },
   { key: 'env', label: '環境変数', get: (v) => v.env },
 ] };

@@ -4,6 +4,7 @@
 // も変えずに移した構成を基に、編集操作を上部へそろえる。状態は state.js の signal を読み、押し込みは自分の
 // onClick / onInput / onKeyDown から state.js の関数を直接呼ぶ（5 章 1）。規則の
 // 文書の中は共有部品（lib/ruledoc.js）が描き、その押し込みも部品のもの。
+import { term } from '../lib/terms.generated.js';
 import { runDanger, dangerAttrs } from '../lib/danger.js';
 import { useEffect, useRef } from '../lib/preact.js';
 import { Measure } from '../lib/measure.js';
@@ -47,13 +48,13 @@ export function App() {
 export function List() {
   const s = state.value;
   return <><div class="toolbar">
-      <div class="filters">{FILTERS.filter(([f]) => !f || filterCount(f) > 0 || s.filter === f).map(([f, label]) => <button class={'fchip' + (s.filter === f ? ' on' : '')} data-act="filter" data-f={f || ''} aria-pressed={s.filter === f} onClick={() => pressFilter(f)}>{label}<span class="n">{filterCount(f)} ロール</span></button>)}</div>
-      <Field id="q" class="search" type="search" placeholder="文書を探す" value={s.q} autocomplete="off" onInput={(e: Event) => { if (e.currentTarget instanceof HTMLInputElement) pressSearch(e.currentTarget.value); }} />
+      <div class="filters">{FILTERS.filter(([f]) => !f || filterCount(f) > 0 || s.filter === f).map(([f, label]) => <button class={'fchip' + (s.filter === f ? ' on' : '')} data-act="filter" data-f={f || ''} aria-pressed={s.filter === f} onClick={() => pressFilter(f)}>{label}<span class="n">{filterCount(f)}{` ${term('role')}`}</span></button>)}</div>
+      <Field id="q" class="search" type="search" placeholder={`文書を${term('find')}`} value={s.q} autocomplete="off" onInput={(e: Event) => { if (e.currentTarget instanceof HTMLInputElement) pressSearch(e.currentTarget.value); }} />
     </div>
     {HQ && HQ.error
       ? <p class="hq-err" data-role="hq-error">{HQ.error}</p>
       : <div class="list">
-        <div class="head"><span></span><span>ロール名</span><span>置き場所</span><span>大きさ</span><span>使っているチーム</span></div>
+        <div class="head"><span></span><span>{term('role-name')}</span><span>{term('place')}</span><span>大きさ</span><span>{`使っている${term('team')}`}</span></div>
         <div id="rows">{rowsHTML()}</div>
       </div>}</>;
 }
@@ -64,7 +65,7 @@ function rowsHTML() {
   return roleGroups().map((g) => {
     const rows = shown.filter((r) => groupOfRow(r) === g.key);
     return <>{groupHeader(g)}{rows.map((r) => <Role key={r.uid} r={r} />)}
-      {rows.length === 0 && !filtering() && !state.value.q ? <div class="hq-empty"><span class="none">{g.name} にはロールがありません。</span></div> : null}
+      {rows.length === 0 && !filtering() && !state.value.q ? <div class="hq-empty"><span class="none">{g.name}{` には${term('role')}がありません。`}</span></div> : null}
     </>;
   });
 }
@@ -73,13 +74,13 @@ function rowsHTML() {
 // how many roles it holds, and the button that adds a role to this place alone.
 function groupHeader(g: RoleGroup) {
   const target = g.key === 'global' ? 'global' : 'project';
-  const said = g.key === 'global' ? 'グローバル' : g.name;
-  return <div class={'hq-gh' + (g.global ? ' global' : '')} data-group={g.key} data-place={target} aria-label={`置き場所: ${said}`}>
+  const said = g.key === 'global' ? term('global') : g.name;
+  return <div class={'hq-gh' + (g.global ? ' global' : '')} data-group={g.key} data-place={target} aria-label={`${term('place')}: ${said}`}>
       <span class="hq-gn">{g.name}</span><span class="hq-gp">{g.display || ''}</span>
       {g.global
-        ? <span class="hq-gc">どのプロジェクトからも使える。同じ名前があれば、そのプロジェクトのほうが使われる</span>
-        : <span class="hq-gc">ロール <b>{g.count}</b></span>}
-      <button class="btn sm hq-add" data-act="new" data-group={g.key} data-place={target} onClick={() => pressNew(g.key)}>＋ {said} にロールを追加</button>
+        ? <span class="hq-gc">{`どの${term('project')}からも使える。同じ名前があれば、その${term('project')}のほうが使われる`}</span>
+        : <span class="hq-gc">{`${term('role')} `}<b>{g.count}</b></span>}
+      <button class="btn sm hq-add" data-act="new" data-group={g.key} data-place={target} onClick={() => pressNew(g.key)}>＋ {said}{` に${term('role')}を追加`}</button>
     </div>;
 }
 
@@ -146,7 +147,7 @@ function placePills(r: RoleRow) {
   // (r-ea17), not the screen's comparison of the two places.
   const shadow = r.mark === 'in_effect';
   const overriding = r.group === 'global' ? (over[curName(r)] || []) : [];
-  return <><span class="pill on">{label}</span>{shadow ? <span class="pill shadow">グローバル</span> : ''}{overriding.map((p) => <span class="pill hq-ov">{projectNameOf(p)} で上書き</span>)}</>;
+  return <><span class="pill on">{label}</span>{shadow ? <span class="pill shadow">{term('global')}</span> : ''}{overriding.map((p) => <span class="pill hq-ov">{projectNameOf(p)} で上書き</span>)}</>;
 }
 
 function sumInner(r: RoleRow) {
@@ -163,7 +164,7 @@ function sumInner(r: RoleRow) {
   const size = checkOf(r, eff(r));
   const teamIds = [...new Set(readers.map((x) => x.t.id))];
   return <><button type="button" class="chev disclosure" aria-label={`${r.markdown ? r.name : curName(r)} を開閉する`} aria-expanded={state.value.open.has(r.uid)} onClick={(e) => { e.stopPropagation(); pressToggle(r.uid); }}></button>
-      <span class="c-name"><span class="nm">{d.name ? d.name : <span class="none">—</span>}</span>{r.mark ? <span class={'state ' + (r.mark === 'hidden' ? 'off' : 'on')}>{r.mark === 'hidden' ? '無効' : '優先'}</span> : ''}<span class="ttl">{d.title}</span>{r.isNew ? <span class="tag">新規</span> : ''}{saved ? <Badge list={issues} /> : readers.length ? <span class="sev err">問題 {readers.length}</span> : ''}</span>
+      <span class="c-name"><span class="nm">{d.name ? d.name : <span class="none">—</span>}</span>{r.mark ? <span class={'state ' + (r.mark === 'hidden' ? 'off' : 'on')}>{r.mark === 'hidden' ? term('inactive') : term('preferred')}</span> : ''}<span class="ttl">{d.title}</span>{r.isNew ? <span class="tag">新規</span> : ''}{saved ? <Badge list={issues} /> : readers.length ? <span class="sev err">問題 {readers.length}</span> : ''}</span>
       <span class="c-place">{r.noDoc ? '' : placePills(r)}</span>
       <span class="c-amount">{size && size.limit ? <Measure chars={size.size || 0} limit={size.limit} /> : <span class="none">—</span>}</span>
       <span class="c-readers">{GROUPED ? readersCell(r) : teamIds.length ? <><b>{teamIds.length}</b><span>{teamIds.join(' · ')}</span></> : <span class="none">0</span>}</span></>;
@@ -190,7 +191,7 @@ function usage(r: RoleRow) {
   if (!readers.length) return '';
   // Readonly projections may return fresh objects: the row address follows the
   // member name, never object identity (the old indexOf wrote m--1).
-  return <><span class="lbl">使っているチーム</span>{readers.map(({ t, m }) => <button class="uchip" data-act="goto" data-t={t.id} data-m={m.name} data-i={t.members.findIndex((one) => one.name === m.name)} onClick={() => pressGoto(t.id, m.name, t.members.findIndex((one) => one.name === m.name))}><span class="g">{r.group === 'global' ? `${projectNameOf(t.group)}: ` : ''}{t.id}</span>{m.name}</button>)}</>;
+  return <><span class="lbl">{`使っている${term('team')}`}</span>{readers.map(({ t, m }) => <button class="uchip" data-act="goto" data-t={t.id} data-m={m.name} data-i={t.members.findIndex((one) => one.name === m.name)} onClick={() => pressGoto(t.id, m.name, t.members.findIndex((one) => one.name === m.name))}><span class="g">{r.group === 'global' ? `${projectNameOf(t.group)}: ` : ''}{t.id}</span>{m.name}</button>)}</>;
 }
 
 // onChange is the shared part saying the document it was handed changed: the row
@@ -229,7 +230,7 @@ function Panel({ r, l }: { r: RoleRow; l: Place }) {
   say(nameIssue ? nameIssue.text : '');
   (e.saved ? grew : issues.filter((m) => m.sev === 'err')).forEach((m) => say(m.text));
   return <section class={'panel' + (shadowed ? ' shadowed' : '')} data-uid={r.uid} data-l={l} data-mode={mode}>
-      <header class="edit-actions"><b>ロール {d.name}</b>        <span class="acts">
+      <header class="edit-actions"><b>{`${term('role')} `}{d.name}</b>        <span class="acts">
           {e.saved ? <button class="btn" data-act="dup" onClick={() => pressDup(r.uid, l)}>複製</button> : ''}
           {canCopy(r, l) ? <button class="btn" data-act="copy" onClick={() => pressCopy(r.uid, l)}>{LNAME[other(l)]}にコピー</button> : ''}
           {!e.saved ? <button class="btn danger" data-act="discard" {...dangerAttrs('discardRow')} onClick={() => {
@@ -243,10 +244,10 @@ function Panel({ r, l }: { r: RoleRow; l: Place }) {
             if (untouched) { pressDiscard(r.uid, l); return; }
             runDanger('discardRow', { run: () => pressDiscard(r.uid, l), lost: e.editing.bornLost.value, confirm: { title: '入力した内容を捨てますか', label: '破棄する' } });
           }}>取り消し</button>
-            : <button class="btn danger" data-act="del" {...dangerAttrs('deleteRole')} onClick={() => runDanger('deleteRole', { run: () => doDelete(r.uid, l), loss: { kind: 'role', name: d.name, place: l, project: groupOfRow(r) }, confirm: { title: `ロール ${d.name} を削除しますか`, label: `削除する${nread ? `（${nread} 人が読んでいる）` : ''}` } })}>削除</button>}
+            : <button class="btn danger" data-act="del" {...dangerAttrs('deleteRole')} onClick={() => runDanger('deleteRole', { run: () => doDelete(r.uid, l), loss: { kind: 'role', name: d.name, place: l, project: groupOfRow(r) }, confirm: { title: `${term('role')} ${d.name} を削除しますか`, label: `削除する${nread ? `（${nread} 人が読んでいる）` : ''}` } })}>削除</button>}
         </span></header>
-      <div class="pmain"><RuleDoc row={row} issues={issues} nameError={nameError} heading={{ kind: 'ロール', name: row.draft.name || '新しいロール', title: row.draft.title,
-          id: `role-${r.uid}-${l}`, compact: true, path: `${placeLabel} · roles/${d.name}.md`, fullPath: pathOfRow(r, l, d), state: (n ? '未保存' : '保存済み') + (shadowed ? '（無効）' : ''), members: whoReads(row.draft.name, r.group).map((u) => `${u.t.id}: ${u.m.name}`).join('、') }}
+      <div class="pmain"><RuleDoc row={row} issues={issues} nameError={nameError} heading={{ kind: term('role'), name: row.draft.name || `新しい${term('role')}`, title: row.draft.title,
+          id: `role-${r.uid}-${l}`, compact: true, path: `${placeLabel} · roles/${d.name}.md`, fullPath: pathOfRow(r, l, d), state: (n ? '未保存' : '保存済み') + (shadowed ? `（${term('inactive')}）` : ''), members: whoReads(row.draft.name, r.group).map((u) => `${u.t.id}: ${u.m.name}`).join('、') }}
         onDraft={(draft) => { changeDraft(r.uid, l, draft); touch(); scheduleCheck(r, l); }}
         rename={{ value: e.editing.read.value.rename, change: (on) => e.editing.renameUsers(on) }}
         nameChanged={e.editing.nameChanged.value} /></div>

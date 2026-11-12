@@ -1,3 +1,4 @@
+import { term } from '../../lib/terms.generated.js';
 import { dangerAttrs } from '../../lib/danger.js';
 // teams/canvas/figure.tsx — 構成図の図（点と線）を描く（spec-teams B7、n-6be7）。
 //
@@ -70,7 +71,7 @@ export function Figure({ r }: { r: Rec }) {
     const [mx, my] = [(route[middle][0] + route[middle + 1][0]) / 2, (route[middle][1] + route[middle + 1][1]) / 2];
     return (
       <>
-        <path class="cv-hit" d={dd} data-cv-e={k} tabindex={0} role="button" aria-label={`${nodeName(a)} と ${nodeName(b)} のターン`}></path>
+        <path class="cv-hit" d={dd} data-cv-e={k} tabindex={0} role="button" aria-label={`${nodeName(a)} と ${nodeName(b)} の${term('turn')}`}></path>
         <path class={'cv-e' + (isNew ? ' new' : '') + (selE === k ? ' sel' : '') + (r.flash.value === k ? ' cv-flash' : '')} d={dd} marker-end={fwd ? `url(#cv-ar-${mi}-${mk})` : undefined} marker-start={back ? `url(#cv-ar-${mi}-${mk})` : undefined}></path>
         {selE === k ? <g class="cv-ex" data-cv-act="edge-del" {...dangerAttrs('removeTurn')} data-k={k} transform={`translate(${mx.toFixed(1)},${my.toFixed(1)})`} role="button" tabindex={0} aria-label="この線を外す（両方の向き）"><title>この線を外す（両方の向き）</title><circle r={11}></circle><text x={0} y={4.5} text-anchor="middle">×</text></g> : ''}
       </>
@@ -87,9 +88,9 @@ export function Figure({ r }: { r: Rec }) {
     const is = issues.filter((m) => m.node === id);
     if (id === 'human') {
       return (
-        <g class={'cv-n human' + (mine ? ' sel' : '') + (is.some((m) => m.sev === 'err') ? ' err' : '')} data-cv-n="human" transform={`translate(${x.toFixed(1)},${y.toFixed(1)})`} tabindex={0} role="button" aria-label="人間">
+        <g class={'cv-n human' + (mine ? ' sel' : '') + (is.some((m) => m.sev === 'err') ? ' err' : '')} data-cv-n="human" transform={`translate(${x.toFixed(1)},${y.toFixed(1)})`} tabindex={0} role="button" aria-label={term('human')}>
           <rect x={-b.w / 2} y={-b.h / 2} width={b.w} height={b.h} rx={18}></rect>
-          <text class="nm" x={0} y={5} text-anchor="middle">人間</text>
+          <text class="nm" x={0} y={5} text-anchor="middle">{term('human')}</text>
           {is.length ? <Bdg m={is[0]} b={b} /> : ''}
         </g>
       );
@@ -109,9 +110,9 @@ export function Figure({ r }: { r: Rec }) {
   const wnode = (w: Worker, i: number) => {
     const b = boxes['w' + i], x = p['w' + i][0], y = p['w' + i][1], mine = sel && sel.type === 'worker' && sel.i === i, is = issues.filter((m) => m.worker === i);
     return (
-      <g class={'cv-n worker' + (changes.workers[i]?.added ? ' new' : '') + (mine ? ' sel' : '') + (is.some((m) => m.sev === 'err') ? ' err' : '')} data-cv-w={i} transform={`translate(${x.toFixed(1)},${y.toFixed(1)})`} tabindex={0} role="button" aria-label={`${w.from} の ${w.purpose || '（目的）'}`}>
+      <g class={'cv-n worker' + (changes.workers[i]?.added ? ' new' : '') + (mine ? ' sel' : '') + (is.some((m) => m.sev === 'err') ? ' err' : '')} data-cv-w={i} transform={`translate(${x.toFixed(1)},${y.toFixed(1)})`} tabindex={0} role="button" aria-label={`${w.from} の ${w.purpose || `（${term('purpose')}）`}`}>
         <rect x={-b.w / 2} y={-b.h / 2} width={b.w} height={b.h} rx={5}></rect>
-        <text class="nm" x={0} y={-2} text-anchor="middle">{w.purpose || '（目的）'}</text>
+        <text class="nm" x={0} y={-2} text-anchor="middle">{w.purpose || `（${term('purpose')}）`}</text>
         <text class="rl" x={0} y={13} text-anchor="middle">{w.profile}</text>
         {is.length ? <Bdg m={is[0]} b={b} /> : ''}
       </g>
@@ -122,7 +123,7 @@ export function Figure({ r }: { r: Rec }) {
     const b = boxes[sel.id], [x, y] = p[sel.id];
     const grips: Spot[] = [[0, -b.h / 2], [b.w / 2, 0], [0, b.h / 2], [-b.w / 2, 0]];
     handles = grips.map(([dx, dy]) => (
-      <circle class="cv-h" cx={(x + dx).toFixed(1)} cy={(y + dy).toFixed(1)} r={6} data-cv-h={sel.id}><title>引いて、ターンを渡す相手につなぐ</title></circle>
+      <circle class="cv-h" cx={(x + dx).toFixed(1)} cy={(y + dy).toFixed(1)} r={6} data-cv-h={sel.id}><title>{`引いて、${term('hands-the-turn-to')}相手につなぐ`}</title></circle>
     ));
   }
   const marker = (id: string, cls: string) => (
