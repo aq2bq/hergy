@@ -72,8 +72,9 @@ type Launcher struct {
 	started      []string
 	// strip is the watcher's pane and tabRows the tab's rows when the strip was
 	// cut, for trimStripAgain; empty when the rows could not be read.
-	strip   domainname.PaneID
-	tabRows int
+	closedPanes []ClosedPane
+	strip       domainname.PaneID
+	tabRows     int
 }
 
 // New builds a launcher over the members of one team: the team name, and the
@@ -1414,10 +1415,28 @@ func (l *Launcher) namedTargets(teamName domainname.Seen, agents []protocol.Agen
 	return targets, nil
 }
 
+// ClosedPane records one successful close (or one planned close in a dry run).
+// Watchers are distinguished from members even though both use the team tab.
+type ClosedPane struct {
+	Name    domainname.Seen
+	Pane    domainname.PaneID
+	Worker  bool
+	Watcher bool
+}
+
+// ClosedPanes is the actual successful closes, in execution order.
+func (l *Launcher) ClosedPanes() []ClosedPane { return append([]ClosedPane(nil), l.closedPanes...) }
+
 // closePane reports one pane and, unless dry, closes it. The line comes first:
 // when the pane is hergy's own, the close ends the process before anything else
 // could be printed.
-func (l *Launcher) closePane(target downTarget, dry bool) error {
+func (l *Launcher) closePane(target downTarget, dry bool) (err error) {
+	defer func() {
+		if err == nil {
+			l.closedPanes = append(l.closedPanes, ClosedPane{Name: target.name, Pane: target.pane, Worker: target.worker,
+				Watcher: !target.worker && target.name.String() == l.team.Watcher().String()})
+		}
+	}()
 	name, pane := target.name, target.pane
 	switch {
 	case dry && target.self && target.worker:

@@ -168,7 +168,7 @@ func workersOf(def *definition.Definition, member string) []definition.WorkerNod
 	return out
 }
 
-// member finds one member as a start: by its herdr name first, then by its short
+// Member finds one member as a start: by its herdr name first, then by its short
 // name.
 func (r *Resolved) Member(name string) (*definition.Start, error) {
 	for i := range r.Starts {

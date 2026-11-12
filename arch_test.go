@@ -25,7 +25,7 @@ var leaves = []string{"browser", "domain/name", "domain/place", "i18n", "layout"
 // topLayer is imported by internal/app and, during stage C, internal/ops. The name is the path under
 // internal/, so a package nested under another (internal/web/rulesview) is told
 // apart from its parent, which path.Base hid.
-var topLayer = []string{"cheat", "gycli", "herdrcli", "launcher", "spawn", "team", "web"}
+var topLayer = []string{"cheat", "gycli", "herdrcli", "launcher", "spawn", "team", "web", "ops"}
 
 // importsOf maps each non-test Go file to the module packages it imports, as
 // package names under internal/ ("app", "i18n", …); main.go is "main".
@@ -133,11 +133,15 @@ func TestImportDirection(t *testing.T) {
 	t.Run("app and ops import operational packages", func(t *testing.T) {
 		for _, f := range files {
 			pkg := packageOf(f)
-			if pkg == "app" || pkg == "main" || (pkg == "ops" && !slices.Contains(imports[f], "web")) {
+			if pkg == "app" || pkg == "main" {
 				continue
 			}
 			for _, imp := range imports[f] {
 				if !slices.Contains(topLayer, imp) {
+					continue
+				}
+				// Stage C moves operational dependencies into ops one by one.
+				if pkg == "ops" && slices.Contains([]string{"launcher", "team", "herdrcli"}, imp) {
 					continue
 				}
 				// A package nested inside a top-layer package

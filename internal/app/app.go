@@ -34,7 +34,6 @@ import (
 	"github.com/aq2bq/hergy/internal/newteam"
 	"github.com/aq2bq/hergy/internal/options"
 	"github.com/aq2bq/hergy/internal/profile"
-	"github.com/aq2bq/hergy/internal/protocol"
 	"github.com/aq2bq/hergy/internal/scaffold"
 	"github.com/aq2bq/hergy/internal/screenlog"
 	"github.com/aq2bq/hergy/internal/source"
@@ -220,66 +219,6 @@ func dispatch(ctx context.Context, env team.Env, opts *options.Options, stdout, 
 		return runTurnDone(opts, os.Stdin)
 	default:
 		return i18n.Errorf("error.unhandled_command")
-	}
-}
-
-// downWorker is one worker hergy down closes on its own: the team it belongs to,
-// the short name on its tab ("worker:<team>/<short>"), its herdr name, and the
-// tab's label.
-type downWorker struct {
-	Team  domainname.Seen
-	Short domainname.Seen
-	Herdr domainname.Seen
-	Label domainname.Seen
-}
-
-// runningWorkersOf is every worker of the running teams, read from the tabs hergy
-// made for them ("worker:<team>/<worker>"). A tab whose team is not running is
-// not one: only a running team's workers can be closed by name (d-fa05).
-func runningWorkersOf(tabs []team.Tab, running []team.Running) []downWorker {
-	live := make(map[string]bool, len(running))
-	for _, one := range running {
-		live[one.Team.String()] = true
-	}
-	var out []downWorker
-	for _, tab := range tabs {
-		worker, ok := tab.Label.WorkerTab()
-		if !ok || !live[worker.Team().String()] {
-			continue
-		}
-		out = append(out, downWorker{
-			Team: worker.Team(), Short: worker.Short(), Herdr: worker.Agent(), Label: tab.Label,
-		})
-	}
-	return out
-}
-
-// pickDown is hergy down's argument: a running team first, then, when no team
-// carries the name, one worker of a running team, by its short name or its herdr
-// name. A name that is both is refused, naming both, and so is a short name two
-// teams' workers carry (d-fa05).
-func pickDown(running []team.Running, tabs []team.Tab, input options.Input) (team.Running, *downWorker, error) {
-	teams := make([]domainname.Seen, len(running))
-	for i, one := range running {
-		teams[i] = one.Team.Observation()
-	}
-	var workers []options.Worker
-	for _, worker := range runningWorkersOf(tabs, running) {
-		workers = append(workers, options.Worker{Team: worker.Team, Short: worker.Short, Herdr: worker.Herdr, Label: worker.Label})
-	}
-	choice, err := input.ResolveDown(teams, workers)
-	if err != nil {
-		return team.Running{}, nil, err
-	}
-	switch chosen := choice.(type) {
-	case options.DownTeam:
-		one, _ := team.FindRunning(running, chosen.Team.String())
-		return one, nil, nil
-	case options.DownWorker:
-		worker := chosen.Worker
-		return team.Running{}, &downWorker{Team: worker.Team, Short: worker.Short, Herdr: worker.Herdr, Label: worker.Label}, nil
-	default:
-		panic("unreachable down choice")
 	}
 }
 
@@ -938,322 +877,79 @@ func runUp(ctx context.Context, env team.Env, opts *options.Options, stdout, std
 	return err
 }
 
-// runDown closes the panes of a live team's members. --dry prints what would
-// close and reads the live agents, but sends no close and needs no Herdr pane.
+// runDown turns the CLI word into an operation input and displays its result.
 func runDown(ctx context.Context, env team.Env, opts *options.Options, stdout, stderr io.Writer) error {
-	cat := env.Catalog(source.Disk{})
-	tabs, agentsRead, err := ops.HerdrTabs()
+	target, err := ops.ResolveStop(opts.Target)
 	if err != nil {
 		return err
 	}
-	running := team.RunningTeams(tabs, ops.LaunchTeams(), agentsRead)
-	chosen, worker, err := pickDown(running, tabs, opts.Target)
+	in := ops.StopInput{Env: env, Target: target, Timeout: opts.Timeout, SelfPane: ops.CurrentPane(),
+		RequirePane: true, ManagedPane: os.Getenv("HERDR_ENV") == "1", Dry: opts.Dry, PlanOnly: opts.JSON}
+	in.Observe = func(event ops.StopEvent) {
+		if event.Plan != nil {
+			printStopPlan(stdout, *event.Plan, env)
+		}
+		if event.Text != "" {
+			fmt.Fprint(stdout, event.Text)
+		}
+		if event.Failure != nil {
+			fail(stderr, event.Failure)
+		}
+	}
+	var result ops.StopResult
+	if target.IsWorker() {
+		result, err = ops.StopWorker(ctx, in)
+	} else {
+		result, err = ops.StopTeam(ctx, in)
+	}
+	plan := result.Plan
+	if opts.JSON && err == nil {
+		return writeDownPlan(stdout, downPlan{Team: plan.Team.Team.String(), Members: plan.Members, Workers: plan.Workers, Leftovers: hqLeftoversOf(result.Leftovers)})
+	}
+	if result.HasLeftovers {
+		printLeftovers(stdout, result.Leftovers, plan.Owner, opts.Dry)
+	}
 	if err != nil {
-		// A name a running team carries is refused here (it is also a worker's),
-		// rather than read as a stopped team by the tab it has (d-fa05).
-		if _, isTeam := team.FindRunning(running, opts.Target.String()); isTeam {
-			return err
+		if errors.Is(err, context.Canceled) {
+			fmt.Fprint(stderr, i18n.T("launcher.interrupted"))
+			return reportedError{err: context.Canceled, code: 130}
 		}
-		// A team that stopped before any agent ran — a boot cut short at a startup
-		// question — has no live agent to make it a running team, but the tab and
-		// the panes hergy made are still there (d-da92).
-		return downStopped(ctx, opts, env.ProjectRoot, err, stdout, stderr)
-	}
-	if worker != nil {
-		projectRoot := env.ProjectRoot
-		if one, ok := team.FindRunning(running, worker.Team.String()); ok && !one.Project.IsZero() {
-			projectRoot = one.Project
+		if result.OperationErr != nil {
+			if !errors.Is(err, result.OperationErr) {
+				return err
+			}
+			return reportedError{err: err, code: 1}
 		}
-		dirs := workerPaneDirs(tabs, worker.Label)
-		owner := workerLeftovers(projectRoot, worker.Team.String(), worker.Herdr.String())
-		if opts.JSON {
-			return writeDownPlan(stdout, downPlan{
-				Team: worker.Team.String(), Workers: []domainname.Seen{worker.Herdr},
-				Leftovers: hqLeftoversOf(team.GitLeftovers(projectRoot, owner.Since, dirs)),
-			})
-		}
-		return downOneWorker(ctx, opts, *worker, projectRoot, dirs, owner, stdout, stderr)
-	}
-	if !hasLiveMemberAgent(chosen.Team.String(), running) && hasNamedPane(chosen.Team.Observation()) {
-		// A team d-da92 now finds by its named panes alone prints what a stopped
-		// team always printed: the command's words do not change with the wider
-		// team (d-73fc keeps hergy down's behaviour). A tab with no named pane is
-		// the ordinary case of a team whose members ended, and keeps its header.
-		return downNoAgents(ctx, opts, env.ProjectRoot, chosen.Team.Observation(), stdout, stderr)
-	}
-	r, buildErr := ops.BuildRunning(cat, env.ProjectRoot, chosen)
-	if buildErr != nil {
-		// The definition is what a prompt is built from; closing a team needs no
-		// prompt, so a team whose definition cannot be read is still put away.
-		return downByName(ctx, chosen, buildErr, opts, env.ProjectRoot, stdout, stderr)
-	}
-	// The panes' working directories are read before they close, so the worktrees
-	// they stood in can be listed afterwards (r-b65e). The project the team runs
-	// in holds them.
-	projectRoot := env.ProjectRoot
-	if !chosen.Project.IsZero() {
-		projectRoot = chosen.Project
-	}
-	dirs := teamPaneDirs(tabs, chosen.Team.Observation())
-	owner := teamLeftovers(projectRoot, chosen.Team.String())
-	if opts.JSON {
-		members := make([]domainname.Seen, 0, len(r.Starts))
-		for _, start := range r.Starts {
-			members = append(members, start.Name.Observation())
-		}
-		return writeDownPlan(stdout, downPlan{
-			Team: chosen.Team.String(), Members: members, Workers: workerNamesOf(tabs, chosen.Team.Observation()),
-			Leftovers: hqLeftoversOf(team.GitLeftovers(projectRoot, owner.Since, dirs)),
-		})
-	}
-	// The pane hergy runs in is the member that must be closed last.
-	selfPane := ops.CurrentPane()
-	if opts.Dry {
-		printHeader(stdout, r, env, true)
-		closed, err := launcherFor(r, opts.Timeout, stdout).Down(r.Starts, selfPane, true)
-		if err != nil {
-			return err
-		}
-		printLeftovers(stdout, projectRoot, dirs, owner, true)
-		// A dry run that would close nothing has no next step to name.
-		if closed > 0 {
-			printNext(stdout, "down "+r.Team.Name.String())
-		}
-		return nil
-	}
-	if err := requireHerdrPane(); err != nil {
 		return err
 	}
-	printHeader(stdout, r, env, true)
-	l := launcherFor(r, opts.Timeout, stdout)
-	err = runOperation(ctx, stderr, nil, nil, func() error {
-		_, err := l.Down(r.Starts, selfPane, false)
-		return err
-	})
-	return finishTeamDown(stdout, projectRoot, dirs, owner, err)
-}
-
-// finishTeamDown performs the CLI cleanup after closing panes, including a
-// name-release timeout. runOperation already reported that failure; retain it
-// after cleanup. Other failures and cancellation leave the turn intact.
-func finishTeamDown(stdout io.Writer, projectRoot domainplace.Project, dirs []domainplace.Seen, owner leftoverOwner, result error) error {
-	if result != nil {
-		if _, timeout := errors.AsType[*launcher.TeamDownTimeout](result); !timeout {
-			return result
+	if opts.Dry && (plan.Worker != nil || result.Closed.Members+result.Closed.Workers+result.Closed.Watchers > 0) {
+		name := plan.Team.Team.String()
+		if plan.Worker != nil {
+			name = plan.Worker.Herdr.String()
 		}
+		printNext(stdout, "down "+name)
 	}
-	printLeftovers(stdout, projectRoot, dirs, owner, false)
-	if err := clearTurn(owner.Name); err != nil {
-		return err
-	}
-	return result
-}
-
-// clearTurn forgets a closed team's turn, so a team of the same name starts
-// with the human holding it (r-103d). It is called once the panes are closed.
-func clearTurn(teamName string) error {
-	dir, err := screenlog.DefaultDir()
-	if err != nil {
-		return err
-	}
-	return turns.Clear(dir, teamName)
-}
-
-// downOneWorker closes one worker of a running team and nothing else: the pane
-// it stands in, and its own tab when that pane was the last one there (d-fa05).
-// The team definition is not read: closing a worker needs no prompt.
-func downOneWorker(ctx context.Context, opts *options.Options, worker downWorker, projectRoot domainplace.Project, dirs []domainplace.Seen, owner leftoverOwner, stdout, stderr io.Writer) error {
-	field(stdout, label("worker"), worker.Herdr.String())
-	indentField(stdout, 1, label("team"), worker.Team.String())
-	l := launcherFor(&ops.Resolved{Team: team.Team{Name: domainname.TeamFromObservation(worker.Team)}}, opts.Timeout, stdout)
-	if opts.Dry {
-		if _, err := l.DownWorker(worker.Label, ops.CurrentPane(), true); err != nil {
-			return err
-		}
-		printLeftovers(stdout, projectRoot, dirs, owner, true)
-		printNext(stdout, "down "+worker.Herdr.String())
-		return nil
-	}
-	if err := requireHerdrPane(); err != nil {
-		return err
-	}
-	if err := runOperation(ctx, stderr, nil, nil, func() error {
-		_, err := l.DownWorker(worker.Label, ops.CurrentPane(), false)
-		return err
-	}); err != nil {
-		return err
-	}
-	printLeftovers(stdout, projectRoot, dirs, owner, false)
 	return nil
 }
 
-// downByName puts a running team away when the team definition behind it cannot
-// be read (a boot that failed once its tab was made left no launch record to read
-// the definition from). The panes are the ones hergy started, named after the
-// team, so closing them needs no definition.
-func downByName(ctx context.Context, chosen team.Running, reason error, opts *options.Options, projectRoot domainplace.Project, stdout, stderr io.Writer) error {
-	field(stdout, label("team"), startedFrom(chosen.Team.String(), chosen.Definition))
-	// The reason, on one line, without the "next:" step the resolution error
-	// suggests: the step here is the down itself.
-	detail := reason.Error()
-	if i := strings.Index(detail, "\nnext:"); i >= 0 {
-		detail = detail[:i]
-	}
-	indentField(stdout, 1, label("detail"), strings.Join(strings.Fields(detail), " "))
-	indentField(stdout, 1, label("note"), i18n.T("down.closes_by_name"))
-	tabs, _, err := ops.HerdrTabs()
-	if err != nil {
-		return err
-	}
-	if !chosen.Project.IsZero() {
-		projectRoot = chosen.Project
-	}
-	dirs := teamPaneDirs(tabs, chosen.Team.Observation())
-	owner := teamLeftovers(projectRoot, chosen.Team.String())
-	if opts.JSON {
-		return writeDownPlan(stdout, downPlan{
-			Team: chosen.Team.String(), Members: team.MemberAgents(tabs, chosen.Team.Observation()), Workers: workerNamesOf(tabs, chosen.Team.Observation()),
-			Leftovers: hqLeftoversOf(team.GitLeftovers(projectRoot, owner.Since, dirs)),
-		})
-	}
-	selfPane := ops.CurrentPane()
-	l := launcherFor(&ops.Resolved{Team: team.Team{Name: chosen.Team}}, opts.Timeout, stdout)
-	if opts.Dry {
-		closed, err := l.DownByName(team.MemberAgents(tabs, chosen.Team.Observation()), selfPane, true)
-		if err != nil {
-			return err
+func printStopPlan(stdout io.Writer, plan ops.StopPlan, env team.Env) {
+	switch {
+	case plan.Worker != nil:
+		field(stdout, label("worker"), plan.Worker.Herdr.String())
+		indentField(stdout, 1, label("team"), plan.Worker.Team.String())
+	case plan.Stopped:
+		field(stdout, label("team"), plan.Team.Team.String())
+	case plan.Reason != nil:
+		field(stdout, label("team"), startedFrom(plan.Team.Team.String(), plan.Team.Definition))
+		detail := plan.Reason.Error()
+		if i := strings.Index(detail, "\nnext:"); i >= 0 {
+			detail = detail[:i]
 		}
-		printLeftovers(stdout, projectRoot, dirs, owner, true)
-		// A dry run that would close nothing has no next step to name.
-		if closed > 0 {
-			printNext(stdout, "down "+chosen.Team.String())
-		}
-		return nil
+		indentField(stdout, 1, label("detail"), strings.Join(strings.Fields(detail), " "))
+		indentField(stdout, 1, label("note"), i18n.T("down.closes_by_name"))
+	default:
+		printHeader(stdout, plan.Built, env, true)
 	}
-	if err := requireHerdrPane(); err != nil {
-		return err
-	}
-	err = runOperation(ctx, stderr, nil, nil, func() error {
-		_, err := l.DownByName(team.MemberAgents(tabs, chosen.Team.Observation()), selfPane, false)
-		return err
-	})
-	return finishTeamDown(stdout, projectRoot, dirs, owner, err)
-}
-
-// downStopped puts away a team that stopped before any of its agents ran: hergy
-// made the tab and the panes, and no live agent makes it a running team (d-da92).
-// The panes are found by the names hergy gave them, so no definition is read. A
-// team name no tab carries, or no name at all, keeps the stop the caller had,
-// which names what to do next.
-func downStopped(ctx context.Context, opts *options.Options, projectRoot domainplace.Project, stopped error, stdout, stderr io.Writer) error {
-	name := opts.Target.String()
-	if name == "" {
-		return stopped
-	}
-	tabs, _, err := ops.HerdrTabs()
-	if err != nil {
-		return err
-	}
-	var observed domainname.Seen
-	for _, tab := range tabs {
-		if tab.Label.String() == name {
-			observed = tab.Label
-			break
-		}
-		candidate, _, ok := tab.Label.TeamLabel()
-		if ok && candidate.String() == name {
-			observed = candidate
-			break
-		}
-		if worker, ok := tab.Label.WorkerIn(opts.Target); ok {
-			observed = worker.Team()
-			break
-		}
-	}
-	if !hasTeamTab(tabs, observed) {
-		return stopped
-	}
-	return downNoAgents(ctx, opts, projectRoot, observed, stdout, stderr)
-}
-
-// hasLiveMemberAgent reports whether any member's agent of one team is live: a
-// team whose members all ended is put away with the words a stopped team always
-// had (d-da92, d-73fc).
-func hasLiveMemberAgent(name string, running []team.Running) bool {
-	agents, err := ops.HerdrAgents()
-	if err != nil {
-		return true
-	}
-	for _, agent := range agents {
-		if ops.TeamOfAgent(running, agent.Name).String() == name {
-			return true
-		}
-	}
-	return false
-}
-
-// hasNamedPane reports whether any pane carries a member's name of this team: the
-// mark d-da92 leaves when an agent has ended.
-func hasNamedPane(name domainname.Seen) bool {
-	tabs, _, err := ops.HerdrTabs()
-	if err != nil {
-		return false
-	}
-	return len(team.MemberPanes(tabs, name)) > 0
-}
-
-// downNoAgents puts away a team no agent is running in: the tab and the panes
-// hergy named are closed by name, and the command prints the same lines it did
-// before d-da92 found such a team as a team.
-func downNoAgents(ctx context.Context, opts *options.Options, projectRoot domainplace.Project, name domainname.Seen, stdout, stderr io.Writer) error {
-	tabs, _, err := ops.HerdrTabs()
-	if err != nil {
-		return err
-	}
-	dirs := teamPaneDirs(tabs, name)
-	owner := teamLeftovers(projectRoot, name.String())
-	if opts.JSON {
-		return writeDownPlan(stdout, downPlan{
-			Team: name.String(), Members: team.MemberPanes(tabs, name), Workers: workerNamesOf(tabs, name),
-			Leftovers: hqLeftoversOf(team.GitLeftovers(projectRoot, owner.Since, dirs)),
-		})
-	}
-	selfPane := ops.CurrentPane()
-	l := launcherFor(&ops.Resolved{Team: team.Team{Name: domainname.TeamFromObservation(name)}}, opts.Timeout, stdout)
-	if opts.Dry {
-		field(stdout, label("team"), name.String())
-		closed, err := l.DownStopped(name, selfPane, true)
-		if err != nil {
-			return err
-		}
-		printLeftovers(stdout, projectRoot, dirs, owner, true)
-		// A dry run that would close nothing has no next step to name.
-		if closed > 0 {
-			printNext(stdout, "down "+name.String())
-		}
-		return nil
-	}
-	if err := requireHerdrPane(); err != nil {
-		return err
-	}
-	field(stdout, label("team"), name.String())
-	err = runOperation(ctx, stderr, nil, nil, func() error {
-		_, err := l.DownStopped(name, selfPane, false)
-		return err
-	})
-	return finishTeamDown(stdout, projectRoot, dirs, owner, err)
-}
-
-// hasTeamTab reports whether a tab is this team's: one labelled with the team's
-// name (or an older label that carries it), or one of its worker tabs. It is how
-// down finds a team whose boot stopped before any agent ran.
-func hasTeamTab(tabs []team.Tab, name domainname.Seen) bool {
-	for _, tab := range tabs {
-		if protocol.NamesTeam(tab.Label.String(), name.String()) || domainname.IsWorkerTab(tab.Label, name) {
-			return true
-		}
-	}
-	return false
 }
 
 // runStatus reports each member's and worker's live state, one "name: state"

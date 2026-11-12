@@ -16,10 +16,10 @@ func printSignalNotes(out io.Writer, starts []definition.Start) {
 }
 
 func launcherFor(r *ops.Resolved, timeout int, out io.Writer) *launcher.Launcher {
-	io.WriteString(out, ops.PluginNote())
+	_, _ = io.WriteString(out, ops.PluginNote())
 	return ops.NewLauncher(r, timeout, out)
 }
 func launcherWithPort(r *ops.Resolved, timeout int, out io.Writer, port herdr.Port) *launcher.Launcher {
-	io.WriteString(out, ops.PluginNote())
+	_, _ = io.WriteString(out, ops.PluginNote())
 	return ops.NewLauncherWithPort(r, timeout, out, port)
 }
