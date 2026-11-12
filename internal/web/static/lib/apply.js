@@ -14,9 +14,11 @@ import {
   A,
   u
 } from "../chunk/nav-zn7g81kr.js";
-import"../chunk/nav-ncqt2ghs.js";
-import"../chunk/nav-pfvc24x1.js";
-import"../chunk/nav-nmj3geqx.js";
+import {
+  term
+} from "../chunk/nav-4q8266gs.js";
+import"../chunk/nav-1dnphn3q.js";
+import"../chunk/nav-ctrsx4mj.js";
 import {
   POLL,
   count,
@@ -34,19 +36,19 @@ import {
   openSheet,
   close,
   send
-} from "../chunk/nav-pvgkc05c.js";
+} from "../chunk/nav-gh2djj24.js";
 
 // lib/apply/view.tsx
 var STATE = {
-  idle: { word: "止まっている", why: "ターンを持たずに待っています。今、反映できます。" },
-  handed: { word: "人間の返事待ち", why: "ターンを人間に渡して、返事を待っています。今、反映できます。" },
-  active: { word: "仕事中", why: "仕事が終わると、反映できます。" },
-  blocked: { word: "許可待ち", why: "ペインで許可を求めています。答えると、反映できます。" },
-  absent: { word: "動いていない", why: "このメンバーの起動中のエージェントがいません。起動すると、定義のとおりに加わります。" }
+  idle: { word: "止まっている", why: `${term("turn")}を持たずに待っています。今、${term("apply")}できます。` },
+  handed: { word: term("handed"), why: `${term("turn")}を${term("human")}に渡して、返事を待っています。今、${term("apply")}できます。` },
+  active: { word: "仕事中", why: `仕事が終わると、${term("apply")}できます。` },
+  blocked: { word: term("waiting-for-permission"), why: `ペインで許可を求めています。答えると、${term("apply")}できます。` },
+  absent: { word: "動いていない", why: `この${term("member")}の${term("start")}中のエージェントがいません。${term("start")}すると、定義のとおりに加わります。` }
 };
-var HOW = { resend: "送り直し", start: "起動", restart: "起動し直し" };
+var HOW = { resend: term("reprompt"), start: term("start"), restart: term("refresh") };
 var COST = { resend: "（会話は残る）", start: "（新しいペインで始める）", restart: "（会話が消える）" };
-var INTRO = "チェックしたメンバーに、保存した定義の変更を反映します。送り直しは会話が残り、起動し直しは会話が消えます。仕事中と許可待ちのメンバーには、今は反映できません。チーム定義の説明だけを変えたときは、ずれが出ないので、ここには出ません。";
+var INTRO = `チェックした${term("member")}に、保存した定義の変更を${term("apply")}します。${term("reprompt")}は会話が残り、${term("refresh")}は会話が消えます。仕事中と${term("waiting-for-permission")}の${term("member")}には、今は${term("apply")}できません。${term("team-definition")}の${term("description")}だけを変えたときは、ずれが出ないので、ここには出ません。`;
 var press = (fn) => (e) => {
   e.preventDefault();
   fn();
@@ -58,12 +60,12 @@ function BandButton() {
     class: "apl-bandbtn",
     "data-apl": "open",
     "aria-haspopup": "dialog",
-    title: "定義を直したあと、まだ反映していない人",
-    "aria-label": `反映していない変更 ${n}`,
+    title: `定義を直したあと、まだ${term("apply")}していない人`,
+    "aria-label": `${term("apply")}していない変更 ${n}`,
     hidden: n <= 0,
     onClick: press(openSheet),
     children: [
-      "反映していない変更 ",
+      `${term("apply")}していない変更 `,
       /* @__PURE__ */ u("b", {
         children: n
       })
@@ -109,7 +111,7 @@ function Sheet() {
   return /* @__PURE__ */ u("section", {
     class: "apl-sheet",
     role: "dialog",
-    "aria-label": "反映",
+    "aria-label": term("apply"),
     tabIndex: -1,
     ref: box,
     children: [
@@ -118,7 +120,7 @@ function Sheet() {
         children: [
           /* @__PURE__ */ u("b", {
             children: [
-              "反映",
+              term("apply"),
               scope.value ? `: ${scope.value}` : ""
             ]
           }),
@@ -146,7 +148,7 @@ function Sheet() {
         group: g
       })) : /* @__PURE__ */ u("p", {
         class: "apl-empty",
-        children: "反映していない変更はありません。"
+        children: `${term("apply")}していない変更はありません。`
       }),
       /* @__PURE__ */ u("div", {
         class: "apl-acts",
@@ -200,7 +202,7 @@ function Team({ group }) {
       /* @__PURE__ */ u("div", {
         class: "apl-th",
         children: [
-          "チーム ",
+          `${term("team")} `,
           /* @__PURE__ */ u("code", {
             children: group.team
           }),
@@ -241,7 +243,7 @@ function Member({ m, group }) {
         ]
       }) : /* @__PURE__ */ u("span", {
         class: "apl-how cannot",
-        children: "反映できない"
+        children: `${term("apply")}できない`
       })
     ]
   });

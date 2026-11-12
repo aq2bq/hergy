@@ -7,22 +7,26 @@
 // templates load (webui-preact-design 3 章). The versions are pinned in
 // tools/webvendor/package.json and bun.lock.
 
+import {
+  term
+} from "./nav-4q8266gs.js";
+
 // lib/page-position.ts
 var PAGE_POSITION = {
-  copyRow: { at: "band", why: "コピーは押した行と別の置き場所にできる。行を画面の中に出す", d: "d-022a" },
+  copyRow: { at: "band", why: `コピーは押した行と別の${term("place")}にできる。行を画面の中に出す`, d: "d-022a" },
   newRow: { at: "band", why: "新しく作った行が画面の外にできる", d: "d-c5ce" },
   dupRow: { at: "band", why: "複製した行が画面の外にできる", d: "d-c5ce" },
   editSelection: { at: "band", why: "利用者が「選択した属性を編集」で行き先を名指しした", d: "d-c5ce" },
-  waitingRow: { at: "nearest", why: "待っている行から、そのチームの札へ行く", d: "d-c5ce" },
+  waitingRow: { at: "nearest", why: `待っている行から、その${term("team")}の札へ行く`, d: "d-c5ce" },
   assignPerson: { at: "center", why: "人の札から、その人の割り当ての行へ行く", d: "d-c5ce" },
   personFromURL: { at: "center", why: "URL が人を名指しした (#team.member)", d: "d-c5ce" },
   openByURL: { at: "band", why: "URL が行・札を名指しした", d: "d-c5ce" },
   openRow: { at: "stay", why: "行を開くのは表示の切り替え", d: "d-2b33" },
-  switchTab: { at: "stay", why: "タブ (トポロジー／規則、一覧／YAML／割り当て) は表示の切り替え", d: "d-fe34・d-6fab" },
+  switchTab: { at: "stay", why: `タブ (トポロジー／${term("rule")}、一覧／YAML／割り当て) は表示の切り替え`, d: "d-fe34・d-6fab" },
   switchDoc: { at: "stay", why: "並べる・文書名・すべて表示は表示の切り替え", d: "ac-c66a" },
   switchView: { at: "stay", why: "全文・今の文・差。欄の中だけ先頭へ戻す (d-a9ed)", d: "d-a9ed" },
   problemLine: { at: "stay", why: "行き先は欄の中。欄の持ち主が欄の中だけ動かす", d: "d-c5ce" },
-  filter: { at: "stay", why: "絞り込み・探すことは表示の切り替え", d: "d-c5ce" },
+  filter: { at: "stay", why: `絞り込み・${term("find")}ことは表示の切り替え`, d: "d-c5ce" },
   reread: { at: "stay", why: "読み直し・検査の答え・保存の答え・10 秒の読み", d: "d-c5ce" },
   saveAnswer: { at: "stay", why: "保存の答えは表示の切り替え", d: "d-c5ce" },
   theme: { at: "stay", why: "明暗の切り替えは表示の切り替え", d: "d-c5ce" },

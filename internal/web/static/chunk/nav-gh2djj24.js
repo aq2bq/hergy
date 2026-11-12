@@ -21,8 +21,9 @@ import {
 import {
   dangerAttrs,
   runDanger
-} from "./nav-pfvc24x1.js";
+} from "./nav-1dnphn3q.js";
 import {
+  term,
   Refusal2,
   call2,
   read2,
@@ -30,10 +31,10 @@ import {
   applyCount2,
   applyMembers2,
   problemText2
-} from "./nav-ncqt2ghs.js";
+} from "./nav-4q8266gs.js";
 import {
   token2
-} from "./nav-nmj3geqx.js";
+} from "./nav-ctrsx4mj.js";
 
 // lib/band-counts.ts
 var scr = (name) => document.querySelector('.screens .scr[data-screen="' + name + '"]');
@@ -117,7 +118,7 @@ var st = {
 function setRunning2(running) {
   st.running.value = running;
 }
-var groupLabel = (g) => g && g.global ? "グローバル" : g.project ? g.project.name : "";
+var groupLabel = (g) => g && g.global ? term("global") : g.project ? g.project.name : "";
 var projectOfGroup = (g) => g && g.global ? "global" : g.project ? g.project.path : "";
 var projectName2 = (path) => {
   if (!path)
@@ -126,7 +127,7 @@ var projectName2 = (path) => {
   if (found)
     return found.name;
   if (path === "global")
-    return "グローバル";
+    return term("global");
   return String(path).split("/").filter(Boolean).pop() || path;
 };
 async function readJSONOr(url) {
@@ -448,7 +449,7 @@ function ProjectsSheet() {
     return /* @__PURE__ */ u(S, {
       children: [
         /* @__PURE__ */ u(Head, {
-          title: "本部に並べるプロジェクト"
+          title: `${term("headquarters")}に並べる${term("project")}`
         }),
         /* @__PURE__ */ u("p", {
           class: "hq-sub",
@@ -483,9 +484,9 @@ function ProjectsSheet() {
       /* @__PURE__ */ u("span", {
         class: "hq-pc",
         children: [
-          "チーム定義 ",
+          `${term("team-definition")} `,
           project.definitions || 0,
-          " · 動いているチーム ",
+          ` · 動いている${term("team")} `,
           project.running || 0
         ]
       }),
@@ -523,9 +524,9 @@ function ProjectsSheet() {
       /* @__PURE__ */ u("span", {
         class: "hq-pc",
         children: [
-          "最後の起動 ",
+          `最後の${term("start")} `,
           mmdd(project.last_launch),
-          " · チーム定義 ",
+          ` · ${term("team-definition")} `,
           project.definitions || 0
         ]
       }),
@@ -557,9 +558,9 @@ function ProjectsSheet() {
       /* @__PURE__ */ u("span", {
         class: "hq-pc",
         children: [
-          "チーム定義 ",
+          `${term("team-definition")} `,
           current.definitions || 0,
-          " · 動いているチーム ",
+          ` · 動いている${term("team")} `,
           current.running || 0
         ]
       }),
@@ -590,7 +591,7 @@ function ProjectsSheet() {
       }),
       /* @__PURE__ */ u("span", {
         class: "hq-pc",
-        children: "この serve を起動したプロジェクト（並んでいない）"
+        children: `この serve を${term("start")}した${term("project")}（並んでいない）`
       }),
       /* @__PURE__ */ u("span", {
         class: "hq-act",
@@ -613,7 +614,7 @@ function ProjectsSheet() {
   const add = async () => {
     const want = path.trim();
     if (!want) {
-      setError("プロジェクトのディレクトリのパスを書いてください");
+      setError(`${term("project")}のディレクトリのパスを書いてください`);
       return;
     }
     const already = alreadyListed(want);
@@ -631,18 +632,18 @@ function ProjectsSheet() {
   return /* @__PURE__ */ u(S, {
     children: [
       /* @__PURE__ */ u(Head, {
-        title: "本部に並べるプロジェクト"
+        title: `${term("headquarters")}に並べる${term("project")}`
       }),
       /* @__PURE__ */ u("p", {
         class: "hq-sub",
-        children: "並べたプロジェクトのチーム定義・ロール・プロファイルと、動いているチームが、どの画面にも出ます。どこで hergy serve を起動しても、同じ並びです。"
+        children: `並べた${term("project")}の${term("team-definition")}・${term("role")}・${term("profile")}と、動いている${term("team")}が、どの画面にも出ます。どこで hergy serve を${term("start")}しても、同じ並びです。`
       }),
       currentOnly ? /* @__PURE__ */ u("div", {
         class: "hq-sec",
         children: [
           /* @__PURE__ */ u("span", {
             class: "hq-lbl",
-            children: "この serve を起動したプロジェクト（まだ並べていない）"
+            children: `この serve を${term("start")}した${term("project")}（まだ並べていない）`
           }),
           currentRow
         ]
@@ -667,7 +668,7 @@ function ProjectsSheet() {
         children: [
           /* @__PURE__ */ u("span", {
             class: "hq-lbl",
-            children: "起動の記録にあって、並べていないプロジェクト"
+            children: `${term("start")}の記録にあって、並べていない${term("project")}`
           }),
           unlisted,
           others.length ? others : unlisted ? "" : /* @__PURE__ */ u("p", {
@@ -687,7 +688,7 @@ function ProjectsSheet() {
           /* @__PURE__ */ u("code", {
             children: "projects:"
           }),
-          " に書きます。外しても、そのプロジェクトのファイルは変わりません。",
+          ` に書きます。外しても、その${term("project")}のファイルは変わりません。`,
           currentOnly ? /* @__PURE__ */ u(S, {
             children: [
               " 並べると ",
@@ -698,7 +699,7 @@ function ProjectsSheet() {
               /* @__PURE__ */ u("code", {
                 children: "projects:"
               }),
-              " を作ります。この serve を起動した ",
+              ` を作ります。この serve を${term("start")}した `,
               current.name,
               " も一緒に並べます。"
             ]
@@ -710,7 +711,7 @@ function ProjectsSheet() {
         children: [
           /* @__PURE__ */ u("span", {
             class: "hq-lbl",
-            children: "パスで並べる（まだチームを起動したことのないプロジェクト）"
+            children: `パスで並べる（まだ${term("team")}を${term("start")}したことのない${term("project")}）`
           }),
           /* @__PURE__ */ u("div", {
             class: "hq-acts",
@@ -720,7 +721,7 @@ function ProjectsSheet() {
                 class: "hq-sel",
                 placeholder: "~/src/…",
                 autoComplete: "off",
-                "aria-label": "プロジェクトのパス",
+                "aria-label": `${term("project")}のパス`,
                 value: path,
                 onInput: (e) => setPath(e.currentTarget.value)
               }),
@@ -751,7 +752,7 @@ function StartSheet({ definition, place, project }) {
   const [error, setError] = d("");
   const [nameError, setNameError] = d("");
   const [busy, setBusy] = d(false);
-  const title = isGlobal ? "プロジェクトを選んで起動する" : "このプロジェクトで起動する";
+  const title = isGlobal ? `${term("project")}を選んで${term("start")}する` : `この${term("project")}で${term("start")}する`;
   const seedName = (next) => (next.clash || []).length ? next.suggested_name || "" : "";
   const take = (next) => {
     setOptions(next);
@@ -771,7 +772,7 @@ function StartSheet({ definition, place, project }) {
       if (!alive)
         return;
       if (!next) {
-        setError("起動の選択肢を読めませんでした");
+        setError(`${term("start")}の選択肢を読めませんでした`);
         setOptions({ broken: true });
         return;
       }
@@ -847,7 +848,7 @@ function StartSheet({ definition, place, project }) {
       ]
     }) : /* @__PURE__ */ u(S, {
       children: [
-        "選んだプロジェクトで ",
+        `選んだ${term("project")}で `,
         /* @__PURE__ */ u("code", {
           children: `hergy up ${definition}${asPart}`
         }),
@@ -855,11 +856,11 @@ function StartSheet({ definition, place, project }) {
       ]
     });
   };
-  const wsWhy = (w) => w.why === "last" ? `前に ${definition} が動いたワークスペース` : w.why === "project" ? "プロジェクトの名前で始まるワークスペース" : w.why === "busy" ? `${w.team} が動いている（1 つのワークスペースにチームは 1 つ）` : "hergy のチームはいない";
+  const wsWhy = (w) => w.why === "last" ? `前に ${definition} が動いたワークスペース` : w.why === "project" ? `${term("project")}の名前で始まるワークスペース` : w.why === "busy" ? `${w.team} が動いている（1 つのワークスペースに${term("team")}は 1 つ）` : `hergy の${term("team")}はいない`;
   const start = async () => {
     const proj = isGlobal ? chosen : project;
     if (!proj) {
-      setError("どのプロジェクトで起動するかを選んでください");
+      setError(`どの${term("project")}で${term("start")}するかを選んでください`);
       return;
     }
     if (!picked) {
@@ -889,7 +890,7 @@ function StartSheet({ definition, place, project }) {
       launchAnswer = answer.json;
     } catch (e) {
       setBusy(false);
-      const text = problemText2(e, "起動できませんでした");
+      const text = problemText2(e, `${term("start")}できませんでした`);
       if (refusedAt(e) === "name")
         setNameError(text);
       else
@@ -913,7 +914,7 @@ function StartSheet({ definition, place, project }) {
         class: "hq-kv",
         children: [
           /* @__PURE__ */ u("dt", {
-            children: "チーム定義"
+            children: term("team-definition")
           }),
           /* @__PURE__ */ u("dd", {
             children: [
@@ -921,19 +922,19 @@ function StartSheet({ definition, place, project }) {
                 children: definition
               }),
               "（",
-              isGlobal ? "グローバル" : projectName2(chosen),
+              isGlobal ? term("global") : projectName2(chosen),
               "）"
             ]
           }),
           /* @__PURE__ */ u("dt", {
-            children: "説明"
+            children: term("description")
           }),
           /* @__PURE__ */ u("dd", {
             "data-role": "description",
             children: options.description || "—"
           }),
           /* @__PURE__ */ u("dt", {
-            children: "プロジェクト"
+            children: term("project")
           }),
           /* @__PURE__ */ u("dd", {
             children: isGlobal ? /* @__PURE__ */ u(S, {
@@ -960,7 +961,7 @@ function StartSheet({ definition, place, project }) {
                 }),
                 /* @__PURE__ */ u("div", {
                   class: "hq-sub",
-                  children: "グローバルのチーム定義は、どのプロジェクトで起動するかを選びます"
+                  children: `${term("global")}の${term("team-definition")}は、どの${term("project")}で${term("start")}するかを選びます`
                 })
               ]
             }) : /* @__PURE__ */ u("code", {
@@ -968,7 +969,7 @@ function StartSheet({ definition, place, project }) {
             })
           }),
           /* @__PURE__ */ u("dt", {
-            children: "メンバー"
+            children: term("member")
           }),
           /* @__PURE__ */ u("dd", {
             "data-role": "members",
@@ -982,7 +983,7 @@ function StartSheet({ definition, place, project }) {
             }) : "—"
           }),
           /* @__PURE__ */ u("dt", {
-            children: "チームの名前"
+            children: `${term("team")}の名前`
           }),
           /* @__PURE__ */ u("dd", {
             "data-role": "team-name",
@@ -995,16 +996,16 @@ function StartSheet({ definition, place, project }) {
                   setAsName(e.currentTarget.value);
                   setNameError("");
                 },
-                "aria-label": "チームの名前"
+                "aria-label": `${term("team")}の名前`
               }),
               /* @__PURE__ */ u("p", {
                 class: "hq-sub",
                 children: [
-                  "空なら、チームの名前はチーム定義の名前 ",
+                  `空なら、${term("team")}の名前は${term("team-definition")}の名前 `,
                   /* @__PURE__ */ u("code", {
                     children: definition
                   }),
-                  " です。書けば、その名前で起動します（",
+                  ` です。書けば、その名前で${term("start")}します（`,
                   /* @__PURE__ */ u("code", {
                     children: "hergy up --as"
                   }),
@@ -1016,9 +1017,9 @@ function StartSheet({ definition, place, project }) {
                 "data-role": "clash",
                 children: [
                   definition,
-                  " という名前のチームが ",
+                  ` という名前の${term("team")}が `,
                   clash.map((c) => projectName2(c.project)).join(" · "),
-                  " で動いています。この名前で起動します（hergy up --as と同じ）。"
+                  ` で動いています。この名前で${term("start")}します（hergy up --as と同じ）。`
                 ]
               }) : "",
               nameError ? /* @__PURE__ */ u("p", {
@@ -1042,7 +1043,7 @@ function StartSheet({ definition, place, project }) {
             "data-role": "wslist",
             children: isGlobal && !chosen ? /* @__PURE__ */ u("p", {
               class: "hq-sub",
-              children: "プロジェクトを選ぶと、ワークスペースが出ます"
+              children: `${term("project")}を選ぶと、ワークスペースが出ます`
             }) : /* @__PURE__ */ u(S, {
               children: [
                 (options.workspaces || []).map((w) => w.selectable ? /* @__PURE__ */ u("label", {
@@ -1127,7 +1128,7 @@ function StartSheet({ definition, place, project }) {
             "data-place": place || "project",
             disabled: busy,
             onClick: start,
-            children: "起動する"
+            children: `${term("start")}する`
           }),
           /* @__PURE__ */ u("button", {
             type: "button",
@@ -1181,7 +1182,7 @@ function RunSheet({ id, launch: first }) {
   const raised = launch.action === "refresh";
   const applied = launch.action === "apply";
   const who = raised || applied ? (launch.members || []).join(" · ") : launch.team;
-  const verb = applied ? "反映" : "起動";
+  const verb = applied ? term("apply") : term("start");
   const space = launch.workspace.label || launch.workspace.id;
   const waitingWhere = launch.waiting ? [
     launch.waiting.workspace ? `ワークスペース ${launch.waiting.workspace}` : "",
@@ -1261,14 +1262,14 @@ function RunSheet({ id, launch: first }) {
               children: [
                 /* @__PURE__ */ u("span", {
                   class: "hq-on wait",
-                  children: "許可待ち"
+                  children: term("waiting-for-permission")
                 }),
                 /* @__PURE__ */ u("b", {
                   children: [
                     /* @__PURE__ */ u("code", {
                       children: launch.waiting.herdr
                     }),
-                    " が、起動の途中で確認に答えを待っています"
+                    ` が、${term("start")}の途中で確認に答えを待っています`
                   ]
                 })
               ]
@@ -1286,7 +1287,7 @@ function RunSheet({ id, launch: first }) {
                 /* @__PURE__ */ u("code", {
                   children: launch.waiting.herdr
                 }),
-                " に初期プロンプトを送って続きを進めます。"
+                ` に${term("bootstrap-prompt")}を送って続きを進めます。`
               ]
             })
           ]
@@ -1304,7 +1305,7 @@ function RunSheet({ id, launch: first }) {
             /* @__PURE__ */ u("a", {
               class: "hq-btn primary",
               href: `/activity?open=${encodeURIComponent(token2(launch.team, launch.project))}`,
-              children: "アクティビティで見る"
+              children: `${term("activity")}で見る`
             }),
             /* @__PURE__ */ u("button", {
               type: "button",
@@ -1328,7 +1329,7 @@ function RunSheet({ id, launch: first }) {
               "data-hq": "stop",
               "data-team": launch.team,
               onClick: () => stopSheet2(launch.team),
-              children: "チームを終了する…"
+              children: `${term("team")}を${term("down")}…`
             }) : "",
             /* @__PURE__ */ u("button", {
               type: "button",
@@ -1344,7 +1345,7 @@ function RunSheet({ id, launch: first }) {
               class: "hq-sub",
               children: [
                 `${verb}をやめました。`,
-                raised || applied ? "ペインは残っています（チームを終了する欄から操作できます）。" : "作ったタブとペインは残っています（チームを終了する欄から操作できます）。"
+                raised || applied ? `ペインは残っています（${term("team")}を${term("down")}欄から操作できます）。` : `作ったタブとペインは残っています（${term("team")}を${term("down")}欄から操作できます）。`
               ]
             }),
             /* @__PURE__ */ u("button", {
@@ -1407,12 +1408,12 @@ function StopSheet({ team }) {
     return /* @__PURE__ */ u(S, {
       children: [
         /* @__PURE__ */ u(Head, {
-          title: "終了する",
+          title: term("down"),
           label: team
         }),
         /* @__PURE__ */ u("p", {
           class: "hq-sub",
-          children: "このチームは動いていません。読み直してから、もう一度お試しください。"
+          children: `この${term("team")}は動いていません。読み直してから、もう一度お試しください。`
         })
       ]
     });
@@ -1420,7 +1421,7 @@ function StopSheet({ team }) {
   return /* @__PURE__ */ u(S, {
     children: [
       /* @__PURE__ */ u(Head, {
-        title: error ? "終了できませんでした" : "終了する",
+        title: error ? "終了できませんでした" : term("down"),
         label: team
       }),
       !error ? /* @__PURE__ */ u("p", {
@@ -1459,7 +1460,7 @@ function StopResult({ result, team }) {
         class: "hq-kv",
         children: [
           /* @__PURE__ */ u("dt", {
-            children: "プロジェクト"
+            children: term("project")
           }),
           /* @__PURE__ */ u("dd", {
             children: /* @__PURE__ */ u("code", {
@@ -1470,7 +1471,7 @@ function StopResult({ result, team }) {
             children: "閉じたペイン"
           }),
           /* @__PURE__ */ u("dd", {
-            children: `メンバー ${result.closed.members} 人${result.closed.workers ? `、ワーカー ${result.closed.workers} 人` : ""}`
+            children: `${term("member")} ${result.closed.members} 人${result.closed.workers ? `、${term("worker")} ${result.closed.workers} 人` : ""}`
           })
         ]
       }),
@@ -1519,7 +1520,7 @@ function StopResult({ result, team }) {
           stashes > 0 ? /* @__PURE__ */ u("p", {
             class: "hq-sub",
             children: [
-              "このプロジェクトの stash: ",
+              `この${term("project")}の stash: `,
               stashes,
               " 件（",
               /* @__PURE__ */ u("code", {
@@ -1559,18 +1560,18 @@ function stopSheet2(team) {
     openSheet2(/* @__PURE__ */ u(StopSheet, {
       team
     }));
-  }, loss: { kind: "activity", name: team }, confirm: { title: `チーム ${team} を終了しますか`, label: "終了する" } });
+  }, loss: { kind: "activity", name: team }, confirm: { title: `${term("team")} ${team} を終了しますか`, label: term("down") } });
 }
 function projectsSheet() {
   openSheet2(/* @__PURE__ */ u(ProjectsSheet, {}), "left");
 }
 var KINDS = [
-  ["live", "動いているチーム"],
-  ["def", "チーム定義"],
+  ["live", `動いている${term("team")}`],
+  ["def", term("team-definition")],
   ["ws", "ワークスペース"],
-  ["member", "メンバー"],
-  ["role", "ロール"],
-  ["profile", "プロファイル"]
+  ["member", term("member")],
+  ["role", term("role")],
+  ["profile", term("profile")]
 ];
 var CAP = 5;
 var index = null;
@@ -1602,11 +1603,11 @@ function buildIndex() {
       const href = `/teams?open=${encodeURIComponent(token2(item.name, group))}`;
       out.push({ kind: "def", group, project: label, label: item.name, sub: doc.description || "", text: `${item.name} ${doc.description || ""}`, href });
       for (const m of doc.members || []) {
-        out.push({ kind: "member", group, project: label, label: `${item.name} の ${m.name}`, sub: `ロール ${m.role || ""} · プロファイル ${m.profile || ""}`, text: `${m.name} ${item.name}-${m.name} ${m.role || ""} ${m.profile || ""}`, href });
+        out.push({ kind: "member", group, project: label, label: `${item.name} の ${m.name}`, sub: `${term("role")} ${m.role || ""} · ${term("profile")} ${m.profile || ""}`, text: `${m.name} ${item.name}-${m.name} ${m.role || ""} ${m.profile || ""}`, href });
       }
       const agree = doc.agreement && doc.agreement.doc;
       if (agree)
-        out.push({ kind: "def", group, project: label, label: agree.title || item.name, sub: `${item.name} の規則`, text: agree.text, body: agree.text, href: href + "&agree=" + encodeURIComponent(item.name) });
+        out.push({ kind: "def", group, project: label, label: agree.title || item.name, sub: `${item.name} の${term("rule")}`, text: agree.text, body: agree.text, href: href + "&agree=" + encodeURIComponent(item.name) });
     }
   }
   for (const g of groupOf("roles")) {
@@ -1642,7 +1643,7 @@ function liveEntries() {
     const wait = (t.waiting || []).length;
     const sub = [
       t.workspace.label ? `ワークスペース ${t.workspace.label}` : "",
-      wait ? `許可待ち（${t.waiting.join(" · ")}）` : t.starting ? "起動の途中" : "動いている"
+      wait ? `${term("waiting-for-permission")}（${t.waiting.join(" · ")}）` : t.starting ? `${term("start")}の途中` : "動いている"
     ].filter(Boolean).join(" · ");
     out.push({
       kind: "live",
@@ -1661,7 +1662,7 @@ function liveEntries() {
       group: last ? last.project : "",
       project: last ? last.project_name || projectName2(last.project) : "",
       label: w.label,
-      sub: last ? `${last.team} が動いている` : `hergy のチームはいない${w.last_team ? `（前は ${w.last_team}）` : ""}`,
+      sub: last ? `${last.team} が動いている` : `hergy の${term("team")}はいない${w.last_team ? `（前は ${w.last_team}）` : ""}`,
       text: `${w.label} ${last ? last.team : ""} ${w.last_team || ""}`,
       href: last ? `/activity?open=${encodeURIComponent(token2(last.team, last.project))}` : ""
     });
@@ -1730,7 +1731,7 @@ function Results() {
   else if (!groups.length)
     body = /* @__PURE__ */ u("p", {
       class: "hq-sub",
-      children: `「${q}」に合うものはありません。探すのは、並べたプロジェクトとグローバルの、チーム・ワークスペース・メンバー・ロール・プロファイルです。`
+      children: `「${q}」に合うものはありません。${term("find")}のは、並べた${term("project")}と${term("global")}の、${term("team")}・ワークスペース・${term("member")}・${term("role")}・${term("profile")}です。`
     });
   else {
     let i = 0;
@@ -1879,7 +1880,7 @@ var pickable = O(() => {
 var blocked = O(() => !!(answer.value && answer.value.herdr && answer.value.herdr.ok === false));
 var picks = O(() => pickable.value.filter((name) => chosen.value.has(name)));
 var canApply = O(() => !sending.value && !blocked.value && picks.value.length > 0);
-var applyLabel = O(() => picks.value.length ? `選んだ ${picks.value.length} 人に反映する` : "反映する人を選んでください");
+var applyLabel = O(() => picks.value.length ? `選んだ ${picks.value.length} 人に${term("apply")}する` : `${term("apply")}する人を選んでください`);
 function teamCount(team) {
   const a = all.value;
   let n = 0;
@@ -1957,9 +1958,9 @@ async function send() {
     readTeams();
   } catch (e) {
     if (e instanceof Refusal2 && e.status) {
-      note.value = `反映していません。${problemText2(e, e.text || "")}`;
+      note.value = `${term("apply")}していません。${problemText2(e, e.text || "")}`;
     } else {
-      note.value = "反映できませんでした。";
+      note.value = `${term("apply")}できませんでした。`;
     }
   } finally {
     sending.value = false;

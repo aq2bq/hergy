@@ -18,8 +18,9 @@ import {
 } from "./nav-zn7g81kr.js";
 import {
   mark,
+  term,
   problemText2
-} from "./nav-ncqt2ghs.js";
+} from "./nav-4q8266gs.js";
 import {
   Field
 } from "./nav-9htrbyn7.js";
@@ -31,7 +32,7 @@ function Measure({ chars, limit }) {
   const near = !over && chars > limit * 0.9;
   const w = Math.min(100, chars / (limit * 1.25) * 100);
   return /* @__PURE__ */ u("span", {
-    title: `暫定の目安：${num(limit)}字。縦線は暫定の目安です。超えても保存・起動できます。`,
+    title: `${term("size-guide")}：${num(limit)}字。縦線は${term("size-guide")}です。超えても保存・${term("start")}できます。`,
     class: "amt" + (over ? " over" : ""),
     children: [
       /* @__PURE__ */ u("span", {
@@ -203,7 +204,7 @@ function TransferMenu({ source, index, target: initialTarget, at: initialAt, mov
   const parts = blocks(original), [start, end] = blockRange(parts, index, children);
   const destination = prepared?.destination ?? target?.text() ?? "";
   const choice = targets.find((x) => x.id === selected);
-  const groups = [...new Set(targets.map((t) => `${t.kind === "team" ? "チーム定義" : "ロール"} · ${t.group}`))];
+  const groups = [...new Set(targets.map((t) => `${t.kind === "team" ? term("team-definition") : term("role")} · ${t.group}`))];
   const insertion = at < 0 ? destination.length : at;
   h(() => {
     dialog.current?.showModal();
@@ -350,7 +351,7 @@ function TransferMenu({ source, index, target: initialTarget, at: initialAt, mov
                       }),
                       groups.map((group) => /* @__PURE__ */ u("optgroup", {
                         label: group,
-                        children: targets.filter((t) => `${t.kind === "team" ? "チーム定義" : "ロール"} · ${t.group}` === group).map((t) => /* @__PURE__ */ u("option", {
+                        children: targets.filter((t) => `${t.kind === "team" ? term("team-definition") : term("role")} · ${t.group}` === group).map((t) => /* @__PURE__ */ u("option", {
                           value: t.id,
                           children: t.label
                         }))
@@ -396,13 +397,13 @@ function TransferMenu({ source, index, target: initialTarget, at: initialAt, mov
           /* @__PURE__ */ u("p", {
             children: [
               "選んだ範囲の空白と改行はそのまま写し、境目に空行がないときだけ補います。",
-              choice?.kind === "role" ? "共有ロールへの保存は、その文書を読むすべてのチームに反映されます。" : ""
+              choice?.kind === "role" ? `共有${term("role")}への保存は、その文書を読むすべての${term("team")}に${term("apply")}されます。` : ""
             ]
           }),
           choice?.otherProject ? /* @__PURE__ */ u("p", {
             class: "transfer-notice",
             children: [
-              "宛先は、いま開いているプロジェクトとは別の場所です：",
+              `宛先は、いま開いている${term("project")}とは別の場所です：`,
               choice.label
             ]
           }) : null,
@@ -478,7 +479,7 @@ function TransferMenu({ source, index, target: initialTarget, at: initialAt, mov
               class: "btn primary",
               disabled: !target,
               onClick: prepare,
-              children: "下書きに反映"
+              children: `下書きに${term("apply")}`
             })
           }) : null
         ]
@@ -586,19 +587,19 @@ function ProseHeader({ heading, text, children, position }) {
       !heading.compact ? /* @__PURE__ */ u("p", {
         class: "prose-readers",
         title: heading.members,
-        children: heading.members ? `使うメンバー: ${heading.members}` : "使うメンバーなし"
+        children: heading.members ? `使う${term("member")}: ${heading.members}` : `使う${term("member")}なし`
       }) : null,
       heading.otherTeams ? /* @__PURE__ */ u("p", {
         class: "prose-readers prose-other-teams",
-        title: `ほかのチーム: ${heading.otherTeams}`,
+        title: `ほかの${term("team")}: ${heading.otherTeams}`,
         children: [
-          "ほかのチーム: ",
+          `ほかの${term("team")}: `,
           heading.otherTeams
         ]
       }) : null,
       /* @__PURE__ */ u("div", {
         class: "prose-budget",
-        title: template ? `内訳: 規則 ${num(count)} 字・ひな形 ${num(template)} 字` : undefined,
+        title: template ? `内訳: ${term("rule")} ${num(count)} 字・ひな形 ${num(template)} 字` : undefined,
         children: /* @__PURE__ */ u(Measure, {
           chars: total,
           limit: 1200
@@ -836,8 +837,8 @@ function ProseEditor({ text, heading, onChange, transfer }) {
       }) : /* @__PURE__ */ u(Field, {
         as: "textarea",
         fieldRef: input,
-        "aria-label": `${heading.name} の規則の全文`,
-        placeholder: heading.kind === "チーム定義" ? "チームの規則は任意です。本文を入力して保存できます。" : "本文を入力してください。",
+        "aria-label": `${heading.name} の${term("rule")}の全文`,
+        placeholder: heading.kind === term("team-definition") ? `${term("team-agreement")}は任意です。本文を入力して保存できます。` : "本文を入力してください。",
         value: text,
         spellcheck: false,
         onInput: (event) => {
@@ -922,7 +923,7 @@ function RuleDoc2({ row, hasName = true, heading, nameError, issues, onDraft, re
       hasName ? /* @__PURE__ */ u("label", {
         class: "prose-name",
         children: [
-          "ロール名",
+          term("role-name"),
           /* @__PURE__ */ u(Field, {
             class: "in-name",
             "data-f": "name",
@@ -950,7 +951,7 @@ function RuleDoc2({ row, hasName = true, heading, nameError, issues, onDraft, re
               rename.change(event.currentTarget.checked);
             }
           }),
-          "使っているチームのロール名も変更する"
+          `使っている${term("team")}の${term("role-name")}も変更する`
         ]
       }) : null,
       /* @__PURE__ */ u(ProseEditor, {
