@@ -210,11 +210,14 @@ func (id PaneID) String() string { return string(id) }
 func (PaneID) herdrTarget()      {}
 
 // WorkerIn reads a worker label already scoped to a known team. Unlike the
-// unscoped tab reader it retains legacy team names containing a slash.
-func (n Seen) WorkerIn(team Seen) (ObservedWorker, bool) {
-	short, ok := WorkerShort(n, team)
+// unscoped tab reader it retains legacy team names containing a slash. The
+// scope may be an unresolved typed command word: it becomes an observation
+// only after matching bytes in this one witnessed label.
+func (n Seen) WorkerIn(team interface{ String() string }) (ObservedWorker, bool) {
+	scoped := Seen{s: team.String()}
+	short, ok := WorkerShort(n, scoped)
 	if !ok || short.s == "" {
 		return ObservedWorker{}, false
 	}
-	return ObservedWorker{label: n, team: team, short: short}, true
+	return ObservedWorker{label: n, team: scoped, short: short}, true
 }

@@ -446,3 +446,26 @@ func TestDownSaysNothingAboutLeftoversInTheProjectRoot(t *testing.T) {
 		t.Errorf("down says something is left when the project holds nothing:\n%s", got)
 	}
 }
+
+func TestDownDryFindsASlashTeamThroughItsRemainingWorkerTab(t *testing.T) {
+	f := newFixture(t)
+	f.herdr(t, `#!/bin/sh
+case "$1 $2" in
+ "agent list") echo '{"result":{"agents":[]}}' ;;
+ "tab list") echo '{"result":{"tabs":[{"tab_id":"w1","label":"worker:Upper/a/1"}]}}' ;;
+ "pane list") echo '{"result":{"panes":[{"pane_id":"p1","label":"Upper/a-1","tab_id":"w1"}]}}' ;;
+ *) echo '{"result":{}}' ;;
+esac
+`)
+	got := mustRun(t, "down", "Upper/a", "--dry", "--json")
+	var plan struct {
+		Team    string   `json:"team"`
+		Workers []string `json:"workers"`
+	}
+	if err := json.Unmarshal([]byte(got), &plan); err != nil {
+		t.Fatal(err)
+	}
+	if plan.Team != "Upper/a" || len(plan.Workers) != 1 || plan.Workers[0] != "Upper/a-1" {
+		t.Fatalf("plan=%+v", plan)
+	}
+}

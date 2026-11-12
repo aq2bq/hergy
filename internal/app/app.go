@@ -1591,7 +1591,7 @@ func downStopped(ctx context.Context, opts *options.Options, projectRoot string,
 			observed = candidate
 			break
 		}
-		if worker, ok := tab.Label.WorkerTab(); ok && worker.Team().String() == name {
+		if worker, ok := tab.Label.WorkerIn(opts.Target); ok {
 			observed = worker.Team()
 			break
 		}
