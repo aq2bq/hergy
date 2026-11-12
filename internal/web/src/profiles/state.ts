@@ -8,7 +8,7 @@ import { signal, computed } from '../lib/preact.js';
 import { editProfile, editProfileAssignments, editYaml, profileFiles, type ProfileAssignments, type YamlEditing, type ProfileEditing } from '../lib/editing.js';
 import { resourceIdentity } from '../lib/resource-identity.js';
 import { profileModel, list as apiList, type Answer, type Place, type ProfilePanel, type ProfileRow } from '../lib/api.js';
-import { readOpen, rowsFor, writeOpen } from '../lib/address.js';
+import { readOpen, rowsFor, writeOpen, rowAddress } from '../lib/address.js';
 import { copyGroupOf } from '../lib/copy';
 import { setDirty } from '../lib/nav.js';
 import type {
@@ -564,7 +564,7 @@ export function syncURL(): void {
   // `project`/`global`, never a bare name (⑥-2, d-a143).
   const open = rows.value
     .filter((row) => row.open && !row.isNew && row.name)
-    .map((row) => ({ name: row.name, group: GROUPED && row.group ? row.group : (row.group === 'global' ? 'global' : 'project') }));
+    .map((row) => rowAddress(row.name, GROUPED && row.group ? row.group : (row.group === 'global' ? 'global' : 'project')));
   writeOpen(params, open);
   const search = params.toString();
   history.replaceState(null, '', location.pathname + (search ? '?' + search : ''));

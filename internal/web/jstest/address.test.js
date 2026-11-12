@@ -2,12 +2,12 @@
 // address it reads back. A name alone is the old link: it names every row of
 // that name, so a screen opens both sides of it.
 import { describe, expect, test } from 'bun:test';
-import { groupPlace, parseOpen, readOpen, rowsFor, token, writeOpen } from '../src/lib/address';
+import { groupPlace, parseOpen, readOpen, rowsFor, token, writeOpen, rowAddress } from '../src/lib/address';
 
 describe('the address', () => {
   test('a name and its place, written and read back', () => {
     const params = new URLSearchParams();
-    writeOpen(params, [{ name: 'core', group: 'global' }, { name: 'core', group: '/work/alpha' }, { name: 'core', group: 'project' }]);
+    writeOpen(params, [rowAddress('core', 'global'), rowAddress('core', '/work/alpha'), rowAddress('core', 'project')]);
     expect(params.get('open')).toBe('core|global,core|/work/alpha,core|project');
     expect(readOpen(params)).toEqual([
       { name: 'core', group: 'global' },
@@ -21,7 +21,7 @@ describe('the address', () => {
     expect(params.has('open')).toBe(false);
   });
   test('a row with no place is not written', () => {
-    expect(() => writeOpen(new URLSearchParams(), [{ name: 'core', group: '' }])).toThrow();
+    expect(() => rowAddress('core', '')).toThrow();
   });
   test('a name alone is the old link: no place, so every row of that name', () => {
     expect(parseOpen('core,other|global')).toEqual([

@@ -5,7 +5,7 @@ import { resourceIdentity, type ResourceIdentity } from '../lib/resource-identit
 import { signal } from '../lib/preact.js';
 import { roleProblems } from '../lib/role-check.js';
 import { takeDraft, setDirty } from '../lib/nav.js';
-import { readOpen, rowsFor, writeOpen } from '../lib/address.js';
+import { readOpen, rowsFor, writeOpen, rowAddress } from '../lib/address.js';
 import { copyGroupOf, projectOfGroup } from '../lib/copy';
 import {
   saved as apiSaved,
@@ -438,7 +438,7 @@ export function syncURL(push: boolean): void {
   } else {
     if (s.filter) q.set('filter', s.filter);
     if (s.q) q.set('q', s.q);
-    const open = [...s.open].map((u) => byUid(u)).filter((r): r is RoleRow => !!r).map((r) => ({ name: curName(r), group: rowGroup(r) }));
+    const open = [...s.open].map((u) => byUid(u)).filter((r): r is RoleRow => !!r).map((r) => rowAddress(curName(r), rowGroup(r)));
     if (open.length) writeOpen(q, open);
 
   }

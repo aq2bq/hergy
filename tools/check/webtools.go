@@ -87,14 +87,11 @@ func (r *runner) namesGate() error {
 	if err != nil {
 		return err
 	}
-	// eslint reads the files under the directory it runs in, so it runs in
-	// internal/web with the config named from where it was installed. The
-	// screens' modules are all TypeScript now (n-893d), and tsc holds their
-	// names (the types gate: strict, noUnusedLocals, noUnusedParameters), so
-	// this reads the unit tests, which are still JavaScript.
+	// JavaScript names are checked here; tsc checks TypeScript names. Native
+	// DOM operations in TypeScript use ESLint's built-in ownership restrictions.
 	return r.execIn(filepath.Join(r.root, "internal", "web"), env, filepath.Join(dir, "node_modules", ".bin", "eslint"),
 		"--no-config-lookup", "--config", filepath.Join(dir, "eslint.config.js"), "--max-warnings", "0",
-		filepath.Base(webTests))
+		filepath.Base(webTests), "src")
 }
 
 func (r *runner) unitGate() error {
@@ -111,7 +108,7 @@ func (r *runner) unitGate() error {
 	// tsconfig of the directory it runs in, and a module the tests import as
 	// .tsx needs its jsx settings (jsxImportSource preact). Run in jstest, bun
 	// found none and looked for react/jsx-dev-runtime.
-	return r.execIn(filepath.Join(r.root, "internal", "web"), env, bun, "test", "--isolate", "--preload", filepath.Join(dir, "setup.js"), filepath.Base(webTests))
+	return r.execIn(filepath.Join(r.root, "internal", "web"), env, bun, "test", "--isolate", "--preload", filepath.Join(dir, "setup.js"), filepath.Base(webTests), "src")
 }
 
 // apiSpec and apiTypes are the API's promise and the types made from it, from

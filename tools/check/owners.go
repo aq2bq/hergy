@@ -143,20 +143,6 @@ var promptStrings = []struct {
 	{`part: "worker"`, []string{"internal/web/src/lib/editing.ts"}},
 }
 
-// The address section (⑥-2, d-a143): the rows a screen has open are written and
-// read by lib/address.ts alone. A screen asks it for the open rows; it does not
-// spell the address itself.
-const addressOwner = "internal/web/src/lib/address.ts"
-
-// addressKey is the two spellings a screen would write by itself: the open value
-// set and read. Both quote kinds; the receiver's name does not matter.
-var addressKey = regexp.MustCompile(`\.(set|get)\(\s*['"]open['"]`)
-
-// addressRows are the names the screens used to match an address to their rows:
-// the rule belongs to address.ts's rowsFor, so the names stand nowhere else
-// (⑥-2, d-a143).
-var addressRows = []string{"rowsOfRef", "sameRow"}
-
 // ownerAllow is one exception: a name in a file, with why and the decision that
 // allowed it.
 type ownerAllow struct {
@@ -168,12 +154,10 @@ type ownerAllow struct {
 
 // ownersFile is tools/check/owners.yml.
 type ownersFile struct {
-	Enforce             bool         `yaml:"enforce"`
-	DangerEnforce       bool         `yaml:"danger_enforce"`
-	PromptEnforce       bool         `yaml:"prompt_enforce"`
-	AddressEnforce      bool         `yaml:"address_enforce"`
-	PagePositionEnforce bool         `yaml:"page_position_enforce"`
-	Allow               []ownerAllow `yaml:"allow"`
+	Enforce       bool         `yaml:"enforce"`
+	DangerEnforce bool         `yaml:"danger_enforce"`
+	PromptEnforce bool         `yaml:"prompt_enforce"`
+	Allow         []ownerAllow `yaml:"allow"`
 }
 
 // ownersGate reports (and, once enforced, refuses) a name outside its owner.
@@ -202,22 +186,14 @@ func (r *runner) ownersGate() error {
 	if err != nil {
 		return err
 	}
-	address, err := r.addressFindings(conf)
-	if err != nil {
-		return err
-	}
-	page, err := r.pagePositionFindings(conf)
-	if err != nil {
-		return err
-	}
 
-	return ownersVerdict(conf, findings, danger, prompt, address, page)
+	return ownersVerdict(conf, findings, danger, prompt)
 }
 
 // ownersVerdict prints what the sections found and fails the enforced ones.
 // Each section turns Hard on its own: a section still reporting prints its
 // findings and passes, and an enforced one fails (owners.yml).
-func ownersVerdict(conf ownersFile, findings, danger, prompt, address, page []string) error {
+func ownersVerdict(conf ownersFile, findings, danger, prompt []string) error {
 	sections := []struct {
 		findings []string
 		enforce  bool
@@ -226,8 +202,6 @@ func ownersVerdict(conf ownersFile, findings, danger, prompt, address, page []st
 		{findings, conf.Enforce, "enforce"},
 		{danger, conf.DangerEnforce, "danger_enforce"},
 		{prompt, conf.PromptEnforce, "prompt_enforce"},
-		{address, conf.AddressEnforce, "address_enforce"},
-		{page, conf.PagePositionEnforce, "page_position_enforce"},
 	}
 	var all []string
 	var which strings.Builder
@@ -503,198 +477,6 @@ func stringLines(text, want string) []int {
 		out = append(out, lineOf(text, i+j))
 		i += j + len(want)
 	}
-}
-
-// addressFindings is the address section: a screen that spells the open value
-// itself instead of asking lib/address.ts.
-func (r *runner) addressFindings(conf ownersFile) ([]string, error) {
-	files, err := r.sourceFiles()
-	if err != nil {
-		return nil, err
-	}
-	var out []string
-	for _, path := range files {
-		rel, err := filepath.Rel(r.root, path)
-		if err != nil {
-			return nil, err
-		}
-		rel = filepath.ToSlash(rel)
-		if rel == addressOwner {
-			continue
-		}
-		if !strings.HasSuffix(rel, ".ts") && !strings.HasSuffix(rel, ".tsx") {
-			continue
-		}
-		raw, err := os.ReadFile(path)
-		if err != nil {
-			return nil, err
-		}
-		// The open value is a string, which maskSpec blanks: the rule reads the
-		// text, the way the prompt section reads its addresses.
-		for i, line := range strings.Split(string(raw), "\n") {
-			if !addressKey.MatchString(line) || allowedBy(rel, conf.Allow, "open") {
-				continue
-			}
-			out = append(out, fmt.Sprintf("%s:%d: open を自分で書いたり読んだりせず、持ち主（%s）の writeOpen・readOpen を通してください。寄せられない場合は %s の allow に理由と決定を添えてください",
-				rel, i+1, addressOwner, ownersPath))
-		}
-		for _, name := range addressRows {
-			if allowedBy(rel, conf.Allow, name) {
-				continue
-			}
-			for _, line := range wordLines(maskSpec(string(raw)), name) {
-				out = append(out, fmt.Sprintf("%s:%d: %s は持ち主（%s）の rowsFor に置いてください", rel, line, name, addressOwner))
-			}
-		}
-	}
-	sort.Strings(out)
-	return out, nil
-}
-
-// The page-position section (⑦ r-6ff8 / d-c5ce / d-a504): lib/page-position.ts
-// moves the page (window) and sends the wheel, and nowhere else does. A panel
-// may scroll its own content only inside itself, and only the panels owners.yml
-// names may do it; a focus never scrolls the page to the field it lands in.
-const pagePositionOwner = "internal/web/src/lib/page-position.ts"
-
-// pagePositionMethods are the browser calls that move a page or an element.
-var pagePositionMethods = []string{"scrollBy", "scrollTo", "scrollIntoView"}
-
-// pagePositionScrolls are the fields a panel writes to move its own content.
-var pagePositionScrolls = []string{"scrollTop", "scrollLeft"}
-
-// pagePositionFindings reads the WebUI's TypeScript for the page's position: a
-// moving call, a scroll field's write, a focus without preventScroll, or the old
-// name bringUnderBand, outside their owner.
-func (r *runner) pagePositionFindings(conf ownersFile) ([]string, error) {
-	files, err := r.sourceFiles()
-	if err != nil {
-		return nil, err
-	}
-	var out []string
-	for _, path := range files {
-		rel, err := filepath.Rel(r.root, path)
-		if err != nil {
-			return nil, err
-		}
-		rel = filepath.ToSlash(rel)
-		if !strings.HasSuffix(rel, ".ts") && !strings.HasSuffix(rel, ".tsx") {
-			continue
-		}
-		if !allowed(rel, []string{"internal/web/src/"}) {
-			continue // the screens, not the generated contract or another kind
-		}
-		raw, err := os.ReadFile(path)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, pagePositionFileFindings(rel, maskSpec(string(raw)), conf)...)
-	}
-	sort.Strings(out)
-	return out, nil
-}
-
-// pagePositionFileFindings is one file's findings. The owner moves the page;
-// another file asks it. The old name stands nowhere, the owner included.
-func pagePositionFileFindings(rel, code string, conf ownersFile) []string {
-	var out []string
-	if rel != pagePositionOwner {
-		for _, name := range pagePositionMethods {
-			if allowedBy(rel, conf.Allow, name) {
-				continue
-			}
-			for _, line := range methodLines(code, name) {
-				out = append(out, fmt.Sprintf("%s:%d: .%s( はページを動かします。持ち主（%s）の movePage を通すか、欄の中なら %s の allow に理由と決定を添えてください",
-					rel, line, name, pagePositionOwner, ownersPath))
-			}
-		}
-		for _, name := range pagePositionScrolls {
-			if allowedBy(rel, conf.Allow, name) {
-				continue
-			}
-			for _, line := range scrollWriteLines(code, name) {
-				out = append(out, fmt.Sprintf("%s:%d: .%s の代入は欄の中だけにしてください。欄の持ち主の中なら %s の allow に理由と決定を添えてください",
-					rel, line, name, ownersPath))
-			}
-		}
-		for _, line := range focusLines(code) {
-			out = append(out, fmt.Sprintf("%s:%d: focus() に preventScroll を付けてください（ブラウザがページを動かします）", rel, line))
-		}
-	}
-	for _, line := range wordLines(code, "bringUnderBand") {
-		out = append(out, fmt.Sprintf("%s:%d: bringUnderBand は持ち主（%s）の movePage に置き換えてください", rel, line, pagePositionOwner))
-	}
-	return out
-}
-
-// methodLines is the 1-based lines where name is called as a method: a dot
-// before it and an open parenthesis after, so .scrollTo( is not .scrollTop.
-func methodLines(code, name string) []int {
-	var out []int
-	needle := "." + name + "("
-	for i := 0; ; {
-		j := strings.Index(code[i:], needle)
-		if j < 0 {
-			return out
-		}
-		out = append(out, lineOf(code, i+j))
-		i += j + len(needle)
-	}
-}
-
-// scrollWriteLines is the 1-based lines where a scroll field is written: =, +=
-// or -=, but not the === of a comparison.
-func scrollWriteLines(code, name string) []int {
-	pattern := regexp.MustCompile(`\.` + regexp.QuoteMeta(name) + `\s*(\+=|-=|=)`)
-	var out []int
-	for _, at := range pattern.FindAllStringSubmatchIndex(code, -1) {
-		opEnd := at[3] // the operator's end
-		if code[at[2]:at[3]] == "=" && opEnd < len(code) && code[opEnd] == '=' {
-			continue // == or ===
-		}
-		out = append(out, lineOf(code, at[0]))
-	}
-	return out
-}
-
-// focusLines is the 1-based lines where a focus call stands without
-// preventScroll in the same call: the browser would scroll the page to it.
-func focusLines(code string) []int {
-	var out []int
-	for i := 0; ; {
-		j := strings.Index(code[i:], ".focus(")
-		if j < 0 {
-			return out
-		}
-		at := i + j
-		open := at + len(".focus")
-		end := closingParen(code, open)
-		if end < 0 {
-			i = open + 1
-			continue
-		}
-		if !strings.Contains(code[open:end+1], "preventScroll") {
-			out = append(out, lineOf(code, at))
-		}
-		i = end + 1
-	}
-}
-
-// closingParen is the index of the parenthesis that closes the one at open.
-func closingParen(code string, open int) int {
-	depth := 0
-	for i := open; i < len(code); i++ {
-		switch code[i] {
-		case '(':
-			depth++
-		case ')':
-			depth--
-			if depth == 0 {
-				return i
-			}
-		}
-	}
-	return -1
 }
 
 // dangerFindings is the danger section's four rules: the old confirmation names

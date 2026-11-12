@@ -15,7 +15,7 @@ export type CheckAnswer = ApiAnswer<'checkTeam'>;
 import {
   fromJSON, clone,
 } from '../lib/ruledoc.js';
-import { parseOpen, readOpen, rowsFor, token, writeOpen } from '../lib/address.js';
+import { parseOpen, readOpen, rowsFor, token, writeOpen, rowAddress } from '../lib/address.js';
 import { copyGroupOf, groupPlace, projectOfGroup } from '../lib/copy';
 import { roleEntries, pendingRoleChanges, takeRoleEdits, restoreRoleEdits } from './role-modal.js';
 import { runDanger } from '../lib/danger.js';
@@ -180,7 +180,7 @@ const urlGroup = (r: Rec): string => (GROUPED ? groupOfRecord(r) : r.place.value
 // here is the place this screen writes for its own project, and rowRef reads a
 // row the way the address writes it (⑥-2, d-a143).
 const here = CURRENT;
-const rowRef = (r: Rec): { name: string; group: string } => ({ name: r.name.value, group: urlGroup(r) });
+const rowRef = (r: Rec): { name: string; group: string } => rowAddress(r.name.value, urlGroup(r));
 // withOpen opens or closes one row by the address it stands at: every spelling
 // that names the row goes (the old name-only one included), and the qualified
 // address is put in its place (d-a143).
@@ -969,7 +969,7 @@ export function syncURL() {
     const rows = [...s.open]
       .map((one) => rowsFor(parseOpen(one)[0], recs.value, rowRef, here).find((r) => !r.draftRow))
       .filter((r): r is Rec => !!r);
-    writeOpen(params, rows.map((r) => ({ name: r.name.value, group: urlGroup(r) })));
+    writeOpen(params, rows.map((r) => rowAddress(r.name.value, urlGroup(r))));
     const agrees = rows.filter((r) => dtabOf(r) === 'agree').map((r) => token(r.name.value, urlGroup(r)));
     if (agrees.length) params.set('agree', agrees.join(','));
   }

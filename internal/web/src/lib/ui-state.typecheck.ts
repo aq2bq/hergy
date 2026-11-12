@@ -16,3 +16,15 @@ if (false) {
  const fake: Selection = { pick: { value: null }, side: { value: 'attr' }, send: () => {} };
  void fake;
 }
+
+import { writeOpen, rowAddress } from './address.js';
+import { PAGE_POSITION, movePage } from './page-position.js';
+// @ts-expect-error callers cannot construct a write address
+writeOpen(new URLSearchParams(), [{ name: 'core', group: 'global' }]);
+const address = rowAddress('core', 'global');
+// @ts-expect-error addresses are readonly
+address.group = 'project';
+// @ts-expect-error the page-position table is readonly
+PAGE_POSITION.openRow.at = 'band';
+// @ts-expect-error only named navigation operations are accepted
+movePage('reread-and-scroll', null);
