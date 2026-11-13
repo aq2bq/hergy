@@ -152,9 +152,6 @@ func CommandHelp(kind Kind) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "hergy %s - %s\n\n", s.Name, s.Summary[lang])
 	fmt.Fprintf(&b, "%s %s\n", i18n.T("help.usage_label"), usageLine(s, lang))
-	if detail := words.Describe(s.Rules, lang); detail != "" {
-		fmt.Fprintf(&b, "\n%s\n", wrapDetail(detail, 100))
-	}
 	if len(argRows) > 0 {
 		fmt.Fprintf(&b, "\n%s\n", i18n.T("help.arguments"))
 		writeRows(&b, argRows, col)
@@ -162,38 +159,6 @@ func CommandHelp(kind Kind) string {
 	fmt.Fprintf(&b, "\n%s\n", i18n.T("help.options"))
 	writeRows(&b, flagRows, col)
 	return b.String()
-}
-
-// FlagSummary is one flag as the cheatsheet for an agent lists it.
-type FlagSummary struct {
-	Name     string   // "dir"
-	Label    string   // "-C, --dir <dir>"
-	Commands []string // the commands that take it, in the cheatsheet's order; none for a flag every command takes
-}
-
-// FlagSummaries lists every flag, in the order the cheatsheet shows them, with
-// the commands that take each. --lang and --help, which every command takes,
-// carry no commands.
-func FlagSummaries() []FlagSummary {
-	out := make([]FlagSummary, 0, len(allFlags))
-	for _, f := range allFlags {
-		sum := FlagSummary{Name: f.Name, Label: flagLabel(f, "en")}
-		if f != flagLang && f != flagHelp {
-			for _, s := range specs {
-				if has(s, f) {
-					sum.Commands = append(sum.Commands, s.Name)
-				}
-			}
-			if len(sum.Commands) == 0 {
-				// A flag the parser still knows but no command takes any more
-				// (--global and --local, gone in 段 3): it is refused with its
-				// own sentence and is not a flag of the shape.
-				continue
-			}
-		}
-		out = append(out, sum)
-	}
-	return out
 }
 
 func has(s Spec, f *Flag) bool {
@@ -236,56 +201,9 @@ func wrapDetail(text string, width int) string {
 	return strings.Join(lines, "\n")
 }
 
-// Description renders the command's public rules. Every display uses these
-// IDs; the Spec holds syntax, never a second account of the operation.
-func Description(kind Kind, lang string) string { return words.Describe(specOf(kind).Rules, lang) }
-
-// FlagDescriptions groups uses by the actual shared description. A flag may
-// mean different things on different commands (especially --dry and --json).
-func FlagDescriptions(name, lang string) string {
-	type group struct {
-		text     string
-		commands []string
-	}
-	var groups []group
-	for _, s := range specs {
-		for _, u := range s.Flags {
-			if u.Flag.Name != name {
-				continue
-			}
-			description := u.Desc[lang]
-			at := -1
-			for i, g := range groups {
-				if g.text == description {
-					at = i
-					break
-				}
-			}
-			if at < 0 {
-				groups = append(groups, group{text: description})
-				at = len(groups) - 1
-			}
-			groups[at].commands = append(groups[at].commands, s.Name)
-		}
-	}
-	for _, u := range common {
-		if u.Flag.Name == name {
-			return strings.ReplaceAll(u.Desc[lang], "\n", " ")
-		}
-	}
-	var lines []string
-	for _, g := range groups {
-		lines = append(lines, strings.Join(g.commands, ", ")+": "+strings.ReplaceAll(g.text, "\n", " "))
-	}
-	var description strings.Builder
-	description.WriteString(strings.Join(lines, "; "))
-	for _, flag := range allFlags {
-		if flag.Name == name && len(flag.Alias) > 0 {
-			description.WriteString(" " + fmt.Sprintf(words.Label("flag.aliases")[lang], "--"+strings.Join(flag.Alias, ", --")))
-		}
-	}
-	return description.String()
-}
+// Summary is the one line that says what a command does: the same sentence as
+// its row in hergy --help.
+func Summary(kind Kind, lang string) string { return specOf(kind).Summary[lang] }
 
 // BuildUsage uses the same syntax and summary records as each command's page.
 // The locale generator owns the output; Usage reads it without a second table.

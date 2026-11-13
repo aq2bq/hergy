@@ -19,7 +19,7 @@ func TestCommandHelpNeedsNoHerdrAndPrintsThatCommandsFlags(t *testing.T) {
 		not  []string
 	}{
 		{[]string{"new", "--help", "--lang", "ja"},
-			[]string{"hergy new - チーム定義のひな形を作る", ".hergy/", "グローバル", "config.yaml"},
+			[]string{"hergy new - チーム定義のひな形を作る", "<チーム定義>"},
 			[]string{"--timeout", "--as", "--purpose", "--local", "--global"}},
 		{[]string{"up", "--help"},
 			[]string{"hergy up - Start a team", "--as <team>", "--timeout <ms>"},

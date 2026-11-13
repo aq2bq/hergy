@@ -26,34 +26,6 @@ func TestRuleCatalogIsCompleteAndRenderable(t *testing.T) {
 			}
 		}
 	}
-	commands := map[string]bool{}
-	for _, rule := range Rules() {
-		if rule.Detail {
-			for _, command := range rule.Commands {
-				commands[command] = true
-			}
-		}
-	}
-	for command := range commands {
-		rules := ForCommand(command)
-		if len(rules) == 0 {
-			t.Errorf("%s has no rules", command)
-		}
-		for _, id := range rules {
-			if !ids[id] {
-				t.Errorf("%s: unknown rule %s", command, id)
-			}
-			found := false
-			for _, applies := range Find(id).Commands {
-				if applies == command {
-					found = true
-				}
-			}
-			if !found {
-				t.Errorf("%s references %s, which does not apply", command, id)
-			}
-		}
-	}
 }
 
 func TestRefusalAndExplanationUseSameCauseAndRecovery(t *testing.T) {
