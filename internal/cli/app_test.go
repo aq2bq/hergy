@@ -161,10 +161,28 @@ func newFixture(t *testing.T) *fixture {
 func (f *fixture) herdr(t *testing.T, script string) {
 	t.Helper()
 	path := filepath.Join(f.cfg, "herdr")
-	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
+	if err := os.WriteFile(path, []byte(drawingPanes(script)), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv("HERGY_HERDR", path)
+}
+
+// drawingPanes makes a fake herdr draw what its panes are handed: a text sent
+// with agent prompt is what the pane shows when hergy reads it back to see the
+// agent took it (n-6a78). The rest of the call is the script's own.
+func drawingPanes(script string) string {
+	const draw = `#!/bin/sh
+_shown="${0%/*}/shown"
+if [ "$1 $2" = "agent prompt" ]; then mkdir -p "$_shown"; printf '%s\n' "$4" >> "$_shown/$3"; fi
+if [ "$1 $2" = "agent read" ]; then
+  case " $* " in *" --source visible "*) cat "$_shown/$3" 2>/dev/null; exit 0 ;; esac
+fi
+`
+	body, ok := strings.CutPrefix(script, "#!/bin/sh\n")
+	if !ok {
+		return script
+	}
+	return draw + body
 }
 
 // statefulHerdr writes a fake herdr that remembers the agents it started and the

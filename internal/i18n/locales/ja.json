@@ -142,6 +142,7 @@
   "state.not_recorded": "動いているチームの状態を保存できませんでした: %v",
   "launcher.boot_complete": "起動しました: %s（タブ %s）\n",
   "launcher.boot_submitted": "初期プロンプト: 送りました（文書の読み込みは各ペインで続きます）\n",
+  "launcher.prompt_unseen": "ペインに初期プロンプトが表示されていません",
   "launcher.refresh_restarted": "起動し直しました: %s\n",
   "launcher.refresh_added": "起動しました: %s（タブ %s）\n",
   "launcher.refresh_added_next": "hergy reprompt --all --team %s",

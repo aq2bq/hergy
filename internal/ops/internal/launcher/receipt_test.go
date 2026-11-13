@@ -33,6 +33,7 @@ func (p *receiptPort) JSON(args ...string) (map[string]any, error) {
 			_, err := protocol.Result(args, fmt.Sprintf(`{"error":{"code":%q}}`, code), "", 1)
 			return nil, err
 		}
+		p.show(args[2], args[3])
 		return map[string]any{}, nil
 	}
 	switch strings.Join(args[:2], " ") {
@@ -54,15 +55,19 @@ func TestBootstrapReceipt(t *testing.T) {
 			answers []string
 			calls   int
 			failed  bool
+			// swallowed: herdr saw the agent working, and the pane never drew
+			// the text (a question herdr did not report took it; n-6a78).
+			swallowed bool
 		}{
-			{"first", []string{""}, 1, false},
-			{"retry", []string{"agent_prompt_stalled", ""}, 2, false},
-			{"stalled", []string{"agent_prompt_stalled", "agent_prompt_stalled"}, 2, true},
-			{"blocked", []string{"agent_blocked", "agent_blocked"}, 2, true},
-			{"timeout", []string{"timeout", "timeout"}, 2, true},
+			{"first", []string{""}, 1, false, false},
+			{"retry", []string{"agent_prompt_stalled", ""}, 2, false, false},
+			{"stalled", []string{"agent_prompt_stalled", "agent_prompt_stalled"}, 2, true, false},
+			{"blocked", []string{"agent_blocked", "agent_blocked"}, 2, true, false},
+			{"timeout", []string{"timeout", "timeout"}, 2, true, false},
+			{"working but never drawn", []string{""}, 1, true, true},
 		} {
 			t.Run(operation+"/"+tc.name, func(t *testing.T) {
-				base := &fakePort{agents: map[string]protocol.Agent{}, gone: map[string]bool{}, tabs: []protocol.Tab{{ID: "t1", Label: fixtureSeen("team")}}}
+				base := &fakePort{agents: map[string]protocol.Agent{}, gone: map[string]bool{}, tabs: []protocol.Tab{{ID: "t1", Label: fixtureSeen("team")}}, swallows: map[string]bool{"team-a": tc.swallowed, "p1": tc.swallowed}}
 				port := &receiptPort{fakePort: base, answers: slices.Clone(tc.answers)}
 				members := []definition.Start{{Name: fixtureHerdrName("team-a"), Short: fixtureShortName("a"), Kind: "claude", Cwd: t.TempDir(), Prompt: "the same request"}}
 				if operation == "refresh" || operation == "reprompt" {
@@ -71,6 +76,7 @@ func TestBootstrapReceipt(t *testing.T) {
 				var out bytes.Buffer
 				l := New(members, fixtureSeen("team"), projectPath(t.TempDir()), herdr.New(port), 1000, &out)
 				l.kill = func(int) error { base.gone["team-a"] = true; return nil }
+				l.WithWaitClock(nil, func(time.Duration) {})
 				var err error
 				switch operation {
 				case "up":

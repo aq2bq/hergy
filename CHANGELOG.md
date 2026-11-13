@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.11.1 - 2026-11-13
+
+### Fixed
+
+- `hergy up`, `hire`, `refresh`, `reprompt` and `apply` no longer print "submitted" for a member whose pane never showed the bootstrap prompt (an agent that asked a question while it started took it as the answer); they name the member and the command that sends it again.
+
 ## 0.11.0 - 2026-11-13
 
 After installing, run `hergy down <team>` and then `hergy up` once for each team that was already running: a team started by an older version is not listed until it is started again.
