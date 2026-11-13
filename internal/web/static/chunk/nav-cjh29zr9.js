@@ -42,13 +42,15 @@ import {
   teamCount,
   openSheet,
   memberStateWord
-} from "./nav-btjv087a.js";
+} from "./nav-d6fwgcxh.js";
 import {
   token2,
   parseOpen2,
   readOpen2,
-  writeOpen2
-} from "./nav-7h13dxtk.js";
+  writeOpen2,
+  launchLabel,
+  launchWaitingLabel
+} from "./nav-wz2hf67d.js";
 var __defProp = Object.defineProperty;
 var __returnValue = (v) => v;
 function __exportSetter(name, newValue) {
@@ -89,13 +91,12 @@ __export(exports_hq, {
 });
 
 // lib/hq/run.tsx
-var startLabel = (place) => place === "global" ? `${term("project")}を選んで${term("start")}する` : `この${term("project")}で${term("start")}する`;
 function RunCell2({ definition, place, project }) {
   const live = runningFor(definition, place, project || "");
   return /* @__PURE__ */ u(S, {
     children: [
       live.map((t) => {
-        const label = t.starting ? `${term("start")}の途中 · ${term("waiting-for-permission")}` : (t.waiting || []).length ? `動いている · ${term("waiting-for-permission")}` : "動いている";
+        const label = t.starting ? launchWaitingLabel() : (t.waiting || []).length ? `動いている · ${term("waiting-for-permission")}` : "動いている";
         const where = [place === "global" ? t.project_name || projectName2(t.project) : "", t.workspace.label || t.workspace.id || ""].filter(Boolean).join(" · ");
         const notUp = t.not_up || [];
         const changed = teamCount(t.team);
@@ -163,7 +164,7 @@ function RunCell2({ definition, place, project }) {
             "data-place": place || "project",
             "data-project": place === "global" ? "" : project || "",
             onClick: () => startSheet2(definition, place || "project", place === "global" ? "" : project || ""),
-            children: startLabel(place || "project")
+            children: launchLabel(place || "project")
           }),
           !live.length && lastWorkspaceOf(definition) ? /* @__PURE__ */ u("span", {
             class: "hq-last",

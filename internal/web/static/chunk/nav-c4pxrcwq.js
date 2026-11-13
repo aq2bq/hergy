@@ -27,12 +27,15 @@ import {
 
 // lib/measure.tsx
 var num = (n) => Number(n || 0).toLocaleString("ja-JP");
+function sizeGuideNotice(limit) {
+  return `${term("size-guide")}：${num(limit)}字。超えても保存・${term("start")}できます。`;
+}
 function Measure({ chars, limit }) {
   const over = chars > limit;
   const near = !over && chars > limit * 0.9;
   const w = Math.min(100, chars / (limit * 1.25) * 100);
   return /* @__PURE__ */ u("span", {
-    title: `${term("size-guide")}：${num(limit)}字。縦線は${term("size-guide")}です。超えても保存・${term("start")}できます。`,
+    title: sizeGuideNotice(limit),
     class: "amt" + (over ? " over" : ""),
     children: [
       /* @__PURE__ */ u("span", {
@@ -838,7 +841,7 @@ function ProseEditor({ text, heading, onChange, transfer }) {
         as: "textarea",
         fieldRef: input,
         "aria-label": `${heading.name} の${term("rule")}の全文`,
-        placeholder: heading.kind === term("team-definition") ? `${term("team-agreement")}は任意です。本文を入力して保存できます。` : "本文を入力してください。",
+        placeholder: heading.kind === term("team-definition") ? `${term("team-agreement")}は任意です。` : "",
         value: text,
         spellcheck: false,
         onInput: (event) => {
@@ -969,4 +972,4 @@ function RuleDoc2({ row, hasName = true, heading, nameError, issues, onDraft, re
   });
 }
 
-export { num, Measure, documents, documentID, transferKeys, EqualWidths, chars, title, ProseIdentity, clone2, fromJSON2, Sev2, Counts2, Badge2, Vm2, RuleDoc2 };
+export { num, sizeGuideNotice, Measure, documents, documentID, transferKeys, EqualWidths, chars, title, ProseIdentity, clone2, fromJSON2, Sev2, Counts2, Badge2, Vm2, RuleDoc2 };

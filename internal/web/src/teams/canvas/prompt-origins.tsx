@@ -1,9 +1,10 @@
+import { turnRecipientLabel } from '../../lib/screen-words.js';
 import { term } from '../../lib/terms.generated.js';
 import type { Schemas } from '../../lib/api.js';
 
 type Segment = Schemas['TeamPromptSegment'];
 export const topologySections = [
- ['roster', '名簿'], ['herdr', '連絡'], ['turns', `${term('hands-the-turn-to')}相手`], ['workers', `${term('worker')}の追加`],
+ ['roster', '名簿'], ['herdr', '連絡'], ['turns', turnRecipientLabel()], ['workers', `${term('worker')}の追加`],
 ] as const;
 const labels: Record<string, string> = {
  roster: '名簿', herdr: '連絡', turns: term('turn'), workers: term('worker'),
@@ -62,10 +63,13 @@ export function OriginMarks({segments}: {segments: Segment[]}) {
  })}</span>;
 }
 export function OriginLegend({diff}: {diff: boolean}) {
- return <p class="prompt-origin-legend">{`${term('topology')}${term('origin')}: 名簿・連絡・${term('turn')}・${term('worker')} ／ ${term('rule')}: ${term('role')}の${term('rule')}・${term('team-agreement')}。`}{diff && `印は今の文の${term('origin')}。削除行の${term('origin')}は記録にありません。`}{term('topology')}の 4 節は、見出しから節の終わりまでを帯で示します。見出しがひな形の文字でも、印は付けません。</p>;
+ return <p class="prompt-origin-legend">{diff && `印は今の文の${term('origin')}。削除行の${term('origin')}は記録にありません。`}見出しがひな形の文字でも、印は付けません。</p>;
+}
+export function originMismatchText(): string {
+ return `本文と${term('origin')}が一致しないため、印を表示できません。再取得してください。`;
 }
 export function CurrentPrompt({text, lines}: {text: string; lines: OriginLine[] | null}) {
- if (!lines) return <><p role="alert">{`本文と${term('origin')}が一致しないため、印を表示できません。再取得してください。`}</p><pre class="prompt-full">{text}</pre></>;
+ if (!lines) return <><p role="alert">{originMismatchText()}</p><pre class="prompt-full">{text}</pre></>;
  const spans = sectionSpans(lines);
  return <div class="prompt-full">{lines.map((line, index) => {
   const span = sectionAt(spans, index);

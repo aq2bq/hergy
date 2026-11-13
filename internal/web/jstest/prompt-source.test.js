@@ -42,7 +42,7 @@ test('a start, a stop and a pick change the key and read again', async () => {
   click(row().querySelector('.cv-n.member[data-cv-n="lead"]')); await flush();
   click(row().querySelector('[data-cv-side="prompt"]')); await flush(); await flush();
   const first = reads();
-  expect(note()).toContain('この定義から動いているチームが無いため、定義名 core で作っています。');
+  expect(note()).toContain('このチーム定義から動いているチームが無いため、チーム定義名 core で作っています。');
 
   // A team starts: the live reading changes, so the key does, and the column
   // reads again with no press.
@@ -56,7 +56,7 @@ test('a start, a stop and a pick change the key and read again', async () => {
   live = [];
   setRunning({ herdr: { ok: true }, teams: [] });
   await flush(); await flush();
-  expect(note()).toContain('定義名 core で作っています。');
+  expect(note()).toContain('チーム定義名 core で作っています。');
 
   // Two run and a person picks one in the dialog: the pick is part of the key.
   live = [{ team: 'core', project: '' }, { team: 'core-hotfix', project: '' }];
@@ -65,7 +65,7 @@ test('a start, a stop and a pick change the key and read again', async () => {
     { team: 'core-hotfix', definition: 'core', place: 'project', project: '', members: [{ name: 'core-hotfix-lead', live: true }] },
   ] });
   await flush(); await flush();
-  expect(note()).toContain('動いているチームが 2 つあるため、定義名 core で作っています。');
+  expect(note()).toContain('動いているチームが 2 つあるため、チーム定義名 core で作っています。');
   click(panel().querySelector('.cv-prompt button')); await flush();
   choose(document.querySelector('.prompt-controls select'), 'core-hotfix'); await flush(); await flush();
   expect(note()).toContain('実行中のチーム core-hotfix の名前で作っています。');

@@ -1,3 +1,4 @@
+import { globalPlaceNotice } from '../lib/screen-words.js';
 // roles/view.js — 一覧のタブと、パネル（webui-preact-design 4 章）。
 //
 // 行・パネル・足を描く。class と data-* と入れ子は、移す前のマークアップから 1 つ
@@ -78,7 +79,7 @@ function groupHeader(g: RoleGroup) {
   return <div class={'hq-gh' + (g.global ? ' global' : '')} data-group={g.key} data-place={target} aria-label={`${term('place')}: ${said}`}>
       <span class="hq-gn">{g.name}</span><span class="hq-gp">{g.display || ''}</span>
       {g.global
-        ? <span class="hq-gc">{`どの${term('project')}からも使える。同じ名前があれば、その${term('project')}のほうが使われる`}</span>
+        ? <span class="hq-gc">{globalPlaceNotice()}</span>
         : <span class="hq-gc">{`${term('role')} `}<b>{g.count}</b></span>}
       <button class="btn sm hq-add" data-act="new" data-group={g.key} data-place={target} onClick={() => pressNew(g.key)}>＋ {said}{` に${term('role')}を追加`}</button>
     </div>;

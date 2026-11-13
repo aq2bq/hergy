@@ -18,5 +18,5 @@ export function ProjectView({ projects }: { projects?: Projects | null }) {
     // goes back to the project it was on while the answer stands (d-021e).
     if (confirmLeave(go)) e.currentTarget.value = current?.path || '';
     else go();
-  }}>{choices.map((p) => <option value={p.path}>{p.name} — {p.display}</option>)}</select></label><span>{`この${term('project')}と${term('global')}の設定を表示しています。`}</span></div>;
+  }}>{choices.map((p) => <option value={p.path}>{p.name} — {p.display}</option>)}</select></label></div>;
 }

@@ -78,12 +78,9 @@ test('a project definition opens the named start and takes the team name', async
   expect(sheet().querySelector('.hq-h b').textContent).toBe('このプロジェクトで起動する');
   expect(nameField().value).toBe('');
   expect(sheet().querySelector('[data-role=clash]')).toBe(null);
-  expect(sheet().querySelector('[data-role=same]').textContent).toContain('hergy up core');
-  expect(sheet().querySelector('[data-role=same]').textContent).not.toContain('--as');
 
   type(nameField(), 'dev2');
   await settle();
-  expect(sheet().querySelector('[data-role=same]').textContent).toContain('hergy up core --as dev2');
 
   sheet().querySelector('[data-hq=go]').click();
   await settle();
@@ -128,7 +125,6 @@ test('a global definition opens the project start, and a clash seeds the suggest
   expect(sheet().querySelector('.hq-h b').textContent).toBe('プロジェクトを選んで起動する');
   expect(nameField().value).toBe('shared-alpha');
   expect(sheet().querySelector('[data-role=clash]').textContent).toContain('shared という名前のチームが');
-  expect(sheet().querySelector('[data-role=same]').textContent).toContain('hergy up shared --as shared-alpha');
 });
 
 test('a name the server refuses stands beside the name field, not with the sheet error', async () => {

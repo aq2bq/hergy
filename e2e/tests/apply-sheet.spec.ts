@@ -64,7 +64,7 @@ const sheet = `(function(){
     lost:[...s.querySelectorAll('.apl-cost.lost')].map(function(e){return e.textContent}).join('|'),
     handed:!!text.match(/人間の返事待ち/),
     old:!!text.match(/人間に渡した|人間の番|送り直す|起動し直す/),
-    intro:text.indexOf('チェックしたメンバーに')>=0};
+    intro:s.querySelector('.apl-intro').textContent};
 })()`;
 
 test('the sheet separates what is pressed from what is told, and handed reads one way', async ({ page, app }) => {
@@ -84,7 +84,7 @@ test('the sheet separates what is pressed from what is told, and handed reads on
   await press(page, `document.querySelector('.bar .apl-bandbtn')`);
   await wait(page, `!!document.querySelector('.apl-sheet')`);
 
-  // Every member's state is a word and a sentence, outside any label, with no
+  // Every member's state is outside any label, with no
   // frame; the way is a noun inside the check's line, and 起動し直し says the
   // conversation goes.
   await readTo(page, `(function(){var s=${sheet};return s.rows.map(function(r){return [r.name, r.word, r.inLabel, r.border, r.check, r.cursor, r.how];});})()`,
@@ -95,9 +95,9 @@ test('the sheet separates what is pressed from what is told, and handed reads on
     ['core-busy', '仕事中', false, '0px', false, 'default', '反映できない'],
   ]);
   await readTo(page, `(function(){var s=${sheet};return [s.intro, s.handed, s.old, s.lost];})()`,
-    'the sheet never said the state and the ways the way d-7b45 says').toEqual([true, true, false, '（会話が消える）']);
+    'the sheet never said the state and the ways the way d-7b45 says').toEqual(['チーム定義の説明だけを変えたときは、ずれが出ないので、ここには出ません。', true, false, '（会話が消える）']);
 
-  // The state's sentence is not the check: pressing it toggles nothing, and
+  // The state's text is not the check: pressing it toggles nothing, and
   // pressing the check's line does.
   await press(page, `document.querySelector('.apl-sheet [data-apl-name="core-impl-a"]').closest('label')`);
   await readTo(page, `document.querySelector('.apl-sheet [data-apl-name="core-impl-a"]').checked`,

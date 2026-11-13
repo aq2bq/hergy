@@ -95,7 +95,7 @@ const trimEnd = (text: string): string => text.replace(/\n+$/, '');
 test('a member: the text and the note follow no run, one run and its alias', async ({ page, app }) => {
   setLive(app, []);
   await page.goto(`${app.base}/teams?open=core`); await ready(page); await openMember(page);
-  await expect(note(page)).toContainText('この定義から動いているチームが無いため、定義名 core で作っています。', { timeout: 15_000 });
+  await expect(note(page)).toContainText('このチーム定義から動いているチームが無いため、チーム定義名 core で作っています。', { timeout: 15_000 });
   await expect.poll(async () => trimEnd(await showCurrent(page)), { timeout: 15_000 }).toBe(trimEnd(memberPrompt(app, 'core')));
 
   // One team starts, under another name: the screen reads again by itself.
@@ -110,14 +110,14 @@ test('a member: the text and the note follow no run, one run and its alias', asy
 
   // Nothing runs: the definition's name is back.
   setLive(app, []);
-  await expect(note(page)).toContainText('定義名 core で作っています。', { timeout: 15_000 });
+  await expect(note(page)).toContainText('チーム定義名 core で作っています。', { timeout: 15_000 });
   await expect.poll(async () => trimEnd(await showCurrent(page)), { timeout: 15_000 }).toBe(trimEnd(memberPrompt(app, 'core')));
 });
 
 test('a member: two runs ask for a pick, and the pick is the one both panels use', async ({ page, app }) => {
   setLive(app, ['core', 'core-hotfix']);
   await page.goto(`${app.base}/teams?open=core`); await ready(page); await openMember(page);
-  await expect(note(page)).toContainText('動いているチームが 2 つあるため、定義名 core で作っています。', { timeout: 15_000 });
+  await expect(note(page)).toContainText('動いているチームが 2 つあるため、チーム定義名 core で作っています。', { timeout: 15_000 });
   await expect.poll(async () => trimEnd(await showCurrent(page)), { timeout: 15_000 }).toBe(trimEnd(memberPrompt(app, 'core')));
 
   await panel(page).getByRole('button', { name: '全文と差分を読む', exact: true }).click();
@@ -174,7 +174,7 @@ test('a worker: two runs use the pick, and an unsaved purpose is in the preview'
   await page.goto(`${app.base}/teams?open=core`); await ready(page);
   // The pick is made where both panels read it: the member's full panel.
   await openMember(page);
-  await expect(note(page)).toContainText('動いているチームが 2 つあるため、定義名 core で作っています。', { timeout: 15_000 });
+  await expect(note(page)).toContainText('動いているチームが 2 つあるため、チーム定義名 core で作っています。', { timeout: 15_000 });
   await panel(page).getByRole('button', { name: '全文と差分を読む', exact: true }).click();
   await dialog(page).locator('.prompt-controls select').selectOption('core-hotfix');
   await expect(note(page)).toContainText('実行中のチーム core-hotfix の名前で作っています。', { timeout: 15_000 });

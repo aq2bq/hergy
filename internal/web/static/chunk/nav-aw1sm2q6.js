@@ -36,40 +36,35 @@ function ProjectView({ projects }) {
     choices.unshift(current);
   return /* @__PURE__ */ u("div", {
     class: "project-view",
-    children: [
-      /* @__PURE__ */ u("label", {
-        children: [
-          `表示する${term("project")} `,
-          /* @__PURE__ */ u("select", {
-            "aria-label": `表示する${term("project")}`,
-            value: current?.path || "",
-            onChange: (e) => {
-              const next = e.currentTarget.value;
-              const go = () => {
-                const url = new URL(location.href);
-                url.search = new URLSearchParams({ project: next }).toString();
-                location.assign(url.href);
-              };
-              if (confirmLeave2(go))
-                e.currentTarget.value = current?.path || "";
-              else
-                go();
-            },
-            children: choices.map((p) => /* @__PURE__ */ u("option", {
-              value: p.path,
-              children: [
-                p.name,
-                " — ",
-                p.display
-              ]
-            }))
-          })
-        ]
-      }),
-      /* @__PURE__ */ u("span", {
-        children: `この${term("project")}と${term("global")}の設定を表示しています。`
-      })
-    ]
+    children: /* @__PURE__ */ u("label", {
+      children: [
+        `表示する${term("project")} `,
+        /* @__PURE__ */ u("select", {
+          "aria-label": `表示する${term("project")}`,
+          value: current?.path || "",
+          onChange: (e) => {
+            const next = e.currentTarget.value;
+            const go = () => {
+              const url = new URL(location.href);
+              url.search = new URLSearchParams({ project: next }).toString();
+              location.assign(url.href);
+            };
+            if (confirmLeave2(go))
+              e.currentTarget.value = current?.path || "";
+            else
+              go();
+          },
+          children: choices.map((p) => /* @__PURE__ */ u("option", {
+            value: p.path,
+            children: [
+              p.name,
+              " — ",
+              p.display
+            ]
+          }))
+        })
+      ]
+    })
   });
 }
 

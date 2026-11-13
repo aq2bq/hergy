@@ -15,7 +15,7 @@ import {
   Badge2,
   Vm2,
   RuleDoc2
-} from "../chunk/nav-awx27txh.js";
+} from "../chunk/nav-c4pxrcwq.js";
 import"../chunk/nav-9htrbyn7.js";
 import"../chunk/nav-zn7g81kr.js";
 import"../chunk/nav-3k0d3904.js";

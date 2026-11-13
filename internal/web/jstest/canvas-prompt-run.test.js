@@ -93,7 +93,7 @@ test('the note names the team the shown text was built with, in every case', asy
 
   // Two runs, none picked: the definition's name. The panel's pick is taken,
   // and the column builds with that team's name.
-  expect(note()).toContain('動いているチームが 2 つあるため、定義名 core で作っています。');
+  expect(note()).toContain('動いているチームが 2 つあるため、チーム定義名 core で作っています。');
   await openDialog();
   choose(document.querySelector('.prompt-controls select'), 'core-hotfix'); await flush(); await flush();
   await closeDialog();
@@ -104,7 +104,7 @@ test('the note names the team the shown text was built with, in every case', asy
   // stands: the reason is shown, and the next reading still names the pick.
   mode = 'error';
   await reread();
-  expect(note()).toContain('チームの状態を読めません そのため、定義名 core で作っています。');
+  expect(note()).toContain('チームの状態を読めません そのため、チーム定義名 core で作っています。');
   mode = 'two';
   await reread();
   const afterError = asked.filter((one) => one.url.startsWith('/api/team/prompt-comparison'));
@@ -132,7 +132,7 @@ test('the note names the team the shown text was built with, in every case', asy
   mode = 'two';
   live(['core', 'core-hotfix']);
   await reread();
-  expect(note()).toContain('動いているチームが 2 つあるため、定義名 core で作っています。');
+  expect(note()).toContain('動いているチームが 2 つあるため、チーム定義名 core で作っています。');
   await openDialog();
   choose(document.querySelector('.prompt-controls select'), 'core-hotfix'); await flush(); await flush();
   await closeDialog();

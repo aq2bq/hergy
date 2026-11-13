@@ -52,7 +52,6 @@ test('the start button names its act, and the sheet always offers the team name'
   // the definition's description (d-5f55).
   await readTo<string>(page, `${SHEET}.querySelector('[data-role=description]').textContent`, 'the start sheet does not carry the description').toBe('注文の流れを作り直す');
   await readTo<string>(page, `${nameField}.value`, 'the team name starts empty').toBe('');
-  await readTo<string>(page, `${SHEET}.querySelector('[data-role=same]').textContent`, 'the sentence is the hergy up it stands for').toContain('hergy up alpha-dev');
   await press(page, `${SHEET}.querySelector('[data-hqx=close]')`);
 
   await press(page, startOf('shared'));
@@ -67,7 +66,6 @@ test('a written team name starts the team under that name, in the record and the
   await press(page, startOf('alpha-dev'));
   await wait(page, there('#hq-as'));
   await set(page, nameField, 'dev2');
-  await readTo<string>(page, `${SHEET}.querySelector('[data-role=same]').textContent`, 'the sentence carries --as').toContain('hergy up alpha-dev --as dev2');
   await chooseNewWorkspace(page);
   await press(page, `${SHEET}.querySelector('[data-hq=go]')`);
   await readTo<string>(page, title, 'the start ends').toBe('起動しました');

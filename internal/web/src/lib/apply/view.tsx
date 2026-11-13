@@ -17,14 +17,13 @@ import {
   teams, canApply, applyLabel, toggle, close, send, openSheet,
 } from './state.js';
 
-// 状態の語と、何が起きているか・反映にどう関わるかの文（d-7b45）。語は枠の
-// 無い字で、文はそのまま知らせとして置く（押せない）。
+// 状態の語は枠の無い字で置く。反映できない状態には、次にできることを添える。
 const STATE: Record<string, { word: string; why: string }> = {
-  idle: { word: memberStateWord.idle, why: `${term('turn')}を持たずに待っています。今、${term('apply')}できます。` },
-  handed: { word: memberStateWord.handed, why: `${term('turn')}を${term('human')}に渡して、返事を待っています。今、${term('apply')}できます。` },
+  idle: { word: memberStateWord.idle, why: '' },
+  handed: { word: memberStateWord.handed, why: '' },
   active: { word: memberStateWord.active, why: `仕事が終わると、${term('apply')}できます。` },
   blocked: { word: memberStateWord.blocked, why: `ペインで許可を求めています。答えると、${term('apply')}できます。` },
-  absent: { word: memberStateWord.absent, why: `この${term('member')}の${term('start')}中の${term('agent')}がいません。${term('start')}すると、定義のとおりに加わります。` },
+  absent: { word: memberStateWord.absent, why: '' },
 };
 
 // HOW is the mark of the way hergy would apply one member's change (d-3d30),
@@ -32,7 +31,7 @@ const STATE: Record<string, { word: string; why: string }> = {
 // (d-7b45). The parenthesis says what happens to the conversation.
 const HOW: Record<string, string> = { resend: term('reprompt'), start: term('start'), restart: term('refresh') };
 const COST: Record<string, string> = { resend: '（会話は残る）', start: '（新しいペインで始める）', restart: '（会話が消える）' };
-const INTRO = `チェックした${term('member')}に、保存した定義の変更を${term('apply')}します。${term('reprompt')}は会話が残り、${term('refresh')}は会話が消えます。${term('working')}と${term('waiting-for-permission')}の${term('member')}には、今は${term('apply')}できません。${term('team-definition')}の${term('description')}だけを変えたときは、ずれが出ないので、ここには出ません。`;
+const INTRO = `${term('team-definition')}の${term('description')}だけを変えたときは、ずれが出ないので、ここには出ません。`;
 
 // press keeps a press out of the page underneath and calls the action.
 const press = (fn: () => unknown) => (e: { preventDefault: () => void }): void => { e.preventDefault(); fn(); };
@@ -47,7 +46,7 @@ export function BandButton(): JSX.Element {
     class="apl-bandbtn"
     data-apl="open"
     aria-haspopup="dialog"
-    title={`定義を直したあと、まだ${term('apply')}していない人`}
+    title={`${term('team-definition')}を直したあと、まだ${term('apply')}していない人`}
     aria-label={`${term('apply')}していない変更 ${n}`}
     hidden={n <= 0}
     onClick={press(openSheet)}
@@ -109,7 +108,7 @@ function Sheet(): JSX.Element | null {
 
 function Team({ group }: { group: ApplyTeam }): JSX.Element {
   const def = group.definition && group.definition !== group.team
-    ? <>（定義 <code>{group.definition}</code>）</>
+    ? <>（{term('team-definition')} <code>{group.definition}</code>）</>
     : '';
   const where = group.project_name ? <span class="apl-where">{group.project_name}</span> : '';
   const notes = (group.notes || []).map((t) => <p class="apl-tnote">{t}</p>);

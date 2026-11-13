@@ -15,7 +15,6 @@ test.describe('UI review: project-scoped editors', () => {
       await ready(page);
       await expect(project).toHaveValue(beta);
       await expect(page).toHaveURL(/project=.*beta/);
-      await expect(page.getByText('このプロジェクトとグローバルの設定を表示しています。')).toBeVisible();
       if (screen === '/profiles/yaml') {
         const editor = page.locator('.yed').first();
         const field = editor.locator('.ytext');
@@ -66,7 +65,7 @@ test.describe('UI review: waiting and editing', () => {
     await page.goto(app.base + '/teams?open=core'); await ready(page);
     const row = page.locator('.tdef[data-name="core"]');
     await row.locator('[data-act="dtab"][data-t="agree"]').click();
-    await expect(row.getByPlaceholder('チームの規則は任意です。本文を入力して保存できます。')).toBeVisible();
+    await expect(row.getByPlaceholder('チームの規則は任意です。')).toBeVisible();
     await expect(row.locator('.agree-p .vm')).not.toContainText('問題');
     await expect(row.locator('.agree-p').getByRole('button', { name: '元に戻す' })).not.toBeVisible();
     await expect(row.locator('.agree-p').getByRole('textbox', { name: '規則の全文' })).toBeVisible();

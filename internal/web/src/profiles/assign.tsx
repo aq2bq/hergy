@@ -1,3 +1,4 @@
+import { globalDefinitionNotice, noTeamDefinitions } from '../lib/screen-words.js';
 import { term } from '../lib/terms.generated.js';
 import { HQ } from './state';
 import { ProjectView } from '../lib/project-view';
@@ -85,7 +86,7 @@ function TeamCard({ team }: { team: Team }) {
         <span class="tl">{term('team-definition')}</span><code class="tid">{team.name}</code><span class="pill on">{labelOf(team.place)}</span><span class="tn">{team.members}</span>
         <span class="tside">{team.err > 0 ? <span class="sev err">問題 {team.err}</span> : ''}{team.saved && !dirty ? <span class="ok">保存しました</span> : ''}{dirty > 0 ? <><span class="dirty">{dirty} 人</span><button class="btn primary" data-act="g-save" disabled={missing > 0} onClick={() => pressTeamSave(team.name)}>保存</button></> : ''}</span>
         <code class="path">{team.path}</code>
-        {team.place === 'global' ? <span class="tnote" data-role="place-note">{`${term('global')}の定義です。直すと、すべての${term('project')}の同じ${term('team-definition')}が変わります`}</span> : ''}
+        {team.place === 'global' ? <span class="tnote" data-role="place-note">{globalDefinitionNotice()}</span> : ''}
       </header>
       {rows.filter((row) => row.kind === 'm').map((row) => <AssignRowView key={row.key} row={row} team={team.name} />)}
       {team.workers > 0 ? <><div class="sub">{term('worker')}</div>{rows.filter((row) => row.kind === 'w').map((row) => <AssignRowView key={row.key} row={row} team={team.name} />)}</> : ''}
@@ -99,7 +100,7 @@ function AssignPageBody() {
     <>
       <Kindbar />
       <div class="teams">
-        {assign.value.empty ? <p class="none">{`${term('team-definition')}はありません`}</p> : ''}
+        {assign.value.empty ? <p class="none">{noTeamDefinitions()}</p> : ''}
         {(assign.value.teams || []).map((team) => <TeamCard key={team.name} team={team} />)}
       </div>
     </>
