@@ -5,7 +5,7 @@ import path from 'node:path';
 
 test.use({ reads: 'activity' });
 
-test('terminal focus announces progress while waiting and restores the button', async ({ page, app }) => {
+test('moving to a pane announces progress while waiting and says it was done', async ({ page, app }) => {
   let release: () => void = () => {};
   const gate = new Promise<void>((resolve) => { release = resolve; });
   await page.route('**/api/activity/focus', async (route) => {
@@ -14,12 +14,13 @@ test('terminal focus announces progress while waiting and restores the button', 
   });
   await page.goto(app.base + '/activity'); await ready(page);
   const button = page.locator('.hq-at[data-pick="migrate"] .hq-btn.primary');
+  await expect(button).toHaveText('herdr でペインへ移動');
   await button.click();
-  await expect(button).toHaveText('端末へ移動中…');
+  await expect(button).toHaveText('移動中…');
   await expect(button).toBeDisabled();
   await expect(button).toHaveAttribute('aria-busy', 'true');
   release();
-  await expect(button).toHaveText('端末で返答する');
+  await expect(button).toHaveText('herdr で移動しました');
   await expect(button).toBeEnabled();
 });
 

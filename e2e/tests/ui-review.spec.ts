@@ -45,7 +45,7 @@ test.describe('UI review: waiting and editing', () => {
     const denied = await page.request.post(app.base + '/api/activity/focus', { data: { team: 'migrate', member: 'migrate-tester' } });
     expect(denied.status()).toBe(403);
     const request = page.waitForRequest((r) => r.url().endsWith('/api/activity/focus') && r.method() === 'POST');
-    await waiting.getByRole('button', { name: '端末で返答する' }).click();
+    await waiting.getByRole('button', { name: 'herdr でペインへ移動' }).click();
     const focused = await request;
     expect(focused.postDataJSON()).toEqual({ team: 'migrate', member: 'migrate-tester' });
     await page.screenshot({ path: testInfo.outputPath('activity.png'), fullPage: true });
