@@ -347,7 +347,7 @@ func TestRunningStateUsesTeamStopCleanupBoundary(t *testing.T) {
 	}
 }
 
-func TestRunningStateUnavailableHireKeepsExistingSingleWarning(t *testing.T) {
+func TestHireIgnoresUnavailableLaunchHistory(t *testing.T) {
 	f := newFixture(t)
 	receiptTeam(t, f)
 	mustRun(t, "up", "demo")
@@ -357,12 +357,16 @@ func TestRunningStateUnavailableHireKeepsExistingSingleWarning(t *testing.T) {
 	writeFile(t, filepath.Join(f.state, "hergy", "launches"), "not a directory")
 	_, stderr, code := run("hire", "one", "--team", "demo", "--purpose", "research", "--task", "read docs", "--from", "a")
 	if code != 0 {
-		t.Fatalf("state failure stopped hire: %s", stderr)
+		t.Fatalf("unavailable history stopped hire: %s", stderr)
 	}
-	lines := strings.Split(strings.TrimSuffix(stderr, "\n"), "\n")
-	if len(lines) != 1 || !strings.Contains(lines[0], "the launch was not recorded:") {
-		t.Fatalf("duplicate warning: %q", stderr)
+	if stderr != "" {
+		t.Fatalf("hire warned about unused launch history: %q", stderr)
 	}
+	workers := teamState(t, "demo").Workers()
+	if len(workers) != 1 || workers[0].Name != "demo-one" || workers[0].From != "a" {
+		t.Fatalf("hire lost current state: %+v", workers)
+	}
+
 }
 
 func TestTeamCommandsResolveWithoutLaunchHistory(t *testing.T) {
@@ -458,5 +462,47 @@ func TestRunningDefinitionUsesItsSavedTeamYAML(t *testing.T) {
 	stdout, stderr, code := run("status", "alias")
 	if code != 0 || !strings.Contains(stdout, "alias-lead: idle") {
 		t.Fatalf("saved definition was replaced by caller config: %d %s %s", code, stdout, stderr)
+	}
+}
+
+func TestHireWarnsWhenCurrentStateCannotBeSaved(t *testing.T) {
+	f := newFixture(t)
+	receiptTeam(t, f)
+	mustRun(t, "up", "demo")
+	store, err := runningstate.Open()
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := store.Path(fixtureDemoTeam())
+	port := &applyCallbackPort{Port: herdrcli.New(os.Getenv("HERGY_HERDR")), onPrompt: func() {
+		// Resolve has already read valid state. Make its path unusable before the
+		// received hire is saved, independently of OS permission handling.
+		if err := os.Remove(path); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Mkdir(path, 0700); err != nil {
+			t.Fatal(err)
+		}
+	}}
+	var warnings []string
+	at := time.Date(2026, 11, 13, 2, 0, 0, 0, time.UTC)
+	_, err = Hire(context.Background(), HireInput{
+		MemberInput: MemberInput{Env: serveEnv(t), Team: downInput("demo"), Port: port, Timeout: 1000, Now: func() time.Time { return at }, Observe: func(event Event) {
+			if event.Warning != "" {
+				warnings = append(warnings, event.Warning)
+			}
+		}}, Name: "one", Purpose: "research", Task: "read docs", From: "a",
+	})
+	if err != nil || !port.called {
+		t.Fatalf("hire did not reach receipt: called=%t err=%v", port.called, err)
+	}
+	if len(warnings) != 1 || !strings.Contains(warnings[0], "the launch was not recorded:") || !strings.Contains(warnings[0], path) {
+		t.Fatalf("state failure was not reported once: %q", warnings)
+	}
+	if _, exists := currentTeamState(fixtureDemoTeam()); exists {
+		t.Fatal("unusable state unexpectedly contains the hire")
+	}
+	if calls := readFile(t, filepath.Join(f.cfg, "herdr.log")); !strings.Contains(calls, "agent start demo-one") {
+		t.Fatalf("expected current behavior: the worker starts before the warning: %s", calls)
 	}
 }
