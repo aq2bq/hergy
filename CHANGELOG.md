@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.10.1 - 2026-11-13
+
+### Changed
+
+- **A member at rest is 待機中 (idle); 止まっている (stalled) is a team's
+  state**: the screens wrote 止まっている both for a member whose agent is
+  live and not working, which is the normal rest between turns, and for a
+  team nobody moves. A member is now 待機中, and 止まっている is only the team
+  whose agents are all idle with the turn handed to no one. `hergy nudge`'s
+  line reads "Push an idle member to carry on".
+- **Working is 仕事中 everywhere**: `hergy stop --help`, the "unchanged for N
+  min" line of `hergy status` and one line of the watcher's log wrote 作業中.
+
+### Fixed
+
+- **A member's pane no longer scrolls up and back at every turn**: `hergy
+  turns` read the pane of every stopped agent at each stop, to tell later
+  what the next turn wrote, and herdr moves a pane to read its scrollback. A
+  member whose harness tells hergy when a turn ends (every member hergy
+  starts) is not read any more: its text comes with that signal. Its pane is
+  read only when the signal does not come within five seconds, and the text
+  is then the pane's last lines rather than the turn's part alone. An agent
+  with no such signal is read at each stop, as before.
+- **The note on copying a team definition to global** no longer lists
+  `team.yaml` and `agreement.md`: a definition with no agreement copies
+  `team.yaml` alone.
+
 ## 0.10.0 - 2026-11-13
 
 ### Changed
