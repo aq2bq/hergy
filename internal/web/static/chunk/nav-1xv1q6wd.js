@@ -20,7 +20,7 @@ import {
   mark,
   term,
   read2
-} from "./nav-4q8266gs.js";
+} from "./nav-3k0d3904.js";
 
 // lib/confirm.tsx
 var currentAsk = y(null);

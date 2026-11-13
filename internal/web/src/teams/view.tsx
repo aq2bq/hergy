@@ -258,7 +258,7 @@ function Detail({ r }: { r: Rec }) {
 function DtabsNav({ r }: { r: Rec }) {
   const cur = dtabOf(r);
   const tabs: [string, string, string, boolean][] = [
-    ['shape', 'トポロジー', '', teamChanges(r) > 0],
+    ['shape', `${term('topology')}`, '', teamChanges(r) > 0],
     ['agree', term('rule'), num(chars(r.agreeDraft.value.text)), r.agreeSaved.value ? agreementChanged(r) : false],
   ];
   return (

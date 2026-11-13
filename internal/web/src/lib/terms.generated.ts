@@ -4,6 +4,10 @@ export const terms = {
     "en": "activity",
     "ja": "アクティビティ"
   },
+  "agent": {
+    "en": "agent",
+    "ja": "エージェント"
+  },
   "apply": {
     "en": "apply",
     "ja": "反映"
@@ -64,6 +68,10 @@ export const terms = {
     "en": "human",
     "ja": "人間"
   },
+  "idle": {
+    "en": "idle",
+    "ja": "待機中"
+  },
   "in-prompt": {
     "en": "in the prompt",
     "ja": "プロンプトに含める"
@@ -100,6 +108,10 @@ export const terms = {
     "en": "node",
     "ja": "ノード"
   },
+  "not-running": {
+    "en": "not running",
+    "ja": "動いていない"
+  },
   "origin": {
     "en": "origin",
     "ja": "由来"
@@ -123,6 +135,10 @@ export const terms = {
   "project": {
     "en": "project",
     "ja": "プロジェクト"
+  },
+  "prompt": {
+    "en": "prompt",
+    "ja": "プロンプト"
   },
   "purpose": {
     "en": "purpose",
@@ -188,6 +204,10 @@ export const terms = {
     "en": "provisional size guide",
     "ja": "暫定の目安"
   },
+  "stalled": {
+    "en": "stalled",
+    "ja": "止まっている"
+  },
   "start": {
     "en": "start",
     "ja": "起動"
@@ -224,6 +244,10 @@ export const terms = {
     "en": "tell",
     "ja": "伝える"
   },
+  "topology": {
+    "en": "topology",
+    "ja": "トポロジー"
+  },
   "turn": {
     "en": "turn",
     "ja": "ターン"
@@ -243,6 +267,14 @@ export const terms = {
   "worker": {
     "en": "worker",
     "ja": "ワーカー"
+  },
+  "working": {
+    "en": "working",
+    "ja": "仕事中"
+  },
+  "workspace": {
+    "en": "workspace",
+    "ja": "ワークスペース"
   }
 } as const;
 export type TermID = keyof typeof terms;

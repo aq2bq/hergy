@@ -132,7 +132,7 @@ export function Figure({ r }: { r: Rec }) {
     </marker>
   );
   return (
-    <svg width={Math.round(vw)} height={Math.round(vh)} viewBox={`${vx.toFixed(0)} ${vy.toFixed(0)} ${vw.toFixed(0)} ${vh.toFixed(0)}`} data-vw={Math.round(vw)} data-vh={Math.round(vh)} role="group" aria-label={`${r.name.value} のトポロジー`}>
+    <svg width={Math.round(vw)} height={Math.round(vh)} viewBox={`${vx.toFixed(0)} ${vy.toFixed(0)} ${vw.toFixed(0)} ${vh.toFixed(0)}`} data-vw={Math.round(vw)} data-vh={Math.round(vh)} role="group" aria-label={`${r.name.value} の${term('topology')}`}>
       <defs>{marker('n', 'n')}{marker('a', 'a')}{marker('c', 'c')}</defs>
       {wedges}{edges}{t.workers.map(wnode)}{ids.map(node)}{handles}<path class="cv-ghost" d="" hidden="hidden"></path><text class="cv-gl" x={0} y={0} hidden="hidden"></text>
     </svg>

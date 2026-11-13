@@ -21,7 +21,7 @@ import {
 import {
   dangerAttrs,
   runDanger
-} from "./nav-1dnphn3q.js";
+} from "./nav-1xv1q6wd.js";
 import {
   term,
   Refusal2,
@@ -31,10 +31,10 @@ import {
   applyCount2,
   applyMembers2,
   problemText2
-} from "./nav-4q8266gs.js";
+} from "./nav-3k0d3904.js";
 import {
   token2
-} from "./nav-ctrsx4mj.js";
+} from "./nav-7h13dxtk.js";
 
 // lib/band-counts.ts
 var scr = (name) => document.querySelector('.screens .scr[data-screen="' + name + '"]');
@@ -856,7 +856,7 @@ function StartSheet({ definition, place, project }) {
       ]
     });
   };
-  const wsWhy = (w) => w.why === "last" ? `前に ${definition} が動いたワークスペース` : w.why === "project" ? `${term("project")}の名前で始まるワークスペース` : w.why === "busy" ? `${w.team} が動いている（1 つのワークスペースに${term("team")}は 1 つ）` : `hergy の${term("team")}はいない`;
+  const wsWhy = (w) => w.why === "last" ? `前に ${definition} が動いた${term("workspace")}` : w.why === "project" ? `${term("project")}の名前で始まる${term("workspace")}` : w.why === "busy" ? `${w.team} が動いている（1 つの${term("workspace")}に${term("team")}は 1 つ）` : `hergy の${term("team")}はいない`;
   const start = async () => {
     const proj = isGlobal ? chosen : project;
     if (!proj) {
@@ -864,14 +864,14 @@ function StartSheet({ definition, place, project }) {
       return;
     }
     if (!picked) {
-      setError("ワークスペースを選んでください");
+      setError(`${term("workspace")}を選んでください`);
       return;
     }
     let workspace;
     if (picked === "__new") {
       const name = wsName.trim();
       if (!name) {
-        setError("新しいワークスペースの名前を書いてください");
+        setError(`新しい${term("workspace")}の名前を書いてください`);
         return;
       }
       workspace = { new: name };
@@ -1036,14 +1036,14 @@ function StartSheet({ definition, place, project }) {
         children: [
           /* @__PURE__ */ u("span", {
             class: "hq-lbl",
-            children: "ワークスペース"
+            children: term("workspace")
           }),
           /* @__PURE__ */ u("div", {
             class: "hq-ws",
             "data-role": "wslist",
             children: isGlobal && !chosen ? /* @__PURE__ */ u("p", {
               class: "hq-sub",
-              children: `${term("project")}を選ぶと、ワークスペースが出ます`
+              children: `${term("project")}を選ぶと、${term("workspace")}が出ます`
             }) : /* @__PURE__ */ u(S, {
               children: [
                 (options.workspaces || []).map((w) => w.selectable ? /* @__PURE__ */ u("label", {
@@ -1104,7 +1104,7 @@ function StartSheet({ definition, place, project }) {
                         class: "hq-in",
                         value: options.new_workspace_name || definition,
                         onInput: (e) => setWsName(e.currentTarget.value),
-                        "aria-label": "新しいワークスペースの名前"
+                        "aria-label": `新しい${term("workspace")}の名前`
                       })
                     })
                   ]
@@ -1185,7 +1185,7 @@ function RunSheet({ id, launch: first }) {
   const verb = applied ? term("apply") : term("start");
   const space = launch.workspace.label || launch.workspace.id;
   const waitingWhere = launch.waiting ? [
-    launch.waiting.workspace ? `ワークスペース ${launch.waiting.workspace}` : "",
+    launch.waiting.workspace ? `${term("workspace")} ${launch.waiting.workspace}` : "",
     launch.waiting.tab ? `タブ ${launch.waiting.tab}` : "",
     launch.waiting.pane ? `ペイン ${launch.waiting.pane}` : ""
   ].filter(Boolean).join(" · ") : "";
@@ -1199,13 +1199,13 @@ function RunSheet({ id, launch: first }) {
   const title = launch.phase === "done" ? verb + "しました" : launch.phase === "failed" ? verb + "できませんでした" : launch.phase === "cancelled" ? verb + "をやめました" : verb + "しています";
   const where = [
     launch.project_name,
-    space ? `ワークスペース ${space}` : "",
+    space ? `${term("workspace")} ${space}` : "",
     space ? "" : launch.tab.label ? `タブ ${launch.tab.label}` : ""
   ].filter(Boolean).join(" · ");
   const whereText = where ? `${where}${over ? "" : `。この欄を閉じても、${verb}は続きます。`}` : over ? "" : `この欄を閉じても、${verb}は続きます。`;
   const doneWhere = [
     launch.project_name,
-    space ? `ワークスペース ${space}` : "",
+    space ? `${term("workspace")} ${space}` : "",
     launch.tab.label ? `タブ ${launch.tab.label}` : ""
   ].filter(Boolean).join(" · ");
   const abort = async () => {
@@ -1279,7 +1279,10 @@ function RunSheet({ id, launch: first }) {
               children: waitingWhere
             }) : "",
             /* @__PURE__ */ u("p", {
-              children: "エージェントが、このフォルダを信頼するか、などを聞いています。そのペインを開いて答えてください。確認は続けて出ることがあります。"
+              children: [
+                term("agent"),
+                "が、このフォルダを信頼するか、などを聞いています。そのペインを開いて答えてください。確認は続けて出ることがあります。"
+              ]
             }),
             /* @__PURE__ */ u("p", {
               children: [
@@ -1568,7 +1571,7 @@ function projectsSheet() {
 var KINDS = [
   ["live", `動いている${term("team")}`],
   ["def", term("team-definition")],
-  ["ws", "ワークスペース"],
+  ["ws", term("workspace")],
   ["member", term("member")],
   ["role", term("role")],
   ["profile", term("profile")]
@@ -1642,7 +1645,7 @@ function liveEntries() {
   for (const t of st.running.value.teams || []) {
     const wait = (t.waiting || []).length;
     const sub = [
-      t.workspace.label ? `ワークスペース ${t.workspace.label}` : "",
+      t.workspace.label ? `${term("workspace")} ${t.workspace.label}` : "",
       wait ? `${term("waiting-for-permission")}（${t.waiting.join(" · ")}）` : t.starting ? `${term("start")}の途中` : "動いている"
     ].filter(Boolean).join(" · ");
     out.push({
@@ -1731,7 +1734,7 @@ function Results() {
   else if (!groups.length)
     body = /* @__PURE__ */ u("p", {
       class: "hq-sub",
-      children: `「${q}」に合うものはありません。${term("find")}のは、並べた${term("project")}と${term("global")}の、${term("team")}・ワークスペース・${term("member")}・${term("role")}・${term("profile")}です。`
+      children: `「${q}」に合うものはありません。${term("find")}のは、並べた${term("project")}と${term("global")}の、${term("team")}・${term("workspace")}・${term("member")}・${term("role")}・${term("profile")}です。`
     });
   else {
     let i = 0;
@@ -1967,4 +1970,19 @@ async function send() {
   }
 }
 
-export { bandActivity2, st, setRunning2, projectName2, runningFor, runningTeam2, lastWorkspaceOf, definitionOf2, readCore2, readGroups2, readAll2, readRunning2, startReads, sheetOpen, closeSheet2, startSheet2, stopSheet2, projectsSheet, searchBoxOpen, closeBox, moveSel, mountSearch, resetSearch, searchHook, POLL, count, opened, answer, note, scope, chosen, teams, canApply, applyLabel, teamCount, toggle, readCount, readTeams, openSheet, close, send };
+// lib/state-words.ts
+var memberStateWord = {
+  active: term("working"),
+  idle: term("idle"),
+  blocked: term("waiting-for-permission"),
+  handed: term("handed"),
+  absent: term("not-running")
+};
+var teamStateWord = {
+  answer: term("waiting-for-permission"),
+  turn: term("handed"),
+  stalled: term("stalled"),
+  working: term("working")
+};
+
+export { bandActivity2, st, setRunning2, projectName2, runningFor, runningTeam2, lastWorkspaceOf, definitionOf2, readCore2, readGroups2, readAll2, readRunning2, startReads, sheetOpen, closeSheet2, startSheet2, stopSheet2, projectsSheet, searchBoxOpen, closeBox, moveSel, mountSearch, resetSearch, searchHook, POLL, count, opened, answer, note, scope, chosen, teams, canApply, applyLabel, teamCount, toggle, readCount, readTeams, openSheet, close, send, memberStateWord, teamStateWord };

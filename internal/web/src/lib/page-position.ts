@@ -40,7 +40,7 @@ export const PAGE_POSITION: Readonly<Record<PageAction, Readonly<{ at: PageAt; w
   personFromURL: { at: 'center', why: 'URL が人を名指しした (#team.member)', d: 'd-c5ce' },
   openByURL: { at: 'band', why: 'URL が行・札を名指しした', d: 'd-c5ce' },
   openRow: { at: 'stay', why: '行を開くのは表示の切り替え', d: 'd-2b33' },
-  switchTab: { at: 'stay', why: `タブ (トポロジー／${term('rule')}、一覧／YAML／割り当て) は表示の切り替え`, d: 'd-fe34・d-6fab' },
+  switchTab: { at: 'stay', why: `タブ (${term('topology')}／${term('rule')}、一覧／YAML／割り当て) は表示の切り替え`, d: 'd-fe34・d-6fab' },
   switchDoc: { at: 'stay', why: '並べる・文書名・すべて表示は表示の切り替え', d: 'ac-c66a' },
   switchView: { at: 'stay', why: '全文・今の文・差。欄の中だけ先頭へ戻す (d-a9ed)', d: 'd-a9ed' },
   problemLine: { at: 'stay', why: '行き先は欄の中。欄の持ち主が欄の中だけ動かす', d: 'd-c5ce' },

@@ -90,7 +90,7 @@ test('the sheet separates what is pressed from what is told, and handed reads on
   await readTo(page, `(function(){var s=${sheet};return s.rows.map(function(r){return [r.name, r.word, r.inLabel, r.border, r.check, r.cursor, r.how];});})()`,
     'the sheet never drew every member the way d-7b45 says').toEqual([
     ['core-lead', '人間の返事待ち', false, '0px', true, 'pointer', '送り直し（会話は残る）'],
-    ['core-impl-a', '止まっている', false, '0px', true, 'pointer', '起動し直し（会話が消える）'],
+    ['core-impl-a', '待機中', false, '0px', true, 'pointer', '起動し直し（会話が消える）'],
     ['core-spec2', '動いていない', false, '0px', true, 'pointer', '起動（新しいペインで始める）'],
     ['core-busy', '仕事中', false, '0px', false, 'default', '反映できない'],
   ]);

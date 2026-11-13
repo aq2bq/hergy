@@ -13,7 +13,7 @@ import {
 } from "./nav-zn7g81kr.js";
 import {
   term
-} from "./nav-4q8266gs.js";
+} from "./nav-3k0d3904.js";
 import {
   bandActivity2,
   st,
@@ -40,14 +40,15 @@ import {
   resetSearch,
   searchHook,
   teamCount,
-  openSheet
-} from "./nav-gh2djj24.js";
+  openSheet,
+  memberStateWord
+} from "./nav-btjv087a.js";
 import {
   token2,
   parseOpen2,
   readOpen2,
   writeOpen2
-} from "./nav-ctrsx4mj.js";
+} from "./nav-7h13dxtk.js";
 var __defProp = Object.defineProperty;
 var __returnValue = (v) => v;
 function __exportSetter(name, newValue) {
@@ -368,14 +369,7 @@ var labelUnits = (value) => {
 };
 var labelWidth = (value, size) => Math.ceil(labelUnits(value) * size * 1.05);
 var nodeState = (state) => {
-  const labels = {
-    active: "仕事中",
-    idle: "止まっている",
-    blocked: term("waiting-for-permission"),
-    handed: term("handed"),
-    absent: "動いていない"
-  };
-  return labels[state] || state || `${term("status")}不明`;
+  return memberStateWord[state] || state || `${term("status")}不明`;
 };
 var ownerlessHeading = "雇い主不明";
 function PackedFigure({ team, turns, W }) {

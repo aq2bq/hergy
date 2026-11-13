@@ -6,6 +6,7 @@
 // で、状態の判定はサーバの 1 つをそのまま使う。長さ・時刻の言い方もサーバが
 // 作る（V1）。この画面は文を 1 つも作らない。
 import { term } from '../lib/terms.generated.js';
+import { memberStateWord, teamStateWord } from '../lib/state-words.js';
 import { signal, computed } from '../lib/preact.js';
 import { resource } from '../lib/resource';
 import { read } from '../lib/api.js';
@@ -63,8 +64,8 @@ type ActivityWords = { none?: string };
 export const POLL = 10000;
 // The screen's fixed words (2.2, 2.5). The server's answer carries the state's
 // name (answer, idle, …) only; these are the letters a person reads.
-const ST: Record<string, string> = { answer: term('waiting-for-permission'), turn: term('handed'), stalled: '止まっている', working: '仕事中' };
-const NS: Record<string, string> = { blocked: term('waiting-for-permission'), handed: term('handed'), active: '仕事中', idle: '止まっている', absent: '動いていない' };
+const ST = teamStateWord;
+const NS = memberStateWord;
 const RANK: Record<string, number> = { answer: 0, turn: 1, stalled: 2, working: 3 };
 
 const words = JSON.parse((document.getElementById('activity-words') || {}).textContent || '{}') as ActivityWords; // Embedded JSON is typed here at its screen boundary.

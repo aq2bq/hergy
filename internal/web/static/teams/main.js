@@ -10,7 +10,7 @@
 import {
   movePage,
   installWheel
-} from "../chunk/nav-9pzbh62h.js";
+} from "../chunk/nav-pddpm49r.js";
 import {
   S,
   R,
@@ -29,7 +29,7 @@ import {
   dropUndo,
   dangerAttrs,
   runDanger
-} from "../chunk/nav-1dnphn3q.js";
+} from "../chunk/nav-1xv1q6wd.js";
 import {
   term,
   call2,
@@ -41,12 +41,12 @@ import {
   saved2,
   bases2,
   problemText2
-} from "../chunk/nav-4q8266gs.js";
+} from "../chunk/nav-3k0d3904.js";
 import {
   carryTo2,
   takeDraft2,
   setDirty2
-} from "../chunk/nav-9n0fqd7r.js";
+} from "../chunk/nav-yhj8qpb7.js";
 import {
   ConflictNotice,
   roleProblems,
@@ -58,7 +58,7 @@ import {
   editTeam,
   restoreTeam,
   YamlTab2
-} from "../chunk/nav-efmr64nf.js";
+} from "../chunk/nav-vsk1qzfv.js";
 import {
   num,
   documents,
@@ -74,7 +74,7 @@ import {
   Counts2,
   Vm2,
   RuleDoc2
-} from "../chunk/nav-cgyn1dgv.js";
+} from "../chunk/nav-awx27txh.js";
 import {
   rowAddress,
   token2,
@@ -82,26 +82,26 @@ import {
   readOpen2,
   writeOpen2,
   rowsFor
-} from "../chunk/nav-ctrsx4mj.js";
+} from "../chunk/nav-7h13dxtk.js";
 import {
   st,
   projectName2
-} from "../chunk/nav-gh2djj24.js";
+} from "../chunk/nav-btjv087a.js";
 import {
   RunCell2
-} from "../chunk/nav-dsra0337.js";
+} from "../chunk/nav-2svhy2fd.js";
 import {
   copyGroupOf,
   groupPlace,
   projectOfGroup,
   ProjectView
-} from "../chunk/nav-pmxmg887.js";
+} from "../chunk/nav-fttyqgjy.js";
 import {
   Field
 } from "../chunk/nav-9htrbyn7.js";
 import {
   resource
-} from "../chunk/nav-apgb46t2.js";
+} from "../chunk/nav-s0ve3rge.js";
 
 // teams/selection-table.ts
 var SIDE_RULES = [
@@ -375,7 +375,7 @@ function Editor({ session, onScanned, visible }) {
       return;
     if (session.expectedPlace && session.expectedPlace !== ctx.place) {
       await checkTeam(session.r);
-      model.error.value = "プロンプトの文書が変わったため、プロンプトを再検査しました。閉じて、もう一度開いてください";
+      model.error.value = `${term("prompt")}の文書が変わったため、${term("prompt")}を再検査しました。閉じて、もう一度開いてください`;
       return;
     }
     const saved = fromJSON2(ctx.doc), identity = resourceIdentity("role", { place: ctx.place, project: model.project, name: session.name });
@@ -2557,7 +2557,7 @@ function Figure({ r }) {
     "data-vw": Math.round(vw),
     "data-vh": Math.round(vh),
     role: "group",
-    "aria-label": `${r.name.value} のトポロジー`,
+    "aria-label": `${r.name.value} の${term("topology")}`,
     children: [
       /* @__PURE__ */ u("defs", {
         children: [
@@ -3330,7 +3330,7 @@ function OriginMarks({ segments }) {
   return /* @__PURE__ */ u("span", {
     class: "prompt-origins",
     children: segments.map((segment) => {
-      const group = segment.kind === "role_doc" || segment.kind === "team_rules" ? term("rule") : "トポロジー";
+      const group = segment.kind === "role_doc" || segment.kind === "team_rules" ? term("rule") : `${term("topology")}`;
       const place = segment.origin.place === "global" ? term("global") : segment.origin.place === "project" ? term("project") : "";
       const description = [group, labels[segment.kind], segment.origin.name, place, segment.origin.path].filter(Boolean).join(" · ");
       return /* @__PURE__ */ u("span", {
@@ -3347,9 +3347,10 @@ function OriginLegend({ diff }) {
   return /* @__PURE__ */ u("p", {
     class: "prompt-origin-legend",
     children: [
-      `トポロジー${term("origin")}: 名簿・連絡・${term("turn")}・${term("worker")} ／ ${term("rule")}: ${term("role")}の${term("rule")}・${term("team-agreement")}。`,
+      `${term("topology")}${term("origin")}: 名簿・連絡・${term("turn")}・${term("worker")} ／ ${term("rule")}: ${term("role")}の${term("rule")}・${term("team-agreement")}。`,
       diff && `印は今の文の${term("origin")}。削除行の${term("origin")}は記録にありません。`,
-      "トポロジーの 4 節は、見出しから節の終わりまでを帯で示します。見出しがひな形の文字でも、印は付けません。"
+      term("topology"),
+      "の 4 節は、見出しから節の終わりまでを帯で示します。見出しがひな形の文字でも、印は付けません。"
     ]
   });
 }
@@ -3637,7 +3638,8 @@ function PromptComparison({ r, member, close }) {
           /* @__PURE__ */ u("h2", {
             id: "prompt-comparison-title",
             children: [
-              "プロンプト · ",
+              term("prompt"),
+              " · ",
               r.name.value,
               " / ",
               member
@@ -3691,7 +3693,7 @@ function PromptComparison({ r, member, close }) {
       }),
       /* @__PURE__ */ u("nav", {
         class: "prompt-tabs",
-        "aria-label": "プロンプトの表示",
+        "aria-label": `${term("prompt")}の表示`,
         children: [["recorded", "渡した文"], ["current", "今の文"], ["diff", "差"]].map(([key, label]) => /* @__PURE__ */ u("button", {
           class: "btn sm",
           type: "button",
@@ -4000,7 +4002,7 @@ function PLines({ lines, a, b, slot }) {
   }));
 }
 var prange = (a, b) => b - a > 1 ? `${a + 1}–${b}` : `${a + 1}`;
-var PROMPT_BLOCKED = `この${term("team-definition")}には問題があるので、hergy はプロンプトを組みません（hergy up も止まります）。下の${term("settings-check")}の欄の問題を直すと、ここに出ます。`;
+var PROMPT_BLOCKED = `この${term("team-definition")}には問題があるので、hergy は${term("prompt")}を組みません（hergy up も止まります）。下の${term("settings-check")}の欄の問題を直すと、ここに出ます。`;
 function MemberPrompt({ r, m }) {
   const [opened, setOpened] = d(false);
   const prompt = usePrompt(r, { member: m.name });
@@ -4011,7 +4013,7 @@ function MemberPrompt({ r, m }) {
     class: "cv-sec cv-prompt cv-topology-prompt",
     children: [
       /* @__PURE__ */ u("h3", {
-        children: `この${term("member")}にトポロジーから渡る文`
+        children: `この${term("member")}に${term("topology")}から渡る文`
       }),
       /* @__PURE__ */ u("button", {
         class: "btn sm cv-prompt-open",
@@ -4035,7 +4037,10 @@ function MemberPrompt({ r, m }) {
         ]
       }) : prompt.loading && !segments.length ? /* @__PURE__ */ u("p", {
         role: "status",
-        children: "プロンプトを読んでいます。"
+        children: [
+          term("prompt"),
+          "を読んでいます。"
+        ]
       }) : prompt.error && !segments.length ? /* @__PURE__ */ u("p", {
         role: "alert",
         children: prompt.error
@@ -4055,7 +4060,11 @@ function MemberPrompt({ r, m }) {
               children: segment.text
             }, i)) : /* @__PURE__ */ u("p", {
               class: "cv-note",
-              children: "この節は今のプロンプトに含まれません。"
+              children: [
+                "この節は今の",
+                term("prompt"),
+                "に含まれません。"
+              ]
             })
           ]
         }, kind);
@@ -4078,7 +4087,10 @@ function WorkerPromptSection({ r, w, i }) {
       children: [
         /* @__PURE__ */ u("summary", {
           class: "cv-sl",
-          children: "プロンプト（hire のときに渡る文）"
+          children: [
+            term("prompt"),
+            "（hire のときに渡る文）"
+          ]
         }),
         /* @__PURE__ */ u("span", {
           class: "cv-note",
@@ -4093,7 +4105,10 @@ function WorkerPromptSection({ r, w, i }) {
       children: [
         /* @__PURE__ */ u("summary", {
           class: "cv-sl",
-          children: "プロンプト（hire のときに渡る文）"
+          children: [
+            term("prompt"),
+            "（hire のときに渡る文）"
+          ]
         }),
         /* @__PURE__ */ u("span", {
           class: "cv-note",
@@ -4105,7 +4120,10 @@ function WorkerPromptSection({ r, w, i }) {
   if (!pv || pv.loading && !pv.segments.length)
     body = /* @__PURE__ */ u("span", {
       class: "cv-note",
-      children: "プロンプトを読んでいます。"
+      children: [
+        term("prompt"),
+        "を読んでいます。"
+      ]
     });
   else if (pv.err)
     body = /* @__PURE__ */ u("span", {
@@ -4236,7 +4254,10 @@ function WorkerPromptSection({ r, w, i }) {
     children: [
       /* @__PURE__ */ u("summary", {
         class: "cv-sl",
-        children: "プロンプト（hire のときに渡る文）"
+        children: [
+          term("prompt"),
+          "（hire のときに渡る文）"
+        ]
       }),
       /* @__PURE__ */ u("div", {
         class: "cv-pr",
@@ -4264,7 +4285,7 @@ function PromptView({ r }) {
   }
   return /* @__PURE__ */ u("p", {
     class: "cv-note cv-prompt-none",
-    children: `${term("member")}か${term("worker")}を選ぶと、そのプロンプトがここに出ます。`
+    children: `${term("member")}か${term("worker")}を選ぶと、その${term("prompt")}がここに出ます。`
   });
 }
 
@@ -4942,7 +4963,7 @@ function Canvas({ r, vlist }) {
                 type: "button",
                 class: side === "prompt" ? "on" : "",
                 "data-cv-side": "prompt",
-                children: "プロンプト"
+                children: term("prompt")
               })
             ]
           }),
@@ -5520,7 +5541,7 @@ function Detail({ r }) {
 function DtabsNav({ r }) {
   const cur = dtabOf(r);
   const tabs = [
-    ["shape", "トポロジー", "", teamChanges(r) > 0],
+    ["shape", `${term("topology")}`, "", teamChanges(r) > 0],
     ["agree", term("rule"), num(chars(r.agreeDraft.value.text)), r.agreeSaved.value ? agreementChanged(r) : false]
   ];
   return /* @__PURE__ */ u(S, {
