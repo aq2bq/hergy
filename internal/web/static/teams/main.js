@@ -5772,7 +5772,7 @@ function CarryNote({ r }) {
         class: "st-item",
         children: /* @__PURE__ */ u("span", {
           children: [
-            `${term("global")}に書くのは、この${term("team-definition")}（team.yaml と agreement.md）だけです。`,
+            `${term("global")}に書くのは、この${term("team-definition")}だけです。`,
             missing ? `${term("member")}が使う${term("role")}と${term("profile")}のうち、${term("global")}に無いものは、選んだものだけを一緒に書きます。` : `${term("member")}が使う${term("role")}と${term("profile")}は${term("global")}にそろっているので、どの${term("project")}からも${term("start")}できます。`
           ]
         })

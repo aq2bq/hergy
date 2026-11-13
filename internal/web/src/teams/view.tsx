@@ -384,7 +384,7 @@ function StarterNote({ r }: { r: Rec }) {
 }
 
 // CarryNote is what a copy of a project's definition says about what it brings
-// with it (r-7e4a, d-dc81): the copy is the definition's two files alone, and the
+// with it (r-7e4a, d-dc81): the copy is the definition's own files alone, and the
 // role documents and profiles the global layer does not hold are the person's to
 // choose. A name that is chosen is written with the definition, and a name the
 // global layer already holds is not offered, because a copy writes over nothing.
@@ -394,7 +394,7 @@ function CarryNote({ r }: { r: Rec }) {
   const missing = c.roles.length + c.profiles.length;
   return (
     <div class="carry">
-      <div class="st-item"><span>{`${term('global')}に書くのは、この${term('team-definition')}（team.yaml と agreement.md）だけです。`}{missing
+      <div class="st-item"><span>{`${term('global')}に書くのは、この${term('team-definition')}だけです。`}{missing
         ? `${term('member')}が使う${term('role')}と${term('profile')}のうち、${term('global')}に無いものは、選んだものだけを一緒に書きます。`
         : `${term('member')}が使う${term('role')}と${term('profile')}は${term('global')}にそろっているので、どの${term('project')}からも${term('start')}できます。`}</span></div>
       {c.roles.map((name) => (
