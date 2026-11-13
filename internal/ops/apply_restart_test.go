@@ -134,10 +134,18 @@ esac
 	if !strings.Contains(calls, i18n.T("apply.preamble_lead")) {
 		t.Fatalf("the reprompt did not head the prompt with what changed:\n%s", calls)
 	}
+	found := false
 	for _, member := range teamState(t, "demo").Members() {
-		if member.Name == "demo-lead" && strings.Contains(member.Prompt, i18n.T("apply.preamble_lead")) {
-			t.Fatalf("state kept the preamble: %q", member.Prompt)
+		if member.Name != "demo-lead" {
+			continue
 		}
+		found = true
+		if member.Command != "reprompt" || strings.Contains(member.Prompt, i18n.T("apply.preamble_lead")) {
+			t.Fatalf("reprompt receipt=%+v", member)
+		}
+	}
+	if !found {
+		t.Fatal("reprompt did not retain the lead receipt")
 	}
 
 }
