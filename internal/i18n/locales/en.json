@@ -565,7 +565,7 @@
   "launch.failed_gap": " ",
   "launch.fix_boot": "hergy down %[1]s, then %[2]s",
   "web.activity.herdr_unavailable": "Could not read Herdr state. Check the Herdr installation, running state and connection settings.",
-  "web.activity.focus_failed": "Could not move to the terminal. Check the Herdr installation, running state and execution permissions.",
+  "web.activity.focus_failed": "Could not move to the pane in herdr. Check the Herdr installation, running state and execution permissions.",
   "web.activity.question_unread": "The question could not be read from the screen",
   "label.worker": "worker",
   "error.down_not_found": "%q is neither a running team nor a worker of one; check the running teams and workers with `hergy status`",

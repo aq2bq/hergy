@@ -37,11 +37,14 @@ function pickTile(name: string): void {
 function Attention({ rows }: { rows: ActivityTeam[] }): JSX.Element {
   const [error, setError] = useState('');
   const [pending, setPending] = useState('');
+  // The member whose pane herdr was last told to select: the press changes
+  // nothing in the browser, so its row says that it was done (r-0ae1).
+  const [moved, setMoved] = useState('');
   async function focus(t: ActivityTeam, m: CrewMember) {
     if (pending) return;
-    setPending(m.herdr); setError('');
-    try { await call('POST', '/api/activity/focus', { team: t.name, member: m.herdr }); setError(''); }
-    catch (e) { setError(problemText(e, '端末へ移動できませんでした')); }
+    setPending(m.herdr); setError(''); setMoved('');
+    try { await call('POST', '/api/activity/focus', { team: t.name, member: m.herdr }); setMoved(m.herdr); }
+    catch (e) { setError(problemText(e, 'herdr でペインへ移動できませんでした')); }
     finally { setPending(''); }
   }
   const waiting: JSX.Element[] = [];
@@ -53,7 +56,7 @@ function Attention({ rows }: { rows: ActivityTeam[] }): JSX.Element {
         <span class="hq-aw"><code>{m.herdr || (t.name + '-' + m.name)}</code><span class="hq-pw">{t.projectName}</span></span>
         <span class="hq-aq">{q}</span>
         <span class="hq-where">{whereText(t, m)}</span>
-        <span class="hq-tl">{m.since ? m.since : ''}</span><button type="button" class="hq-btn" onClick={() => pickTile(t.name)}>{`${term('team')}を見る`}</button><button type="button" class="hq-btn primary" disabled={!!pending} aria-busy={pending === m.herdr} onClick={(e) => { e.stopPropagation(); focus(t, m); }}>{pending === m.herdr ? '端末へ移動中…' : '端末で返答する'}</button></div>);
+        <span class="hq-tl">{m.since ? m.since : ''}</span><button type="button" class="hq-btn" onClick={() => pickTile(t.name)}>{`${term('team')}を見る`}</button><button type="button" class="hq-btn primary" disabled={!!pending} aria-busy={pending === m.herdr} onClick={(e) => { e.stopPropagation(); focus(t, m); }}>{pending === m.herdr ? '移動中…' : moved === m.herdr ? 'herdr で移動しました' : 'herdr でペインへ移動'}</button></div>);
     }
   }
   const stalled: JSX.Element[] = rows.filter((t) => t.state === 'stalled').map((t) => <button type="button" class="hq-at stall" data-pick={t.name} onClick={() => pickTile(t.name)}><span class="st stalled">{term('stalled')}</span>

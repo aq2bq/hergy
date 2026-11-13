@@ -237,16 +237,18 @@ function pickTile(name) {
 function Attention({ rows }) {
   const [error, setError] = d("");
   const [pending, setPending] = d("");
+  const [moved, setMoved] = d("");
   async function focus(t, m) {
     if (pending)
       return;
     setPending(m.herdr);
     setError("");
+    setMoved("");
     try {
       await call2("POST", "/api/activity/focus", { team: t.name, member: m.herdr });
-      setError("");
+      setMoved(m.herdr);
     } catch (e) {
-      setError(problemText2(e, "端末へ移動できませんでした"));
+      setError(problemText2(e, "herdr でペインへ移動できませんでした"));
     } finally {
       setPending("");
     }
@@ -305,7 +307,7 @@ function Attention({ rows }) {
               e.stopPropagation();
               focus(t, m);
             },
-            children: pending === m.herdr ? "端末へ移動中…" : "端末で返答する"
+            children: pending === m.herdr ? "移動中…" : moved === m.herdr ? "herdr で移動しました" : "herdr でペインへ移動"
           })
         ]
       }));

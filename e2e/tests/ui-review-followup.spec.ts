@@ -139,7 +139,7 @@ test.describe('review 1-8: default project', () => {
         await expect(question).toContainText('rm -rf /data');
         await expect(question).toContainText('3. No');
       } else {
-        await expect(question).toContainText('端末を開いて確認してください');
+        await expect(question).toContainText('ペインを開いて確認してください');
       }
       const response = await page.request.get(`${app.base}/api/activity/migrate`);
       const body = await response.text();
@@ -154,7 +154,7 @@ test.describe('review 1-8: default project', () => {
     const question = page.locator('.hq-at[data-pick="migrate"] .hq-aq');
     await expect(question).toContainText('0042_split_ledger.sql');
     await expect(question).not.toContainText('private old log');
-    const reply = page.locator('.hq-at[data-pick="migrate"]').getByRole('button', { name: '端末で返答する' });
+    const reply = page.locator('.hq-at[data-pick="migrate"]').getByRole('button', { name: 'herdr でペインへ移動' });
     await expect.poll(async () => (await reply.boundingBox())?.width || 0).toBeLessThan(240);
     await expect.poll(() => question.evaluate((el) => el.scrollHeight <= el.clientHeight)).toBe(true);
     const response = await page.request.get(`${app.base}/api/activity/migrate`);
