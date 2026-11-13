@@ -716,7 +716,7 @@ test('COPY-C1 the copy says it brings the definition alone, and names what the g
 
   // The row says what the copy is: the definition's two files alone, and the
   // names it can bring, listed one by one (ac-8ae7, d-dc81).
-  await readTo<string>(page, `${CARRY_NOTE('beta-dev')}.textContent`, 'the copy says the definition is what is written').toContain('グローバルに書くのは、このチーム定義（team.yaml と agreement.md）だけです');
+  await readTo<string>(page, `${CARRY_NOTE('beta-dev')}.textContent`, 'the copy says the definition is what is written').toContain('グローバルに書くのは、このチーム定義だけです');
   await readTo<string>(page, `${CARRY_NOTE('beta-dev')}.textContent`, 'the copy names the role the global layer does not hold').toContain('ロール builder');
   await readTo<string>(page, `${CARRY_NOTE('beta-dev')}.textContent`, 'the copy names the profile the global layer does not hold').toContain('プロファイル beta-fast');
   await readTo<string>(page, writesOfCopy('beta-dev'), 'before anything is chosen the save writes the definition alone').toBe('team.yaml');
