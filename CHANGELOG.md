@@ -1,26 +1,23 @@
 # Changelog
 
-## Unreleased
+## 0.11.0 - 2026-11-13
+
+After installing, run `hergy down <team>` and then `hergy up` once for each team that was already running: a team started by an older version is not listed until it is started again.
 
 ### Changed
 
-- Launch history keeps only launch identity and workspace metadata; new entries no longer store prompts, documents or blobs, while existing log entries and blobs stay untouched.
-
-- Headquarters keeps the last started workspace after refresh, reprompt or apply instead of losing it to those operations' history entries.
-
-- Worker recipients, hirers and stop-time worktree lists use the current team state, preserving them without launch history and keeping earlier runs separate; the watcher recognizes workers hired after it starts.
-- Apply comparisons and recorded prompts read the current run state, so deleting launch history no longer changes them or mixes in members from an earlier run.
-
-- Running teams require a saved state file and an exactly matching herdr tab; status and the screens omit unregistered tabs, while `hergy down <team>` can still close their named panes.
-- Team startup stops before creating a tab when its state cannot be saved; a failure to write launch history still reports a warning and continues.
-- `hergy turns --definition` was removed; the watcher reads the team definition from the running team state.
+- A running team is known from the moment its tab is made, so `hergy tell`, `hergy hire` and `hergy status` work while `hergy up --as <new name>` is still starting.
+- `hergy up` refuses to start when it cannot save the team's state.
+- `hergy turns --definition` is gone.
+- `hergy apply` refuses a plan made before its team was stopped or started again.
 
 ### Fixed
 
-- Apply refuses a plan when its team was stopped or started again before execution, preserving the new run's agents and receipts.
-- Restarting an agent in an existing pane preserves its environment fingerprint, so apply continues to require down/up after an env change.
-- Resending a bootstrap prompt preserves the running process fingerprints, so apply still detects a changed start or environment.
-- Recorded rule documents keep the text read while building the delivered prompt, even when a file changes before receipt is recorded.
+- After `hergy reprompt`, `hergy apply` still says a member needs a restart.
+- After `hergy refresh`, `hergy apply` still says a changed env needs `hergy down` and `hergy up`.
+- A worker hired after the watcher started is asked for, and answered to, the member that hired it.
+- A team started again under the same name no longer shows members, prompts or workers of its earlier run.
+- The headquarters keeps "last workspace" after `hergy refresh`, `hergy reprompt` or `hergy apply`.
 
 ## 0.10.3 - 2026-11-13
 
