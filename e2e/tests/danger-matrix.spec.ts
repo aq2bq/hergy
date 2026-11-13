@@ -128,6 +128,10 @@ test.describe('delete: the words and the loss agree', () => {
     await expect(body(page)).toContainText('取り消せません');
     await run(page).click();
     await expect(ask(page)).toHaveCount(0);
+    // The confirmation closes before the delete is asked for (lib/confirm.tsx),
+    // so the file is read after the screen shows the delete came back: the
+    // saved role's own delete button is gone with it.
+    await expect(panel.locator('[data-act="del"]')).toHaveCount(0);
     expect(existsSync(file), 'the role the confirmation said goes stayed').toBe(false);
     expect(text(core), 'the team that reads the role moved').toBe(before.core);
     expect(text(migrate), 'the team that reads the role moved').toBe(before.migrate);
