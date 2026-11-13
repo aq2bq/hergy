@@ -100,6 +100,7 @@ var rules = []Rule{
 	{ID: "flag.from.hire", Statement: bilingual("The {{member}} that hires the {{worker}} (short {{member-name}} or {{herdr-name}})", "{{worker}}を追加する{{member}}（短い{{member-name}}か {{herdr-name}}）")},
 	{ID: "flag.dry.hire", Statement: bilingual("Print the plan and {{start}} nothing", "{{start}}せず、計画だけを表示する")},
 	{ID: "flag.log.turns", Statement: bilingual("Print the watcher's log (each line with its time) and {{stop}}", "見張りのログ（1 行ごとに時刻付き）を表示して終わる")},
+	{ID: "flag.definition.turns", Statement: bilingual("The {{team-definition}} the {{team}} runs from (hergy up passes it)", "{{team}}が動いている{{team-definition}}（hergy up が渡す）")},
 	{ID: "flag.dry.migrate", Statement: bilingual("Inspect every conversion without writing", "全対象を検査して表示する。書き込まない")},
 	{ID: "flag.global.migrate", Statement: bilingual("Convert {{global}} settings instead of the {{project}}", "{{project}}ではなく{{global}}を変換する")},
 	{ID: "flag.port.serve", Statement: bilingual("The port to listen on (default 8787; 0 lets the operating system pick a free one)", "待ち受けるポート（既定は 8787。0 は空きポートを OS が選ぶ）")},

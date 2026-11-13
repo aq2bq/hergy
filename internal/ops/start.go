@@ -116,7 +116,7 @@ func StartTeam(ctx context.Context, in StartInput) (*Plan, error) {
 	for _, note := range signalNotes(r.Starts) {
 		emit(in.Observe, Event{Text: note})
 	}
-	l := operationLauncher(ctx, r, in.Timeout, in.Port, in.Observe).WithWatcher(watcherCommand(r.Team.Name.String(), in.Env.ProjectRoot))
+	l := operationLauncher(ctx, r, in.Timeout, in.Port, in.Observe).WithWatcher(watcherCommand(r.Team.Name.String(), r.Team.Definition.Name.String(), in.Env.ProjectRoot))
 	transform := func(err error) error {
 		if launcher.IsUndelivered(err) {
 			return err
@@ -279,8 +279,8 @@ func startCommand(definition, name string) string {
 	}
 	return command
 }
-func watcherCommand(name string, project domainplace.Project) []string {
-	return []string{executable(), "turns", name, "-C", project.String(), "--lang", i18n.Language()}
+func watcherCommand(name, definition string, project domainplace.Project) []string {
+	return []string{executable(), "turns", name, "--definition", definition, "-C", project.String(), "--lang", i18n.Language()}
 }
 
 // WorkspaceInfo is the selected workspace as an operation result.
