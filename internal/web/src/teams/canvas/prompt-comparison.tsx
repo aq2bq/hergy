@@ -35,14 +35,14 @@ export function PromptComparison({ r, member, close }: {r: Rec; member: string; 
  const busy = prompt.loading;
  const error = prompt.error;
  return <dialog class="prompt-comparison" ref={dialog} aria-labelledby="prompt-comparison-title" onKeyDown={(event) => event.stopPropagation()} onCancel={(event) => {event.preventDefault(); close();}}>
-  <header><h2 id="prompt-comparison-title">プロンプト · {r.name.value} / {member}</h2><button class="btn sm" type="button" onClick={close}>閉じる</button></header>
+  <header><h2 id="prompt-comparison-title">{term('prompt')} · {r.name.value} / {member}</h2><button class="btn sm" type="button" onClick={close}>閉じる</button></header>
   <div class="prompt-controls">
    {!!answer?.runs.length && <label>{`実行中の${term('team')} `}<select value={picked || answer.selected?.team || ''} onChange={(event) => { initialized.current = false; pickRun(r, event.currentTarget.value); }}>
     <option value="">{`${term('team')}を選ぶ`}</option>{answer.runs.map((run) => <option key={run.team} value={run.team}>{run.team} · {run.project}</option>)}
    </select></label>}
    <button class="btn sm" type="button" disabled={busy} onClick={() => reloadPrompt(r, { member })}>再取得</button>
   </div>
-  <nav class="prompt-tabs" aria-label="プロンプトの表示">{([['recorded','渡した文'],['current','今の文'],['diff','差']] as const).map(([key,label]) => <button class="btn sm" type="button" aria-pressed={view===key} onClick={() => {initialized.current = true; setView(key);}}>{label}</button>)}</nav>
+  <nav class="prompt-tabs" aria-label={`${term('prompt')}の表示`}>{([['recorded','渡した文'],['current','今の文'],['diff','差']] as const).map(([key,label]) => <button class="btn sm" type="button" aria-pressed={view===key} onClick={() => {initialized.current = true; setView(key);}}>{label}</button>)}</nav>
   {busy ? <p role="status">本文を読んでいます。</p> : error ? <p role="alert">{error}</p> : answer && <>
    <div class="prompt-context">
     {answer.reason && <p role="status">{answer.reason}</p>}

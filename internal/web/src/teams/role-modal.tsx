@@ -100,7 +100,7 @@ function Editor({ session, onScanned, visible }: { session: Session; onScanned: 
     if (!ctx?.doc || ctx.state !== 'readable') return;
     if (session.expectedPlace && session.expectedPlace !== ctx.place) {
       await checkTeam(session.r);
-      model.error.value = 'プロンプトの文書が変わったため、プロンプトを再検査しました。閉じて、もう一度開いてください';
+      model.error.value = `${term('prompt')}の文書が変わったため、${term('prompt')}を再検査しました。閉じて、もう一度開いてください`;
       return;
     }
     const saved = fromJSON(ctx.doc), identity = resourceIdentity('role', { place: ctx.place, project: model.project, name: session.name });

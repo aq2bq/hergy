@@ -83,9 +83,9 @@ test('the band, the sheet and the apply hold the members a change is not in yet'
   expect(document.querySelector('.apl-sheet .apl-cost.lost').textContent).toBe('（会話が消える）');
   // Each member's state is a word and a sentence, and neither is a control.
   expect([...document.querySelectorAll('.apl-sheet .apl-st')].map((el) => el.textContent))
-    .toEqual(['止まっている', '動いていない', '止まっている', '仕事中']);
+    .toEqual(['待機中', '動いていない', '待機中', '仕事中']);
   expect(document.querySelector('.apl-sheet .apl-state').textContent)
-    .toBe('止まっているターンを持たずに待っています。今、反映できます。');
+    .toBe('待機中ターンを持たずに待っています。今、反映できます。');
   expect(document.querySelector('.apl-sheet .apl-state').closest('label')).toBe(null);
   // The team's own note stands under the team's heading (a worker's profile),
   // and a team whose definition does not build says why.

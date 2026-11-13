@@ -271,17 +271,17 @@ function StartSheet({ definition, place, project }: { definition: string; place:
       ? <><code>{projectName(chosen)}</code> で <code>{`hergy up ${definition}${asPart}`}</code> を打つのと同じ</>
       : <>{`選んだ${term('project')}で `}<code>{`hergy up ${definition}${asPart}`}</code> を打つのと同じ</>;
   };
-  const wsWhy = (w: HQWorkspaceChoice): string => (w.why === 'last' ? `前に ${definition} が動いたワークスペース` : w.why === 'project' ? `${term('project')}の名前で始まるワークスペース` : w.why === 'busy' ? `${w.team} が動いている（1 つのワークスペースに${term('team')}は 1 つ）` : `hergy の${term('team')}はいない`);
+  const wsWhy = (w: HQWorkspaceChoice): string => (w.why === 'last' ? `前に ${definition} が動いた${term('workspace')}` : w.why === 'project' ? `${term('project')}の名前で始まる${term('workspace')}` : w.why === 'busy' ? `${w.team} が動いている（1 つの${term('workspace')}に${term('team')}は 1 つ）` : `hergy の${term('team')}はいない`);
   const start = async (): Promise<void> => {
     const proj = isGlobal ? chosen : project;
     if (!proj) { setError(`どの${term('project')}で${term('start')}するかを選んでください`); return; }
     // Which workspace is picked, and the name a new one takes, are the sheet's
     // state: nothing is read back from the boxes (5 章 2).
-    if (!picked) { setError('ワークスペースを選んでください'); return; }
+    if (!picked) { setError(`${term('workspace')}を選んでください`); return; }
     let workspace: HQLaunchRequest['workspace'];
     if (picked === '__new') {
       const name = wsName.trim();
-      if (!name) { setError('新しいワークスペースの名前を書いてください'); return; }
+      if (!name) { setError(`新しい${term('workspace')}の名前を書いてください`); return; }
       workspace = { new: name };
     } else workspace = { id: picked };
     const body: HQLaunchRequest = { project: proj, definition, place: place || 'project', workspace };
@@ -328,11 +328,11 @@ function StartSheet({ definition, place, project }: { definition: string; place:
           {nameError ? <p class="hq-err" data-role="name-error">{nameError}</p> : ''}
         </dd>
       </dl>
-      <div class="hq-sec"><span class="hq-lbl">ワークスペース</span><div class="hq-ws" data-role="wslist">{isGlobal && !chosen
-        ? <p class="hq-sub">{`${term('project')}を選ぶと、ワークスペースが出ます`}</p>
+      <div class="hq-sec"><span class="hq-lbl">{term('workspace')}</span><div class="hq-ws" data-role="wslist">{isGlobal && !chosen
+        ? <p class="hq-sub">{`${term('project')}を選ぶと、${term('workspace')}が出ます`}</p>
         : <>{(options.workspaces || []).map((w) => (w.selectable
           ? <label class="hq-wo"><input type="radio" name="hq-ws" value={w.id} checked={w.id === picked} onChange={() => setPicked(w.id)} /><span class="hq-wn">{w.label}</span><span class="hq-wd">{wsWhy(w)}</span></label>
-          : <label class="hq-wo no"><input type="radio" name="hq-ws" disabled /><span class="hq-wn">{w.label}</span><span class="hq-wd">{wsWhy(w)}</span></label>))}<label class="hq-wo"><input type="radio" name="hq-ws" value="__new" checked={picked === '__new'} onChange={() => setPicked('__new')} /><span class="hq-wn">新しく作る</span><span class="hq-wd"><Seeded id="hq-wsname" class="hq-in" value={options.new_workspace_name || definition} onInput={(e) => setWsName(e.currentTarget.value)} aria-label="新しいワークスペースの名前" /></span></label></>}</div></div>
+          : <label class="hq-wo no"><input type="radio" name="hq-ws" disabled /><span class="hq-wn">{w.label}</span><span class="hq-wd">{wsWhy(w)}</span></label>))}<label class="hq-wo"><input type="radio" name="hq-ws" value="__new" checked={picked === '__new'} onChange={() => setPicked('__new')} /><span class="hq-wn">新しく作る</span><span class="hq-wd"><Seeded id="hq-wsname" class="hq-in" value={options.new_workspace_name || definition} onInput={(e) => setWsName(e.currentTarget.value)} aria-label={`新しい${term('workspace')}の名前`} /></span></label></>}</div></div>
       <Err text={error} />
       <div class="hq-acts"><button type="button" class="hq-btn primary" data-hq="go" data-def={definition} data-place={place || 'project'} disabled={busy} onClick={start}>{`${term('start')}する`}</button><button type="button" class="hq-btn" data-hqx="close" onClick={closeSheet}>やめる</button>
       <span class="hq-sub" data-role="same">{same(asName)}</span></div>
@@ -388,7 +388,7 @@ function RunSheet({ id, launch: first }: { id: string; launch: HQLaunch }): JSX.
   const verb = applied ? term('apply') : term('start');
   const space = launch.workspace.label || launch.workspace.id;
   const waitingWhere = launch.waiting ? [
-    launch.waiting.workspace ? `ワークスペース ${launch.waiting.workspace}` : '',
+    launch.waiting.workspace ? `${term('workspace')} ${launch.waiting.workspace}` : '',
     launch.waiting.tab ? `タブ ${launch.waiting.tab}` : '',
     launch.waiting.pane ? `ペイン ${launch.waiting.pane}` : '',
   ].filter(Boolean).join(' · ') : '';
@@ -406,7 +406,7 @@ function RunSheet({ id, launch: first }: { id: string; launch: HQLaunch }): JSX.
       : launch.phase === 'cancelled' ? verb + 'をやめました' : verb + 'しています';
   const where = [
     launch.project_name,
-    space ? `ワークスペース ${space}` : '',
+    space ? `${term('workspace')} ${space}` : '',
     space ? '' : (launch.tab.label ? `タブ ${launch.tab.label}` : ''),
   ].filter(Boolean).join(' · ');
   const whereText = where
@@ -414,7 +414,7 @@ function RunSheet({ id, launch: first }: { id: string; launch: HQLaunch }): JSX.
     : (over ? '' : `この欄を閉じても、${verb}は続きます。`);
   const doneWhere = [
     launch.project_name,
-    space ? `ワークスペース ${space}` : '',
+    space ? `${term('workspace')} ${space}` : '',
     launch.tab.label ? `タブ ${launch.tab.label}` : '',
   ].filter(Boolean).join(' · ');
   const abort = async (): Promise<void> => {
@@ -435,7 +435,7 @@ function RunSheet({ id, launch: first }: { id: string; launch: HQLaunch }): JSX.
       })}</ul>
       <div data-role="waitbox">{launch.waiting ? <div class="hq-wait"><div class="hq-wh"><span class="hq-on wait">{term('waiting-for-permission')}</span><b><code>{launch.waiting.herdr}</code>{` が、${term('start')}の途中で確認に答えを待っています`}</b></div>
           {waitingWhere ? <p class="hq-where">{waitingWhere}</p> : ''}
-          <p>エージェントが、このフォルダを信頼するか、などを聞いています。そのペインを開いて答えてください。確認は続けて出ることがあります。</p>
+          <p>{term('agent')}が、このフォルダを信頼するか、などを聞いています。そのペインを開いて答えてください。確認は続けて出ることがあります。</p>
           <p>答え終わると、hergy は <code>{launch.waiting.herdr}</code>{` に${term('bootstrap-prompt')}を送って続きを進めます。`}</p></div> : ''}</div>
       <div class="hq-acts" data-role="endacts">{launch.phase === 'done'
         ? <><p class="hq-ok">{`${verb}しました: ${who}${doneWhere ? `（${doneWhere}）` : ''}`}</p>
@@ -537,7 +537,7 @@ export function projectsSheet(): void {
 // ---- 横断して探す（spec 3 章） -------------------------------------------
 // Each result group shows five rows and the rest as ほか N 件.
 const KINDS: [SearchKind, string][] = [
-  ['live', `動いている${term('team')}`], ['def', term('team-definition')], ['ws', 'ワークスペース'], ['member', term('member')],
+  ['live', `動いている${term('team')}`], ['def', term('team-definition')], ['ws', term('workspace')], ['member', term('member')],
   ['role', term('role')], ['profile', term('profile')],
 ];
 const CAP = 5;
@@ -613,7 +613,7 @@ function liveEntries(): SearchEntry[] {
   for (const t of st.running.value.teams || []) {
     const wait = (t.waiting || []).length;
     const sub = [
-      t.workspace.label ? `ワークスペース ${t.workspace.label}` : '',
+      t.workspace.label ? `${term('workspace')} ${t.workspace.label}` : '',
       wait ? `${term('waiting-for-permission')}（${t.waiting.join(' · ')}）` : t.starting ? `${term('start')}の途中` : '動いている',
     ].filter(Boolean).join(' · ');
     out.push({
@@ -702,7 +702,7 @@ function Results(): JSX.Element | null {
   const q = text.trim();
   let body: JSX.Element | JSX.Element[];
   if (loading) body = <p class="hq-sub">読み込んでいます…</p>;
-  else if (!groups.length) body = <p class="hq-sub">{`「${q}」に合うものはありません。${term('find')}のは、並べた${term('project')}と${term('global')}の、${term('team')}・ワークスペース・${term('member')}・${term('role')}・${term('profile')}です。`}</p>;
+  else if (!groups.length) body = <p class="hq-sub">{`「${q}」に合うものはありません。${term('find')}のは、並べた${term('project')}と${term('global')}の、${term('team')}・${term('workspace')}・${term('member')}・${term('role')}・${term('profile')}です。`}</p>;
   else {
     let i = 0;
     body = groups.map((g) => {

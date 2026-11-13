@@ -6,6 +6,7 @@
 // 人間を待っているメンバーは人間への線で描く。図は「操作しない図」: 押せるものも
 // フォーカスの入るものも無い（role="img"）。
 import { term } from '../terms.generated.js';
+import { memberStateWord } from '../state-words.js';
 import type { JSX } from 'preact';
 
 type FigureMember = { name: string; state: string; doing?: string };
@@ -98,10 +99,7 @@ const labelUnits = (value: string): number => {
 const labelWidth = (value: string, size: number): number => Math.ceil(labelUnits(value) * size * 1.05);
 
 const nodeState = (state: string): string => {
-  const labels: Record<string, string> = {
-    active: '仕事中', idle: '止まっている', blocked: term('waiting-for-permission'), handed: term('handed'), absent: '動いていない',
-  };
-  return labels[state] || state || `${term('status')}不明`;
+  return memberStateWord[state] || state || `${term('status')}不明`;
 };
 
 const ownerlessHeading = '雇い主不明';

@@ -19,11 +19,11 @@ import { movePage } from '../lib/page-position.js';
 // A workspace herdr did not name is left out whole, so no separator stands
 // without a word (r-5b96 audit 11).
 const whereText = (t: ActivityTeam, node: Pick<CrewMember, 'herdr' | 'name'> | null): string => [
-  t.workspace ? `ワークスペース ${t.workspace}` : '',
+  t.workspace ? `${term('workspace')} ${t.workspace}` : '',
   `タブ ${t.name}`,
   `ペイン ${(node && node.herdr) || t.name}`,
 ].filter(Boolean).join(' · ');
-const tabWhere = (t: ActivityTeam): string => [t.workspace ? `ワークスペース ${t.workspace}` : '', `タブ ${t.name}`].filter(Boolean).join(' · ');
+const tabWhere = (t: ActivityTeam): string => [t.workspace ? `${term('workspace')} ${t.workspace}` : '', `タブ ${t.name}`].filter(Boolean).join(' · ');
 
 function pickTile(name: string): void {
   pick(name);
@@ -60,8 +60,8 @@ function Attention({ rows }: { rows: ActivityTeam[] }): JSX.Element {
     <span class="hq-aq">{`誰も${term('turn')}を持っていない`}</span>
     <span class="hq-where">{tabWhere(t)}</span>
     <span class="hq-tl">{(t.since && t.since.len) || ''}</span></button>);
-  if (!waiting.length && !stalled.length) return <section class="hq-att calm"><p>{`${term('waiting-for-the-human')}${term('team')}も、止まっている${term('team')}もありません。`}</p></section>;
-  return <section class="hq-att"><div class="hq-ah"><b>{term('waiting-for-the-human')}</b><span class="n">{waiting.length}</span>{stalled.length ? <><b class="sp">止まっている</b><span class="n">{stalled.length}</span></> : ''}</div><div class="hq-al">{waiting}{stalled}</div>{error ? <p role="alert" class="hq-err">{error}</p> : null}<p class="hq-sub">{`止まっている：エージェントは${term('start')}していますが、今は作業していません。動いていない：${term('start')}中のエージェントがいません。`}</p></section>;
+  if (!waiting.length && !stalled.length) return <section class="hq-att calm"><p>{`${term('waiting-for-the-human')}${term('team')}も、${term('stalled')}${term('team')}もありません。`}</p></section>;
+  return <section class="hq-att"><div class="hq-ah"><b>{term('waiting-for-the-human')}</b><span class="n">{waiting.length}</span>{stalled.length ? <><b class="sp">{term('stalled')}</b><span class="n">{stalled.length}</span></> : ''}</div><div class="hq-al">{waiting}{stalled}</div>{error ? <p role="alert" class="hq-err">{error}</p> : null}<p class="hq-sub">{`${term('idle')}：${term('agent')}は${term('start')}していますが、今は仕事をしていません。${term('not-running')}：${term('start')}中の${term('agent')}がいません。`}</p></section>;
 }
 
 function countsLine(t: ActivityTeam): JSX.Element {

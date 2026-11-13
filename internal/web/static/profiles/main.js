@@ -10,7 +10,7 @@
 import {
   movePage,
   installWheel
-} from "../chunk/nav-9pzbh62h.js";
+} from "../chunk/nav-pddpm49r.js";
 import {
   S,
   R,
@@ -23,15 +23,15 @@ import {
 import {
   dangerAttrs,
   runDanger
-} from "../chunk/nav-1dnphn3q.js";
+} from "../chunk/nav-1xv1q6wd.js";
 import {
   term,
   profileModel2
-} from "../chunk/nav-4q8266gs.js";
+} from "../chunk/nav-3k0d3904.js";
 import {
   takeDraft2,
   setDirty2
-} from "../chunk/nav-9n0fqd7r.js";
+} from "../chunk/nav-yhj8qpb7.js";
 import {
   ConflictNotice,
   resourceIdentity,
@@ -40,21 +40,21 @@ import {
   editYaml,
   profileFiles,
   YamlTab2
-} from "../chunk/nav-efmr64nf.js";
+} from "../chunk/nav-vsk1qzfv.js";
 import {
   rowAddress,
   readOpen2,
   writeOpen2,
   rowsFor
-} from "../chunk/nav-ctrsx4mj.js";
+} from "../chunk/nav-7h13dxtk.js";
 import {
   copyGroupOf,
   ProjectView
-} from "../chunk/nav-pmxmg887.js";
+} from "../chunk/nav-fttyqgjy.js";
 import {
   Field
 } from "../chunk/nav-9htrbyn7.js";
-import"../chunk/nav-apgb46t2.js";
+import"../chunk/nav-s0ve3rge.js";
 
 // profiles/state.ts
 function mustElement(id) {

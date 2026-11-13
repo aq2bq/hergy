@@ -55,14 +55,14 @@ export function sectionSpans(lines: OriginLine[]): SectionSpan[] {
 export const sectionAt = <T extends SectionSpan>(spans: T[], index: number): T | undefined => spans.find(span => index >= span.start && index < span.end);
 export function OriginMarks({segments}: {segments: Segment[]}) {
  return <span class="prompt-origins">{segments.map(segment => {
-  const group = segment.kind === 'role_doc' || segment.kind === 'team_rules' ? term('rule') : 'トポロジー';
+  const group = segment.kind === 'role_doc' || segment.kind === 'team_rules' ? term('rule') : `${term('topology')}`;
   const place = segment.origin.place === 'global' ? term('global') : segment.origin.place === 'project' ? term('project') : '';
   const description = [group, labels[segment.kind], segment.origin.name, place, segment.origin.path].filter(Boolean).join(' · ');
   return <span class="prompt-origin" data-kind={segment.kind} title={description} aria-label={description}>{labels[segment.kind]}</span>;
  })}</span>;
 }
 export function OriginLegend({diff}: {diff: boolean}) {
- return <p class="prompt-origin-legend">{`トポロジー${term('origin')}: 名簿・連絡・${term('turn')}・${term('worker')} ／ ${term('rule')}: ${term('role')}の${term('rule')}・${term('team-agreement')}。`}{diff && `印は今の文の${term('origin')}。削除行の${term('origin')}は記録にありません。`}トポロジーの 4 節は、見出しから節の終わりまでを帯で示します。見出しがひな形の文字でも、印は付けません。</p>;
+ return <p class="prompt-origin-legend">{`${term('topology')}${term('origin')}: 名簿・連絡・${term('turn')}・${term('worker')} ／ ${term('rule')}: ${term('role')}の${term('rule')}・${term('team-agreement')}。`}{diff && `印は今の文の${term('origin')}。削除行の${term('origin')}は記録にありません。`}{term('topology')}の 4 節は、見出しから節の終わりまでを帯で示します。見出しがひな形の文字でも、印は付けません。</p>;
 }
 export function CurrentPrompt({text, lines}: {text: string; lines: OriginLine[] | null}) {
  if (!lines) return <><p role="alert">{`本文と${term('origin')}が一致しないため、印を表示できません。再取得してください。`}</p><pre class="prompt-full">{text}</pre></>;

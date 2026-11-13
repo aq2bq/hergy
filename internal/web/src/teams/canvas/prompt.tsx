@@ -81,7 +81,7 @@ const prange = (a: number, b: number): string => (b - a > 1 ? `${a + 1}–${b}` 
 // d-20ac: a definition with a problem is not given a prompt, by hergy up or by
 // this column. The words are the screen's own; the problem itself is the
 // server's, under the canvas.
-const PROMPT_BLOCKED = `この${term('team-definition')}には問題があるので、hergy はプロンプトを組みません（hergy up も止まります）。下の${term('settings-check')}の欄の問題を直すと、ここに出ます。`;
+const PROMPT_BLOCKED = `この${term('team-definition')}には問題があるので、hergy は${term('prompt')}を組みません（hergy up も止まります）。下の${term('settings-check')}の欄の問題を直すと、ここに出ます。`;
 
 // MemberPrompt is the プロンプト tab's member text (r-1af1, r-f0be). It is built
 // where the whole-text panel builds it, with the same running team, so the same
@@ -97,17 +97,17 @@ export function MemberPrompt({ r, m }: { r: Rec; m: Member }): JSX.Element {
   const segments = prompt.segments;
   const note = prompt.note;
   return <section class="cv-sec cv-prompt cv-topology-prompt">
-    <h3>{`この${term('member')}にトポロジーから渡る文`}</h3>
+    <h3>{`この${term('member')}に${term('topology')}から渡る文`}</h3>
     <button class="btn sm cv-prompt-open" type="button" onClick={() => setOpened(true)}>全文と差分を読む</button>
     <p class="cv-note" data-role="prompt-note">今の定義から出る文。未保存の編集を含みます。{note}</p>
     {blocked ? <p class="cv-note">{PROMPT_BLOCKED} 記録された本文は確認できます。</p>
-      : prompt.loading && !segments.length ? <p role="status">プロンプトを読んでいます。</p>
+      : prompt.loading && !segments.length ? <p role="status">{term('prompt')}を読んでいます。</p>
       : prompt.error && !segments.length ? <p role="alert">{prompt.error}</p>
       : topologySections.map(([kind, label]) => {
         const parts = (segments || []).filter(segment => segment.kind === kind && segment.text !== '');
         if (kind === 'workers' && !parts.length) return null;
         return <section class="cv-topology-section" data-kind={kind} key={kind}><h4>{label}</h4>
-          {parts.length ? parts.map((segment, i) => <pre class="cv-topology-text" key={i}>{segment.text}</pre>) : <p class="cv-note">この節は今のプロンプトに含まれません。</p>}
+          {parts.length ? parts.map((segment, i) => <pre class="cv-topology-text" key={i}>{segment.text}</pre>) : <p class="cv-note">この節は今の{term('prompt')}に含まれません。</p>}
         </section>;
       })}
     {opened && <PromptComparison key={m.name} r={r} member={m.name} close={() => setOpened(false)} />}
@@ -119,10 +119,10 @@ export function WorkerPromptSection({ r, w, i }: { r: Rec; w: Worker; i: number 
   // every draw. A definition the check stops is not given a text (d-20ac).
   const pv = useWorkerPrompt(r, i);
   const blocked = (r.findings.value || []).some((finding) => finding.sev === 'err');
-  if (blocked) return <details class="cv-sec cv-prompt" open><summary class="cv-sl">プロンプト（hire のときに渡る文）</summary><span class="cv-note">{PROMPT_BLOCKED}</span></details>;
-  if (!w.purpose) return <details class="cv-sec cv-prompt" open><summary class="cv-sl">プロンプト（hire のときに渡る文）</summary><span class="cv-note">{`${term('purpose')}を書くと、hire のときに渡る文が出ます。`}</span></details>;
+  if (blocked) return <details class="cv-sec cv-prompt" open><summary class="cv-sl">{term('prompt')}（hire のときに渡る文）</summary><span class="cv-note">{PROMPT_BLOCKED}</span></details>;
+  if (!w.purpose) return <details class="cv-sec cv-prompt" open><summary class="cv-sl">{term('prompt')}（hire のときに渡る文）</summary><span class="cv-note">{`${term('purpose')}を書くと、hire のときに渡る文が出ます。`}</span></details>;
   let body: ComponentChildren;
-  if (!pv || (pv.loading && !pv.segments.length)) body = <span class="cv-note">プロンプトを読んでいます。</span>;
+  if (!pv || (pv.loading && !pv.segments.length)) body = <span class="cv-note">{term('prompt')}を読んでいます。</span>;
   else if (pv.err) body = <span class="cv-note">{pv.err}</span>;
   else {
     const { lines, blocks } = promptBlocks(pv.segments);
@@ -161,7 +161,7 @@ export function WorkerPromptSection({ r, w, i }: { r: Rec; w: Worker; i: number 
       return <>{label}<PLines lines={lines} a={a} b={b} slot={slotText} /></>;
     });
   }
-  return <details class="cv-sec cv-prompt" open><summary class="cv-sl">プロンプト（hire のときに渡る文）</summary><div class="cv-pr">{body}</div></details>;
+  return <details class="cv-sec cv-prompt" open><summary class="cv-sl">{term('prompt')}（hire のときに渡る文）</summary><div class="cv-pr">{body}</div></details>;
 }
 
 
@@ -176,5 +176,5 @@ export function PromptView({ r }: { r: Rec }): JSX.Element {
     const w = r.draft.value.workers[sel.i];
     if (w) return <WorkerPromptSection r={r} w={w} i={sel.i} />;
   }
-  return <p class="cv-note cv-prompt-none">{`${term('member')}か${term('worker')}を選ぶと、そのプロンプトがここに出ます。`}</p>;
+  return <p class="cv-note cv-prompt-none">{`${term('member')}か${term('worker')}を選ぶと、その${term('prompt')}がここに出ます。`}</p>;
 }

@@ -4,6 +4,7 @@
 // 下の知らせ。どれも Preact が描く。押し込みは部品が自分で受ける（シートは画面から
 // 出た所に立つ 1 枚なので、画面の委譲と二重にならない）。
 import { term } from '../terms.generated.js';
+import { memberStateWord } from '../state-words.js';
 import { useRef, useEffect } from '../preact.js';
 import type { JSX } from 'preact';
 import type { components } from '../../../../apicontract/api-types';
@@ -19,11 +20,11 @@ import {
 // 状態の語と、何が起きているか・反映にどう関わるかの文（d-7b45）。語は枠の
 // 無い字で、文はそのまま知らせとして置く（押せない）。
 const STATE: Record<string, { word: string; why: string }> = {
-  idle: { word: '止まっている', why: `${term('turn')}を持たずに待っています。今、${term('apply')}できます。` },
-  handed: { word: term('handed'), why: `${term('turn')}を${term('human')}に渡して、返事を待っています。今、${term('apply')}できます。` },
-  active: { word: '仕事中', why: `仕事が終わると、${term('apply')}できます。` },
-  blocked: { word: term('waiting-for-permission'), why: `ペインで許可を求めています。答えると、${term('apply')}できます。` },
-  absent: { word: '動いていない', why: `この${term('member')}の${term('start')}中のエージェントがいません。${term('start')}すると、定義のとおりに加わります。` },
+  idle: { word: memberStateWord.idle, why: `${term('turn')}を持たずに待っています。今、${term('apply')}できます。` },
+  handed: { word: memberStateWord.handed, why: `${term('turn')}を${term('human')}に渡して、返事を待っています。今、${term('apply')}できます。` },
+  active: { word: memberStateWord.active, why: `仕事が終わると、${term('apply')}できます。` },
+  blocked: { word: memberStateWord.blocked, why: `ペインで許可を求めています。答えると、${term('apply')}できます。` },
+  absent: { word: memberStateWord.absent, why: `この${term('member')}の${term('start')}中の${term('agent')}がいません。${term('start')}すると、定義のとおりに加わります。` },
 };
 
 // HOW is the mark of the way hergy would apply one member's change (d-3d30),
@@ -31,7 +32,7 @@ const STATE: Record<string, { word: string; why: string }> = {
 // (d-7b45). The parenthesis says what happens to the conversation.
 const HOW: Record<string, string> = { resend: term('reprompt'), start: term('start'), restart: term('refresh') };
 const COST: Record<string, string> = { resend: '（会話は残る）', start: '（新しいペインで始める）', restart: '（会話が消える）' };
-const INTRO = `チェックした${term('member')}に、保存した定義の変更を${term('apply')}します。${term('reprompt')}は会話が残り、${term('refresh')}は会話が消えます。仕事中と${term('waiting-for-permission')}の${term('member')}には、今は${term('apply')}できません。${term('team-definition')}の${term('description')}だけを変えたときは、ずれが出ないので、ここには出ません。`;
+const INTRO = `チェックした${term('member')}に、保存した定義の変更を${term('apply')}します。${term('reprompt')}は会話が残り、${term('refresh')}は会話が消えます。${term('working')}と${term('waiting-for-permission')}の${term('member')}には、今は${term('apply')}できません。${term('team-definition')}の${term('description')}だけを変えたときは、ずれが出ないので、ここには出ません。`;
 
 // press keeps a press out of the page underneath and calls the action.
 const press = (fn: () => unknown) => (e: { preventDefault: () => void }): void => { e.preventDefault(); fn(); };

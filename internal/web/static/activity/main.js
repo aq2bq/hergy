@@ -10,7 +10,7 @@
 import {
   movePage,
   installWheel
-} from "../chunk/nav-9pzbh62h.js";
+} from "../chunk/nav-pddpm49r.js";
 import {
   S,
   R,
@@ -26,8 +26,8 @@ import {
   call2,
   read2,
   problemText2
-} from "../chunk/nav-4q8266gs.js";
-import"../chunk/nav-1dnphn3q.js";
+} from "../chunk/nav-3k0d3904.js";
+import"../chunk/nav-1xv1q6wd.js";
 import {
   bandActivity2,
   setRunning2,
@@ -37,27 +37,29 @@ import {
   readGroups2,
   stopSheet2,
   teamCount,
-  openSheet
-} from "../chunk/nav-gh2djj24.js";
+  openSheet,
+  memberStateWord,
+  teamStateWord
+} from "../chunk/nav-btjv087a.js";
 import {
   rowAddress,
   token2,
   readOpen2,
   writeOpen2,
   placeGroup
-} from "../chunk/nav-ctrsx4mj.js";
+} from "../chunk/nav-7h13dxtk.js";
 import {
   TeamFigure2,
   exports_hq
-} from "../chunk/nav-dsra0337.js";
+} from "../chunk/nav-2svhy2fd.js";
 import {
   resource
-} from "../chunk/nav-apgb46t2.js";
+} from "../chunk/nav-s0ve3rge.js";
 
 // activity/state.ts
 var POLL = 1e4;
-var ST = { answer: term("waiting-for-permission"), turn: term("handed"), stalled: "止まっている", working: "仕事中" };
-var NS = { blocked: term("waiting-for-permission"), handed: term("handed"), active: "仕事中", idle: "止まっている", absent: "動いていない" };
+var ST = teamStateWord;
+var NS = memberStateWord;
 var RANK = { answer: 0, turn: 1, stalled: 2, working: 3 };
 var words = JSON.parse((document.getElementById("activity-words") || {}).textContent || "{}");
 var enc = (s) => encodeURIComponent(String(s == null ? "" : s));
@@ -219,11 +221,11 @@ function Figure({ team }) {
 
 // activity/board.tsx
 var whereText = (t, node) => [
-  t.workspace ? `ワークスペース ${t.workspace}` : "",
+  t.workspace ? `${term("workspace")} ${t.workspace}` : "",
   `タブ ${t.name}`,
   `ペイン ${node && node.herdr || t.name}`
 ].filter(Boolean).join(" · ");
-var tabWhere = (t) => [t.workspace ? `ワークスペース ${t.workspace}` : "", `タブ ${t.name}`].filter(Boolean).join(" · ");
+var tabWhere = (t) => [t.workspace ? `${term("workspace")} ${t.workspace}` : "", `タブ ${t.name}`].filter(Boolean).join(" · ");
 function pickTile(name) {
   pick(name);
   const tile = Array.from(document.querySelectorAll(".hq-tile[data-team]")).find((el) => el.dataset.team === name);
@@ -347,7 +349,7 @@ function Attention({ rows }) {
     return /* @__PURE__ */ u("section", {
       class: "hq-att calm",
       children: /* @__PURE__ */ u("p", {
-        children: `${term("waiting-for-the-human")}${term("team")}も、止まっている${term("team")}もありません。`
+        children: `${term("waiting-for-the-human")}${term("team")}も、${term("stalled")}${term("team")}もありません。`
       })
     });
   return /* @__PURE__ */ u("section", {
@@ -367,7 +369,7 @@ function Attention({ rows }) {
             children: [
               /* @__PURE__ */ u("b", {
                 class: "sp",
-                children: "止まっている"
+                children: term("stalled")
               }),
               /* @__PURE__ */ u("span", {
                 class: "n",
@@ -391,7 +393,7 @@ function Attention({ rows }) {
       }) : null,
       /* @__PURE__ */ u("p", {
         class: "hq-sub",
-        children: `止まっている：エージェントは${term("start")}していますが、今は作業していません。動いていない：${term("start")}中のエージェントがいません。`
+        children: `${term("idle")}：${term("agent")}は${term("start")}していますが、今は仕事をしていません。${term("not-running")}：${term("start")}中の${term("agent")}がいません。`
       })
     ]
   });

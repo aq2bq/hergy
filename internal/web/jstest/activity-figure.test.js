@@ -176,5 +176,5 @@ test('AC-6e5b four member columns hold ten workers and keep turns above the memb
   expect(memberTurns).toHaveLength(turns.filter(([from, to]) => from !== 'human' && to !== 'human' && (from === 'lead' || to === 'lead')).length);
   for (const edge of memberTurns) expect(Number(edge.getAttribute('data-control-y'))).toBeLessThan(memberY - 15);
   expect(figure.querySelector('.hq-column[data-member="lead"] .hq-n.active title').textContent).toBe('lead · 仕事中 · 設計を読む');
-  expect(figure.querySelector('.hq-column[data-member="webui-design"] .hq-n.idle title').textContent).toBe('webui-design · 止まっている');
+  expect(figure.querySelector('.hq-column[data-member="webui-design"] .hq-n.idle title').textContent).toBe('webui-design · 待機中');
 });

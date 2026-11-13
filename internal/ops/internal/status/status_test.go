@@ -142,7 +142,7 @@ func TestWordsFollowTheLanguage(t *testing.T) {
 	if got, want := (Row{Name: "a", State: "blocked", Live: true}).Text(), "blocked（許可待ち）"; got != want {
 		t.Fatalf("Japanese blocked text = %q, want %q", got, want)
 	}
-	if got, want := (Row{Name: "a", State: "working", Live: true, UnchangedMinutes: new(9)}).Text(), "作業中（9 分変化なし）"; got != want {
+	if got, want := (Row{Name: "a", State: "working", Live: true, UnchangedMinutes: new(9)}).Text(), "仕事中（9 分変化なし）"; got != want {
 		t.Fatalf("Japanese unchanged text = %q, want %q", got, want)
 	}
 }
