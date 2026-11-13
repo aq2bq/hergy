@@ -88,7 +88,7 @@ func hireRunningState(r *Resolved, worker definition.Start, now func() time.Time
 
 func runningStateWarning(err error) string {
 	if err != nil {
-		return i18n.Tf("launch.not_recorded", err)
+		return i18n.Tf("state.not_recorded", err)
 	}
 	return ""
 }

@@ -496,7 +496,7 @@ func TestHireWarnsWhenCurrentStateCannotBeSaved(t *testing.T) {
 	if err != nil || !port.called {
 		t.Fatalf("hire did not reach receipt: called=%t err=%v", port.called, err)
 	}
-	if len(warnings) != 1 || !strings.Contains(warnings[0], "the launch was not recorded:") || !strings.Contains(warnings[0], path) {
+	if len(warnings) != 1 || !strings.Contains(warnings[0], "the running team state was not saved:") || !strings.Contains(warnings[0], path) {
 		t.Fatalf("state failure was not reported once: %q", warnings)
 	}
 	if _, exists := currentTeamState(fixtureDemoTeam()); exists {
