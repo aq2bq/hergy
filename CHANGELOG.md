@@ -1,5 +1,55 @@
 # Changelog
 
+## 0.10.0 - 2026-11-13
+
+### Changed
+
+- **One place for every rule and word**: the sentences of `hergy --help`,
+  each command's `--help`, `hergy cheat`, `hergy cheat --ai`, the command
+  parts of the READMEs and of `skills/hergy/SKILL.md`, and the refusals tied
+  to a command's conditions are now written once and printed from there, so
+  they no longer say different things about the same command. Thirteen
+  statements that did not match what hergy does were corrected on the way;
+  among them, `hergy refresh --help` and `hergy cheat --ai` no longer say a
+  member that is not live is refused: it is started again in the pane hergy
+  named after it when that pane is still at its shell, and only a member with
+  no pane is refused.
+- **A worker's `hergy tell` carries the worker's name**: a tell typed in a
+  worker's pane is from that worker, not from the human, and the member that
+  hired a worker can `hergy tell <worker>` without being refused. A tell from
+  a pane that is neither a member's nor a worker's is from the human, as
+  before.
+- **The initial prompt is confirmed, not just sent**: `hergy up`, `refresh`,
+  `apply` and `hire` print success only for a member herdr observed working
+  after the prompt. A member that did not take it is listed at the end with
+  the command that sends it again, and the rest of the operation goes on.
+
+### Fixed
+
+- **A team is found however its project is written**: `hergy status`,
+  `hergy apply --dry` and the WebUI compare projects as one normalised path,
+  so a team started from `/tmp/x` is found from `/private/tmp/x`, with or
+  without `--as`.
+- **Closing a team in the WebUI does what `hergy down` does**: it removes the
+  team's turn state, cancels a start still in progress, closes a team whose
+  tab is all that is left, and reports the number of panes it really closed.
+  A team started again under the same name no longer takes over the turn of
+  the one before it.
+- **`hergy down` waits until herdr has let go of the names**, so the `up`
+  that follows is not refused for a name still in use. When the wait times
+  out, the turn state is still removed and the leftovers are still listed.
+- **A team started under another name is recorded even when no member took
+  its prompt**, so `hergy reprompt` finds its definition.
+- **The recovery command keeps the line breaks of a task** in `sh` and `dash`
+  as well as Bash.
+- **A team folder whose `team.yaml` was removed** shows as an unreadable row
+  in the WebUI and is not offered as a definition to start; the list no
+  longer depends on which path read it last.
+- **WebUI saves**: a check that answers late no longer clears the reason a
+  save was refused, and text typed while a save is in flight stays in the
+  draft. The "disabled" mark of a role or team definition is the server's
+  judgement, not a second copy in the screen.
+
 ## 0.9.9 - 2026-11-10
 
 ### Added
