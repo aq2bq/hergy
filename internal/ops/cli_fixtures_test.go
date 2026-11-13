@@ -226,7 +226,6 @@ func memberEnv(t *testing.T, plan map[string]any, name string) map[string]string
 // workersFixture writes a dev team whose lead may hire for 調査 (seeker) and
 // 実装 (developer), and points the fake herdr at the running team.
 func workersFixture(t *testing.T) {
-	seedRunningTeam(t, serveEnv(t).ProjectRoot.String(), "dev", "dev")
 	t.Helper()
 	f := newFixture(t)
 	workersProject(t, f)
