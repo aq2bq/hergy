@@ -101,12 +101,28 @@ func selectGates(names []string) ([]gate, error) {
 		return gates, nil
 	}
 	var out []gate
+	left := map[string]bool{}
 	for _, name := range names {
-		g, ok := gateNamed(name)
+		g, ok := gateNamed(strings.TrimPrefix(name, "-"))
 		if !ok {
 			return nil, fmt.Errorf("no gate named %q (see go run ./tools/check -h)", name)
 		}
+		if strings.HasPrefix(name, "-") {
+			left[g.name] = true
+			continue
+		}
 		out = append(out, g)
+	}
+	if len(left) == 0 {
+		return out, nil
+	}
+	if len(out) > 0 {
+		return nil, errors.New("name the gates to run, or the gates to leave out (-<gate>), not both")
+	}
+	for _, g := range gates {
+		if !left[g.name] {
+			out = append(out, g)
+		}
 	}
 	return out, nil
 }
@@ -185,6 +201,7 @@ func (r *runner) runGates(selected []gate) error {
 func usage() string {
 	var b strings.Builder
 	b.WriteString("go run ./tools/check [gate ...]   run every gate, or the named ones, in this order\n")
+	b.WriteString("go run ./tools/check -<gate> ...   every gate but the named ones (CI runs the browser walks in jobs of their own)\n")
 	b.WriteString("go run ./tools/check diff         the gates a change can fail here, picked from the files that differ from the upstream (tools/check/diff.go);\n")
 	b.WriteString("                                 e2e, coverage and vuln are CI's: diff names the browser walks the change selects and the command to run them;\n")
 	b.WriteString("                                 test runs over the changed packages with go test's cache; webbuild and apitypes write their files\n")

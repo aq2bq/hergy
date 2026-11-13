@@ -45,6 +45,21 @@ func TestSelectGatesRefusesAnUnknownName(t *testing.T) {
 	if _, err := selectGates([]string{"lint", "nope"}); err == nil || !strings.Contains(err.Error(), `"nope"`) {
 		t.Fatalf("selectGates(lint nope) = %v, want an error naming nope", err)
 	}
+	rest, err := selectGates([]string{"-e2e", "-reading"})
+	if err != nil || len(rest) != len(gates)-2 {
+		t.Fatalf("selectGates(-e2e -reading) = %d gates, %v, want every gate but two", len(rest), err)
+	}
+	for _, g := range rest {
+		if g.name == "e2e" || g.name == "reading" {
+			t.Fatalf("selectGates(-e2e -reading) kept %s", g.name)
+		}
+	}
+	if _, err := selectGates([]string{"-e2e", "fmt"}); err == nil {
+		t.Fatal("selectGates(-e2e fmt) mixed the two forms and passed")
+	}
+	if _, err := selectGates([]string{"-nope"}); err == nil || !strings.Contains(err.Error(), `"-nope"`) {
+		t.Fatalf("selectGates(-nope) = %v, want an error naming -nope", err)
+	}
 	got, err := selectGates([]string{"vuln", "fmt"})
 	if err != nil || len(got) != 2 || got[0].name != "vuln" || got[1].name != "fmt" {
 		t.Fatalf("selectGates(vuln fmt) = %v, %v", got, err)

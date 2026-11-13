@@ -1,14 +1,24 @@
 name: CI
 
+# A branch is checked once, as its pull request; a push is checked on main alone.
 on:
   push:
+    branches: [main]
   pull_request:
+
+# A newer push to a pull request stops the run of the older one.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
 
 jobs:
-  test:
+  # Every gate but the browser walks. The gates and the tool versions are in
+  # tools/check; go run ./tools/check -h lists them. CI holds no list of its own:
+  # it names only the gate that runs in jobs of its own.
+  gates:
     runs-on: ubuntu-latest
     steps:
       - name: Check out
@@ -33,11 +43,44 @@ jobs:
             e2e/.bin/browsers
           key: gates-${{ runner.os }}-${{ hashFiles('go.sum', 'e2e/bun.lock', 'tools/webvendor/bun.lock', 'tools/webtools/bun.lock', 'tools/check/*.go') }}
 
-      # The one command every gate runs through, locally and here. The gates
-      # and the tool versions are in tools/check; go run ./tools/check -h lists
-      # them. CI holds no list of its own.
-      - name: go run ./tools/check
-        run: go run ./tools/check
+      - name: go run ./tools/check -e2e
+        run: go run ./tools/check -e2e
+
+  # The browser walks, spread over four jobs (e2e/playwright.config.ts reads
+  # E2E_SHARD), so their six minutes do not stand in front of every merge.
+  e2e:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+
+      # The browser walks' tools are fetched by the gate itself (bun, into .bin/;
+      # Playwright's chromium, into e2e/.bin/browsers). The caches keep that from
+      # happening on every run: the dependency, bun's install cache and the
+      # browser, all in the repository's own ignored places (d-d3fe).
+      - name: Cache the gates' tools, the e2e dependency and the browser
+        uses: actions/cache@v4
+        with:
+          path: |
+            .bin
+            e2e/node_modules
+            e2e/.bin/bun-cache
+            e2e/.bin/browsers
+          key: gates-${{ runner.os }}-${{ hashFiles('go.sum', 'e2e/bun.lock', 'tools/webvendor/bun.lock', 'tools/webtools/bun.lock', 'tools/check/*.go') }}
+
+      - name: go run ./tools/check e2e
+        run: go run ./tools/check e2e
+        env:
+          E2E_SHARD: ${{ matrix.shard }}/4
 
       # A walk that fails leaves what the browser saw in e2e/test-results, the
       # directory Playwright writes to beside its config (e2e/playwright.config.ts).
@@ -48,7 +91,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: e2e-test-results
+          name: e2e-test-results-${{ matrix.shard }}
           path: e2e/test-results
           if-no-files-found: ignore
           retention-days: 7

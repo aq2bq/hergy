@@ -19,6 +19,10 @@ export default defineConfig({
   // in 12.5s with four (warm), about 11.6s of it ACTIVITY-P4's re-reading.
   workers: Number(process.env.E2E_WORKERS || 4),
   fullyParallel: true,
+  // CI spreads the walks over jobs: E2E_SHARD is "<this job>/<the jobs>".
+  shard: process.env.E2E_SHARD
+    ? { current: Number(process.env.E2E_SHARD.split('/')[0]), total: Number(process.env.E2E_SHARD.split('/')[1]) }
+    : null,
   retries: 0,
   timeout: 5 * 60_000,
   reporter: [['list']],
