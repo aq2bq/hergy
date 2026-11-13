@@ -153,7 +153,7 @@ function turnDirection(ops: Op[]): string {
 
 function turnAddedNotice(from: string, to: string) {
   const direction = `${nodeName(from)} → ${nodeName(to)}`;
-  return { message: `${direction} の${term('turn')}を足しました`, undo: `${direction} の${term('turn')}を足しましたのを取り消しました` };
+  return { message: `${direction} の${term('turn')}を足しました`, undo: `${direction} の${term('turn')}を足したのを取り消しました` };
 }
 
 function turnRemovalNotice(direction: string) {

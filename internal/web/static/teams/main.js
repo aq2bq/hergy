@@ -4410,7 +4410,7 @@ function turnDirection(ops) {
 }
 function turnAddedNotice(from, to) {
   const direction = `${nodeName(from)} → ${nodeName(to)}`;
-  return { message: `${direction} の${term("turn")}を足しました`, undo: `${direction} の${term("turn")}を足しましたのを取り消しました` };
+  return { message: `${direction} の${term("turn")}を足しました`, undo: `${direction} の${term("turn")}を足したのを取り消しました` };
 }
 function turnRemovalNotice(direction) {
   return { said: `${direction} の${term("turn")}を外しました`, undo: `${direction} の${term("turn")}を外したのを取り消しました` };
