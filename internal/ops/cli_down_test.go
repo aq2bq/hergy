@@ -260,24 +260,7 @@ func TestDownListsWhatTheTeamLeftInGit(t *testing.T) {
 	t.Setenv("HERDR_ENV", "1")
 	t.Setenv("HERDR_PANE_ID", "p9")
 
-	got := mustRun(t, "down", "draft", "--lang", "ja")
-	for _, want := range []string{
-		"draft が動いている間にできたワークツリー（git）:",
-		"ワークツリー: " + worktree + "（枝 lane-1、保存していない変更あり、main に入っていないコミット 1 件）（ペインの作業ディレクトリがここにあった）",
-		"消すには: git worktree remove " + worktree,
-		"保存していない変更か、入っていないコミットがあります。消す前に中身を確かめてください",
-		"このプロジェクトの stash: 1 件（git stash list で見る）",
-		"hergy は消しません。",
-	} {
-		if !strings.Contains(got, want) {
-			t.Errorf("down does not say %q:\n%s", want, got)
-		}
-	}
-	if closes := calls(t, filepath.Join(f.cfg, "herdr.log")); !strings.Contains(closes, "pane close p1") {
-		t.Fatalf("down did not close the pane:\n%s", closes)
-	}
-
-	got = mustRun(t, "down", "draft", "--dry", "--lang", "ja")
+	got := mustRun(t, "down", "draft", "--dry", "--lang", "ja")
 	if !strings.Contains(got, "draft が動いている間にできたワークツリー（git、閉じたあとに残る予定）:") || !strings.Contains(got, "git worktree remove "+worktree) {
 		t.Errorf("down --dry does not plan the leftovers:\n%s", got)
 	}
@@ -304,6 +287,22 @@ func TestDownListsWhatTheTeamLeftInGit(t *testing.T) {
 	}
 	if one := plan.Leftovers.Worktrees[0]; one.Basis != "main" || one.Ahead != 1 || !one.Dirty || !one.Pane {
 		t.Errorf("the plan's worktree = %+v, want main, 1 ahead, dirty, the pane's directory", one)
+	}
+	got = mustRun(t, "down", "draft", "--lang", "ja")
+	for _, want := range []string{
+		"draft が動いている間にできたワークツリー（git）:",
+		"ワークツリー: " + worktree + "（枝 lane-1、保存していない変更あり、main に入っていないコミット 1 件）（ペインの作業ディレクトリがここにあった）",
+		"消すには: git worktree remove " + worktree,
+		"保存していない変更か、入っていないコミットがあります。消す前に中身を確かめてください",
+		"このプロジェクトの stash: 1 件（git stash list で見る）",
+		"hergy は消しません。",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("down does not say %q:\n%s", want, got)
+		}
+	}
+	if closes := calls(t, filepath.Join(f.cfg, "herdr.log")); !strings.Contains(closes, "pane close p1") {
+		t.Fatalf("down did not close the pane:\n%s", closes)
 	}
 }
 

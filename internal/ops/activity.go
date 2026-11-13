@@ -19,6 +19,7 @@ import (
 	"github.com/aq2bq/hergy/internal/ops/internal/herdr"
 	"github.com/aq2bq/hergy/internal/ops/internal/herdrcli"
 	"github.com/aq2bq/hergy/internal/ops/internal/protocol"
+	"github.com/aq2bq/hergy/internal/ops/internal/runningstate"
 	"github.com/aq2bq/hergy/internal/ops/internal/team"
 	"github.com/aq2bq/hergy/internal/ops/internal/turns"
 	"github.com/aq2bq/hergy/internal/source"
@@ -460,7 +461,7 @@ func (a *Reader) One(name string) (ActivityDoc, bool) {
 	}
 	doc := ActivityDoc{
 		Nodes:    docNodes(t, now, titles),
-		Hired:    docHired(t, one.Name, now, titles, hireSources(one.Project, one.Name.String())),
+		Hired:    docHired(t, one.Name, now, titles, hireSources(one.state)),
 		Question: question,
 	}
 	for i := range doc.Nodes {
@@ -612,25 +613,12 @@ func docHired(t activity.Team, teamName domainname.Seen, now time.Time, titles, 
 	return out
 }
 
-// hireSources is the member that added each of one team's workers, from the hire
-// lines of this machine's launch record (d-b4b9). The newest line for one worker
-// wins; a worker hired before those lines were written has none, and the screen
-// says no "が追加" for it.
-func hireSources(project domainplace.Project, teamName string) map[string]string {
+// hireSources is the member that added each worker in the current run.
+func hireSources(state runningstate.State) map[string]string {
 	out := map[string]string{}
-	records, err := readLaunchRecords()
-	if err != nil {
-		return out
-	}
-	for _, record := range records {
-		if !record.IsHire() || record.Hire == nil || record.Team.String() != teamName {
-			continue
-		}
-		if !record.Project.Project().IsZero() && record.Project.Project().Compare(project) != domainplace.Same {
-			continue
-		}
-		if record.Hire.Worker.String() != "" && record.Hire.From != "" {
-			out[record.Hire.Worker.String()] = record.Hire.From
+	for _, worker := range state.Workers() {
+		if worker.Name != "" && worker.From != "" {
+			out[worker.Name] = worker.From
 		}
 	}
 	return out

@@ -13,12 +13,12 @@ import (
 	"time"
 
 	domainname "github.com/aq2bq/hergy/internal/domain/name"
+	observedname "github.com/aq2bq/hergy/internal/ops/internal/name"
 
 	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/ops/internal/herdr"
 	"github.com/aq2bq/hergy/internal/ops/internal/herdrcli"
-	"github.com/aq2bq/hergy/internal/ops/internal/launchlog"
 	"github.com/aq2bq/hergy/internal/ops/internal/protocol"
 	"github.com/aq2bq/hergy/internal/ops/internal/screenlog"
 	"github.com/aq2bq/hergy/internal/ops/internal/team"
@@ -94,7 +94,6 @@ func WatchTurns(ctx context.Context, in WatchInput) error {
 	}
 	defer w.screen.end()
 	w.read = herdrRead
-	w.hirers, w.names = hirersOf(r.Team.Name.Observation())
 	w.signals = turns.SignalDir(dir, r.Team.Name.String())
 	w.tells = turns.TellDir(dir, r.Team.Name.String())
 	// Tells that waited while no watcher ran are about turns this watcher did
@@ -149,32 +148,23 @@ func printTurnsLog(teamName, path string, stdout io.Writer) error {
 	return err
 }
 
-// hirersOf is, by a worker's short name, the member that hired it, from this
-// machine's launch record (hergy hire writes one line per worker).
-func hirersOf(teamName domainname.Seen) (map[string]string, map[string]domainname.Seen) {
+// hirersOf reads this run's workers and confirmed member names. Unreceived
+// members are still observed from herdr's named panes and live agents.
+func hirersOf(teamName domainname.TeamName) (map[string]string, map[string]domainname.Seen) {
 	out := map[string]string{}
 	names := map[string]domainname.Seen{}
-	log, err := launchlog.Open()
-	if err != nil {
+	state, exists := currentTeamState(teamName)
+	if !exists {
 		return out, names
 	}
-	records, err := log.Read()
-	if err != nil {
-		return out, names
+	for _, member := range state.Members() {
+		names[member.Short] = observedname.Observe(member.Name)
 	}
-	for _, record := range records {
-		if record.Team != teamName {
-			continue
-		}
-		for _, member := range record.Members {
-			names[domainname.ShortIn(member.Name, teamName).String()] = member.Name
-		}
-		if !record.IsHire() || record.Hire == nil {
-			continue
-		}
-		short := domainname.ShortIn(record.Hire.Worker, teamName).String()
-		names[short] = record.Hire.Worker
-		out[short] = record.Hire.From
+	for _, worker := range state.Workers() {
+		name := observedname.Observe(worker.Name)
+		short := domainname.ShortIn(name, teamName.Observation()).String()
+		names[short] = name
+		out[short] = worker.From
 	}
 	return out, names
 }
@@ -269,6 +259,7 @@ func (w *turnWatcher) tick() {
 	if !agentsRead {
 		return
 	}
+	w.hirers, w.names = hirersOf(w.team)
 	// Retain recipients witnessed in worker tabs or named panes, even when
 	// their agents have ended. These are observations, not reconstructed inputs.
 	for _, tab := range tabs {

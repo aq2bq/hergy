@@ -8,7 +8,7 @@ import (
 	domainname "github.com/aq2bq/hergy/internal/domain/name"
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/ops/internal/herdr"
-	"github.com/aq2bq/hergy/internal/ops/internal/launchlog"
+	observedname "github.com/aq2bq/hergy/internal/ops/internal/name"
 	"github.com/aq2bq/hergy/internal/ops/internal/protocol"
 	"github.com/aq2bq/hergy/internal/ops/internal/screenlog"
 	"github.com/aq2bq/hergy/internal/ops/internal/turns"
@@ -106,7 +106,7 @@ func findTellParty(team domainname.Seen, parties []domainname.Seen, raw string) 
 	return domainname.Seen{}, i18n.Errorf("error.tell_target_unknown", raw)
 }
 
-// tellParties includes a worker only when a hire record, worker tab and live
+// tellParties includes a worker only when current state, worker tab and live
 // agent agree. A similarly prefixed foreign pane does not become a sender.
 func tellParties(r *Resolved, in TellInput) []domainname.Seen {
 	parties := make([]domainname.Seen, 0, len(r.Starts))
@@ -126,25 +126,18 @@ func tellParties(r *Resolved, in TellInput) []domainname.Seen {
 	}
 	tabs := map[domainname.Seen]bool{}
 	for _, tab := range read.Tabs {
-		if w, ok := tab.Label.WorkerIn(r.Team.Name.Observation()); ok {
-			tabs[w.Agent()] = true
+		if _, ok := tab.Label.WorkerIn(r.Team.Name.Observation()); ok {
+			tabs[tab.Label] = true
 		}
 	}
-	log, err := launchlog.Open()
-	if err != nil {
-		return parties
-	}
-	records, err := log.Read()
-	if err != nil {
+	state, exists := currentTeamState(r.ModelTeamName())
+	if !exists {
 		return parties
 	}
 	seen := map[domainname.Seen]bool{}
-	for _, record := range records {
-		if record.Team != r.Team.Name.Observation() || !record.IsHire() || record.Hire == nil {
-			continue
-		}
-		worker := record.Hire.Worker
-		if live[worker] && tabs[worker] && !seen[worker] {
+	for _, hired := range state.Workers() {
+		worker := observedname.Observe(hired.Name)
+		if live[worker] && tabs[observedname.Observe(hired.Tab)] && !seen[worker] {
 			parties = append(parties, worker)
 			seen[worker] = true
 		}

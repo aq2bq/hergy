@@ -7,6 +7,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"slices"
 	"strconv"
@@ -21,6 +22,7 @@ import (
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/ops/internal/launchlog"
 	"github.com/aq2bq/hergy/internal/ops/internal/team" // activityNow is the clock the tests read the screen at: a fixed moment, so
+	"github.com/aq2bq/hergy/internal/ops/teststate"
 	"github.com/aq2bq/hergy/internal/source"
 	// every length and every time is one a test can write down.
 	// inJapanese reads the screen in Japanese: the words this screen writes are the
@@ -625,8 +627,8 @@ func TestActivityTimeWordsAreTheServers(t *testing.T) {
 
 // TestActivityNodesCarryTheTerminalTitleAndTheHirer: the opened team says what
 // each agent's terminal says it is doing, exactly as herdr gives the title, and
-// which member added each worker, from the hire line of the launch record
-// (d-b4b9). A worker with no hire line has no member, and the screen says no
+// which member added each worker, from the current run (d-b4b9).
+// An unregistered worker has no hirer, and the screen says no
 // が追加 for it.
 func TestActivityNodesCarryTheTerminalTitleAndTheHirer(t *testing.T) {
 	f := newActivityFixture(t)
@@ -645,12 +647,7 @@ func TestActivityNodesCarryTheTerminalTitleAndTheHirer(t *testing.T) {
  {"name":"core-scout","agent_status":"idle","tab_id":"t6","state_change_seq":70},
  {"name":"other-lead","agent_status":"working","tab_id":"t4","state_change_seq":5},
  {"name":"notes","agent_status":"idle","tab_id":"t5","state_change_seq":5}]}}`)
-	log := launchlog.At(filepath.Join(f.state, "hergy", "launches"))
-	if err := log.Append(launchlog.Record{
-		Time: activityNow.Format(time.RFC3339), Command: launchlog.CommandHire,
-		Hergy: "hergy (test)", Project: observedplace.Observe(f.proj), Team: fixtureSeen("core"),
-		Hire: &launchlog.Hire{Worker: fixtureSeen("core-deps"), From: "lead", Purpose: "依存の更新", Tab: fixtureSeen("worker:core/deps")},
-	}); err != nil {
+	if err := teststate.Hire("core", teststate.Worker{Name: "core-deps", From: "lead", Purpose: "依存の更新", Tab: "worker:core/deps", Time: activityNow}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -658,6 +655,14 @@ func TestActivityNodesCarryTheTerminalTitleAndTheHirer(t *testing.T) {
 	if !ok {
 		t.Fatal("core is running, so its opened part is there")
 	}
+	if err := os.Remove(filepath.Join(f.state, "hergy", "launches", "log.jsonl")); err != nil {
+		t.Fatal(err)
+	}
+	after, ok := f.reader(t).One("core")
+	if !ok || !reflect.DeepEqual(doc.Hired, after.Hired) {
+		t.Fatalf("hired nodes changed without history: before=%+v after=%+v", doc.Hired, after.Hired)
+	}
+
 	lead := nodeNamed(t, doc.Nodes, "lead")
 	if lead.Doing != "r-7f3c の差分を読んでいる" {
 		t.Errorf("lead's doing = %q, want the title herdr gives", lead.Doing)
@@ -667,14 +672,14 @@ func TestActivityNodesCarryTheTerminalTitleAndTheHirer(t *testing.T) {
 	}
 	deps := nodeNamed(t, doc.Hired, "deps")
 	if deps.From != "lead" {
-		t.Errorf("deps was hired by %q, want lead (the hire line)", deps.From)
+		t.Errorf("deps was hired by %q, want lead (the current run)", deps.From)
 	}
 	if deps.Doing != "依存を更新している" {
 		t.Errorf("deps' doing = %q, want its title", deps.Doing)
 	}
 	scout := nodeNamed(t, doc.Hired, "scout")
 	if scout.From != "" {
-		t.Errorf("scout has no hire line, so its from = %q, want none", scout.From)
+		t.Errorf("scout has no current hire, so its from = %q, want none", scout.From)
 	}
 }
 

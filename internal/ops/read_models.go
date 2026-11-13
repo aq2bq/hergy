@@ -383,8 +383,8 @@ type ActivityNode struct {
 	// state, and left out when the title is empty.
 	Doing string
 	// From is the short name of the member that hired this worker, read from the
-	// hire line of the launch record (d-b4b9). Empty for a worker hired before
-	// that line was written, and always empty for a member.
+	// current run state (d-b4b9). Empty for an unregistered worker,
+	// and always empty for a member.
 	From string
 }
 
