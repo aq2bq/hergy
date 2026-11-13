@@ -12,60 +12,8 @@ import (
 	"github.com/aq2bq/hergy/internal/words"
 )
 
-func commandTable(lang string) string {
-	var b strings.Builder
-	if lang == "ja" {
-		b.WriteString("| コマンド | 内容 |\n")
-	} else {
-		b.WriteString("| Command | What it does |\n")
-	}
-	b.WriteString("|---|---|\n")
-	cell := func(text string) string {
-		text = strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;", "|", "&#124;").Replace(text)
-		return strings.ReplaceAll(text, "\n", "<br>")
-	}
-	for _, kind := range options.Kinds {
-		fmt.Fprintf(&b, "| `%s` | %s |\n", strings.ReplaceAll(options.Synopsis(kind, lang), "|", "\\|"), cell(options.Description(kind, lang)))
-	}
-	b.WriteString("\n")
-	for _, flag := range options.FlagSummaries() {
-		fmt.Fprintf(&b, "- `%s`: %s\n", flag.Label, options.FlagDescriptions(flag.Name, lang))
-	}
-	return b.String()
-}
-
 func projectedDocuments(root string) (map[string][]byte, error) {
 	outputs := map[string][]byte{}
-	for _, doc := range []struct {
-		path, lang string
-		regions    []string
-	}{{"README.md", "en", []string{"new", "rule-documents", "identity", "resolution", "placeholders", "reference", "prompt-preview"}}, {"README.ja.md", "ja", []string{"new", "rule-documents", "identity", "resolution", "placeholders", "reference", "prompt-preview"}}, {"skills/hergy/SKILL.md", "en", []string{"reference"}}} {
-		raw, err := os.ReadFile(filepath.Join(root, doc.path))
-		if err != nil {
-			return nil, err
-		}
-		content, err := words.Region(string(raw), "commands", commandTable(doc.lang))
-		if err != nil {
-			return nil, fmt.Errorf("%s: %w", doc.path, err)
-		}
-		regions := map[string]string{
-			"new":            words.Describe(words.ForCommand("new"), doc.lang),
-			"reference":      "```text\n" + words.Reference(doc.lang) + "```",
-			"rule-documents": words.Find("reference.rule-documents").Explain(doc.lang),
-			"identity":       words.Find("team.identity").Explain(doc.lang),
-			"resolution":     words.Find("reference.resolution").Explain(doc.lang),
-			"prompt-preview": words.Find("web.prompt-preview").Explain(doc.lang),
-			"placeholders":   words.Find("reference.bootstrap-prompt-placeholders").Explain(doc.lang),
-		}
-		for _, name := range doc.regions {
-			body := regions[name]
-			content, err = words.Region(content, name, body)
-			if err != nil {
-				return nil, err
-			}
-		}
-		outputs[doc.path] = []byte(content)
-	}
 	for _, lang := range []string{"en", "ja"} {
 		path := "internal/i18n/locales/" + lang + ".json"
 		raw, err := os.ReadFile(filepath.Join(root, path))

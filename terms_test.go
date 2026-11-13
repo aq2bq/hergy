@@ -402,7 +402,7 @@ func TestGlossaryBannedWordsStayOut(t *testing.T) {
 		if err != nil {
 			t.Fatalf("read %s: %v", src.path, err)
 		}
-		for i, line := range strings.Split(words.Handwritten(string(raw)), "\n") {
+		for i, line := range strings.Split(string(raw), "\n") {
 			check(fmt.Sprintf("%s:%d", src.path, i+1), "", src.lang, line)
 		}
 	}

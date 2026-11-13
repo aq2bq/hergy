@@ -2,8 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -24,13 +22,8 @@ func TestLocaleProjectionPreservesUnownedBytes(t *testing.T) {
 	}
 }
 
-func TestWordsGateRejectsStaleOutputAndMissingDocumentMarkers(t *testing.T) {
+func TestWordsGateRejectsStaleOutput(t *testing.T) {
 	r := &runner{root: t.TempDir()}
-	document := "intro stays\n"
-	for _, name := range []string{"commands", "new", "rule-documents", "identity", "resolution", "placeholders", "reference", "prompt-preview"} {
-		document += "<!-- words:" + name + ":start -->\nold\n<!-- words:" + name + ":end -->\n"
-	}
-	document += "advice stays\n"
 	messages := words.LocaleMessages("en")
 	messages["usage"], messages["cheat.people"] = "", ""
 	raw, err := json.MarshalIndent(messages, "", "  ")
@@ -38,7 +31,6 @@ func TestWordsGateRejectsStaleOutputAndMissingDocumentMarkers(t *testing.T) {
 		t.Fatal(err)
 	}
 	tree(t, r.root, map[string]string{
-		"README.md": document, "README.ja.md": document, "skills/hergy/SKILL.md": document,
 		"internal/i18n/locales/en.json": string(raw), "internal/i18n/locales/ja.json": string(raw),
 		"internal/words/terms_generated.go": "stale", "internal/web/src/lib/terms.generated.ts": "stale",
 	})
@@ -49,22 +41,8 @@ func TestWordsGateRejectsStaleOutputAndMissingDocumentMarkers(t *testing.T) {
 	if err := r.wordsGate(); err != nil {
 		t.Fatal(err)
 	}
-	made, err := os.ReadFile(filepath.Join(r.root, "README.md"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.HasPrefix(string(made), "intro stays\n") || !strings.HasSuffix(string(made), "advice stays\n") {
-		t.Fatal("handwritten prose changed")
-	}
 	r.write = false
 	if err := r.wordsGate(); err != nil {
 		t.Fatal(err)
-	}
-	broken := strings.Replace(string(made), "<!-- words:commands:start -->", "", 1)
-	if err := os.WriteFile(filepath.Join(r.root, "README.md"), []byte(broken), 0644); err != nil {
-		t.Fatal(err)
-	}
-	if err := r.wordsGate(); err == nil {
-		t.Fatal("missing required markers passed")
 	}
 }

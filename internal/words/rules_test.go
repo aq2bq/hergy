@@ -75,22 +75,3 @@ func TestRefusalAndExplanationUseSameCauseAndRecovery(t *testing.T) {
 		}
 	}
 }
-
-func TestRegionPreservesHandwrittenBytesAndRejectsBrokenMarkers(t *testing.T) {
-	before := "intro\n<!-- words:commands:start -->\nold\n<!-- words:commands:end -->\nadvice\n"
-	made, err := Region(before, "commands", "new")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if made != strings.Replace(before, "\nold\n", "\nnew\n", 1) {
-		t.Fatal(made)
-	}
-	if strings.Contains(Handwritten(made), "new") || !strings.Contains(Handwritten(made), "advice") {
-		t.Fatal(Handwritten(made))
-	}
-	for _, broken := range []string{"", before + before, "<!-- words:commands:end --><!-- words:commands:start -->"} {
-		if _, err := Region(broken, "commands", "new"); err == nil {
-			t.Fatalf("accepted invalid markers: %s", broken)
-		}
-	}
-}
