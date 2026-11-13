@@ -55,6 +55,12 @@ type fakePort struct {
 	splits     []splitCall
 	renamed    []string
 
+	// shown is what each pane has drawn of the texts it was handed, and
+	// swallows names the agents that take a text without drawing it: an agent
+	// asking a question herdr does not report (n-6a78).
+	shown    map[string]string
+	swallows map[string]bool
+
 	// screens is what `agent read` answers for a target, by herdr name. A target
 	// that is not in it answers a stable stand-in, so a status test can check the
 	// screen hash without pinning a real terminal.
@@ -78,6 +84,17 @@ type fakePort struct {
 func (p *fakePort) Verify(mode string) error {
 	p.verified = append(p.verified, mode)
 	return nil
+}
+
+// show draws a handed text in the agent's pane, unless the agent swallows it.
+func (p *fakePort) show(target, text string) {
+	if p.swallows[target] {
+		return
+	}
+	if p.shown == nil {
+		p.shown = map[string]string{}
+	}
+	p.shown[target] += text + "\n"
 }
 
 func (p *fakePort) record(args ...string) {
@@ -252,7 +269,8 @@ func (p *fakePort) JSON(args ...string) (map[string]any, error) {
 		}
 		delete(p.gone, name)
 		return map[string]any{}, nil
-	case len(args) >= 3 && args[0] == "agent" && args[1] == "prompt":
+	case len(args) >= 4 && args[0] == "agent" && args[1] == "prompt":
+		p.show(args[2], args[3])
 		return map[string]any{}, nil
 	}
 	return nil, fmt.Errorf("unexpected herdr command: %v", args)
@@ -263,6 +281,9 @@ func (p *fakePort) Text(args ...string) (string, error) {
 	p.record(args...)
 	if len(args) >= 3 && args[0] == "agent" && args[1] == "read" {
 		target := args[2]
+		if slices.Contains(args, "visible") {
+			return p.shown[target], nil
+		}
 		if screen, ok := p.screens[target]; ok {
 			return screen, nil
 		}

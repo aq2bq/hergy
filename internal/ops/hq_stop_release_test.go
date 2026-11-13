@@ -21,13 +21,26 @@ type stopReleasePort struct {
 	reads    map[string]int
 	survive  int
 	seq      int
+	// shown is what each pane has drawn of the texts it was handed.
+	shown map[string]string
 }
 
-func (p *stopReleasePort) Verify(string) error                             { return nil }
-func (p *stopReleasePort) Text(...string) (string, error)                  { return "", nil }
+func (p *stopReleasePort) Verify(string) error { return nil }
+func (p *stopReleasePort) Text(args ...string) (string, error) {
+	if len(args) >= 3 && args[1] == "read" {
+		return p.shown[args[2]], nil
+	}
+	return "", nil
+}
 func (p *stopReleasePort) SessionSnapshot() (herdr.SessionSnapshot, error) { return p.snapshot, nil }
 func (p *stopReleasePort) JSON(args ...string) (map[string]any, error) {
 	switch strings.Join(args[:2], " ") {
+	case "agent prompt":
+		if p.shown == nil {
+			p.shown = map[string]string{}
+		}
+		p.shown[args[2]] += args[3] + "\n"
+		return map[string]any{}, nil
 	case "agent list":
 		agents := []any{}
 		for _, a := range p.snapshot.Agents {

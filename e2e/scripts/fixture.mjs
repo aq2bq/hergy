@@ -76,6 +76,10 @@ if [ -z "$s" ]; then
   exit 0
 fi
 case "$g $s" in
+  "agent prompt")
+    # A pane draws the text it is handed; the socket's agent.read hands it back.
+    mkdir -p "$0.shown"; printf '%s\\n' "$4" >> "$0.shown/$3"
+    echo '{"result":{}}' ;;
   "tab list")     echo '{"result":{"tabs":[]}}' ;;
   "agent list")   echo '{"result":{"agents":[]}}' ;;
   "pane current") echo '{"result":{"pane":{"workspace_id":"w1"}}}' ;;
@@ -218,6 +222,10 @@ async function answerHerdrRequest(fixture, requestText) {
     }
     case 'agent.read': {
       const target = String(request.params?.target ?? '');
+      const shown = path.join(`${fixture.env.HERGY_HERDR}.shown`, target);
+      if (request.params?.source === 'visible' && existsSync(shown)) {
+        return success(id, 'pane_read', { read: { source: 'visible', format: 'text', text: readFileSync(shown, 'utf8'), truncated: false } });
+      }
       const { agents } = activitySnapshot(fixture);
       const agent = agents.find((one) => one.name === target || one.pane_id === target);
       if (!agent) return failure(id, 'agent_not_found', `agent not found: ${target}`);

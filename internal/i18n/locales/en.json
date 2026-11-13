@@ -142,6 +142,7 @@
   "state.not_recorded": "the running team state was not saved: %v",
   "launcher.boot_complete": "booted: %s (tab %s)\n",
   "launcher.boot_submitted": "prompts: submitted (document reading continues in each pane)\n",
+  "launcher.prompt_unseen": "the pane does not show the prompt",
   "launcher.refresh_restarted": "restarted: %s\n",
   "launcher.refresh_added": "started: %s (tab %s)\n",
   "launcher.refresh_added_next": "hergy reprompt --all --team %s",

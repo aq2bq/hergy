@@ -38,6 +38,7 @@ var localeMessages = map[string]Text{
 	"launch.fix_boot":            bilingual("hergy down %[1]s, then %[2]s", "hergy down %[1]s のあと %[2]s"),
 
 	"launcher.boot_complete":             bilingual("booted: %s (tab %s)\n", "{{start}}しました: %s（タブ %s）\n"),
+	"launcher.prompt_unseen":             bilingual("the pane does not show the {{prompt}}", "ペインに{{bootstrap-prompt}}が表示されていません"),
 	"launcher.boot_submitted":            bilingual("{{prompt}}s: submitted (document reading continues in each pane)\n", "{{bootstrap-prompt}}: 送りました（文書の読み込みは各ペインで続きます）\n"),
 	"launcher.refresh_restarted":         bilingual("restarted: %s\n", "{{refresh}}ました: %s\n"),
 	"launcher.refresh_added":             bilingual("started: %s (tab %s)\n", "{{start}}しました: %s（タブ %s）\n"),

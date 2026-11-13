@@ -1665,9 +1665,10 @@ func (l *Launcher) start(member *definition.Start, next StartupNext, tabLabel st
 func (l *Launcher) submit(member *definition.Start, target domainname.Target) error {
 	l.stage(i18n.Tf("progress.stage.submitting", member.Name.String()))
 	l.mark(member.Name.String(), i18n.T("progress.mark.prompt_requested"))
-	if err := l.herdr.ConfirmPrompt(target, member.Prompt); err != nil {
-		switch protocol.ErrorCode(err) {
-		case "agent_prompt_stalled", "timeout", "agent_blocked":
+	if err := l.herdr.ConfirmShownPrompt(target, member.Prompt, l.sleeping); err != nil {
+		_, unseen := errors.AsType[*herdr.Unseen](err)
+		switch code := protocol.ErrorCode(err); {
+		case unseen, code == "agent_prompt_stalled", code == "timeout", code == "agent_blocked":
 			l.mark(member.Name.String(), i18n.T("progress.mark.bootstrap_undelivered"))
 			return &Undelivered{Name: member.Name.String(), Pane: l.paneOf(member.Name.String()), Recovery: repromptRetry(l.project.String(), l.team.String(), member.Name.String()), Cause: err}
 		default:
@@ -1746,7 +1747,7 @@ func (l *Launcher) notify(event Event) {
 // ErrCancelled instead of waiting for the member.
 func (l *Launcher) sleeping(step time.Duration) error {
 	if l.ctx == nil {
-		time.Sleep(step)
+		l.pause(step)
 		return nil
 	}
 	select {
