@@ -118,10 +118,9 @@ func StartTeam(ctx context.Context, in StartInput) (*Plan, error) {
 	for _, note := range signalNotes(r.Starts) {
 		emit(in.Observe, Event{Text: note})
 	}
-	l := operationLauncher(ctx, r, in.Timeout, in.Port, in.Observe).WithWatcher(watcherCommand(r.Team.Name.String(), r.Team.Definition.Name.String(), in.Env.ProjectRoot))
+	l := operationLauncher(ctx, r, in.Timeout, in.Port, in.Observe).WithWatcher(watcherCommand(r.Team.Name.String(), in.Env.ProjectRoot))
 	finishState := prepareRunningState(l, in, r, WorkspaceInfo(workspace))
-	warned := false
-	defer func() { finishState(warned) }()
+	defer finishState()
 
 	transform := func(err error) error {
 		if launcher.IsUndelivered(err) {
@@ -146,7 +145,6 @@ func StartTeam(ctx context.Context, in StartInput) (*Plan, error) {
 			label = l.WorkspaceLabel()
 		}
 		note := recordReceivedLaunch(in.Env, r, launchlog.CommandUp, r.Starts, l, launchlog.Workspace{Label: label, ID: l.WorkspaceID()}, in.Now)
-		warned = note != ""
 		warning(in.Observe, note)
 	}
 	return plan, err
@@ -221,7 +219,7 @@ func nameRunning(name string, read session) bool {
 	if read.Err != nil {
 		return false
 	}
-	running := team.RunningTeams(read.Tabs, launchTeams(), read.AgentsRead)
+	running := team.RunningTeams(read.Tabs, currentTeamStates())
 	prospective, _ := domainname.ParseDefinitionName(name)
 	candidate := domainname.DefinitionNames(prospective)
 	var known []domainname.Seen
@@ -267,7 +265,7 @@ func chooseWorkspace(env Environment, in WorkspaceInput, port Port) (herdr.Works
 			continue
 		}
 		read := readSession(port)
-		for _, one := range team.RunningTeams(read.Tabs, launchTeams(), read.AgentsRead) {
+		for _, one := range team.RunningTeams(read.Tabs, currentTeamStates()) {
 			for _, tab := range read.Tabs {
 				if tab.WorkspaceID == space.ID && protocol.NamesTeam(tab.Label.String(), one.Team.String()) {
 					return herdr.Workspace{}, refuse("conflict", i18n.Errorf("web.hq.workspace_busy", space.Label, one.Team))
@@ -287,8 +285,8 @@ func startCommand(definition, name string) string {
 	}
 	return command
 }
-func watcherCommand(name, definition string, project domainplace.Project) []string {
-	return []string{executable(), "turns", name, "--definition", definition, "-C", project.String(), "--lang", i18n.Language()}
+func watcherCommand(name string, project domainplace.Project) []string {
+	return []string{executable(), "turns", name, "-C", project.String(), "--lang", i18n.Language()}
 }
 
 // WorkspaceInfo is the selected workspace as an operation result.

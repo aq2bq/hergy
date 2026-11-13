@@ -139,9 +139,9 @@ func (h *hqRead) lastWorkspaceOf(read herdrNow, teamYAML domainplace.Project) *H
 		return nil
 	}
 	squatter := ""
-	for _, tab := range read.tabs {
-		if tab.WorkspaceID == record.WorkspaceID && team.HoldsMember(tab, tab.Label) {
-			squatter = tab.Label.String()
+	for _, running := range team.RunningTeams(read.tabs, currentTeamStates()) {
+		if running.State.Launch().Workspace.ID == record.WorkspaceID {
+			squatter = running.Team.String()
 			break
 		}
 	}

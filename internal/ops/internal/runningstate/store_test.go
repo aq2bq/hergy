@@ -47,21 +47,23 @@ func requireState(t *testing.T, store Store, name domainname.TeamName) State {
 }
 
 func TestRunOwnsOnlyItsFacts(t *testing.T) {
+	var generation Generation
 	store := At(t.TempDir())
 	name := testName(t, "alias")
 	launch := testLaunch(t)
-	if err := store.Begin(name, launch); err != nil {
+	if _, err := store.Begin(name, launch); err != nil {
 		t.Fatal(err)
 	}
+	generation = requireState(t, store, name).Generation()
 	receipts := []Receipt{
 		{Name: "alias-a", Short: "a", Prompt: "first a", Command: "up", Time: launch.StartedAt, Docs: []Doc{{Path: "/role/a", Layer: "local", Text: "rules a"}}, Start: "a-start", Env: "a-env"},
 		{Name: "alias-b", Short: "b", Prompt: "first b", Command: "up", Time: launch.StartedAt},
 	}
-	if err := store.Receive(name, receipts); err != nil {
+	if err := store.Receive(name, generation, receipts); err != nil {
 		t.Fatal(err)
 	}
 	worker := Worker{Name: "alias-one", From: "a", Purpose: "research", Tab: "worker:alias/one", Time: launch.StartedAt.Add(time.Minute)}
-	if err := store.Hire(name, worker); err != nil {
+	if err := store.Hire(name, generation, worker); err != nil {
 		t.Fatal(err)
 	}
 	// A different handle represents another command, which must preserve a hire
@@ -71,7 +73,7 @@ func TestRunOwnsOnlyItsFacts(t *testing.T) {
 	updated.Prompt = "second a"
 	updated.Command = "reprompt"
 	updated.Time = worker.Time
-	if err := second.Receive(name, []Receipt{updated}); err != nil {
+	if err := second.Receive(name, generation, []Receipt{updated}); err != nil {
 		t.Fatal(err)
 	}
 	got := requireState(t, store, name)
@@ -89,16 +91,17 @@ func TestRunOwnsOnlyItsFacts(t *testing.T) {
 	if got.Members()[0].Docs[0].Text != "rules a" || got.Members()[0].Prompt != "second a" || got.Workers()[0].From != "a" || got.Launch().Workers[0].Profile != "engine" {
 		t.Fatal("a caller mutated state")
 	}
-	if err := store.RemoveWorker(name, worker.Name); err != nil {
+	if err := store.RemoveWorker(name, generation, worker.Name); err != nil {
 		t.Fatal(err)
 	}
 	got = requireState(t, store, name)
 	if len(got.Workers()) != 0 || !reflect.DeepEqual(got.Members(), []Receipt{updated, receipts[1]}) {
 		t.Fatal("worker removal changed member facts")
 	}
-	if err := store.Begin(name, launch); err != nil {
+	if _, err := store.Begin(name, launch); err != nil {
 		t.Fatal(err)
 	}
+	generation = requireState(t, store, name).Generation()
 	got = requireState(t, store, name)
 	if len(got.Members()) != 0 || len(got.Workers()) != 0 {
 		t.Fatal("new run inherited an old run")
@@ -110,10 +113,10 @@ func TestRunOwnsOnlyItsFacts(t *testing.T) {
 		t.Fatalf("ended state: %t %v", exists, err)
 	}
 	// Late receipts and hires must not resurrect a stopped team.
-	if err := store.Receive(name, receipts); err != nil {
+	if err := store.Receive(name, generation, receipts); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.Hire(name, worker); err != nil {
+	if err := store.Hire(name, generation, worker); err != nil {
 		t.Fatal(err)
 	}
 	if _, exists, err := store.Read(name); exists || err != nil {
@@ -122,6 +125,7 @@ func TestRunOwnsOnlyItsFacts(t *testing.T) {
 }
 
 func TestStorePathAndAtomicFiles(t *testing.T) {
+	var generation Generation
 	root := t.TempDir()
 	t.Setenv("XDG_STATE_HOME", root)
 	store, err := Open()
@@ -133,10 +137,11 @@ func TestStorePathAndAtomicFiles(t *testing.T) {
 		t.Fatal(store.Path(name))
 	}
 	launch := testLaunch(t)
-	if err := store.Begin(name, launch); err != nil {
+	if _, err := store.Begin(name, launch); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.Receive(name, []Receipt{{Name: "demo-a", Prompt: "complete body"}}); err != nil {
+	generation = requireState(t, store, name).Generation()
+	if err := store.Receive(name, generation, []Receipt{{Name: "demo-a", Prompt: "complete body"}}); err != nil {
 		t.Fatal(err)
 	}
 	entries, err := os.ReadDir(store.dir)
@@ -166,12 +171,13 @@ func TestStorePathAndAtomicFiles(t *testing.T) {
 }
 
 func TestListAndBrokenState(t *testing.T) {
+	var generation Generation
 	store := At(t.TempDir())
 	if states, err := store.List(); err != nil || len(states) != 0 {
 		t.Fatalf("new store: %v %v", states, err)
 	}
 	for _, raw := range []string{"second", "first"} {
-		if err := store.Begin(testName(t, raw), testLaunch(t)); err != nil {
+		if _, err := store.Begin(testName(t, raw), testLaunch(t)); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -193,7 +199,7 @@ func TestListAndBrokenState(t *testing.T) {
 		if _, err := store.List(); err == nil {
 			t.Fatalf("list hid broken state: %s", raw)
 		}
-		if err := store.Hire(name, Worker{Name: "first-one"}); err == nil {
+		if err := store.Hire(name, generation, Worker{Name: "first-one"}); err == nil {
 			t.Fatal("hire overwrote broken state")
 		}
 	}
@@ -213,11 +219,54 @@ func TestExistingNamesKeepTheirSpelling(t *testing.T) {
 	name := testName(t, "abcdefghijklmnopqrstuvwxyz")
 	launch := testLaunch(t)
 	launch.Definition, _ = domainname.ParseDefinitionName("Existing.Definition")
-	if err := store.Begin(name, launch); err != nil {
+	if _, err := store.Begin(name, launch); err != nil {
 		t.Fatal(err)
 	}
 	got := requireState(t, store, name)
 	if got.Name() != name || got.Launch().Definition != launch.Definition {
 		t.Fatalf("narrowed existing names: %+v", got.data)
+	}
+}
+
+func TestLateOperationCannotChangeNextRun(t *testing.T) {
+	store := At(t.TempDir())
+	name := testName(t, "demo")
+	launch := testLaunch(t)
+	ids := []string{"old-run", "new-run"}
+	store.newGeneration = func() string { id := ids[0]; ids = ids[1:]; return id }
+	old, err := store.Begin(name, launch)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.End(name); err != nil {
+		t.Fatal(err)
+	}
+	current, err := store.Begin(name, launch)
+	if err != nil {
+		t.Fatal(err)
+	}
+	worker := Worker{Name: "demo-worker", From: "a", Purpose: "new"}
+	if err := store.Hire(name, current, worker); err != nil {
+		t.Fatal(err)
+	}
+	// Old operations finish after down and the next up, in a fixed order.
+	if err := store.Receive(name, old, []Receipt{{Name: "demo-a", Prompt: "old"}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Hire(name, old, Worker{Name: "demo-stale"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.RemoveWorker(name, old, worker.Name); err != nil {
+		t.Fatal(err)
+	}
+	state := requireState(t, store, name)
+	if len(state.Members()) != 0 || !reflect.DeepEqual(state.Workers(), []Worker{worker}) {
+		t.Fatalf("late operation changed the new run: %+v", state.data)
+	}
+	if err := store.Receive(name, current, []Receipt{{Name: "demo-a", Prompt: "new"}}); err != nil {
+		t.Fatal(err)
+	}
+	if requireState(t, store, name).Members()[0].Prompt != "new" {
+		t.Fatal("current operation was lost")
 	}
 }

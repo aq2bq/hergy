@@ -1,3 +1,4 @@
+import { registerRunningTeam } from './running-state';
 // The action row on every tile opens the existing apply and stop sheets.
 import { expect, test } from './fixtures';
 import type { Page } from '@playwright/test';
@@ -82,7 +83,8 @@ function globalLaunch(app: { proj: string; cfg: string; state: string }): string
     layer: 'global', definition: 'blueprint', team: 'core-hotfix',
     team_yaml: path.join(dir, 'team.yaml'), members: [],
   }) + '\n');
-  return dir;
+  registerRunningTeam(app,'core-hotfix','blueprint','global',path.join(dir,'team.yaml'));
+ return dir;
 }
 
 for (const theme of ['light', 'dark'] as const) {

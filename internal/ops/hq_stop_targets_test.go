@@ -12,6 +12,7 @@ import (
 )
 
 func (f *fixture) stopHerdr(t *testing.T, worker bool) string {
+	seedRunningTeam(t, f.proj, "wave", "wave")
 	t.Helper()
 	dir := filepath.Join(f.cfg, "stop-herdr")
 	if err := os.MkdirAll(dir, 0o755); err != nil {

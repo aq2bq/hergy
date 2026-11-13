@@ -18,7 +18,7 @@ func TestTellResolvesWorkersAndHumanPanes(t *testing.T) {
 			mustRun(t, "new", "demo")
 			_, prompts := f.controlHerdr(t, "demo-lead idle p1 screen\ndemo-builder idle p2 screen\ndemo-scroll idle pw screen\n")
 			fake := os.Getenv("HERGY_HERDR")
-			script := strings.Replace(readFile(t, fake), `{"tab_id":"t1","label":"team:demo"}`, `{"tab_id":"t1","label":"team:demo"},{"tab_id":"tw","label":"worker:demo/scroll"}`, 1)
+			script := strings.Replace(readFile(t, fake), `{"tab_id":"t1","label":"demo"}`, `{"tab_id":"t1","label":"demo"},{"tab_id":"tw","label":"worker:demo/scroll"}`, 1)
 			f.herdr(t, script)
 			log, err := launchlog.Open()
 			if err != nil {

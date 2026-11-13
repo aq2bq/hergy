@@ -1,3 +1,4 @@
+import { registerRunningTeam } from './running-state';
 import { test, expect } from './fixtures';
 import { ready } from './helpers';
 import { execFileSync } from 'node:child_process';
@@ -12,6 +13,7 @@ for (const theme of ['light','dark'] as const) {
   await page.setViewportSize({width:1440,height:900});
   await page.emulateMedia({colorScheme:theme});
   const yaml=path.join(app.proj,'.hergy/teams/core/team.yaml');
+ registerRunningTeam(app,'core','core');
   // Use the CLI's real prompt builder and launch-log format; Herdr membership
   // is the isolated fixture's, not an agent on the developer's machine.
   const plan=JSON.parse(execFileSync(hergyBin,['up','core','--dry','--json','--lang','ja'],{cwd:app.proj,env:{...process.env,...app.env},encoding:'utf8'}));

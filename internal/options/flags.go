@@ -74,10 +74,7 @@ var (
 		Set: setsValue(func(o *Options, v string) { o.Team = Input{raw: v} })}
 	flagAs = &Flag{Name: "as", Value: words.Label("value.team"),
 		Set: setsValue(func(o *Options, v string) { o.As = v })}
-	// --definition is what hergy up hands its watcher: the launch is recorded
-	// after the watcher starts, so the watcher cannot look the definition up.
-	flagDefinition = &Flag{Name: "definition", Value: words.Label("argument.definition"),
-		Set: setsValue(func(o *Options, v string) { o.RunsFrom = v })}
+
 	flagPurpose = &Flag{Name: "purpose", Value: words.Label("value.purpose"),
 		Set: setsValue(func(o *Options, v string) { o.Purpose = v })}
 	flagTask = &Flag{Name: "task", Value: words.Label("value.task"),
@@ -111,7 +108,7 @@ var (
 
 // allFlags is every flag hergy reads, in the order the cheatsheet lists them.
 var allFlags = []*Flag{
-	flagAI, flagAs, flagDefinition, flagDry, flagJSON, flagAll, flagLog, flagGlobal, flagLocal, flagTimeout, flagPort, flagNoOpen,
+	flagAI, flagAs, flagDry, flagJSON, flagAll, flagLog, flagGlobal, flagLocal, flagTimeout, flagPort, flagNoOpen,
 	flagTeam, flagProfile, flagPurpose, flagTask, flagFrom, flagLang, flagDir, flagHelp,
 }
 

@@ -2,7 +2,6 @@ package ops
 
 import (
 	domainname "github.com/aq2bq/hergy/internal/domain/name"
-	"github.com/aq2bq/hergy/internal/ops/internal/protocol"
 	"github.com/aq2bq/hergy/internal/ops/internal/team"
 	"github.com/aq2bq/hergy/internal/options"
 )
@@ -82,11 +81,11 @@ func (s StopTarget) IsWorker() bool { return s.worker != nil }
 // ResolveStop resolves the CLI word against one reading of herdr, including a
 // tab left by a start that stopped before a member ran.
 func ResolveStop(input options.Input) (StopTarget, error) {
-	tabs, agentsRead, err := herdrTabs()
+	tabs, _, err := herdrTabs()
 	if err != nil {
 		return StopTarget{}, err
 	}
-	running := team.RunningTeams(tabs, launchTeams(), agentsRead)
+	running := team.RunningTeams(tabs, currentTeamStates())
 	chosen, worker, err := pickDown(running, tabs, input)
 	if err == nil {
 		if worker != nil {
@@ -108,62 +107,28 @@ func ResolveStop(input options.Input) (StopTarget, error) {
 // teamStopTarget selects a team already read by a screen. It uses the same
 // stopped-pane route as the CLI when no member agent remains.
 func teamStopTarget(one team.Running, tabs []team.Tab) StopTarget {
-	_, running := team.FindRunning(team.RunningTeams(tabs, launchTeams(), true), one.Team.String())
-	return StopTarget{team: one, tabs: tabs, stopped: !hasLiveAgent(tabs, one.Team.Observation()) && (!running || len(team.MemberPanes(tabs, one.Team.Observation())) > 0)}
+	return StopTarget{team: one, tabs: tabs, stopped: !hasLiveAgent(tabs, one.Team.Observation()) && len(team.MemberPanes(tabs, one.Team.Observation())) > 0}
 }
 
-// hasTeamTab includes a legacy team label and the team's worker tabs.
-func hasTeamTab(tabs []team.Tab, name domainname.Seen) bool {
-	for _, tab := range tabs {
-		if protocol.NamesTeam(tab.Label.String(), name.String()) || domainname.IsWorkerTab(tab.Label, name) {
-			return true
-		}
-	}
-	return false
-}
-
-// stoppedTeam finds an empty team tab omitted from the running-team reading.
-// Launch records supply the project and definition, never the existence.
+// stoppedTeam is down's explicit cleanup route for an unregistered tab. It
+// supplies no definition or project inferred from a label, cwd or old launch.
 func stoppedTeam(tabs []team.Tab, input string) (team.Running, bool) {
 	if input == "" {
 		return team.Running{}, false
 	}
 	for _, tab := range tabs {
-		seen := tab.Label
-		definition := ""
-		if candidate, def, ok := tab.Label.TeamLabel(); ok {
-			seen, definition = candidate, def
-		}
 		if worker, ok := tab.Label.WorkerIn(stopWord(input)); ok {
-			seen = worker.Team()
+			return team.Running{Team: domainname.TeamFromObservation(worker.Team())}, true
 		}
-		if seen.String() != input || !hasTeamTab(tabs, seen) {
-			continue
+		if tab.Label.String() == input {
+			return team.Running{Team: domainname.TeamFromObservation(tab.Label)}, true
 		}
-		if definition == "" {
-			definition = seen.String()
-		}
-		one := team.Running{Team: domainname.TeamFromObservation(seen), Definition: definition}
-		for _, launch := range launchTeams() {
-			if launch.Team == seen {
-				one.Definition, one.Project = launch.Definition, launch.Project
-			}
-		}
-		return one, true
 	}
 	return team.Running{}, false
 }
 
 func hasLiveAgent(tabs []team.Tab, name domainname.Seen) bool {
-	running := team.RunningTeams(tabs, launchTeams(), true)
-	for _, tab := range tabs {
-		for _, agent := range tab.Agents {
-			if teamOfAgent(running, agent) == name {
-				return true
-			}
-		}
-	}
-	return false
+	return len(team.MemberAgents(tabs, name)) > 0
 }
 
 // stopWord is unresolved input used only to scope an observed worker label.

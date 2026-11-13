@@ -56,13 +56,10 @@ const (
 type WatchInput struct {
 	Env  Environment
 	Team options.Input
-	// Definition is the team definition the team runs from, when the caller
-	// knows it: hergy up starts the watcher before the launch is recorded, so
-	// the record cannot say it yet (r-ee91).
-	Definition string
-	Log        bool
-	Width      func() int
-	Observe    func(Event)
+
+	Log     bool
+	Width   func() int
+	Observe func(Event)
 }
 
 // WatchTurns reads, advances and persists one team's existing turn rules.
@@ -70,7 +67,7 @@ func WatchTurns(ctx context.Context, in WatchInput) error {
 	env := in.Env
 	opts := &options.Options{Team: in.Team, Log: in.Log}
 	stdout := eventWriter{in.Observe}
-	r, err := watchedTeam(env, in, opts)
+	r, err := resolveTeam(env.Catalog(source.Disk{}), env.ProjectRoot, opts)
 	if err != nil {
 		return err
 	}
@@ -131,21 +128,6 @@ func WatchTurns(ctx context.Context, in WatchInput) error {
 }
 
 // openTurnsLog opens the team's log for appending, making the directory.
-// watchedTeam is the team a watcher watches. A caller that names the definition
-// is believed: the team is that definition under the name given, whether or not
-// a launch record knows it yet. Otherwise the team is looked up as running.
-func watchedTeam(env Environment, in WatchInput, opts *options.Options) (*Resolved, error) {
-	cat := env.Catalog(source.Disk{})
-	if in.Definition == "" {
-		return resolveTeam(cat, env.ProjectRoot, opts)
-	}
-	def, err := cat.Definition(in.Definition, "")
-	if err != nil {
-		return nil, err
-	}
-	return BuildResolved(cat, env.ProjectRoot, def, in.Team.String())
-}
-
 func openTurnsLog(path string) (*os.File, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return nil, err

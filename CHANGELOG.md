@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- Running teams require a saved state file and an exactly matching herdr tab; status and the screens omit unregistered tabs, while `hergy down <team>` can still close their named panes.
+- Team startup stops before creating a tab when its state cannot be saved; a failure to write launch history still reports a warning and continues.
+- `hergy turns --definition` was removed; the watcher reads the team definition from the running team state.
+
 ## 0.10.3 - 2026-11-13
 
 ### Fixed

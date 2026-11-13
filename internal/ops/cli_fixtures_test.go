@@ -39,7 +39,7 @@ fi
 case "$g $s" in
   "pane current") echo '{"result":{"pane":{"workspace_id":"w1"}}}' ;;
   "agent list")   echo '{"result":{"agents":[]}}' ;;
-  "tab list")     echo '{"result":{"tabs":[{"tab_id":"t1","label":"team:demo@demo"}]}}' ;;
+  "tab list")     echo '{"result":{"tabs":[{"tab_id":"t1","label":"demo"}]}}' ;;
   "tab create")   echo '{"result":{"tab":{"tab_id":"t1"},"root_pane":{"pane_id":"p1"}}}' ;;
   "pane split")   echo '{"result":{"pane":{"pane_id":"p2"}}}' ;;
   "pane list")    echo '{"result":{"panes":[]}}' ;;
@@ -66,7 +66,7 @@ case "$g $s" in
       *) echo '{"error":{"code":"agent_not_found"}}' ;;
     esac
     ;;
-  "tab list")   echo '{"result":{"tabs":[{"tab_id":"t1","label":"team:demo@demo"}]}}' ;;
+  "tab list")   echo '{"result":{"tabs":[{"tab_id":"t1","label":"demo"}]}}' ;;
   "pane list")  echo '{"result":{"panes":[]}}' ;;
   *) echo '{"result":{}}' ;;
 esac
@@ -85,7 +85,7 @@ if [ -z "$s" ]; then
 fi
 case "$g $s" in
   "agent list") echo '{"result":{"agents":[{"name":"demo-lead","agent":"claude","agent_status":"working","pane_id":"p1","tab_id":"t1"},{"name":"demo-builder","agent":"claude","agent_status":"blocked","pane_id":"p2","tab_id":"t1"},{"name":"demo-w1","agent":"claude","agent_status":"idle","pane_id":"p3","tab_id":"tw"}]}}' ;;
-  "tab list")   echo '{"result":{"tabs":[{"tab_id":"t1","label":"team:demo"},{"tab_id":"tw","label":"worker:demo/w1"}]}}' ;;
+  "tab list")   echo '{"result":{"tabs":[{"tab_id":"t1","label":"demo"},{"tab_id":"tw","label":"worker:demo/w1"}]}}' ;;
   *) echo '{"result":{}}' ;;
 esac
 `
@@ -101,7 +101,7 @@ if [ -z "$s" ]; then
 fi
 case "$g $s" in
   "agent list") echo '{"result":{"agents":[{"name":"demo-lead","agent":"claude","agent_status":"idle","pane_id":"p1","tab_id":"t1"}]}}' ;;
-  "tab list")   echo '{"result":{"tabs":[{"tab_id":"t1","label":"team:demo"}]}}' ;;
+  "tab list")   echo '{"result":{"tabs":[{"tab_id":"t1","label":"demo"}]}}' ;;
   *) echo '{"result":{}}' ;;
 esac
 `
@@ -118,7 +118,7 @@ fi
 case "$g $s" in
   "agent get") echo '{"error":{"code":"agent_not_found"}}' ;;
   "pane list") echo '{"result":{"panes":[]}}' ;;
-  "tab list")  echo '{"result":{"tabs":[{"tab_id":"t1","label":"team:demo@demo"}]}}' ;;
+  "tab list")  echo '{"result":{"tabs":[{"tab_id":"t1","label":"demo"}]}}' ;;
   *) echo '{"result":{}}' ;;
 esac
 `
@@ -127,6 +127,7 @@ esac
 // agent, but the pane hergy named after it is still there at its shell. It
 // records every call in <cfg>/herdr.log and returns that path.
 func (f *fixture) refreshDeadHerdr(t *testing.T) string {
+	seedRunningTeam(t, serveEnv(t).ProjectRoot.String(), "demo", "demo")
 	t.Helper()
 	log := filepath.Join(f.cfg, "herdr.log")
 	script := `#!/bin/sh
@@ -142,7 +143,7 @@ case "$g $s" in
   "agent get")         echo '{"error":{"code":"agent_not_found"}}' ;;
   "pane list")         echo '{"result":{"panes":[{"pane_id":"w1:p9","label":"demo-lead"}]}}' ;;
   "pane process-info") echo '{"result":{"process_info":{"foreground_process_group_id":900,"shell_pid":900,"pane_id":"w1:p9"}}}' ;;
-  "tab list")          echo '{"result":{"tabs":[{"tab_id":"t1","label":"team:demo@demo"}]}}' ;;
+  "tab list")          echo '{"result":{"tabs":[{"tab_id":"t1","label":"demo"}]}}' ;;
   *) echo '{"result":{}}' ;;
 esac
 `
@@ -155,6 +156,7 @@ esac
 // of builder adds it to the team's tab. It records every call in <cfg>/herdr.log
 // and returns that path.
 func (f *fixture) addingHerdr(t *testing.T) string {
+	seedRunningTeam(t, f.proj, "demo", "demo")
 	t.Helper()
 	log := filepath.Join(f.cfg, "herdr.log")
 	script := `#!/bin/sh
@@ -173,7 +175,7 @@ case "$g $s" in
       *) echo '{"error":{"code":"agent_not_found"}}' ;;
     esac
     ;;
-  "tab list")   echo '{"result":{"tabs":[{"tab_id":"t1","label":"team:demo@demo"}]}}' ;;
+  "tab list")   echo '{"result":{"tabs":[{"tab_id":"t1","label":"demo"}]}}' ;;
   "pane list")  echo '{"result":{"panes":[{"pane_id":"p1","label":"demo-lead","tab_id":"t1"}]}}' ;;
   "pane split") echo '{"result":{"pane":{"pane_id":"p2"}}}' ;;
   "pane get") echo '{"result":{"pane":{"pane_id":"p2","scroll":{"viewport_rows":20}}}}' ;;
@@ -224,10 +226,11 @@ func memberEnv(t *testing.T, plan map[string]any, name string) map[string]string
 // workersFixture writes a dev team whose lead may hire for 調査 (seeker) and
 // 実装 (developer), and points the fake herdr at the running team.
 func workersFixture(t *testing.T) {
+	seedRunningTeam(t, serveEnv(t).ProjectRoot.String(), "dev", "dev")
 	t.Helper()
 	f := newFixture(t)
 	workersProject(t, f)
-	f.runningHerdr(t, `{"tab_id":"t1","label":"team:dev@dev"}`, "")
+	f.runningHerdr(t, `{"tab_id":"t1","label":"dev"}`, "")
 }
 
 // workersProject lays the team definition and the profiles the hire tests use,
@@ -277,6 +280,7 @@ func checkApplyLeftJSON(t *testing.T, stdout, why string) {
 // after a member was handed its prompt.
 func recordAgain(t *testing.T) {
 	t.Helper()
+	seedRunningTeam(t, serveEnv(t).ProjectRoot.String(), "demo", "demo")
 	env := serveEnv(t)
 	cat := env.Catalog(source.Disk{})
 	r, err := ReadDefinition(cat, env.ProjectRoot, "demo", "demo")
@@ -333,6 +337,7 @@ func changedWorkerProfile(t *testing.T, f *fixture) string {
 // per step). That is how the fake herdr stands for a harness that stops on the
 // first esc, one that stops on the second, and one that never st
 func (f *fixture) controlHerdr(t *testing.T, agents string) (logPath, promptsPath string) {
+	seedRunningTeam(t, serveEnv(t).ProjectRoot.String(), "demo", "demo")
 	t.Helper()
 	status := filepath.Join(f.cfg, "status.txt")
 	logPath = filepath.Join(f.cfg, "herdr.log")
@@ -356,7 +361,7 @@ if [ -z "$s" ]; then
   exit 0
 fi
 case "$g $s" in
-  "tab list") echo '{"result":{"tabs":[{"tab_id":"t1","label":"team:demo"}]}}' ;;
+  "tab list") echo '{"result":{"tabs":[{"tab_id":"t1","label":"demo"}]}}' ;;
   "agent list")
     printf '{"result":{"agents":['
     first=1
@@ -536,12 +541,14 @@ esac
 // a test can make one name a team's and a worker's at once. It records every call
 // in <cfg>/herdr.log and returns the log.
 func (f *fixture) workerHerdr(t *testing.T, withBenchTeam bool) string {
+	seedRunningTeam(t, serveEnv(t).ProjectRoot.String(), "draft", "draft")
 	t.Helper()
 	log := filepath.Join(f.cfg, "herdr.log")
 	tabs := `{"tab_id":"t1","label":"draft"},{"tab_id":"t2","label":"worker:draft/bench"},{"tab_id":"t3","label":"worker:draft/scout"}`
 	agents := `{"name":"draft-lead","agent":"claude","agent_status":"idle","pane_id":"p1","tab_id":"t1"},{"name":"draft-bench","agent":"claude","agent_status":"idle","pane_id":"p2","tab_id":"t2"},{"name":"draft-scout","agent":"claude","agent_status":"idle","pane_id":"p3","tab_id":"t3"}`
 	panes := `{"pane_id":"p1","label":"draft-lead","tab_id":"t1"},{"pane_id":"p2","label":"draft-bench","tab_id":"t2"},{"pane_id":"p3","label":"draft-scout","tab_id":"t3"}`
 	if withBenchTeam {
+		seedRunningTeam(t, f.proj, "bench", "bench")
 		tabs += `,{"tab_id":"t4","label":"bench"}`
 		agents += `,{"name":"bench-lead","agent":"claude","agent_status":"idle","pane_id":"p4","tab_id":"t4"}`
 		panes += `,{"pane_id":"p4","label":"bench-lead","tab_id":"t4"}`
@@ -600,6 +607,7 @@ esac
 }
 func recordTeamLaunch(t *testing.T, team string) {
 	t.Helper()
+	seedRunningTeam(t, serveEnv(t).ProjectRoot.String(), team, "qw")
 	env := serveEnv(t)
 	r, err := ReadDefinition(env.Catalog(source.Disk{}), env.ProjectRoot, "qw", team)
 	if err != nil {
@@ -618,6 +626,7 @@ func recordTeamLaunch(t *testing.T, team string) {
 // the way up does after a boot, and returns what it appended.
 func recordDev(t *testing.T, f *fixture) launchlog.Record {
 	t.Helper()
+	seedRunningTeam(t, f.proj, "dev", "dev")
 	env, err := team.NewEnv()
 	if err != nil {
 		t.Fatal(err)
@@ -650,7 +659,7 @@ fi
 case "$g $s" in
   "pane current") echo '{"result":{"pane":{"workspace_id":"w1"}}}' ;;
   "agent list")   echo '{"result":{"agents":[]}}' ;;
-  "tab list")     echo '{"result":{"tabs":[{"tab_id":"t1","label":"team:demo@demo"}]}}' ;;
+  "tab list")     echo '{"result":{"tabs":[{"tab_id":"t1","label":"demo"}]}}' ;;
   "tab create")   echo '{"result":{"tab":{"tab_id":"t1"},"root_pane":{"pane_id":"p1"}}}' ;;
   "pane split")   echo '{"result":{"pane":{"pane_id":"p2"}}}' ;;
   "agent start")  echo '{"error":{"code":"start_failed"}}'; exit 1 ;;
@@ -691,6 +700,7 @@ func ledgerProject(t *testing.T, script string) *fixture {
 // recordStart writes one up line of the launch record for a team in the
 // fixture's project, at the time a test says, the way up writes it after a boot.
 func recordStart(t *testing.T, f *fixture, teamName string, at time.Time) {
+	seedRunningTeam(t, f.proj, teamName, teamName)
 	t.Helper()
 	log := launchlog.At(filepath.Join(f.state, "hergy", "launches"))
 	if err := log.Append(launchlog.Record{
@@ -715,6 +725,7 @@ func aliasProjectRun(t *testing.T, recordAlias bool) (Environment, string) {
 		recorded, readPath = alias, f.proj
 	}
 	env := serveEnv(t)
+	seedRunningTeam(t, f.proj, "demo-hotfix", "demo")
 	r, err := ReadDefinition(env.Catalog(source.Disk{}), env.ProjectRoot, "demo", "demo-hotfix")
 	if err != nil {
 		t.Fatal(err)
@@ -860,6 +871,7 @@ func runOperation(ctx context.Context, stderr io.Writer, failure, interrupted fu
 // once the tab was made leaves behind. It records the calls in <cfg>/herdr.log
 // and returns that path.
 func (f *fixture) halfBootedHerdr(t *testing.T) string {
+	seedRunningTeam(t, serveEnv(t).ProjectRoot.String(), "qw2", "qw")
 	t.Helper()
 	log := filepath.Join(f.cfg, "herdr.log")
 	if err := os.WriteFile(log, nil, 0o644); err != nil {
@@ -891,6 +903,7 @@ esac
 // recognized, and where its definition is read from.
 func writeLaunchRecord(t *testing.T, teamName, definition string) {
 	t.Helper()
+	seedRunningTeam(t, serveEnv(t).ProjectRoot.String(), teamName, definition)
 	log, err := launchlog.Open()
 	if err != nil {
 		t.Fatal(err)

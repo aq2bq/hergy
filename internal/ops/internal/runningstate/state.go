@@ -12,6 +12,12 @@ import (
 // State is an immutable reading. Its slices are never shared with callers.
 type State struct{ data snapshot }
 
+// Generation identifies one Begin. Only the state boundary can construct it.
+type Generation struct{ value string }
+
+// Generation is the run this reading belongs to, including a run with no receipts.
+func (s State) Generation() Generation { return Generation{value: s.data.Generation} }
+
 // Launch supplies the facts fixed when a team's tab is about to be created.
 type Launch struct {
 	Definition       domainname.DefinitionName
@@ -72,6 +78,7 @@ type Worker struct {
 }
 
 type snapshot struct {
+	Generation        string                `json:"generation"`
 	Team              string                `json:"team"`
 	Definition        string                `json:"definition"`
 	Project           string                `json:"project"`

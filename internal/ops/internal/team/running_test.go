@@ -1,169 +1,65 @@
 package team
 
 import (
+	"path/filepath"
 	"reflect"
 	"testing"
+
+	"github.com/aq2bq/hergy/internal/ops/internal/runningstate"
+	"github.com/aq2bq/hergy/internal/ops/teststate"
 )
 
-// TestRunningTeamsReadsTheLabelTheMembersAndTheRecord: a tab is one of hergy's
-// when a live agent in it is named after the tab's label, or when its label still
-// has the older "team:<team>@<definition>" (or "team:<team>") shape. A tab a
-// person labelled with the name of a team that has stopped is not a team, even
-// though the record holds that name; the record is where the definition is read
-// from (r-e494, E1).
-func TestRunningTeamsReadsTheLabelTheMembersAndTheRecord(t *testing.T) {
-	launches := []Launch{
-		{Team: fixtureSeen("dup"), Definition: "first"},
-		{Team: fixtureSeen("dup"), Definition: "second"}, // the newest launch of dup wins
-		{Team: fixtureSeen("new"), Definition: "newdef"},
-		{Team: fixtureSeen("stopped"), Definition: "stopped-def"},
-		{Team: fixtureSeen(""), Definition: "ignored"},
-		{Team: fixtureSeen("incomplete")},
+func TestRunningTeamsRequiresStateAndExactTab(t *testing.T) {
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	project := t.TempDir()
+	for _, name := range []string{"fresh", "stopped"} {
+		if err := teststate.Write(teststate.Team{Name: name, Definition: "definition", Project: project, WorkspaceID: "recorded-space", WorkspaceLabel: "recorded label"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	store, err := runningstate.Open()
+	if err != nil {
+		t.Fatal(err)
+	}
+	states, err := store.List()
+	if err != nil {
+		t.Fatal(err)
 	}
 	tabs := []Tab{
-		{ID: "t1", Label: fixtureSeen("new"), Agents: fixtureSeenList([]string{"new-lead"})},              // the record knows the definition
-		{ID: "t2", Label: fixtureSeen("team:legacy@old")},                                                 // the older shape, with the definition
-		{ID: "t3", Label: fixtureSeen("team:bare")},                                                       // the older bare shape
-		{ID: "t4", Label: fixtureSeen("notes")},                                                           // a tab hergy never started
-		{ID: "t5", Label: fixtureSeen("stopped"), Agents: fixtureSeenList([]string{"claude-1"})},          // a person's tab, named like a stopped team
-		{ID: "t6", Label: fixtureSeen("stray"), Agents: fixtureSeenList([]string{"other-1"})},             // another tool's agent
-		{ID: "t7", Label: fixtureSeen("")},                                                                // an unlabelled tab
-		{ID: "t8", Label: fixtureSeen("team:")},                                                           // the older shape with nothing after it
-		{ID: "t9", Label: fixtureSeen("team:@def")},                                                       // the older shape with no team
-		{ID: "t10", Label: fixtureSeen("dup"), Agents: fixtureSeenList([]string{"dup-m"})},                // two launches: the newest definition
-		{ID: "t11", Label: fixtureSeen("byagent"), Agents: fixtureSeenList([]string{"x-1", "byagent-m"})}, // no record; the member names it
-		{ID: "t12", Label: fixtureSeen("byagent"), Agents: fixtureSeenList([]string{"byagent-m"})},        // seen twice: kept once
-		{ID: "t13", Label: fixtureSeen("new"), Agents: fixtureSeenList([]string{"new-lead"})},             // seen twice: kept once
+		{ID: "new", Label: fixtureSeen("fresh"), PaneDirs: seenPaths([]string{filepath.Join(project, "elsewhere")})}, // no pane names or agents
+		{ID: "legacy", Label: fixtureSeen("team:fresh@wrong")},
+		{ID: "unregistered", Label: fixtureSeen("old"), Agents: fixtureSeenList([]string{"old-lead"}), Panes: fixtureSeenList([]string{"old-lead"})},
+		{ID: "duplicate", Label: fixtureSeen("fresh")},
 	}
-	want := []Running{
-		{Team: fixtureRunningTeam("new"), Definition: "newdef"},
-		{Team: fixtureRunningTeam("legacy"), Definition: "old"},
-		{Team: fixtureRunningTeam("bare"), Definition: "bare"},
-		{Team: fixtureRunningTeam("dup"), Definition: "second"},
-		{Team: fixtureRunningTeam("byagent"), Definition: "byagent"},
+	got := RunningTeams(tabs, states)
+	if len(got) != 1 || got[0].Team.String() != "fresh" || got[0].Definition != "definition" || got[0].Project.String() != projectPath(project).String() || got[0].State.Launch().Workspace.ID != "recorded-space" {
+		t.Fatalf("running=%+v", got)
 	}
-	got := RunningTeams(tabs, launches, true)
-	if !reflect.DeepEqual(got, want) {
-		t.Errorf("RunningTeams = %+v, want %+v", got, want)
-	}
-}
-
-// TestRunningTeamsFallsBackToTheRecordWithoutAgents: when herdr's agent list
-// cannot be read, there is nothing to tell a team's tab from a person's tab with
-// the same name, so a label this machine recorded a launch of is taken as a
-// team's rather than losing the team (E1).
-func TestRunningTeamsFallsBackToTheRecordWithoutAgents(t *testing.T) {
-	launches := []Launch{{Team: fixtureSeen("stopped"), Definition: "stopped-def"}}
-	tabs := []Tab{{ID: "t1", Label: fixtureSeen("stopped")}, {ID: "t2", Label: fixtureSeen("notes")}}
-	want := []Running{{Team: fixtureRunningTeam("stopped"), Definition: "stopped-def"}}
-	if got := RunningTeams(tabs, launches, false); !reflect.DeepEqual(got, want) {
-		t.Errorf("RunningTeams without agents = %+v, want %+v", got, want)
-	}
-	if got := RunningTeams(tabs, launches, true); len(got) != 0 {
-		t.Errorf("RunningTeams with agents = %+v, want nothing", got)
-	}
-}
-
-// TestRunningTeamsWithoutARecordReadsTheOlderLabels: a machine whose record is
-// empty (or gone) still finds the teams an older hergy booted, from their
-// labels; a label that is only a name cannot be told from any other tab, so it
-// is not found.
-func TestRunningTeamsWithoutARecordReadsTheOlderLabels(t *testing.T) {
-	got := RunningTeams([]Tab{{Label: fixtureSeen("team:demo@demo")}, {Label: fixtureSeen("team:bare")}, {Label: fixtureSeen("demo")}, {Label: fixtureSeen("notes")}}, nil, true)
-	want := []Running{
-		{Team: fixtureRunningTeam("demo"), Definition: "demo"},
-		{Team: fixtureRunningTeam("bare"), Definition: "bare"},
-	}
-	if !reflect.DeepEqual(got, want) {
-		t.Errorf("RunningTeams = %+v, want %+v", got, want)
+	if got := RunningTeams(tabs, nil); len(got) != 0 {
+		t.Fatalf("inferred teams without state: %+v", got)
 	}
 }
 
 func TestFindRunningAndNames(t *testing.T) {
 	running := []Running{{Team: fixtureRunningTeam("a"), Definition: "x"}, {Team: fixtureRunningTeam("b"), Definition: "y"}}
 	if got, ok := FindRunning(running, "b"); !ok || got.Definition != "y" {
-		t.Errorf("FindRunning(b) = %+v, %v", got, ok)
+		t.Fatal(got, ok)
 	}
-	if _, ok := FindRunning(running, "c"); ok {
-		t.Error("FindRunning(c) found a team")
+	if _, ok := FindRunning(running, "missing"); ok {
+		t.Fatal("found missing team")
 	}
-	if got := RunningNames(running); !reflect.DeepEqual(got, []string{"a", "b"}) {
-		t.Errorf("RunningNames = %v", got)
-	}
-}
-
-// TestMemberAgentsKeepsAnotherTeamOut: the members of one team are the agents in
-// that team's own tab. Another team whose name starts the same way ("qw2-x"
-// beside "qw2"), and a person's tab carrying the name, keep their agents out of
-// it (the audit's D1).
-func TestMemberAgentsKeepsAnotherTeamOut(t *testing.T) {
-	tabs := []Tab{
-		{ID: "t1", Label: fixtureSeen("qw2"), Agents: fixtureSeenList([]string{"qw2-m"})},
-		{ID: "t2", Label: fixtureSeen("qw2-x"), Agents: fixtureSeenList([]string{"qw2-x-lead"})},
-		{ID: "t3", Label: fixtureSeen("team:qw2@qw"), Agents: fixtureSeenList([]string{"qw2-old"})},
-		{ID: "t4", Label: fixtureSeen("notes"), Agents: fixtureSeenList([]string{"claude-1"})},
-	}
-	got := MemberAgents(tabs, fixtureSeen("qw2"))
-	want := []string{"qw2-m", "qw2-old"}
-	if !reflect.DeepEqual(fixtureSpellings(got), want) {
-		t.Errorf("MemberAgents = %v, want %v", got, want)
-	}
-	if got := MemberAgents(tabs, fixtureSeen("qw2-x")); !reflect.DeepEqual(fixtureSpellings(got), []string{"qw2-x-lead"}) {
-		t.Errorf("MemberAgents(qw2-x) = %v", got)
+	if !reflect.DeepEqual(RunningNames(running), []string{"a", "b"}) {
+		t.Fatal(RunningNames(running))
 	}
 }
 
-// TestRunningTeamsFindsATeamByItsNamedPane: an agent that ended leaves its named
-// pane behind, and the pane still says whose tab it is. A tab whose only marks
-// are a person's labels and another tool's agents is still nobody's team
-// (d-da92).
-func TestRunningTeamsFindsATeamByItsNamedPane(t *testing.T) {
-	tabs := []Tab{
-		{ID: "t1", Label: fixtureSeen("half"), Panes: fixtureSeenList([]string{"half-lead", "half-builder"})},
-		{ID: "t2", Label: fixtureSeen("notes"), Panes: fixtureSeenList([]string{"mine"})},
-		{ID: "t3", Label: fixtureSeen("worker:half/deps"), Panes: fixtureSeenList([]string{"half-deps"})},
+func TestMemberAgentsAndPanesRemainAvailableForCleanup(t *testing.T) {
+	tabs := []Tab{{ID: "team", Label: fixtureSeen("demo"), Agents: fixtureSeenList([]string{"demo-lead"}), Panes: fixtureSeenList([]string{"demo-lead", "mine"})},
+		{ID: "other", Label: fixtureSeen("demo-x"), Agents: fixtureSeenList([]string{"demo-x-lead"})}}
+	if got := MemberAgents(tabs, fixtureSeen("demo")); !reflect.DeepEqual(fixtureSpellings(got), []string{"demo-lead"}) {
+		t.Fatal(got)
 	}
-	got := RunningTeams(tabs, []Launch{{Team: fixtureSeen("half"), Definition: "halfdef"}}, true)
-	want := []Running{{Team: fixtureRunningTeam("half"), Definition: "halfdef"}}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("RunningTeams = %+v, want %+v", got, want)
-	}
-	if panes := MemberPanes(tabs, fixtureSeen("half")); !reflect.DeepEqual(fixtureSpellings(panes), []string{"half-lead", "half-builder"}) {
-		t.Errorf("MemberPanes = %v", panes)
-	}
-}
-
-// TestRunningTeamsReadsTheRecordOfTheProjectItsPanesStandIn: two projects run a
-// team of the same name, and the records of both are in the launch log. The tab's
-// named panes stand in one project, so the record of that project and name is the
-// one read: the other project's record is newer, and its definition is not this
-// team's (r-87c8).
-func TestRunningTeamsReadsTheRecordOfTheProjectItsPanesStandIn(t *testing.T) {
-	launches := []Launch{
-		{Team: fixtureSeen("core"), Definition: "alpha-core", Project: projectPath("/work/alpha")},
-		{Team: fixtureSeen("core"), Definition: "beta-core", Project: projectPath("/work/beta")}, // the newest of the name
-	}
-	tabs := []Tab{{
-		ID: "t1", Label: fixtureSeen("core"),
-		Panes:    fixtureSeenList([]string{"core-lead"}),
-		PaneDirs: seenPaths([]string{"/work/alpha"}),
-	}}
-	got := RunningTeams(tabs, launches, true)
-	want := []Running{{Team: fixtureRunningTeam("core"), Definition: "alpha-core", Project: projectPath("/work/alpha")}}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("RunningTeams = %+v, want %+v", got, want)
-	}
-
-	// A tab whose named panes stand in no recorded project has no record: the
-	// definition is the team's own name, and the project is left to the reading
-	// that knows the projects a serve lists.
-	other := []Tab{{
-		ID: "t2", Label: fixtureSeen("core"),
-		Panes:    fixtureSeenList([]string{"core-lead"}),
-		PaneDirs: seenPaths([]string{"/work/gamma"}),
-	}}
-	want = []Running{{Team: fixtureRunningTeam("core"), Definition: "core"}}
-	if got := RunningTeams(other, launches, true); !reflect.DeepEqual(got, want) {
-		t.Fatalf("RunningTeams = %+v, want %+v", got, want)
+	if got := MemberPanes(tabs, fixtureSeen("demo")); !reflect.DeepEqual(fixtureSpellings(got), []string{"demo-lead"}) {
+		t.Fatal(got)
 	}
 }

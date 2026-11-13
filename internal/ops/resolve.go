@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"maps"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 
@@ -16,9 +17,9 @@ import (
 	"github.com/aq2bq/hergy/internal/ops/internal/catalog"
 	"github.com/aq2bq/hergy/internal/ops/internal/herdr"
 	"github.com/aq2bq/hergy/internal/ops/internal/herdrcli"
-	"github.com/aq2bq/hergy/internal/ops/internal/launchlog"
 	"github.com/aq2bq/hergy/internal/ops/internal/prompt"
 	"github.com/aq2bq/hergy/internal/ops/internal/protocol"
+	"github.com/aq2bq/hergy/internal/ops/internal/runningstate"
 	"github.com/aq2bq/hergy/internal/ops/internal/team"
 	"github.com/aq2bq/hergy/internal/options"
 	"github.com/aq2bq/hergy/internal/profile"
@@ -33,6 +34,7 @@ type ResolvedTeam team.Team
 // from.
 // ResolvedTeam is a definition and the identity under which it runs.
 type Resolved struct {
+	generation   runningstate.Generation
 	Project      domainplace.Project
 	Team         ResolvedTeam
 	Starts       []definition.Start
@@ -268,12 +270,8 @@ func teamOfAgent(running []team.Running, agentName domainname.Seen) domainname.S
 	return teamName
 }
 
-// resolveTeamDry finds the team a hire --dry plans for without reading herdr, so
-// a plan can be made for a team that is not running (r-fe31). --team names a
-// team; when this project's launch record knows that name, the record says which
-// definition it stood on, and a name the record does not know is taken as a team
-// definition name. With no name, the one team the record holds is taken, and
-// nothing else is: herdr is not read to choose.
+// resolveTeamDry uses registered state without reading herdr. An explicit
+// definition name with no registered run remains available for dry planning.
 func resolveTeamDry(cat *catalog.Catalog, base domainplace.Project, opts *options.Options) (*Resolved, error) {
 	recorded := recordedDefinitions(base)
 	name := opts.Team.String()
@@ -282,6 +280,11 @@ func resolveTeamDry(cat *catalog.Catalog, base domainplace.Project, opts *option
 			return nil, dryTeamError(recorded)
 		}
 		name = slices.Sorted(maps.Keys(recorded))[0]
+	}
+	for _, state := range currentTeamStates() {
+		if state.Name().String() == name && state.Launch().Project.Compare(base) == domainplace.Same {
+			return buildRunning(cat, base, team.Running{Team: state.Name().Ref(), Definition: state.Launch().Definition.String(), Project: state.Launch().Project, State: state})
+		}
 	}
 	definition := name
 	if one, ok := recorded[name]; ok {
@@ -300,22 +303,11 @@ func resolveTeamDry(cat *catalog.Catalog, base domainplace.Project, opts *option
 // stand on; a record from another project is not this plan's.
 func recordedDefinitions(base domainplace.Project) map[string]string {
 	out := map[string]string{}
-	log, err := launchlog.Open()
-	if err != nil {
-		return out
-	}
-	records, err := log.Read()
-	if err != nil {
-		return out
-	}
-	for _, record := range records {
-		if record.Team.String() == "" || record.Definition == "" || record.IsHire() {
-			continue
+	for _, state := range currentTeamStates() {
+		launch := state.Launch()
+		if launch.Project.Compare(base) == domainplace.Same {
+			out[state.Name().String()] = launch.Definition.String()
 		}
-		if !record.Project.Project().IsZero() && record.Project.Project().Compare(base) != domainplace.Same {
-			continue
-		}
-		out[record.Team.String()] = record.Definition
 	}
 	return out
 }
@@ -337,49 +329,91 @@ func buildRunning(cat *catalog.Catalog, base domainplace.Project, running team.R
 	return buildRunningIn(cat, base, running, "")
 }
 
-// buildRunningIn builds a running team from the layer its launch record names: a
-// global definition started in a project whose layer holds a same-named one is
-// still the global definition (d-73fc, M1).
-func buildRunningIn(cat *catalog.Catalog, base domainplace.Project, running team.Running, layer string) (*Resolved, error) {
-	def, err := cat.Definition(running.Definition, layer)
+// buildRunningIn uses only the registered project's definition, layer and path.
+func buildRunningIn(cat *catalog.Catalog, _ domainplace.Project, running team.Running, _ string) (*Resolved, error) {
+	state := running.State
+	if state.Name().String() == "" {
+		store, err := runningstate.Open()
+		if err != nil {
+			return nil, err
+		}
+		name, ok := running.Team.Model()
+		if !ok {
+			return nil, i18n.Errorf("error.no_running_teams")
+		}
+		var exists bool
+		state, exists, err = store.Read(name)
+		if err != nil {
+			return nil, err
+		}
+		if !exists {
+			return nil, i18n.Errorf("error.no_running_teams")
+		}
+	}
+	launch := state.Launch()
+	cat = catalogOfRun(cat, launch)
+
+	def, err := cat.Definition(launch.Definition.String(), launch.Layer.String())
 	if err != nil {
 		return nil, err
 	}
-	return BuildResolved(cat, base, def, running.Team.String())
+	if def.TeamYAML.Project().Compare(launch.TeamYAML) != domainplace.Same {
+		return nil, catalog.ErrNotFound
+	}
+	r, err := BuildResolved(cat, launch.Project, def, state.Name().String())
+	if r != nil {
+		r.generation = state.Generation()
+	}
+	return r, err
 }
 
-// runningTeams reads herdr's tabs and this machine's launch record, and returns
+// catalogOfRun preserves the caller's reader but selects the registered
+// project's sources and the saved definition's layer directory.
+func catalogOfRun(cat *catalog.Catalog, launch runningstate.Launch) *catalog.Catalog {
+	if launch.Project.Compare(cat.Base()) == domainplace.Same && cat.TeamPath(launch.Definition.String(), launch.Layer.String()).Compare(launch.TeamYAML) == domainplace.Same {
+		return cat
+	}
+	env := Environment{ProjectRoot: launch.Project, GlobalDir: cat.LayerDir(source.LayerGlobal), LocalDir: cat.LayerDir(source.LayerLocal)}
+	if launch.Project.Compare(cat.Base()) != domainplace.Same {
+		env.LocalDir = filepath.Join(launch.Project.String(), ".hergy")
+	}
+	candidate := env.Catalog(cat.Reader())
+	if candidate.TeamPath(launch.Definition.String(), launch.Layer.String()).Compare(launch.TeamYAML) == domainplace.Same {
+		return candidate
+	}
+	// A different invocation may have a different XDG_CONFIG_HOME. The saved
+	// YAML, rather than that invocation's global directory, owns this definition.
+	dir := filepath.Dir(filepath.Dir(filepath.Dir(launch.TeamYAML.String())))
+	if launch.Layer.Layer() == source.LayerGlobal {
+		env.GlobalDir = dir
+	} else {
+		env.LocalDir = dir
+	}
+	return env.Catalog(cat.Reader())
+}
+
+// runningTeams reads herdr's tabs and this machine's run state, and returns
 // the running teams.
 func runningTeams() ([]team.Running, error) {
-	tabs, agentsRead, err := herdrTabs()
+	tabs, _, err := herdrTabs()
 	if err != nil {
 		return nil, err
 	}
-	return team.RunningTeams(tabs, launchTeams(), agentsRead), nil
+	return team.RunningTeams(tabs, currentTeamStates()), nil
 }
 
-// launchTeams is this machine's launch record as the team name and the team
-// definition of each launch, oldest first. It is how a running team is
-// recognized (a tab is labelled with the team's name alone) and how the
-// definition behind it is found (d-a72d). A record that cannot be read leaves
-// the older "team:<team>@<definition>" labels as the only way a team is found.
-func launchTeams() []team.Launch {
-	log, err := launchlog.Open()
+// currentTeamStates reads this machine's active run registrations. History is
+// not a fallback when state is missing or unavailable.
+func currentTeamStates() []runningstate.State {
+	store, err := runningstate.Open()
 	if err != nil {
 		return nil
 	}
-	records, err := log.Read()
+	states, err := store.List()
 	if err != nil {
 		return nil
 	}
-	out := make([]team.Launch, 0, len(records))
-	for _, record := range records {
-		if record.IsHire() {
-			continue
-		}
-		out = append(out, team.Launch{Team: record.Team, Definition: record.Definition, Project: record.Project.Project()})
-	}
-	return out
+	return states
 }
 
 // herdrTabs reads the tabs herdr reports, each with the live agents in it. It is
@@ -396,11 +430,11 @@ func herdrTabs() (tabs []team.Tab, agentsRead bool, err error) {
 // reads a running team from and what the activity screen reads, so both see the
 // same herdr (6 A1).
 //
-// A herdr that cannot list its agents still lists its tabs: the tabs an older
-// hergy labelled are found from their labels, and the ones this machine recorded
-// are guessed at from the record, rather than lost. agentsRead says whether the
-// agent list could be read at all — with no agent names, the launch record is the
-// best guess left at which tab is a team's.
+// When the agent list cannot be read, the tab and pane snapshot is still
+// returned and agentsRead is false. Callers combine the tabs with registered
+// state to establish team identity; the availability of the agent list does
+// not change that identity. Agent and pane names are kept for membership
+// and cleanup, not as substitutes for state.
 func herdrRead() (tabs []team.Tab, agents []protocol.Agent, agentsRead bool, err error) {
 	list, err := herdrTabList()
 	if err != nil {

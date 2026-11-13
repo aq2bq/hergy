@@ -99,6 +99,7 @@ func TestScreenStopWaitsForNameRelease(t *testing.T) {
 			t.Run(fmt.Sprintf("broken=%t/%s", broken, outcome), func(t *testing.T) {
 				f := newFixture(t)
 				receiptTeam(t, f)
+				seedRunningTeam(t, f.proj, "demo", "demo")
 				useJapanese(t)
 				env := serveEnv(t)
 				r, err := ReadDefinition(env.Catalog(source.Disk{}), env.ProjectRoot, "demo", "demo")

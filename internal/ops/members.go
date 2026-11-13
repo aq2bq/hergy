@@ -47,7 +47,7 @@ func resolveMember(in MemberInput, dryRead bool) (*Resolved, error) {
 	if read.Err != nil {
 		return nil, read.Err
 	}
-	running := team.RunningTeams(read.Tabs, launchTeams(), read.AgentsRead)
+	running := team.RunningTeams(read.Tabs, currentTeamStates())
 	names := make([]domainname.TeamRef, len(running))
 	for i, one := range running {
 		names[i] = one.Team

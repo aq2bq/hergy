@@ -1,6 +1,7 @@
 package runningstate
 
 import (
+	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,7 +16,10 @@ import (
 )
 
 // Store writes one file per team. There is no log replay or backfill.
-type Store struct{ dir string }
+type Store struct {
+	dir           string
+	newGeneration func() string
+}
 
 // Open selects this machine's state directory using XDG's absolute-path rule.
 func Open() (Store, error) {
@@ -31,7 +35,7 @@ func Open() (Store, error) {
 }
 
 // At selects an explicit state directory, principally for tests.
-func At(dir string) Store { return Store{dir: dir} }
+func At(dir string) Store { return Store{dir: dir, newGeneration: rand.Text} }
 
 // Path is the one JSON file for a checked team name.
 func (s Store) Path(name domainname.TeamName) string {
@@ -39,13 +43,19 @@ func (s Store) Path(name domainname.TeamName) string {
 }
 
 // Begin replaces all facts of a previous run, including receipts and workers.
-func (s Store) Begin(name domainname.TeamName, launch Launch) error {
-	return s.locked(name, func() error {
-		data := snapshot{Team: name.String(), Definition: launch.Definition.String(), Project: launch.Project.String(),
+func (s Store) Begin(name domainname.TeamName, launch Launch) (Generation, error) {
+	var generation Generation
+	err := s.locked(name, func() error {
+		generation = Generation{value: s.newGeneration()}
+		data := snapshot{Generation: generation.value, Team: name.String(), Definition: launch.Definition.String(), Project: launch.Project.String(),
 			Layer: launch.Layer, TeamYAML: launch.TeamYAML.String(), Workspace: launch.Workspace, StartedAt: launch.StartedAt,
 			Executable: launch.Executable, Lang: launch.Lang, WorkerDefinitions: launch.Workers}
 		return s.write(name, data)
 	})
+	if err != nil {
+		return Generation{}, err
+	}
+	return generation, nil
 }
 
 // Read returns this run, or false when it is absent. A malformed file is an error.
@@ -112,11 +122,11 @@ func (s Store) List() ([]State, error) {
 
 // Receive replaces only the confirmed members. Missing state is left missing:
 // teams started before this store existed must be stopped and started again.
-func (s Store) Receive(name domainname.TeamName, receipts []Receipt) error {
+func (s Store) Receive(name domainname.TeamName, generation Generation, receipts []Receipt) error {
 	if len(receipts) == 0 {
 		return nil
 	}
-	return s.update(name, func(data *snapshot) {
+	return s.update(name, generation, func(data *snapshot) {
 		for _, receipt := range receipts {
 			index := slices.IndexFunc(data.Members, func(member Receipt) bool { return member.Name == receipt.Name })
 			if index < 0 {
@@ -129,8 +139,8 @@ func (s Store) Receive(name domainname.TeamName, receipts []Receipt) error {
 }
 
 // Hire adds or replaces one worker without changing the team's receipts.
-func (s Store) Hire(name domainname.TeamName, worker Worker) error {
-	return s.update(name, func(data *snapshot) {
+func (s Store) Hire(name domainname.TeamName, generation Generation, worker Worker) error {
+	return s.update(name, generation, func(data *snapshot) {
 		index := slices.IndexFunc(data.Workers, func(old Worker) bool { return old.Name == worker.Name })
 		if index < 0 {
 			data.Workers = append(data.Workers, worker)
@@ -141,8 +151,8 @@ func (s Store) Hire(name domainname.TeamName, worker Worker) error {
 }
 
 // RemoveWorker ends only this worker's membership.
-func (s Store) RemoveWorker(name domainname.TeamName, worker string) error {
-	return s.update(name, func(data *snapshot) {
+func (s Store) RemoveWorker(name domainname.TeamName, generation Generation, worker string) error {
+	return s.update(name, generation, func(data *snapshot) {
 		data.Workers = slices.DeleteFunc(data.Workers, func(old Worker) bool { return old.Name == worker })
 	})
 }
@@ -158,11 +168,14 @@ func (s Store) End(name domainname.TeamName) error {
 	})
 }
 
-func (s Store) update(name domainname.TeamName, change func(*snapshot)) error {
+func (s Store) update(name domainname.TeamName, generation Generation, change func(*snapshot)) error {
 	return s.locked(name, func() error {
 		state, exists, err := s.Read(name)
 		if err != nil || !exists {
 			return err
+		}
+		if generation.value == "" || state.data.Generation != generation.value {
+			return nil
 		}
 		change(&state.data)
 		return s.write(name, state.data)

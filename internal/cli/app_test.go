@@ -30,7 +30,7 @@ fi
 case "$g $s" in
   "pane current") echo '{"result":{"pane":{"workspace_id":"w1"}}}' ;;
   "agent list")   echo '{"result":{"agents":[]}}' ;;
-  "tab list")     echo '{"result":{"tabs":[{"tab_id":"t1","label":"team:demo@demo"}]}}' ;;
+  "tab list")     echo '{"result":{"tabs":[{"tab_id":"t1","label":"demo"}]}}' ;;
   "tab create")   echo '{"result":{"tab":{"tab_id":"t1"},"root_pane":{"pane_id":"p1"}}}' ;;
   "pane split")   echo '{"result":{"pane":{"pane_id":"p2"}}}' ;;
   "pane list")    echo '{"result":{"panes":[]}}' ;;
@@ -59,7 +59,7 @@ case "$g $s" in
       *) echo '{"error":{"code":"agent_not_found"}}' ;;
     esac
     ;;
-  "tab list")   echo '{"result":{"tabs":[{"tab_id":"t1","label":"team:demo@demo"}]}}' ;;
+  "tab list")   echo '{"result":{"tabs":[{"tab_id":"t1","label":"demo"}]}}' ;;
   "pane list")  echo '{"result":{"panes":[]}}' ;;
   *) echo '{"result":{}}' ;;
 esac
@@ -78,7 +78,7 @@ if [ -z "$s" ]; then
 fi
 case "$g $s" in
   "agent list") echo '{"result":{"agents":[{"name":"demo-lead","agent":"claude","agent_status":"working","pane_id":"p1","tab_id":"t1"},{"name":"demo-builder","agent":"claude","agent_status":"blocked","pane_id":"p2","tab_id":"t1"},{"name":"demo-w1","agent":"claude","agent_status":"idle","pane_id":"p3","tab_id":"tw"}]}}' ;;
-  "tab list")   echo '{"result":{"tabs":[{"tab_id":"t1","label":"team:demo"},{"tab_id":"tw","label":"worker:demo/w1"}]}}' ;;
+  "tab list")   echo '{"result":{"tabs":[{"tab_id":"t1","label":"demo"},{"tab_id":"tw","label":"worker:demo/w1"}]}}' ;;
   *) echo '{"result":{}}' ;;
 esac
 `
@@ -94,7 +94,7 @@ if [ -z "$s" ]; then
 fi
 case "$g $s" in
   "agent list") echo '{"result":{"agents":[{"name":"demo-lead","agent":"claude","agent_status":"idle","pane_id":"p1","tab_id":"t1"}]}}' ;;
-  "tab list")   echo '{"result":{"tabs":[{"tab_id":"t1","label":"team:demo"}]}}' ;;
+  "tab list")   echo '{"result":{"tabs":[{"tab_id":"t1","label":"demo"}]}}' ;;
   *) echo '{"result":{}}' ;;
 esac
 `
@@ -111,7 +111,7 @@ fi
 case "$g $s" in
   "agent get") echo '{"error":{"code":"agent_not_found"}}' ;;
   "pane list") echo '{"result":{"panes":[]}}' ;;
-  "tab list")  echo '{"result":{"tabs":[{"tab_id":"t1","label":"team:demo@demo"}]}}' ;;
+  "tab list")  echo '{"result":{"tabs":[{"tab_id":"t1","label":"demo"}]}}' ;;
   *) echo '{"result":{}}' ;;
 esac
 `
@@ -295,6 +295,7 @@ esac
 // records every call in <cfg>/herdr.log and returns that path.
 func (f *fixture) refreshDeadHerdr(t *testing.T) string {
 	t.Helper()
+	seedRunningTeam(t, f.proj, "demo", "demo")
 	log := filepath.Join(f.cfg, "herdr.log")
 	script := `#!/bin/sh
 log='` + log + `'
@@ -309,7 +310,7 @@ case "$g $s" in
   "agent get")         echo '{"error":{"code":"agent_not_found"}}' ;;
   "pane list")         echo '{"result":{"panes":[{"pane_id":"w1:p9","label":"demo-lead"}]}}' ;;
   "pane process-info") echo '{"result":{"process_info":{"foreground_process_group_id":900,"shell_pid":900,"pane_id":"w1:p9"}}}' ;;
-  "tab list")          echo '{"result":{"tabs":[{"tab_id":"t1","label":"team:demo@demo"}]}}' ;;
+  "tab list")          echo '{"result":{"tabs":[{"tab_id":"t1","label":"demo"}]}}' ;;
   *) echo '{"result":{}}' ;;
 esac
 `
@@ -750,7 +751,8 @@ func TestUpStopsOnAGraphTheDefinitionCannotHold(t *testing.T) {
 		}
 	}
 
-	f.runningHerdr(t, `{"tab_id":"t1","label":"team:demo@demo"}`, "")
+	seedRunningTeam(t, f.proj, "demo", "demo")
+	f.runningHerdr(t, `{"tab_id":"t1","label":"demo"}`, "")
 	t.Setenv("HERDR_ENV", "1")
 	t.Setenv("HERDR_PANE_ID", "p9")
 	for _, argv := range [][]string{
@@ -1170,6 +1172,7 @@ func TestRefreshStartsAStoppedMember(t *testing.T) {
 func TestRefreshStoppedMemberWithoutAPanePointsAtDownAndUp(t *testing.T) {
 	f := newFixture(t)
 	mustRun(t, "new", "demo")
+	seedRunningTeam(t, f.proj, "demo", "demo")
 	f.herdr(t, noPaneHerdr)
 	t.Setenv("HERDR_ENV", "1")
 	t.Setenv("HERDR_PANE_ID", "w0:p1")
@@ -1187,6 +1190,7 @@ func TestRefreshDryEndsWithNext(t *testing.T) {
 	f := newFixture(t)
 	mustRun(t, "new", "demo")
 
+	seedRunningTeam(t, f.proj, "demo", "demo")
 	f.herdr(t, liveHerdr)
 
 	if got := mustRun(t, "refresh", "lead", "--dry"); !strings.HasSuffix(got, "next: refresh lead --team demo\n") {
@@ -1205,6 +1209,7 @@ func TestRefreshDryEndsWithNext(t *testing.T) {
 func TestDownDryShape(t *testing.T) {
 	f := newFixture(t)
 	mustRun(t, "new", "demo")
+	seedRunningTeam(t, f.proj, "demo", "demo")
 	f.herdr(t, liveHerdr)
 	got := mustRun(t, "down", "demo", "--dry")
 	wantLines(t, got,
@@ -1222,6 +1227,7 @@ func TestDownDryShape(t *testing.T) {
 func TestDownDryWithoutLiveMembersHasNoNext(t *testing.T) {
 	f := newFixture(t)
 	mustRun(t, "new", "demo")
+	seedRunningTeam(t, f.proj, "demo", "demo")
 	f.herdr(t, passingHerdr)
 	got := mustRun(t, "down", "demo", "--dry")
 	wantLines(t, got,
@@ -1241,7 +1247,7 @@ func TestUpProductionShowsNoPerMemberProvenance(t *testing.T) {
 	f := newFixture(t)
 	mustRun(t, "new", "demo")
 
-	f.herdr(t, strings.Replace(passingHerdr, `"tabs":[{"tab_id":"t1","label":"team:demo@demo"}]`, `"tabs":[]`, 1))
+	f.herdr(t, strings.Replace(passingHerdr, `"tabs":[{"tab_id":"t1","label":"demo"}]`, `"tabs":[]`, 1))
 	t.Setenv("HERDR_ENV", "1")
 	t.Setenv("HERDR_PANE_ID", "p9")
 	got := mustRun(t, "up", "demo")
@@ -1265,6 +1271,7 @@ func TestUpProductionShowsNoPerMemberProvenance(t *testing.T) {
 func TestDownProductionShowsNoPerMemberProvenance(t *testing.T) {
 	f := newFixture(t)
 	mustRun(t, "new", "demo")
+	seedRunningTeam(t, f.proj, "demo", "demo")
 	f.herdr(t, liveHerdr)
 	t.Setenv("HERDR_ENV", "1")
 	t.Setenv("HERDR_PANE_ID", "p9")
@@ -1592,7 +1599,7 @@ func TestHireDryWorkerPromptAddsNoTeammates(t *testing.T) {
 			"turns:\n  - human -> lead\n  - lead -> human\n")
 	writeFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml"),
 		"version: 1\nprofiles:\n  dev:\n    kind: claude\n")
-	f.runningHerdr(t, `{"tab_id":"t1","label":"team:dev@dev"}`, "")
+	f.runningHerdr(t, `{"tab_id":"t1","label":"dev"}`, "")
 	got := mustRun(t, "hire", "researcher", "--purpose", "research",
 		"--task", "read the docs", "--team", "dev", "--dry")
 	if !strings.Contains(got, "A worker adds no teammates") {
@@ -1617,7 +1624,7 @@ func TestHireNamesTheWorkerAfterTheTeam(t *testing.T) {
 	writeFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml"),
 		"version: 1\nprofiles:\n  dev:\n    kind: claude\n")
 
-	f.runningHerdr(t, `{"tab_id":"t1","label":"team:dev@dev"}`, "")
+	f.runningHerdr(t, `{"tab_id":"t1","label":"dev"}`, "")
 	got := mustRun(t, "hire", "researcher", "--purpose", "research",
 		"--task", "read the docs", "--team", "dev", "--dry")
 	for _, line := range []string{
@@ -1843,7 +1850,7 @@ func workersFixture(t *testing.T) {
 	t.Helper()
 	f := newFixture(t)
 	workersProject(t, f)
-	f.runningHerdr(t, `{"tab_id":"t1","label":"team:dev@dev"}`, "")
+	f.runningHerdr(t, `{"tab_id":"t1","label":"dev"}`, "")
 }
 
 // workersProject lays the team definition and the profiles the hire tests use,
@@ -2012,7 +2019,7 @@ func TestHirePurposeOutsideWorkers(t *testing.T) {
 
 		writeFile(t, filepath.Join(f.proj, ".hergy", "roles", "spec.md"),
 			"- hand the turn to lead\n")
-		f.runningHerdr(t, `{"tab_id":"t1","label":"team:dev@dev"}`, "")
+		f.runningHerdr(t, `{"tab_id":"t1","label":"dev"}`, "")
 
 		_, stderr, code := run("hire", "w", "--from", "lead", "--purpose", "調査", "--task", "t", "--team", "dev", "--dry")
 		if code == 0 {
@@ -2076,7 +2083,7 @@ func TestHirePurposeNobodyHiresFor(t *testing.T) {
 		"version: 1\nprofiles:\n  seeker:\n    kind: claude\n  developer:\n    kind: codex\n")
 	writeFile(t, filepath.Join(f.proj, ".hergy", "roles", "spec.md"),
 		"- hand the turn to lead\n")
-	f.runningHerdr(t, `{"tab_id":"t1","label":"team:dev@dev"}`, "")
+	f.runningHerdr(t, `{"tab_id":"t1","label":"dev"}`, "")
 
 	_, stderr, code := run("hire", "w", "--purpose", "デザイン", "--task", "t", "--team", "dev", "--dry")
 	if code == 0 {
@@ -2119,7 +2126,7 @@ func TestHireFromIsOptionalWithOneCandidate(t *testing.T) {
 			"turns:\n  - human -> lead\n  - lead -> other\n  - other -> human\n")
 	writeFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml"),
 		"version: 1\nprofiles:\n  seeker:\n    kind: claude\n")
-	f.runningHerdr(t, `{"tab_id":"t1","label":"team:dev@dev"}`, "")
+	f.runningHerdr(t, `{"tab_id":"t1","label":"dev"}`, "")
 
 	got := mustRun(t, "hire", "researcher", "--purpose", "調査", "--task", "read", "--team", "dev", "--dry")
 	if !strings.Contains(got, "member: dev-researcher") {
@@ -2208,6 +2215,7 @@ func TestUpDryPromptShowsWorkerPairs(t *testing.T) {
 func TestStatusShapeWaitsOnTheHuman(t *testing.T) {
 	f := newFixture(t)
 	mustRun(t, "new", "demo")
+	seedRunningTeam(t, f.proj, "demo", "demo")
 	f.herdr(t, statusHerdr)
 	got := mustRun(t, "status", "demo")
 	wantLines(t, got,
@@ -2227,6 +2235,7 @@ func TestStatusShapeWaitsOnTheHuman(t *testing.T) {
 func TestStatusLabelsFollowTheLanguage(t *testing.T) {
 	f := newFixture(t)
 	mustRun(t, "new", "demo")
+	seedRunningTeam(t, f.proj, "demo", "demo")
 	f.herdr(t, statusHerdr)
 	got := mustRun(t, "status", "demo", "--lang", "ja")
 	for _, line := range []string{
@@ -2246,6 +2255,7 @@ func TestStatusLabelsFollowTheLanguage(t *testing.T) {
 func TestStatusNobodyWorking(t *testing.T) {
 	f := newFixture(t)
 	mustRun(t, "new", "demo")
+	seedRunningTeam(t, f.proj, "demo", "demo")
 	f.herdr(t, liveHerdr)
 	got := mustRun(t, "status", "demo")
 	for _, line := range []string{
@@ -2264,6 +2274,7 @@ func TestStatusNobodyWorking(t *testing.T) {
 func TestStatusAbsentAndNoJudgement(t *testing.T) {
 	f := newFixture(t)
 	mustRun(t, "new", "demo")
+	seedRunningTeam(t, f.proj, "demo", "demo")
 	f.herdr(t, absentHerdr)
 	got := mustRun(t, "status", "demo")
 	for _, line := range []string{"demo-lead: idle", "demo-builder: not running"} {
@@ -2281,6 +2292,7 @@ func TestStatusAbsentAndNoJudgement(t *testing.T) {
 func TestStatusWorkingHasNoJudgement(t *testing.T) {
 	f := newFixture(t)
 	mustRun(t, "new", "demo")
+	seedRunningTeam(t, f.proj, "demo", "demo")
 	f.herdr(t, statusHerdr)
 
 	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml"),
@@ -2301,6 +2313,7 @@ func TestStatusWorkingHasNoJudgement(t *testing.T) {
 func TestStatusDoesNotNeedAHerdrPane(t *testing.T) {
 	f := newFixture(t)
 	mustRun(t, "new", "demo")
+	seedRunningTeam(t, f.proj, "demo", "demo")
 	f.herdr(t, statusHerdr)
 	if _, stderr, code := run("status", "demo"); code != 0 {
 		t.Fatalf("status outside herdr: exit %d\nstderr:\n%s", code, stderr)
@@ -2444,9 +2457,11 @@ func TestUpLabelsTheTeamTab(t *testing.T) {
 func TestTeamCommandFollowsTheTeamNameNotTheDefinition(t *testing.T) {
 	f := newFixture(t)
 	mustRun(t, "new", "qw")
-	tabs := `{"tab_id":"t1","label":"team:qw@qw"},{"tab_id":"t2","label":"team:qw2@qw"}`
+	tabs := `{"tab_id":"t1","label":"qw"},{"tab_id":"t2","label":"qw2"}`
 	agents := `{"name":"qw-lead","agent":"claude","agent_status":"working","pane_id":"p1","tab_id":"t1"}` +
 		`,{"name":"qw2-lead","agent":"claude","agent_status":"idle","pane_id":"p2","tab_id":"t2"}`
+	seedRunningTeam(t, f.proj, "qw", "qw")
+	seedRunningTeam(t, f.proj, "qw2", "qw")
 	f.runningHerdr(t, tabs, agents)
 
 	first := mustRun(t, "status", "qw")
@@ -2470,17 +2485,16 @@ func TestTeamCommandFollowsTheTeamNameNotTheDefinition(t *testing.T) {
 	}
 }
 
-// TestTeamCommandReadsTheOlderTabLabel: a tab named "team:<team>" with no team
-// definition names the team definition after the team.
-func TestTeamCommandReadsTheOlderTabLabel(t *testing.T) {
+// A team-like label without state is not a registered running team.
+// This includes plain labels and the unsupported legacy label shape.
+func TestTeamCommandIgnoresUnregisteredAndLegacyTabs(t *testing.T) {
 	f := newFixture(t)
 	mustRun(t, "new", "dev")
-	f.runningHerdr(t, `{"tab_id":"t1","label":"team:dev"}`,
-		`{"name":"dev-lead","agent":"claude","agent_status":"idle","pane_id":"p1","tab_id":"t1"}`)
-	got := mustRun(t, "status", "dev")
-	for _, line := range []string{"team: dev", "dev-lead: idle"} {
-		if !strings.Contains(got, line+"\n") {
-			t.Fatalf("status dev is missing %q:\n%s", line, got)
+	for _, label := range []string{"dev", "team:dev@dev"} {
+		f.runningHerdr(t, `{"tab_id":"t1","label":"`+label+`"}`, `{"name":"dev-lead","agent":"claude","agent_status":"idle","pane_id":"p1","tab_id":"t1"}`)
+		_, _, code := run("status", "dev")
+		if code == 0 {
+			t.Fatalf("label %s became a team without state", label)
 		}
 	}
 }
@@ -2490,7 +2504,7 @@ func TestTeamCommandReadsTheOlderTabLabel(t *testing.T) {
 func TestTeamCommandWithNoTabStops(t *testing.T) {
 	f := newFixture(t)
 	mustRun(t, "new", "dev")
-	f.runningHerdr(t, `{"tab_id":"t1","label":"team:other@other"}`, "")
+	f.runningHerdr(t, `{"tab_id":"t1","label":"other"}`, "")
 	t.Setenv("HERDR_ENV", "1")
 	t.Setenv("HERDR_PANE_ID", "p9")
 	stdout, stderr, code := run("down", "dev")
@@ -2529,12 +2543,14 @@ func TestTeamCommandWithoutArgumentStopsWhenNone(t *testing.T) {
 func TestStatusListsEveryRunningTeam(t *testing.T) {
 	f := newFixture(t)
 	mustRun(t, "new", "qw")
-	tabs := `{"tab_id":"t1","label":"team:qw@qw"},{"tab_id":"t2","label":"team:qw2@qw"},{"tab_id":"tw","label":"worker:qw/w1"}`
+	tabs := `{"tab_id":"t1","label":"qw"},{"tab_id":"t2","label":"qw2"},{"tab_id":"tw","label":"worker:qw/w1"}`
 	agents := `{"name":"qw-lead","agent":"claude","agent_status":"working","pane_id":"p1","tab_id":"t1"}` +
 		`,{"name":"qw-builder","agent":"claude","agent_status":"blocked","pane_id":"p2","tab_id":"t1"}` +
 		`,{"name":"qw-w1","agent":"claude","agent_status":"idle","pane_id":"p3","tab_id":"tw"}` +
 		`,{"name":"qw2-lead","agent":"claude","agent_status":"idle","pane_id":"p4","tab_id":"t2"}` +
 		`,{"name":"qw2-builder","agent":"claude","agent_status":"idle","pane_id":"p5","tab_id":"t2"}`
+	seedRunningTeam(t, f.proj, "qw", "qw")
+	seedRunningTeam(t, f.proj, "qw2", "qw")
 	f.runningHerdr(t, tabs, agents)
 	got := mustRun(t, "status")
 	wantLines(t, got,
@@ -2556,9 +2572,11 @@ func TestStatusListsEveryRunningTeam(t *testing.T) {
 func TestStatusListKeepsGoingPastAnotherProjectsTeam(t *testing.T) {
 	f := newFixture(t)
 	mustRun(t, "new", "qw")
-	tabs := `{"tab_id":"t0","label":"team:othersite"},{"tab_id":"t1","label":"team:qw@qw"}`
+	tabs := `{"tab_id":"t0","label":"othersite"},{"tab_id":"t1","label":"qw"}`
 	agents := `{"name":"othersite-lead","agent":"claude","agent_status":"idle","pane_id":"p0","tab_id":"t0"}` +
 		`,{"name":"qw-lead","agent":"claude","agent_status":"idle","pane_id":"p1","tab_id":"t1"}`
+	seedRunningTeam(t, f.proj, "qw", "qw")
+	seedRunningTeam(t, f.proj, "othersite", "othersite")
 	f.runningHerdr(t, tabs, agents)
 	got := mustRun(t, "status")
 	wantLines(t, got,
@@ -2588,7 +2606,9 @@ func TestStatusWithoutRunningTeams(t *testing.T) {
 func TestLsShowsTheRunningTeams(t *testing.T) {
 	f := newFixture(t)
 	mustRun(t, "new", "qw")
-	tabs := `{"tab_id":"t1","label":"team:qw@qw"},{"tab_id":"t2","label":"team:qw2@qw"}`
+	tabs := `{"tab_id":"t1","label":"qw"},{"tab_id":"t2","label":"qw2"}`
+	seedRunningTeam(t, f.proj, "qw", "qw")
+	seedRunningTeam(t, f.proj, "qw2", "qw")
 	f.runningHerdr(t, tabs, "")
 	got := mustRun(t, "ls")
 	wantLines(t, got,

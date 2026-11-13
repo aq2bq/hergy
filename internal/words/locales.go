@@ -277,7 +277,7 @@ var localeMessages = map[string]Text{
 	"error.needs_member":                bilingual("%s needs <{{member}}> or --all", "%s には <{{member}}> か --all を指定してください"),
 	"error.hire_needs_flags":            bilingual("hire needs %s", "hire には %s を指定してください"),
 	"error.dry_team_needed":             bilingual("cannot name a {{team}}: --dry does not read herdr, so name one with --team (a {{team-name}} or a {{team-definition-name}}, for example --team core)", "{{team}}を決められませんでした。--dry は herdr を読まないので、--team で{{team-name}}か{{team-definition-name}}を書いてください（例: --team core）"),
-	"error.dry_team_candidates":         bilingual("name a {{team}} with --team ({{team}}s in this {{project}}'s {{launch-record}}: %s)", "{{team-name}}を --team で書いてください（この{{project}}の{{start}}の記録にある{{team}}: %s）"),
+	"error.dry_team_candidates":         bilingual("name a {{team}} with --team ({{team}}s saved in this {{project}}'s state: %s)", "{{team-name}}を --team で書いてください（この{{project}}の状態にある{{team}}: %s）"),
 	"error.show_needs_team":             bilingual("hergy show needs a {{team-definition-name}}", "hergy show には{{team-definition-name}}を指定してください"),
 	"error.new_needs_name":              bilingual("hergy new needs a {{team-definition-name}}", "hergy new には{{team-definition-name}}を指定してください"),
 	"error.new_name_pattern":            bilingual("{{team-definition-name}} must match [a-z][a-z0-9_-]{0,24}: %q", "{{team-definition-name}}は [a-z][a-z0-9_-]{0,24} の形にしてください: %q"),

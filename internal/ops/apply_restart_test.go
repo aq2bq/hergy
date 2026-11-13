@@ -19,6 +19,7 @@ func applyDemo(t *testing.T) *fixture {
 	t.Helper()
 	f := newFixture(t)
 	mustRun(t, "new", "demo")
+	seedRunningTeam(t, f.proj, "demo", "demo")
 	env := serveEnv(t)
 	cat := env.Catalog(source.Disk{})
 	r, err := ReadDefinition(cat, env.ProjectRoot, "demo", "demo")

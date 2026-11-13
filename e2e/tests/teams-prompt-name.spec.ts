@@ -1,3 +1,4 @@
+import { registerRunningTeam } from './running-state';
 import { test, expect } from './fixtures';
 import { ready } from './helpers';
 import { execFileSync } from 'node:child_process';
@@ -16,6 +17,7 @@ test('a team running under another name builds both texts with that name', async
   const yaml = path.join(app.proj, '.hergy/teams/core/team.yaml');
   const plan = JSON.parse(execFileSync(hergyBin, ['up', 'core', '--dry', '--json', '--lang', 'ja'], { cwd: app.proj, env: { ...process.env, ...app.env }, encoding: 'utf8' }));
   const alias = 'core-hotfix';
+ registerRunningTeam(app,alias,'core');
   // The launch record and herdr answer of the aliased team: the same definition,
   // booted as core-hotfix, with its members named core-hotfix-*.
   const dir = path.join(app.state, 'hergy/launches');
