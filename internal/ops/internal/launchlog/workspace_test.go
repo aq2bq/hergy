@@ -1,8 +1,9 @@
 package launchlog
 
 import (
-	observedplace "github.com/aq2bq/hergy/internal/ops/internal/place"
 	"testing"
+
+	observedplace "github.com/aq2bq/hergy/internal/ops/internal/place"
 )
 
 func TestLatestWorkspaceSurvivesLaterOperations(t *testing.T) {

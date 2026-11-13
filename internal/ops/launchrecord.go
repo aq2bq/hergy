@@ -29,9 +29,8 @@ func recordLaunch(env Environment, r *Resolved, command string, members []defini
 }
 
 // recordReceivedLaunch owns which confirmed recipients enter a launch and when
-// an empty launch is kept (d-8e2f). The team created by up must remain resolvable
-// by its alias even when nobody received a prompt; other operations create no
-// team and keep no new record when nobody received one.
+// an empty launch is kept (d-8e2f). History keeps an up even when nobody
+// received a prompt. Other operations keep no new record without a receipt.
 func recordReceivedLaunch(env Environment, r *Resolved, command string, members []definition.Start, l *launcher.Launcher, workspace launchlog.Workspace, now func() time.Time) string {
 	var received []definition.Start
 	for _, member := range members {
