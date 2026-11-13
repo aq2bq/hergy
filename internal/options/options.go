@@ -77,8 +77,11 @@ type Options struct {
 	Body    string // nudge/tell positional: the message text
 	All     bool   // refresh/reprompt --all
 	Log     bool   // turns --log: print the watcher's log and stop
-	Name    string // hire positional
-	As      string // up only: the team name to boot under (defaults to the team definition name)
+	// RunsFrom is turns --definition: the team definition the team runs from, for
+	// a team whose launch is not recorded yet.
+	RunsFrom string
+	Name     string // hire positional
+	As       string // up only: the team name to boot under (defaults to the team definition name)
 
 	Purpose string
 	Task    string

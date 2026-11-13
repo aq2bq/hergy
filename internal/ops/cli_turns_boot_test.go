@@ -28,7 +28,7 @@ func TestUpStartsTheWatcherUnderTheMembers(t *testing.T) {
 			split = i
 		case strings.HasSuffix(line, " demo-turns") && strings.HasPrefix(line, "pane rename"):
 			rename = i
-		case strings.HasPrefix(line, "pane run ") && strings.Contains(line, " turns demo -C "+f.proj+" --lang "):
+		case strings.HasPrefix(line, "pane run ") && strings.Contains(line, " turns demo --definition demo -C "+f.proj+" --lang "):
 			run = i
 		}
 	}

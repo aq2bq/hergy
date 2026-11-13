@@ -11,7 +11,7 @@ import (
 )
 
 func runTurns(ctx context.Context, env ops.Environment, opts *options.Options, stdout io.Writer) error {
-	return ops.WatchTurns(ctx, ops.WatchInput{Env: env, Team: opts.Team, Log: opts.Log, Width: terminalWidth, Observe: func(e ops.Event) { _, _ = io.WriteString(stdout, e.Text) }})
+	return ops.WatchTurns(ctx, ops.WatchInput{Env: env, Team: opts.Team, Definition: opts.RunsFrom, Log: opts.Log, Width: terminalWidth, Observe: func(e ops.Event) { _, _ = io.WriteString(stdout, e.Text) }})
 }
 func terminalWidth() int {
 	ws, err := unix.IoctlGetWinsize(int(os.Stdout.Fd()), unix.TIOCGWINSZ)
