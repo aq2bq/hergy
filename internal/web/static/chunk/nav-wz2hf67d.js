@@ -69,4 +69,27 @@ function rowsFor(ref, rows, of, current) {
   return both.length ? both : named.slice(0, 1);
 }
 
-export { rowAddress, token2, parseOpen2, readOpen2, writeOpen2, placeGroup, rowsFor };
+// lib/screen-words.ts
+function globalDefinitionNotice() {
+  return `${term("global")}の${term("team-definition")}です。直すと、すべての${term("project")}の同じ${term("team-definition")}が変わります`;
+}
+function globalPlaceNotice() {
+  return `どの${term("project")}からも使える。同じ名前があれば、その${term("project")}のほうが使われる`;
+}
+function noTeamDefinitions() {
+  return `${term("team-definition")}はありません`;
+}
+function launchLabel(place) {
+  return place === "global" ? `${term("project")}を選んで${term("start")}する` : `この${term("project")}で${term("start")}する`;
+}
+function launchWaitingLabel() {
+  return `${term("start")}の途中 · ${term("waiting-for-permission")}`;
+}
+function stopTeamLabel() {
+  return `${term("team")}を${term("down")}…`;
+}
+function turnRecipientLabel() {
+  return `${term("hands-the-turn-to")}相手`;
+}
+
+export { rowAddress, token2, parseOpen2, readOpen2, writeOpen2, placeGroup, rowsFor, globalDefinitionNotice, globalPlaceNotice, noTeamDefinitions, launchLabel, launchWaitingLabel, stopTeamLabel, turnRecipientLabel };

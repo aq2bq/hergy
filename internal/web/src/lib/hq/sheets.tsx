@@ -1,3 +1,4 @@
+import { stopTeamLabel, launchLabel } from '../screen-words.js';
 import { term } from '../terms.generated.js';
 import { dangerAttrs } from '../../lib/danger.js';
 // lib/hq/sheets.tsx — 本部の欄と、帯の探す欄（n-7f3c、spec 2・3・5 章）。
@@ -171,7 +172,7 @@ function ProjectsSheet(): JSX.Element {
   };
   return <>
       <Head title={`${term('headquarters')}に並べる${term('project')}`} />
-      <p class="hq-sub">{`並べた${term('project')}の${term('team-definition')}・${term('role')}・${term('profile')}と、動いている${term('team')}が、どの画面にも出ます。どこで hergy serve を${term('start')}しても、同じ並びです。`}</p>
+      <p class="hq-sub">{`どこで hergy serve を${term('start')}しても、同じ並びです。`}</p>
       {currentOnly
         ? <div class="hq-sec"><span class="hq-lbl">{`この serve を${term('start')}した${term('project')}（まだ並べていない）`}</span>{currentRow}</div>
         : <div class="hq-sec"><span class="hq-lbl">並べている {listed.length}</span>{listed.length ? listed.map(row) : <p class="hq-sub">まだありません</p>}</div>}
@@ -195,7 +196,7 @@ function StartSheet({ definition, place, project }: { definition: string; place:
   const [error, setError] = useState('');
   const [nameError, setNameError] = useState('');
   const [busy, setBusy] = useState(false);
-  const title = isGlobal ? `${term('project')}を選んで${term('start')}する` : `この${term('project')}で${term('start')}する`;
+  const title = launchLabel(place);
 
   // A name is seeded only when the definition's own name is taken: the sheet's
   // team name is empty otherwise, so the start uses the definition's name
@@ -264,13 +265,6 @@ function StartSheet({ definition, place, project }: { definition: string; place:
   };
   const members = membersOf();
   const clash = options.clash || [];
-  const same = (as: string): JSX.Element => {
-    const written = as.trim();
-    const asPart = written ? ` --as ${written}` : '';
-    return chosen
-      ? <><code>{projectName(chosen)}</code> で <code>{`hergy up ${definition}${asPart}`}</code> を打つのと同じ</>
-      : <>{`選んだ${term('project')}で `}<code>{`hergy up ${definition}${asPart}`}</code> を打つのと同じ</>;
-  };
   const wsWhy = (w: HQWorkspaceChoice): string => (w.why === 'last' ? `前に ${definition} が動いた${term('workspace')}` : w.why === 'project' ? `${term('project')}の名前で始まる${term('workspace')}` : w.why === 'busy' ? `${w.team} が動いている（1 つの${term('workspace')}に${term('team')}は 1 つ）` : `hergy の${term('team')}はいない`);
   const start = async (): Promise<void> => {
     const proj = isGlobal ? chosen : project;
@@ -318,12 +312,12 @@ function StartSheet({ definition, place, project }: { definition: string; place:
         <dt>{term('project')}</dt><dd>{isGlobal
           ? <><select id="hq-proj" class="hq-sel" onChange={(e) => pickProject(e.currentTarget.value)}><option value="">選んでください</option>{(options.projects || []).map((x: HQLaunchProject) => (x.available
             ? <option value={x.path} selected={x.path === chosen}>{x.name}</option>
-            : <option value="" disabled>{`${x.name}（${x.reason}）`}</option>))}</select><div class="hq-sub">{`${term('global')}の${term('team-definition')}は、どの${term('project')}で${term('start')}するかを選びます`}</div></>
+            : <option value="" disabled>{`${x.name}（${x.reason}）`}</option>))}</select></>
           : <code>{projectName(chosen)}</code>}</dd>
         <dt>{term('member')}</dt><dd data-role="members">{members.length ? <>{`${members.length} 人: `}{spaced(members.map((m) => <code>{m.name}</code>))}</> : '—'}</dd>
-        <dt>{`${term('team')}の名前`}</dt><dd data-role="team-name">
-          <Seeded id="hq-as" class="hq-sel" value={asName} onInput={(e) => { setAsName(e.currentTarget.value); setNameError(''); }} aria-label={`${term('team')}の名前`} />
-          <p class="hq-sub">{`空なら、${term('team')}の名前は${term('team-definition')}の名前 `}<code>{definition}</code>{` です。書けば、その名前で${term('start')}します（`}<code>hergy up --as</code> と同じ）。</p>
+        <dt>{term('team-name')}</dt><dd data-role="team-name">
+          <Seeded id="hq-as" class="hq-sel" value={asName} onInput={(e) => { setAsName(e.currentTarget.value); setNameError(''); }} aria-label={term('team-name')} />
+          <p class="hq-sub">{`空なら、${term('team-name')}は${term('team-definition-name')} `}<code>{definition}</code> です。</p>
           {clash.length ? <p class="hq-sub" data-role="clash">{definition}{` という名前の${term('team')}が `}{clash.map((c) => projectName(c.project)).join(' · ')}{` で動いています。この名前で${term('start')}します（hergy up --as と同じ）。`}</p> : ''}
           {nameError ? <p class="hq-err" data-role="name-error">{nameError}</p> : ''}
         </dd>
@@ -334,8 +328,7 @@ function StartSheet({ definition, place, project }: { definition: string; place:
           ? <label class="hq-wo"><input type="radio" name="hq-ws" value={w.id} checked={w.id === picked} onChange={() => setPicked(w.id)} /><span class="hq-wn">{w.label}</span><span class="hq-wd">{wsWhy(w)}</span></label>
           : <label class="hq-wo no"><input type="radio" name="hq-ws" disabled /><span class="hq-wn">{w.label}</span><span class="hq-wd">{wsWhy(w)}</span></label>))}<label class="hq-wo"><input type="radio" name="hq-ws" value="__new" checked={picked === '__new'} onChange={() => setPicked('__new')} /><span class="hq-wn">新しく作る</span><span class="hq-wd"><Seeded id="hq-wsname" class="hq-in" value={options.new_workspace_name || definition} onInput={(e) => setWsName(e.currentTarget.value)} aria-label={`新しい${term('workspace')}の名前`} /></span></label></>}</div></div>
       <Err text={error} />
-      <div class="hq-acts"><button type="button" class="hq-btn primary" data-hq="go" data-def={definition} data-place={place || 'project'} disabled={busy} onClick={start}>{`${term('start')}する`}</button><button type="button" class="hq-btn" data-hqx="close" onClick={closeSheet}>やめる</button>
-      <span class="hq-sub" data-role="same">{same(asName)}</span></div>
+      <div class="hq-acts"><button type="button" class="hq-btn primary" data-hq="go" data-def={definition} data-place={place || 'project'} disabled={busy} onClick={start}>{`${term('start')}する`}</button><button type="button" class="hq-btn" data-hqx="close" onClick={closeSheet}>やめる</button></div>
     </>;
 }
 
@@ -442,7 +435,7 @@ function RunSheet({ id, launch: first }: { id: string; launch: HQLaunch }): JSX.
         <a class="hq-btn primary" href={`/activity?open=${encodeURIComponent(token(launch.team, launch.project))}`}>{`${term('activity')}で見る`}</a><button type="button" class="hq-btn" data-hqx="close" onClick={closeSheet}>閉じる</button></>
         : launch.phase === 'failed'
           ? <><p class="hq-err" data-role="launch-error">{launch.error || verb + 'できませんでした'}</p>
-            {launch.tab.id ? <button type="button" class="hq-btn danger" {...dangerAttrs('stopTeam')} data-hq="stop" data-team={launch.team} onClick={() => stopSheet(launch.team)}>{`${term('team')}を${term('down')}…`}</button> : ''}
+            {launch.tab.id ? <button type="button" class="hq-btn danger" {...dangerAttrs('stopTeam')} data-hq="stop" data-team={launch.team} onClick={() => stopSheet(launch.team)}>{stopTeamLabel()}</button> : ''}
             <button type="button" class="hq-btn" data-hqx="close" onClick={closeSheet}>閉じる</button></>
           : launch.phase === 'cancelled'
             ? <><p class="hq-sub">{`${verb}をやめました。`}{raised || applied ? `ペインは残っています（${term('team')}を${term('down')}欄から操作できます）。` : `作ったタブとペインは残っています（${term('team')}を${term('down')}欄から操作できます）。`}</p><button type="button" class="hq-btn" data-hqx="close" onClick={closeSheet}>閉じる</button></>

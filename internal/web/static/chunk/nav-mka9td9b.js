@@ -135,7 +135,7 @@ function ConflictNotice({ c, mine, busy, undone, onOverwrite, onRevert, onUndo }
         children: [
           /* @__PURE__ */ u("p", {
             class: "cf-note",
-            children: "書いていた内容は、この画面に残っています。違う行だけを並べます"
+            children: "書いていた内容は、この画面に残っています。"
           }),
           rows.length === 0 ? /* @__PURE__ */ u("p", {
             class: "cf-none",

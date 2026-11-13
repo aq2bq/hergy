@@ -40,18 +40,20 @@ import {
   openSheet,
   memberStateWord,
   teamStateWord
-} from "../chunk/nav-btjv087a.js";
+} from "../chunk/nav-d6fwgcxh.js";
 import {
   rowAddress,
   token2,
   readOpen2,
   writeOpen2,
-  placeGroup
-} from "../chunk/nav-7h13dxtk.js";
+  placeGroup,
+  launchWaitingLabel,
+  stopTeamLabel
+} from "../chunk/nav-wz2hf67d.js";
 import {
   TeamFigure2,
   exports_hq
-} from "../chunk/nav-2svhy2fd.js";
+} from "../chunk/nav-cjh29zr9.js";
 import {
   resource
 } from "../chunk/nav-s0ve3rge.js";
@@ -317,7 +319,7 @@ function Attention({ rows }) {
     children: [
       /* @__PURE__ */ u("span", {
         class: "st stalled",
-        children: "止まっている"
+        children: term("stalled")
       }),
       /* @__PURE__ */ u("span", {
         class: "hq-aw",
@@ -490,7 +492,7 @@ function Tile({ team: t }) {
           }) : "",
           /* @__PURE__ */ u("span", {
             class: "st " + t.state,
-            children: t.starting ? `${term("start")}の途中 · ${term("waiting-for-permission")}` : ST[t.state] || ""
+            children: t.starting ? launchWaitingLabel() : ST[t.state] || ""
           }),
           /* @__PURE__ */ u("span", {
             class: "hq-tl",
@@ -541,7 +543,7 @@ function Tile({ team: t }) {
             "data-hq": "stop",
             "data-team": t.name,
             onClick: () => stopSheet2(t.name),
-            children: `${term("team")}を${term("down")}…`
+            children: stopTeamLabel()
           })
         ]
       })

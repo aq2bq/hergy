@@ -122,7 +122,7 @@ export function ConflictNotice({ c, mine, busy, undone, onOverwrite, onRevert, o
       <p class="cf-text">{c.text}</p>
       {shown ? (
         <div class="cf-compare">
-          <p class="cf-note">書いていた内容は、この画面に残っています。違う行だけを並べます</p>
+          <p class="cf-note">書いていた内容は、この画面に残っています。</p>
           {rows.length === 0 ? <p class="cf-none">この画面で読んだときと、違う行はありません</p> : (
             <table>
               <thead><tr><th>行</th><th>ファイルの今の内容</th><th>この画面で読んだ内容</th></tr></thead>

@@ -1,3 +1,4 @@
+import { turnRecipientLabel } from '../../lib/screen-words.js';
 import { term } from '../../lib/terms.generated.js';
 import { dangerAttrs } from '../../lib/danger.js';
 // teams/canvas/attr.tsx — 構成図の右の列（属性）（spec-teams B7、n-6be7）。
@@ -75,7 +76,7 @@ export function SideAttr({ r }: { r: Rec }): JSX.Element | null {
           <span class="cv-sl">保存していない変更 {d.length}</span>
           <div class="cv-diff">{d.map(([k, x]) => <span class={'cv-' + k}>{k === 'a' ? '+ ' : k === 'd' ? '− ' : '~ '}{x}</span>)}</div>
         </div> : null}
-        <div class="cv-sec"><span class="cv-sl">操作</span><span class="cv-note">{`点や線を押すと、ここにその属性が出る。選んだ点の縁の丸から、ほかの点へ引くと${term('turn')}ができる。`}<span class="cv-kbd">Delete</span> で外す、<span class="cv-kbd">Esc</span> で選ぶのをやめる、<span class="cv-kbd">⌘Z</span>{` で 1 つ${term('undo')}。`}</span></div>
+        <div class="cv-sec"><span class="cv-sl">操作</span><span class="cv-note">{`選んだ点の縁の丸から、ほかの点へ引くと${term('turn')}ができる。`}<span class="cv-kbd">Delete</span> で外す、<span class="cv-kbd">Esc</span> で選ぶのをやめる、<span class="cv-kbd">⌘Z</span>{` で 1 つ${term('undo')}。`}</span></div>
       </>
     );
   }
@@ -107,7 +108,7 @@ export function SideAttr({ r }: { r: Rec }): JSX.Element | null {
         <div class="cv-f">
           <label for={`cv-wpf-${r.uid}`}>{term('profile')}</label>
           <span class="sel"><select id={`cv-wpf-${r.uid}`} data-cv-f="w-profile">{profs.map((p) => <Opt v={p} on={p === w.profile}>{p}</Opt>)}</select></span>
-          <span class="cv-sub">{`${term('worker')}は${term('rule')}を受けない。安い${term('profile')}で`}</span>
+          <span class="cv-sub">{`${term('worker')}は${term('rule')}を受けない。`}</span>
         </div>
         <button class="btn danger sm cv-danger" type="button" data-cv-act="del" {...dangerAttrs('removeWorker')}>{`${term('worker')}を外す`}</button>
       </>
@@ -118,7 +119,7 @@ export function SideAttr({ r }: { r: Rec }): JSX.Element | null {
     return (
       <>
         <div class="cv-t"><code>{term('human')}</code><span class="cv-k">{`あなた。${term('team')}に 1 人だけで、外せない`}</span></div>
-        <div class="cv-sec"><span class="cv-sl">{`${term('hands-the-turn-to')}相手`}</span>{turnRows(changes, id, 'out')}{addTurnSel(t, id)}</div>
+        <div class="cv-sec"><span class="cv-sl">{turnRecipientLabel()}</span>{turnRows(changes, id, 'out')}{addTurnSel(t, id)}</div>
         <div class="cv-sec"><span class="cv-sl">{`${term('turn')}を受け取る相手`}</span>{turnRows(changes, id, 'in')}</div>
       </>
     );
@@ -154,7 +155,7 @@ export function SideAttr({ r }: { r: Rec }): JSX.Element | null {
         <span class="sel"><select id={`cv-mp-${r.uid}`} data-cv-f="m-profile">{profilesFor(r).includes(m.profile) ? null : <option value="" disabled selected>{`${term('profile')}を選ぶ`}</option>}{profilesFor(r).map((p) => <Opt v={p} on={p === m.profile}>{p}</Opt>)}</select></span>
       </div>
       <div class="cv-sec">
-        <span class="cv-sl">{`${term('hands-the-turn-to')}相手`}</span>{turnRows(changes, id, 'out')}
+        <span class="cv-sl">{turnRecipientLabel()}</span>{turnRows(changes, id, 'out')}
         {outs.length ? '' : <span class="cv-note">{`まだ誰にも${term('turn')}を渡していません。縁の丸から、渡す相手の点へ引いてください`}</span>}
         {addTurnSel(t, id)}
       </div>
@@ -170,7 +171,7 @@ export function SideAttr({ r }: { r: Rec }): JSX.Element | null {
         <button class="btn sm cv-danger" type="button" data-cv-act="w-add">{`＋ ${term('worker')}`}</button>
       </div>
       <div class="cv-sec"><button class="btn sm" type="button" data-cv-act="m-copy">複製</button><span class="cv-note">{`同じ${term('role')}・${term('profile')}・${term('turn')}の相手・${term('worker')}の${term('purpose')}で、もう 1 人足す`}</span></div>
-      <div class="cv-sec"><button class="btn danger sm cv-danger" type="button" data-cv-act="del" {...dangerAttrs('removeMember')}>{`${term('member')}を外す`}</button><span class="cv-note">{`${term('turn')} `}{nt}{` 本と${term('worker')} `}{ws.length} 件も一緒に外れる。<span class="cv-kbd">⌘Z</span> で取り消せる。</span></div>
+      <div class="cv-sec"><button class="btn danger sm cv-danger" type="button" data-cv-act="del" {...dangerAttrs('removeMember')}>{`${term('member')}を外す`}</button><span class="cv-note">{`${term('turn')} `}{nt}{` 本と${term('worker')} `}{ws.length} 件も一緒に外れる。</span></div>
     </>
   );
 }

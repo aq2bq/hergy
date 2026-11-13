@@ -275,10 +275,10 @@ export const { pickedRun, pickRun, liveTeams, runningRevision, promptKey, worker
 export function noteOf(answer: Answer | null, name: string, error: string): string {
 	if (error) return `${error} 文を表示できません。`;
 	if (!answer) return '';
-	if (answer.status === 'error') return `${answer.reason || `${term('team')}の${term('status')}を読めませんでした`} そのため、定義名 ${name} で作っています。`;
+	if (answer.status === 'error') return `${answer.reason || `${term('team')}の${term('status')}を読めませんでした`} そのため、${term('team-definition-name')} ${name} で作っています。`;
 	if (answer.selected) return `実行中の${term('team')} ${answer.team} の名前で作っています。`;
 	const runs = answer.runs || [];
-	if (runs.length > 1) return `動いている${term('team')}が ${runs.length} つあるため、定義名 ${name} で作っています。全文と差分のパネルで${term('team')}を選ぶと、その名前で作ります。`;
-	if (runs.length === 0) return `この定義から動いている${term('team')}が無いため、定義名 ${name} で作っています。`;
-	return `定義名 ${name} で作っています。`;
+	if (runs.length > 1) return `動いている${term('team')}が ${runs.length} つあるため、${term('team-definition-name')} ${name} で作っています。全文と差分のパネルで${term('team')}を選ぶと、その名前で作ります。`;
+	if (runs.length === 0) return `この${term('team-definition')}から動いている${term('team')}が無いため、${term('team-definition-name')} ${name} で作っています。`;
+	return `${term('team-definition-name')} ${name} で作っています。`;
 }

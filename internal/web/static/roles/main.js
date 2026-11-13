@@ -38,7 +38,7 @@ import {
   restoreRole,
   editRoleAssignments,
   YamlTab2
-} from "../chunk/nav-vsk1qzfv.js";
+} from "../chunk/nav-mka9td9b.js";
 import {
   takeDraft2,
   setDirty2
@@ -47,8 +47,11 @@ import {
   rowAddress,
   readOpen2,
   writeOpen2,
-  rowsFor
-} from "../chunk/nav-7h13dxtk.js";
+  rowsFor,
+  globalDefinitionNotice,
+  globalPlaceNotice,
+  noTeamDefinitions
+} from "../chunk/nav-wz2hf67d.js";
 import {
   Measure,
   fromJSON2,
@@ -56,12 +59,12 @@ import {
   Badge2,
   Vm2,
   RuleDoc2
-} from "../chunk/nav-awx27txh.js";
+} from "../chunk/nav-c4pxrcwq.js";
 import {
   copyGroupOf,
   projectOfGroup,
   ProjectView
-} from "../chunk/nav-fttyqgjy.js";
+} from "../chunk/nav-aw1sm2q6.js";
 import {
   Field
 } from "../chunk/nav-9htrbyn7.js";
@@ -987,7 +990,7 @@ function Team({ t }) {
           t.place === "global" ? /* @__PURE__ */ u("span", {
             class: "tnote",
             "data-role": "place-note",
-            children: `${term("global")}の定義です。直すと、すべての${term("project")}の同じ${term("team-definition")}が変わります`
+            children: globalDefinitionNotice()
           }) : "",
           refusal ? /* @__PURE__ */ u("span", {
             class: "errline",
@@ -1048,7 +1051,7 @@ function AssignPage() {
         }),
         /* @__PURE__ */ u("p", {
           class: "none",
-          children: `${term("team-definition")}はありません`
+          children: noTeamDefinitions()
         })
       ]
     });
@@ -1374,7 +1377,7 @@ function groupHeader(g) {
       }),
       g.global ? /* @__PURE__ */ u("span", {
         class: "hq-gc",
-        children: `どの${term("project")}からも使える。同じ名前があれば、その${term("project")}のほうが使われる`
+        children: globalPlaceNotice()
       }) : /* @__PURE__ */ u("span", {
         class: "hq-gc",
         children: [

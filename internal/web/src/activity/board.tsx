@@ -1,3 +1,4 @@
+import { launchWaitingLabel, stopTeamLabel } from '../lib/screen-words.js';
 import { term } from '../lib/terms.generated.js';
 import { call, problemText } from '../lib/api';
 import { useState, useEffect, useRef } from '../lib/preact';
@@ -55,7 +56,7 @@ function Attention({ rows }: { rows: ActivityTeam[] }): JSX.Element {
         <span class="hq-tl">{m.since ? m.since : ''}</span><button type="button" class="hq-btn" onClick={() => pickTile(t.name)}>{`${term('team')}を見る`}</button><button type="button" class="hq-btn primary" disabled={!!pending} aria-busy={pending === m.herdr} onClick={(e) => { e.stopPropagation(); focus(t, m); }}>{pending === m.herdr ? '端末へ移動中…' : '端末で返答する'}</button></div>);
     }
   }
-  const stalled: JSX.Element[] = rows.filter((t) => t.state === 'stalled').map((t) => <button type="button" class="hq-at stall" data-pick={t.name} onClick={() => pickTile(t.name)}><span class="st stalled">止まっている</span>
+  const stalled: JSX.Element[] = rows.filter((t) => t.state === 'stalled').map((t) => <button type="button" class="hq-at stall" data-pick={t.name} onClick={() => pickTile(t.name)}><span class="st stalled">{term('stalled')}</span>
     <span class="hq-aw"><code>{t.name}</code><span class="hq-pw">{t.projectName}</span></span>
     <span class="hq-aq">{`誰も${term('turn')}を持っていない`}</span>
     <span class="hq-where">{tabWhere(t)}</span>
@@ -99,7 +100,7 @@ function Tile({ team: t }: { team: ActivityTeam }): JSX.Element {
   return <article class={'hq-tile ' + t.state + (sel ? ' sel' : '')} data-team={t.name}>
     <button type="button" class="hq-th" data-pick={t.name} aria-pressed={sel ? 'true' : 'false'} onClick={() => pick(t.name)}>
       <span class="hq-tn">{t.name}</span>{projectWorkspace ? <span class="hq-pw">{projectWorkspace}</span> : ''}
-      <span class={'st ' + t.state}>{t.starting ? `${term('start')}の途中 · ${term('waiting-for-permission')}` : (ST[t.state] || '')}</span>
+      <span class={'st ' + t.state}>{t.starting ? launchWaitingLabel() : (ST[t.state] || '')}</span>
       <span class="hq-tl">{t.since ? <><b>{t.since.len}</b> {t.since.at}</> : ''}</span>
     </button>
     <Figure team={t} />
@@ -110,7 +111,7 @@ function Tile({ team: t }: { team: ActivityTeam }): JSX.Element {
     <div class="hq-tactions" aria-label={`${t.name} の操作`}>
       <a class="hq-btn sm" href={defHref}>{`${term('team-definition')}を開く`}</a>
       {changed > 0 ? <button type="button" class="hq-btn sm" data-hq="apply" data-team={t.name} onClick={() => openSheet(t.name)}>{`${term('apply')}していない変更 `}<b>{changed}</b></button> : ''}
-      <button type="button" class="hq-btn sm danger" data-hq="stop" data-team={t.name} onClick={() => A.stopSheet(t.name)}>{`${term('team')}を${term('down')}…`}</button>
+      <button type="button" class="hq-btn sm danger" data-hq="stop" data-team={t.name} onClick={() => A.stopSheet(t.name)}>{stopTeamLabel()}</button>
     </div>
   </article>;
 }

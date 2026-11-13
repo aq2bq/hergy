@@ -83,7 +83,7 @@ test('column width changes and equal reset keep the full text', async ({ page, a
  await expect(role.locator('.prose-outline')).toBeVisible();
  await expect(role).toHaveCSS('width', '240px');
  await expect(row.locator('.prose-drag-hint')).toBeVisible();
- await expect(row.locator('.prose-drag-hint')).toContainText('行の左の ⠿');
+ await expect(row.locator('.prose-drag-hint')).toContainText('を押しながらつかむと子見出しも含める');
  await expect(role.getByRole('link', { name: 'ロールの画面で開く' }).locator('svg')).toBeVisible();
  await expect(role.getByRole('button', { name: 'ファイルからリロード' }).locator('svg')).toBeVisible();
  await expect(role.locator('.prose-width .btn').first()).toHaveCSS('padding-left', '4px');

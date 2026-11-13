@@ -58,9 +58,10 @@ import {
   editTeam,
   restoreTeam,
   YamlTab2
-} from "../chunk/nav-vsk1qzfv.js";
+} from "../chunk/nav-mka9td9b.js";
 import {
   num,
+  sizeGuideNotice,
   documents,
   documentID,
   transferKeys,
@@ -74,28 +75,30 @@ import {
   Counts2,
   Vm2,
   RuleDoc2
-} from "../chunk/nav-awx27txh.js";
+} from "../chunk/nav-c4pxrcwq.js";
 import {
   rowAddress,
   token2,
   parseOpen2,
   readOpen2,
   writeOpen2,
-  rowsFor
-} from "../chunk/nav-7h13dxtk.js";
+  rowsFor,
+  globalPlaceNotice,
+  turnRecipientLabel
+} from "../chunk/nav-wz2hf67d.js";
 import {
   st,
   projectName2
-} from "../chunk/nav-btjv087a.js";
+} from "../chunk/nav-d6fwgcxh.js";
 import {
   RunCell2
-} from "../chunk/nav-2svhy2fd.js";
+} from "../chunk/nav-cjh29zr9.js";
 import {
   copyGroupOf,
   groupPlace,
   projectOfGroup,
   ProjectView
-} from "../chunk/nav-fttyqgjy.js";
+} from "../chunk/nav-aw1sm2q6.js";
 import {
   Field
 } from "../chunk/nav-9htrbyn7.js";
@@ -2799,7 +2802,7 @@ function SideAttr({ r }) {
             /* @__PURE__ */ u("span", {
               class: "cv-note",
               children: [
-                `点や線を押すと、ここにその属性が出る。選んだ点の縁の丸から、ほかの点へ引くと${term("turn")}ができる。`,
+                `選んだ点の縁の丸から、ほかの点へ引くと${term("turn")}ができる。`,
                 /* @__PURE__ */ u("span", {
                   class: "cv-kbd",
                   children: "Delete"
@@ -2983,7 +2986,7 @@ function SideAttr({ r }) {
             }),
             /* @__PURE__ */ u("span", {
               class: "cv-sub",
-              children: `${term("worker")}は${term("rule")}を受けない。安い${term("profile")}で`
+              children: `${term("worker")}は${term("rule")}を受けない。`
             })
           ]
         }),
@@ -3018,7 +3021,7 @@ function SideAttr({ r }) {
           children: [
             /* @__PURE__ */ u("span", {
               class: "cv-sl",
-              children: `${term("hands-the-turn-to")}相手`
+              children: turnRecipientLabel()
             }),
             turnRows(changes, id, "out"),
             addTurnSel(t, id)
@@ -3161,7 +3164,7 @@ function SideAttr({ r }) {
         children: [
           /* @__PURE__ */ u("span", {
             class: "cv-sl",
-            children: `${term("hands-the-turn-to")}相手`
+            children: turnRecipientLabel()
           }),
           turnRows(changes, id, "out"),
           outs.length ? "" : /* @__PURE__ */ u("span", {
@@ -3261,12 +3264,7 @@ function SideAttr({ r }) {
               nt,
               ` 本と${term("worker")} `,
               ws.length,
-              " 件も一緒に外れる。",
-              /* @__PURE__ */ u("span", {
-                class: "cv-kbd",
-                children: "⌘Z"
-              }),
-              " で取り消せる。"
+              " 件も一緒に外れる。"
             ]
           })
         ]
@@ -3279,7 +3277,7 @@ function SideAttr({ r }) {
 var topologySections = [
   ["roster", "名簿"],
   ["herdr", "連絡"],
-  ["turns", `${term("hands-the-turn-to")}相手`],
+  ["turns", turnRecipientLabel()],
   ["workers", `${term("worker")}の追加`]
 ];
 var labels = {
@@ -3347,12 +3345,13 @@ function OriginLegend({ diff }) {
   return /* @__PURE__ */ u("p", {
     class: "prompt-origin-legend",
     children: [
-      `${term("topology")}${term("origin")}: 名簿・連絡・${term("turn")}・${term("worker")} ／ ${term("rule")}: ${term("role")}の${term("rule")}・${term("team-agreement")}。`,
       diff && `印は今の文の${term("origin")}。削除行の${term("origin")}は記録にありません。`,
-      term("topology"),
-      "の 4 節は、見出しから節の終わりまでを帯で示します。見出しがひな形の文字でも、印は付けません。"
+      "見出しがひな形の文字でも、印は付けません。"
     ]
   });
+}
+function originMismatchText() {
+  return `本文と${term("origin")}が一致しないため、印を表示できません。再取得してください。`;
 }
 function CurrentPrompt({ text, lines }) {
   if (!lines)
@@ -3360,7 +3359,7 @@ function CurrentPrompt({ text, lines }) {
       children: [
         /* @__PURE__ */ u("p", {
           role: "alert",
-          children: `本文と${term("origin")}が一致しないため、印を表示できません。再取得してください。`
+          children: originMismatchText()
         }),
         /* @__PURE__ */ u("pre", {
           class: "prompt-full",
@@ -3582,15 +3581,15 @@ function noteOf(answer, name, error) {
   if (!answer)
     return "";
   if (answer.status === "error")
-    return `${answer.reason || `${term("team")}の${term("status")}を読めませんでした`} そのため、定義名 ${name} で作っています。`;
+    return `${answer.reason || `${term("team")}の${term("status")}を読めませんでした`} そのため、${term("team-definition-name")} ${name} で作っています。`;
   if (answer.selected)
     return `実行中の${term("team")} ${answer.team} の名前で作っています。`;
   const runs = answer.runs || [];
   if (runs.length > 1)
-    return `動いている${term("team")}が ${runs.length} つあるため、定義名 ${name} で作っています。全文と差分のパネルで${term("team")}を選ぶと、その名前で作ります。`;
+    return `動いている${term("team")}が ${runs.length} つあるため、${term("team-definition-name")} ${name} で作っています。全文と差分のパネルで${term("team")}を選ぶと、その名前で作ります。`;
   if (runs.length === 0)
-    return `この定義から動いている${term("team")}が無いため、定義名 ${name} で作っています。`;
-  return `定義名 ${name} で作っています。`;
+    return `この${term("team-definition")}から動いている${term("team")}が無いため、${term("team-definition-name")} ${name} で作っています。`;
+  return `${term("team-definition-name")} ${name} で作っています。`;
 }
 
 // teams/canvas/prompt-comparison.tsx
@@ -3740,7 +3739,7 @@ function PromptComparison({ r, member, close }) {
               }),
               /* @__PURE__ */ u("p", {
                 children: [
-                  answer.draft ? "未保存の編集を含む" : "保存済みの定義",
+                  answer.draft ? "未保存の編集を含む" : `保存済みの${term("team-definition")}`,
                   " · ",
                   answer.team,
                   " · ",
@@ -3805,7 +3804,7 @@ function PromptComparison({ r, member, close }) {
                 text: answer.current,
                 lines
               }) : /* @__PURE__ */ u("p", {
-                children: "定義に問題があるため、今の文を組み立てられません。"
+                children: `${term("team-definition")}に問題があるため、今の文を組み立てられません。`
               })),
               view === "diff" && /* @__PURE__ */ u(Difference, {
                 answer,
@@ -3866,7 +3865,7 @@ function Difference({ answer, lines }) {
     children: [
       !lines && /* @__PURE__ */ u("p", {
         role: "alert",
-        children: `本文と${term("origin")}が一致しないため、印を表示できません。再取得してください。`
+        children: originMismatchText()
       }),
       answer.recorded.text === answer.current && /* @__PURE__ */ u("p", {
         children: "差はありません。"
@@ -4025,7 +4024,7 @@ function MemberPrompt({ r, m }) {
         class: "cv-note",
         "data-role": "prompt-note",
         children: [
-          "今の定義から出る文。未保存の編集を含みます。",
+          "未保存の編集を含みます。",
           note
         ]
       }),
@@ -4341,7 +4340,7 @@ function addMember(r, at) {
     putPlace(r, name, at);
   select(r, { how: "field", what: { type: "node", id: name } });
   canvasAct(r, [teamActions.addMember(name, role, profile)], {
-    message: `${term("member")} ${name} を足しました。${term("member-name")}・${term("role")}・${term("profile")}を右で決める`,
+    message: `${term("member")} ${name} を足しました。`,
     undo: `${term("member")} ${name} を足したのを取り消しました`,
     focus: '[data-cv-f="m-name"]'
   });
@@ -4389,7 +4388,7 @@ function addWorker(r, from, at) {
   if (at)
     putPlace(r, "w" + idx, at);
   select(r, { how: "field", what: { type: "worker", i: idx } });
-  canvasAct(r, ops, { message: `${from} の${term("worker")}を足しました。${term("purpose")}を右で決める`, undo: `${term("worker")}を足したのを取り消しました`, focus: '[data-cv-f="w-purpose"]' });
+  canvasAct(r, ops, { message: `${from} の${term("worker")}を足しました。`, undo: `${term("worker")}を足したのを取り消しました`, focus: '[data-cv-f="w-purpose"]' });
 }
 function panelOf(r) {
   return document.querySelector(`.panel.team-p[data-key="${CSS.escape(dkey(r))}"]`);
@@ -4409,6 +4408,16 @@ function turnDirection(ops) {
   }
   return `${nodeName(turns[0].from)} → ${nodeName(turns[0].to)}`;
 }
+function turnAddedNotice(from, to) {
+  const direction = `${nodeName(from)} → ${nodeName(to)}`;
+  return { message: `${direction} の${term("turn")}を足しました`, undo: `${direction} の${term("turn")}を足したのを取り消しました` };
+}
+function turnRemovalNotice(direction) {
+  return { said: `${direction} の${term("turn")}を外しました`, undo: `${direction} の${term("turn")}を外したのを取り消しました` };
+}
+function workerRemovalNotice(purpose) {
+  return { said: `${term("worker")} ${purpose || `（${term("purpose")}）`} を外しました`, undo: `${term("worker")}を外したのを取り消しました` };
+}
 function del(r) {
   const t = r.draft.value, sel = pickOf(r);
   if (!sel)
@@ -4426,14 +4435,14 @@ function del(r) {
     select(r, { how: "let" });
     if (ops.length) {
       const direction = turnDirection(ops);
-      remove(r, "removeTurn", ops, { said: `${direction} の${term("turn")}を外しました`, undo: `${direction} の${term("turn")}を外したのを取り消しました` });
+      remove(r, "removeTurn", ops, turnRemovalNotice(direction));
     }
   } else if (sel.type === "worker") {
     const w = t.workers[sel.i];
     if (!w)
       return;
     select(r, { how: "let" });
-    remove(r, "removeWorker", [teamActions.removeWorker(w.from, w.purpose)], { said: `${term("worker")} ${w.purpose || `（${term("purpose")}）`} を外しました`, undo: `${term("worker")}を外したのを取り消しました` });
+    remove(r, "removeWorker", [teamActions.removeWorker(w.from, w.purpose)], workerRemovalNotice(w.purpose));
   }
 }
 var lastPress = null;
@@ -4555,7 +4564,7 @@ function onPointerUp(e) {
     return;
   }
   const k = pair(d.from, to);
-  canvasAct(r, [teamActions.addTurn(d.from, to)], { message: `${nodeName(d.from)} → ${nodeName(to)} の${term("turn")}を足しました`, undo: `${nodeName(d.from)} → ${nodeName(to)} の${term("turn")}を足しましたのを取り消しました` });
+  canvasAct(r, [teamActions.addTurn(d.from, to)], turnAddedNotice(d.from, to));
   select(r, { how: "press", what: { type: "edge", k } });
   r.flash.value = k;
   setTimeout(() => {
@@ -4636,23 +4645,23 @@ function onClick(r, e) {
     select(r, { how: "let" });
     if (ops.length) {
       const direction = turnDirection(ops);
-      remove(r, "removeTurn", ops, { said: `${direction} の${term("turn")}を外しました`, undo: `${direction} の${term("turn")}を外したのを取り消しました` });
+      remove(r, "removeTurn", ops, turnRemovalNotice(direction));
     }
     return;
   }
   if (a === "turn-del") {
-    remove(r, "removeTurn", [teamActions.removeTurn(b.dataset.a || "", b.dataset.b || "")], { said: `${nodeName(b.dataset.a || "")} → ${nodeName(b.dataset.b || "")} の${term("turn")}を外しました`, undo: `${nodeName(b.dataset.a || "")} → ${nodeName(b.dataset.b || "")} の${term("turn")}を外したのを取り消しました` });
+    remove(r, "removeTurn", [teamActions.removeTurn(b.dataset.a || "", b.dataset.b || "")], turnRemovalNotice(`${nodeName(b.dataset.a || "")} → ${nodeName(b.dataset.b || "")}`));
     return;
   }
   if (a === "turn-add") {
-    canvasAct(r, [teamActions.addTurn(b.dataset.a || "", b.dataset.b || "")], { message: `${nodeName(b.dataset.a || "")} → ${nodeName(b.dataset.b || "")} の${term("turn")}を足しました`, undo: `${nodeName(b.dataset.a || "")} → ${nodeName(b.dataset.b || "")} の${term("turn")}を足しましたのを取り消しました` });
+    canvasAct(r, [teamActions.addTurn(b.dataset.a || "", b.dataset.b || "")], turnAddedNotice(b.dataset.a || "", b.dataset.b || ""));
     return;
   }
   if (a === "w-del") {
     const w = t.workers[Number(b.dataset.i)];
     if (!w)
       return;
-    remove(r, "removeWorker", [teamActions.removeWorker(w.from, w.purpose)], { said: `${term("worker")} ${w.purpose || `（${term("purpose")}）`} を外しました`, undo: `${term("worker")}を外したのを取り消しました` });
+    remove(r, "removeWorker", [teamActions.removeWorker(w.from, w.purpose)], workerRemovalNotice(w.purpose));
     return;
   }
   if (a === "pick-w")
@@ -4668,7 +4677,7 @@ function onInput(r, e) {
   const t = r.draft.value, sel = pickOf(r), v = el.value;
   if (f === "turn-add") {
     if (v && sel && sel.type === "node") {
-      canvasAct(r, [teamActions.addTurn(sel.id, v)], { message: `${nodeName(sel.id)} → ${nodeName(v)} の${term("turn")}を足しました`, undo: `${nodeName(sel.id)} → ${nodeName(v)} の${term("turn")}を足しましたのを取り消しました` });
+      canvasAct(r, [teamActions.addTurn(sel.id, v)], turnAddedNotice(sel.id, v));
       el.value = "";
     }
     return;
@@ -4865,8 +4874,6 @@ function Canvas({ r, vlist }) {
   });
   const sel = pickOf(r);
   const cur = sel, side = sideOf(r);
-  const picked = cur && cur.type === "node" && cur.id !== "human" ? cur.id : "";
-  const hint = picked ? `${picked} を選んでいる。縁の丸から引くと${term("turn")}、Delete で外す` : "点や線を押すと属性が出る。余白をダブルクリックすると、そこに足せる";
   return /* @__PURE__ */ u("div", {
     class: "cv-main",
     ref: box,
@@ -4902,10 +4909,6 @@ function Canvas({ r, vlist }) {
                   select(r, { how: "field", what: null });
                 },
                 children: `${term("team")}の${term("description")}を編集`
-              }),
-              /* @__PURE__ */ u("span", {
-                class: "cv-hint",
-                children: hint
               }),
               cur ? /* @__PURE__ */ u("button", {
                 class: "btn sm cv-edit-selection",
@@ -5249,7 +5252,7 @@ function PlaceHead({ g }) {
       }),
       g.global ? /* @__PURE__ */ u("span", {
         class: "hq-gc",
-        children: `どの${term("project")}からも使える。同じ名前があれば、その${term("project")}のほうが使われる`
+        children: globalPlaceNotice()
       }) : /* @__PURE__ */ u("span", {
         class: "hq-gc",
         children: [
@@ -5469,7 +5472,7 @@ function Sum({ r, open }) {
           children: "—"
         }) : /* @__PURE__ */ u("span", {
           class: "amt" + (size > r.limit.value ? " over" : ""),
-          title: `${term("size-guide")}：${num(r.limit.value)}字。超えても保存・${term("start")}できます。`,
+          title: sizeGuideNotice(r.limit.value),
           children: /* @__PURE__ */ u("span", {
             class: "v",
             children: [
@@ -5729,7 +5732,7 @@ function StarterNote({ r }) {
         class: "st-item",
         children: [
           /* @__PURE__ */ u("span", {
-            children: `${term("project")}にも${term("global")}にも、${term("role")}がありません。${term("member")}の${term("role")}を選ぶには、${term("role")}が要ります。`
+            children: `${term("project")}にも${term("global")}にも、${term("role")}がありません。`
           }),
           /* @__PURE__ */ u("button", {
             class: "btn sm",
@@ -5745,7 +5748,7 @@ function StarterNote({ r }) {
         class: "st-item",
         children: [
           /* @__PURE__ */ u("span", {
-            children: `${term("project")}にも${term("global")}にも、${term("profile")}がありません。${term("member")}の${term("profile")}を選ぶには、${term("profile")}が要ります。`
+            children: `${term("project")}にも${term("global")}にも、${term("profile")}がありません。`
           }),
           /* @__PURE__ */ u("button", {
             class: "btn sm",
@@ -6148,9 +6151,7 @@ function AgreePanel({ r }) {
         children: [
           "比較中 ",
           active.length,
-          " 文書。",
-          active.length > 2 ? `横に収まらない文書は、下のスク${term("role")}バーで表示できます。` : "",
-          "文書名を押すと、その文書だけを読みます。"
+          " 文書。"
         ]
       }) : null,
       /* @__PURE__ */ u("div", {
@@ -6159,10 +6160,7 @@ function AgreePanel({ r }) {
           /* @__PURE__ */ u(EqualWidths, {}),
           /* @__PURE__ */ u("span", {
             class: "prose-drag-hint",
-            children: [
-              "見出しだけの表示で、行の左の ⠿ をつかんで別の列へ落とすと移します。",
-              transferKeys()
-            ]
+            children: transferKeys()
           }),
           /* @__PURE__ */ u("span", {
             class: "prose-wheel-hint",

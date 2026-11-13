@@ -1,7 +1,7 @@
 import { term } from '../../lib/terms.generated.js';
 import { useEffect, useMemo, useRef, useState } from '../../lib/preact.js';
 import type { Schemas } from '../../lib/api.js';
-import { CurrentPrompt, OriginLegend, OriginMarks, originLines, sectionAt, sectionSpans } from './prompt-origins.js';
+import { CurrentPrompt, originMismatchText, OriginLegend, OriginMarks, originLines, sectionAt, sectionSpans } from './prompt-origins.js';
 import type { OriginLine } from './prompt-origins.js';
 import type { Rec } from '../state.js';
 import { pickRun, pickedRun, reloadPrompt, usePrompt } from '../prompt-source.js';
@@ -47,7 +47,7 @@ export function PromptComparison({ r, member, close }: {r: Rec; member: string; 
    <div class="prompt-context">
     {answer.reason && <p role="status">{answer.reason}</p>}
     {answer.recorded && <><p>最後に記録された本文 · {answer.recorded.command} · <time dateTime={answer.recorded.time}>{answer.recorded.time}</time></p><p>{`${term('apply')}・${term('reprompt')}の変更理由の前置きは記録に含まれません。送信後の記録であり、受信の確認ではありません。送信の途中や記録に失敗した場合は、実際の送信より古い記録です。`}</p></>}
-    <p>{answer.draft ? '未保存の編集を含む' : '保存済みの定義'} · {answer.team} · {answer.language}</p>
+    <p>{answer.draft ? '未保存の編集を含む' : `保存済みの${term('team-definition')}`} · {answer.team} · {answer.language}</p>
     <p class="prompt-environment" title={`${answer.project} · ${answer.executable}`}>生成条件: {answer.project} · {answer.executable}</p>
     {answer.problems.map((problem) => <p class={problem.sev==='err' ? 'err' : ''}>{problem.text}</p>)}
    </div>
@@ -63,7 +63,7 @@ export function PromptComparison({ r, member, close }: {r: Rec; member: string; 
    </div>}
    <div class="prompt-body" ref={body} tabIndex={0} aria-label={view==='recorded' ? '渡した文の全文' : view==='current' ? '今の文の全文' : '本文の差'}>
     {view==='recorded' && (answer.recorded ? <FullText text={answer.recorded.text}/> : <p>渡した文を表示できません。</p>)}
-    {view==='current' && (answer.current!==null ? <CurrentPrompt text={answer.current} lines={lines}/> : <p>定義に問題があるため、今の文を組み立てられません。</p>)}
+    {view==='current' && (answer.current!==null ? <CurrentPrompt text={answer.current} lines={lines}/> : <p>{`${term('team-definition')}に問題があるため、今の文を組み立てられません。`}</p>)}
     {view==='diff' && <Difference answer={answer} lines={lines}/>}
    </div>
   </>}
@@ -95,7 +95,7 @@ function Difference({answer, lines}: {answer: Answer; lines: OriginLine[] | null
    return spans.find(span => span.first >= 0 && before[i] >= span.first && after[i] <= span.last && after[i] === before[i] + 1);
   });
  })();
- return <>{!lines && <p role="alert">{`本文と${term('origin')}が一致しないため、印を表示できません。再取得してください。`}</p>}{answer.recorded.text===answer.current && <p>差はありません。</p>}{answer.diff.map((line,i) => {
+ return <>{!lines && <p role="alert">{originMismatchText()}</p>}{answer.recorded.text===answer.current && <p>差はありません。</p>}{answer.diff.map((line,i) => {
   const at = line.new ? line.new - 1 : -1;
   const span = at >= 0 ? sectionAt(spans, at) : gap[i];
   return <div key={i} class={`prompt-diff-line ${line.kind}`} data-new-line={line.new || undefined} data-section={span?.kind} data-section-start={span && at >= 0 && span.first === at ? '' : undefined} data-section-end={span && at >= 0 && span.last === at ? '' : undefined}>

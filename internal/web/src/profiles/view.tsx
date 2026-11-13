@@ -1,3 +1,4 @@
+import { globalPlaceNotice } from '../lib/screen-words.js';
 // profiles/view.tsx — 一覧のタブ（spec 4 章、r-c683）。
 //
 // 行と、行の中の面（プロジェクト / グローバル）を描く。class と data-* は CSS
@@ -383,7 +384,7 @@ function GroupHead({ group }: { group: PlaceGroup }) {
   return <div class={'hq-gh' + (group.global ? ' global' : '')} data-group={group.key} data-place={target} aria-label={`${term('place')}: ${said}`}>
       <span class="hq-gn">{group.name}</span><span class="hq-gp">{group.display || ''}</span>
       {group.global
-        ? <span class="hq-gc">{`どの${term('project')}からも使える。同じ名前があれば、その${term('project')}のほうが使われる`}</span>
+        ? <span class="hq-gc">{globalPlaceNotice()}</span>
         : <span class="hq-gc">{`${term('profile')} `}<b>{count}</b></span>}
       <button class="btn sm hq-add" data-act="new" data-group={group.key} data-place={target} onClick={() => pressNew(group.key)}>＋ {said}{` に${term('profile')}を追加`}</button>
     </div>;

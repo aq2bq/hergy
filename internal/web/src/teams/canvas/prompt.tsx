@@ -99,7 +99,7 @@ export function MemberPrompt({ r, m }: { r: Rec; m: Member }): JSX.Element {
   return <section class="cv-sec cv-prompt cv-topology-prompt">
     <h3>{`この${term('member')}に${term('topology')}から渡る文`}</h3>
     <button class="btn sm cv-prompt-open" type="button" onClick={() => setOpened(true)}>全文と差分を読む</button>
-    <p class="cv-note" data-role="prompt-note">今の定義から出る文。未保存の編集を含みます。{note}</p>
+    <p class="cv-note" data-role="prompt-note">未保存の編集を含みます。{note}</p>
     {blocked ? <p class="cv-note">{PROMPT_BLOCKED} 記録された本文は確認できます。</p>
       : prompt.loading && !segments.length ? <p role="status">{term('prompt')}を読んでいます。</p>
       : prompt.error && !segments.length ? <p role="alert">{prompt.error}</p>

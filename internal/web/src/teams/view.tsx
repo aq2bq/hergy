@@ -1,3 +1,4 @@
+import { globalPlaceNotice } from '../lib/screen-words.js';
 import { term } from '../lib/terms.generated.js';
 import { runDanger, dangerAttrs } from '../lib/danger.js';
 import { ProjectView } from '../lib/project-view';
@@ -9,7 +10,7 @@ import { ProjectView } from '../lib/project-view';
 // 関数を直接呼ぶ（依頼書 2）。規則の文書の中は共有部品（lib/ruledoc.js）が描く。
 import { useEffect, useRef, useState, useCallback } from '../lib/preact.js';
 import type { ComponentChildren, TargetedEvent } from 'preact';
-import { num } from '../lib/measure.js';
+import { num, sizeGuideNotice } from '../lib/measure.js';
 import { YamlTab } from '../lib/yamltab.js';
 import { Canvas } from './canvas.js';
 import { Rename } from './rename.js';
@@ -108,7 +109,7 @@ function PlaceHead({ g }: { g: TeamGroup }) {
   return <div class={'hq-gh' + (g.global ? ' global' : '')} data-group={key} data-place={target} aria-label={`${term('place')}: ${said}`}>
       <span class="hq-gn">{g.name}</span><span class="hq-gp">{g.display || ''}</span>
       {g.global
-        ? <span class="hq-gc">{`どの${term('project')}からも使える。同じ名前があれば、その${term('project')}のほうが使われる`}</span>
+        ? <span class="hq-gc">{globalPlaceNotice()}</span>
         : <span class="hq-gc">{`${term('team-definition')} `}<b>{count}</b>{HQ ? <>{` · 動いている${term('team')} `}<b>{live}</b></> : null}</span>}
       <button class="btn sm hq-add" data-act="new" data-group={key} data-place={target} onClick={() => pressNew(key)}>＋ {said}{` に${term('team-definition')}を追加`}</button>
     </div>;
@@ -215,7 +216,7 @@ function Sum({ r, open }: { r: Rec; open: boolean }) {
       <span class="c-members c-num">{broken ? '—' : t.members.length}</span>
       <span class="c-turns c-num">{broken ? '—' : t.workers.length}</span>
 
-      <span class="c-size">{broken || !r.limit.value ? <span class="none">—</span> : <span class={'amt' + (size > r.limit.value ? ' over' : '')} title={`${term('size-guide')}：${num(r.limit.value)}字。超えても保存・${term('start')}できます。`}><span class="v">{num(size)} 字</span></span>}</span>
+      <span class="c-size">{broken || !r.limit.value ? <span class="none">—</span> : <span class={'amt' + (size > r.limit.value ? ' over' : '')} title={sizeGuideNotice(r.limit.value)}><span class="v">{num(size)} 字</span></span>}</span>
       {HQ && !r.draftRow ? <span class="hq-runc"><RunCell definition={r.name.value} place={r.place.value} project={runProject(r)} /></span> : null}
     </>
   );
@@ -369,13 +370,13 @@ function StarterNote({ r }: { r: Rec }) {
     <div class="starter">
       {roles ? (
         <div class="st-item">
-          <span>{`${term('project')}にも${term('global')}にも、${term('role')}がありません。${term('member')}の${term('role')}を選ぶには、${term('role')}が要ります。`}</span>
+          <span>{`${term('project')}にも${term('global')}にも、${term('role')}がありません。`}</span>
           <button class="btn sm" type="button" data-act="starter-roles" aria-pressed={r.starterRoles.value} onClick={() => pressStarterRoles(r)}>{r.starterRoles.value ? `ひな形の${term('role')}を使わない` : `ひな形の${term('role')} lead と builder を使う`}</button>
         </div>
       ) : null}
       {profiles ? (
         <div class="st-item">
-          <span>{`${term('project')}にも${term('global')}にも、${term('profile')}がありません。${term('member')}の${term('profile')}を選ぶには、${term('profile')}が要ります。`}</span>
+          <span>{`${term('project')}にも${term('global')}にも、${term('profile')}がありません。`}</span>
           <button class="btn sm" type="button" data-act="starter-profile" aria-pressed={r.starterProfile.value} onClick={() => pressStarterProfile(r)}>{r.starterProfile.value ? `ひな形の${term('profile')}を使わない` : `ひな形の${term('profile')} claude-default を使う`}</button>
         </div>
       ) : null}
@@ -543,8 +544,8 @@ function AgreePanel({ r }: { r: Rec }) {
       </div>)}
       <button class="btn" type="button" onClick={() => { ruleSelection.value = { ...ruleSelection.value, [r.uid]: available }; }}>すべて表示</button>
      </div>
-     {active.length > 1 ? <p class="prose-compare-note">比較中 {active.length} 文書。{active.length > 2 ? `横に収まらない文書は、下のスク${term('role')}バーで表示できます。` : ''}文書名を押すと、その文書だけを読みます。</p> : null}
-     <div class="prose-tools"><EqualWidths /><span class="prose-drag-hint">見出しだけの表示で、行の左の ⠿ をつかんで別の列へ落とすと移します。{transferKeys()}</span><span class="prose-wheel-hint">本文を読み進めるときは、欄を一度押してからホイールを回します。</span>{places.length ? <span class="prose-scope"><span>確認できた範囲</span>{places.map((place) => <span class="scope-place">{place}</span>)}</span> : null}</div><div class="prose-board"><section hidden={!active.includes('agreement')} class={'prose-column panel agree-p' + (shadowed ? ' shadowed' : '')} data-uid={r.uid} data-l={r.place.value} data-key={dkey(r)} data-mode={mode}>
+     {active.length > 1 ? <p class="prose-compare-note">比較中 {active.length} 文書。</p> : null}
+     <div class="prose-tools"><EqualWidths /><span class="prose-drag-hint">{transferKeys()}</span><span class="prose-wheel-hint">本文を読み進めるときは、欄を一度押してからホイールを回します。</span>{places.length ? <span class="prose-scope"><span>確認できた範囲</span>{places.map((place) => <span class="scope-place">{place}</span>)}</span> : null}</div><div class="prose-board"><section hidden={!active.includes('agreement')} class={'prose-column panel agree-p' + (shadowed ? ' shadowed' : '')} data-uid={r.uid} data-l={r.place.value} data-key={dkey(r)} data-mode={mode}>
       <div class="pmain">
         <RuleDoc transfer={r.draftRow ? undefined : teamTransfer(r)} row={rowOfPanel(r)} issues={agreeIssues(r)} hasName={false} heading={{ id: `team-prose-${r.uid}`, kind: term('team-definition'), name: r.name.value, title: r.agreeDraft.value.title,
             path: `${placeName(r.place.value)} · teams/${r.name.value}/agreement.md`, members: r.draft.value.members.map((m) => m.name).join('、'),

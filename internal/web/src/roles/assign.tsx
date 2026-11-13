@@ -1,3 +1,4 @@
+import { globalDefinitionNotice, noTeamDefinitions } from '../lib/screen-words.js';
 import { term } from '../lib/terms.generated.js';
 import { ProjectView } from '../lib/project-view';
 // roles/assign.js — 割り当てのタブ（spec 4 章、spec-roles 2「割り当てのタブ」）。
@@ -61,7 +62,7 @@ function Team({ t }: { t: TeamCard }) {
   return <section class="team" data-t={t.id} data-place={t.place || 'project'} ref={el}>
       <header class="th"><span class="tl">{term('team-definition')}</span><code class="tid">{t.id}</code><span class="pill on">{LNAME[t.place] || LNAME.project}</span>
         <span class="tside">{errs ? <span class="sev err">問題 {errs}</span> : ''}{dirty ? <><span class="dirty">{dirty} 人</span><button class="btn primary" data-act="t-save" disabled={errs > 0} onClick={() => doAssignSave(t.id)}>保存</button></> : okOf('t' + t.id) ? <span class="ok">保存しました</span> : ''}</span>
-        {t.place === 'global' ? <span class="tnote" data-role="place-note">{`${term('global')}の定義です。直すと、すべての${term('project')}の同じ${term('team-definition')}が変わります`}</span> : ''}
+        {t.place === 'global' ? <span class="tnote" data-role="place-note">{globalDefinitionNotice()}</span> : ''}
         {refusal ? <span class="errline">{refusal}</span> : ''}
       </header>
       {t.members.map((m, i) => <ARow key={m.name} t={t} m={m} i={i} />)}
@@ -82,6 +83,6 @@ function RoleBar() {
 
 export function AssignPage() {
   const list = teams.value;
-  if (!list.length) return <><ProjectView projects={HQ?.projects} /><p class="none">{`${term('team-definition')}はありません`}</p></>;
+  if (!list.length) return <><ProjectView projects={HQ?.projects} /><p class="none">{noTeamDefinitions()}</p></>;
   return <><ProjectView projects={HQ?.projects} /><RoleBar /><div class="teams">{list.map((t) => <Team key={t.id} t={t} />)}</div></>;
 }

@@ -32,24 +32,24 @@ import {
   close,
   send,
   memberStateWord
-} from "../chunk/nav-btjv087a.js";
+} from "../chunk/nav-d6fwgcxh.js";
 import {
   term
 } from "../chunk/nav-3k0d3904.js";
 import"../chunk/nav-1xv1q6wd.js";
-import"../chunk/nav-7h13dxtk.js";
+import"../chunk/nav-wz2hf67d.js";
 
 // lib/apply/view.tsx
 var STATE = {
-  idle: { word: memberStateWord.idle, why: `${term("turn")}を持たずに待っています。今、${term("apply")}できます。` },
-  handed: { word: memberStateWord.handed, why: `${term("turn")}を${term("human")}に渡して、返事を待っています。今、${term("apply")}できます。` },
+  idle: { word: memberStateWord.idle, why: "" },
+  handed: { word: memberStateWord.handed, why: "" },
   active: { word: memberStateWord.active, why: `仕事が終わると、${term("apply")}できます。` },
   blocked: { word: memberStateWord.blocked, why: `ペインで許可を求めています。答えると、${term("apply")}できます。` },
-  absent: { word: memberStateWord.absent, why: `この${term("member")}の${term("start")}中の${term("agent")}がいません。${term("start")}すると、定義のとおりに加わります。` }
+  absent: { word: memberStateWord.absent, why: "" }
 };
 var HOW = { resend: term("reprompt"), start: term("start"), restart: term("refresh") };
 var COST = { resend: "（会話は残る）", start: "（新しいペインで始める）", restart: "（会話が消える）" };
-var INTRO = `チェックした${term("member")}に、保存した定義の変更を${term("apply")}します。${term("reprompt")}は会話が残り、${term("refresh")}は会話が消えます。${term("working")}と${term("waiting-for-permission")}の${term("member")}には、今は${term("apply")}できません。${term("team-definition")}の${term("description")}だけを変えたときは、ずれが出ないので、ここには出ません。`;
+var INTRO = `${term("team-definition")}の${term("description")}だけを変えたときは、ずれが出ないので、ここには出ません。`;
 var press = (fn) => (e) => {
   e.preventDefault();
   fn();
@@ -61,7 +61,7 @@ function BandButton() {
     class: "apl-bandbtn",
     "data-apl": "open",
     "aria-haspopup": "dialog",
-    title: `定義を直したあと、まだ${term("apply")}していない人`,
+    title: `${term("team-definition")}を直したあと、まだ${term("apply")}していない人`,
     "aria-label": `${term("apply")}していない変更 ${n}`,
     hidden: n <= 0,
     onClick: press(openSheet),
@@ -177,7 +177,9 @@ function Sheet() {
 function Team({ group }) {
   const def = group.definition && group.definition !== group.team ? /* @__PURE__ */ u(S, {
     children: [
-      "（定義 ",
+      "（",
+      term("team-definition"),
+      " ",
       /* @__PURE__ */ u("code", {
         children: group.definition
       }),
