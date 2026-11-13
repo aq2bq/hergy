@@ -13,6 +13,7 @@ import (
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/ops/internal/launcher"
 	"github.com/aq2bq/hergy/internal/ops/internal/launchlog"
+	"github.com/aq2bq/hergy/internal/ops/internal/runningstate"
 	"github.com/aq2bq/hergy/internal/ops/internal/team"
 	"github.com/aq2bq/hergy/internal/source"
 	"github.com/aq2bq/hergy/internal/words"
@@ -110,12 +111,16 @@ func Apply(ctx context.Context, in ApplyInput) (ApplyResult, error) {
 	return out, nil
 }
 func applyGroup(ctx context.Context, in ApplyInput, group []PlannedMember) error {
+	state, err := applyTeamState(group[0].Team)
+	if err != nil {
+		return err
+	}
 	env, err := in.Env.AtProject(group[0].Team.Project)
 	if err != nil {
 		return err
 	}
 	cat := env.Catalog(source.Disk{})
-	r, err := buildRunningIn(cat, env.ProjectRoot, team.Running{Team: domainname.TeamFromObservation(group[0].Team.Name), Definition: group[0].Team.Definition}, group[0].Team.Place.Layer())
+	r, err := buildRunningIn(cat, env.ProjectRoot, team.Running{Team: domainname.TeamFromObservation(group[0].Team.Name), Definition: group[0].Team.Definition, State: state}, group[0].Team.Place.Layer())
 	if err != nil {
 		return err
 	}
@@ -143,6 +148,25 @@ func applyGroup(ctx context.Context, in ApplyInput, group []PlannedMember) error
 	warning(in.Observe, recordReceivedLaunch(env, r, launchlog.CommandApply, all, l, launchlog.Workspace{}, in.Now))
 	return err
 }
+
+// applyTeamState checks the planned generation before resolving or touching the
+// replacement's members. Building from this reading keeps the execution and its
+// eventual receipt writes on that generation.
+func applyTeamState(planned RunningTeam) (runningstate.State, error) {
+	store, err := runningstate.Open()
+	if err != nil {
+		return runningstate.State{}, err
+	}
+	state, exists, err := store.Read(planned.state.Name())
+	if err != nil {
+		return runningstate.State{}, err
+	}
+	if !exists || state.Generation() != planned.state.Generation() {
+		return runningstate.State{}, refuse("conflict", words.Errorf("apply.run-changed", i18n.Language(), planned.Name.String()))
+	}
+	return state, nil
+}
+
 func applyFix(group []PlannedMember) string {
 	names := make([]string, 0, len(group))
 	for _, member := range group {
