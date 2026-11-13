@@ -14,7 +14,7 @@ func readLaunchRecords() ([]launchlog.Record, error) {
 	return log.Read()
 }
 
-// latestLaunch reads the newest launch of an exact team.yaml path.
+// latestLaunch reads the newest workspace-bearing up of an exact team.yaml path.
 func latestLaunch(path domainplace.Project) (launchlog.Record, bool, error) {
 	log, err := launchlog.Open()
 	if err != nil {

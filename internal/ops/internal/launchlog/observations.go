@@ -40,19 +40,3 @@ func (m *Member) UnmarshalJSON(raw []byte) error {
 	m.Name = name.Observe(w.Name)
 	return nil
 }
-
-// UnmarshalJSON restores the worker and tab spellings exactly as recorded.
-func (h *Hire) UnmarshalJSON(raw []byte) error {
-	type plain Hire
-	w := struct {
-		*plain
-		Worker string `json:"worker"`
-		Tab    string `json:"tab"`
-	}{plain: (*plain)(h)}
-	if err := json.Unmarshal(raw, &w); err != nil {
-		return err
-	}
-	h.Worker = name.Observe(w.Worker)
-	h.Tab = name.Observe(w.Tab)
-	return nil
-}

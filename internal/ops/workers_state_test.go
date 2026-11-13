@@ -51,7 +51,7 @@ func TestWorkerReadersKeepOnlyThisRunsFacts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := log.Append(launchlog.Record{Command: launchlog.CommandHire, Team: name.Observation(), Project: observedplace.Observe(f.proj), Time: at.Add(3 * time.Hour).Format(time.RFC3339), Hire: &launchlog.Hire{Worker: fixtureSeen("demo-scroll"), From: "stale", Tab: fixtureSeen("worker:demo/scroll")}}); err != nil {
+	if err := log.Append(launchlog.Record{Command: "hire", Team: name.Observation(), Project: observedplace.Observe(f.proj), Time: at.Add(3 * time.Hour).Format(time.RFC3339)}); err != nil {
 		t.Fatal(err)
 	}
 	check := func(start, hired time.Time, from string) {

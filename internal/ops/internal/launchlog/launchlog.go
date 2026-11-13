@@ -37,27 +37,13 @@ const (
 	blobsDir = "blobs"
 )
 
-// Command is what a record was written for. A launcher's commands write their
-// launches; hire writes one line about the worker it added, so the activity
-// screen can say which member hired it (d-b4b9).
+// Command is the operation that wrote a launch history entry.
 const (
 	CommandUp       = "up"
 	CommandRefresh  = "refresh"
 	CommandReprompt = "reprompt"
 	CommandApply    = "apply"
-	CommandHire     = "hire"
 )
-
-// Hire is one worker a member hired, as its hire line records it: the name herdr
-// sees, the member that added it (the short name team.yaml writes), the purpose
-// it was hired for, and the tab it was put in. A worker hired before this line
-// was written has no hire line and no From anywhere.
-type Hire struct {
-	Worker  domainname.Seen `json:"worker"` // the name herdr sees ("<team>-<worker>")
-	From    string          `json:"from"`   // the short name of the member that added it
-	Purpose string          `json:"purpose"`
-	Tab     domainname.Seen `json:"tab"`
-}
 
 // Member records the body before any apply/reprompt change-reason preamble.
 // New launch records include only members whose prompt receipt was confirmed.
@@ -119,7 +105,7 @@ type Record struct {
 	// Workspace is the herdr workspace the team was started in: the label a
 	// person reads, and the id it had then. The headquarters offers the last one
 	// as "前に動いた所" (d-73fc). A record written before this was kept has
-	// neither, and so has refresh, reprompt and hire: they start no tab.
+	// neither, and neither do refresh, reprompt and apply: they start no tab.
 	Workspace   string   `json:"workspace,omitempty"`
 	WorkspaceID string   `json:"workspace_id,omitempty"`
 	Hash        string   `json:"hash"`
@@ -127,17 +113,19 @@ type Record struct {
 	Lang        string   `json:"lang,omitempty"`
 	Members     []Member `json:"members"`
 	Docs        []Doc    `json:"docs"`
-	// Hire is the worker this line added, for CommandHire; nil for a launch.
-	// A hire line carries no members, no docs and no team_yaml: nothing was
-	// handed a prompt by it.
-	Hire *Hire `json:"hire,omitempty"`
 	// Workers are the definition's worker entries at this launch, for the note
 	// that a worker's profile changed (d-36ef).
 	Workers []Worker `json:"workers,omitempty"`
 }
 
 // IsHire says this line records a worker's hire, not a launch.
-func (r Record) IsHire() bool { return r.Command == CommandHire }
+func (r Record) IsHire() bool { return r.Command == "hire" }
+
+// StartedInWorkspace reports a team start with both workspace identifiers.
+// Later prompt operations create no tab and cannot replace its workspace.
+func (r Record) StartedInWorkspace() bool {
+	return r.Command == CommandUp && r.Workspace != "" && r.WorkspaceID != ""
+}
 
 // Workspace is one herdr workspace as a launch names it: the label a person
 // reads, and the id it had when the team was started there.
@@ -345,8 +333,9 @@ func (l Log) Append(rec Record) error {
 	return f.Close()
 }
 
-// Read returns every launch, oldest first. A record that is not there yet is an
-// empty list, not an error: nothing has been launched on this machine.
+// Read returns every launch, oldest first, ignoring legacy hire entries.
+// A record that is not there yet is an empty list, not an error: nothing has
+// been launched on this machine.
 func (l Log) Read() ([]Record, error) {
 	text, err := os.ReadFile(filepath.Join(l.dir, logName))
 	if errors.Is(err, fs.ErrNotExist) {
@@ -364,13 +353,18 @@ func (l Log) Read() ([]Record, error) {
 		if err := json.Unmarshal([]byte(line), &rec); err != nil {
 			return nil, fmt.Errorf("%s line %d: %w", logName, i+1, err)
 		}
+		// Old versions wrote hires into this file. They are not launch history,
+		// even when their team, definition or workspace fields are populated.
+		if rec.Command == "hire" {
+			continue
+		}
 		out = append(out, rec)
 	}
 	return out, nil
 }
 
-// Latest is the newest launch of one team definition, and whether there is one. A
-// launch of a team running under another name (--as) belongs to the definition it
+// Latest is the newest workspace-bearing up of a definition, and whether one
+// exists. A team running under another name (--as) belongs to the definition it
 // was launched from.
 //
 // The definition is named by the team.yaml its launch read: this machine's record
@@ -383,6 +377,9 @@ func (l Log) Latest(teamYAML domainplace.Project) (Record, bool, error) {
 		return Record{}, false, err
 	}
 	for _, record := range slices.Backward(records) {
+		if !record.StartedInWorkspace() {
+			continue
+		}
 		if record.TeamYAML.Project().Compare(teamYAML) == domainplace.Same || (record.TeamYAML.Project().IsZero() && teamYAML.IsZero()) {
 			return record, true, nil
 		}

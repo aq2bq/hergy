@@ -166,8 +166,8 @@ func TestReadNamesABrokenLine(t *testing.T) {
 }
 
 // TestLatestPicksTheNewestOfOneDefinition: the last launch of a team definition
-// wins, whatever command it was, and a launch of another definition — including a
-// definition of the same name in another project — is not it.
+// with a workspace wins. Later prompt operations and another project's
+// same-named definition cannot hide it.
 func TestLatestPicksTheNewestOfOneDefinition(t *testing.T) {
 	log := testLog(t)
 	const (
@@ -176,12 +176,13 @@ func TestLatestPicksTheNewestOfOneDefinition(t *testing.T) {
 		global = "/cfg/hergy/teams/demo/team.yaml"
 	)
 	for _, rec := range []Record{
-		{Command: CommandUp, Layer: "local", Definition: "demo", TeamYAML: observedplace.Observe(demo), Hash: "first"},
-		{Command: CommandUp, Layer: "global", Definition: "demo", TeamYAML: observedplace.Observe(global), Hash: "global"},
-		{Command: CommandUp, Layer: "local", Definition: "other", TeamYAML: observedplace.Observe(other), Hash: "other"},
+		{Command: CommandUp, Workspace: "workspace", WorkspaceID: "w1", Layer: "local", Definition: "demo", TeamYAML: observedplace.Observe(demo), Hash: "first"},
+		{Command: CommandUp, Workspace: "workspace", WorkspaceID: "w1", Layer: "global", Definition: "demo", TeamYAML: observedplace.Observe(global), Hash: "global"},
+		{Command: CommandUp, Workspace: "workspace", WorkspaceID: "w1", Layer: "local", Definition: "other", TeamYAML: observedplace.Observe(other), Hash: "other"},
 		// The same definition name in another project: the team.yaml tells them
 		// apart, so this one is not the launch of the definition above (M1).
-		{Command: CommandUp, Layer: "local", Definition: "demo", TeamYAML: observedplace.Observe("/elsewhere/.hergy/teams/demo/team.yaml"), Hash: "elsewhere"},
+		{Command: CommandUp, Workspace: "workspace", WorkspaceID: "w1", Layer: "local", Definition: "demo", TeamYAML: observedplace.Observe("/elsewhere/.hergy/teams/demo/team.yaml"), Hash: "elsewhere"},
+		{Command: CommandUp, Workspace: "next-workspace", WorkspaceID: "w2", Layer: "local", Definition: "demo", TeamYAML: observedplace.Observe(demo)},
 		{Command: CommandReprompt, Layer: "local", Definition: "demo", TeamYAML: observedplace.Observe(demo), Hash: "last"},
 	} {
 		if err := log.Append(rec); err != nil {
@@ -192,7 +193,7 @@ func TestLatestPicksTheNewestOfOneDefinition(t *testing.T) {
 	if err != nil || !ok {
 		t.Fatalf("Latest() = %v, %v", ok, err)
 	}
-	if got.Hash != "last" || got.Command != CommandReprompt {
+	if got.Command != CommandUp || got.WorkspaceID != "w2" {
 		t.Errorf("Latest(%s) = %+v, want the last launch of it", demo, got)
 	}
 	if _, ok, err := log.Latest(projectPath("/nowhere/.hergy/teams/demo/team.yaml")); err != nil || ok {
@@ -325,7 +326,7 @@ func TestLatestMatchesCanonicalDefinitionPath(t *testing.T) {
 	}
 	log := At(filepath.Join(root, "launches"))
 	recorded := filepath.Join(alias, "team.yaml")
-	if err := log.Append(Record{TeamYAML: observedplace.Observe(recorded), Hash: "same-file"}); err != nil {
+	if err := log.Append(Record{Command: CommandUp, Workspace: "workspace", WorkspaceID: "w1", TeamYAML: observedplace.Observe(recorded), Hash: "same-file"}); err != nil {
 		t.Fatal(err)
 	}
 	got, ok, err := log.Latest(projectPath(realFile))

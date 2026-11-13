@@ -28,7 +28,7 @@ func TestTellResolvesWorkersAndHumanPanes(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := log.Append(launchlog.Record{Command: launchlog.CommandHire, Team: fixtureSeen("demo"), Hire: &launchlog.Hire{Worker: fixtureSeen("demo-scroll"), From: "builder", Tab: fixtureSeen("worker:demo/scroll")}}); err != nil {
+			if err := log.Append(launchlog.Record{Command: "hire", Team: fixtureSeen("demo")}); err != nil {
 				t.Fatal(err)
 			}
 			for _, history := range []bool{true, false} {

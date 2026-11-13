@@ -1,11 +1,14 @@
 package ops
 
 import (
+	"bytes"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"testing"
 
+	domainname "github.com/aq2bq/hergy/internal/domain/name"
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/ops/internal/launchlog"
 	"github.com/aq2bq/hergy/internal/source" // TestUpRecordsTheLaunch: a successful boot leaves one line with what was
@@ -262,11 +265,8 @@ func TestTheRecordKeepsARevision(t *testing.T) {
 	t.Fatalf("the record does not name %s:\n%v", protocol, rec.Docs)
 }
 
-// TestHireRecordsWhoAddedTheWorker: a hire leaves one line naming the worker,
-// the member that added it (the short name --from resolved to), the purpose and
-// the tab (d-b4b9). A launch record still holds every launch it held before, and
-// the hire line carries no members and no documents.
-func TestHireRecordsWhoAddedTheWorker(t *testing.T) {
+// Hire updates current state without appending to launch history.
+func TestHireKeepsStateWithoutChangingHistory(t *testing.T) {
 	f := newFixture(t)
 	mustRun(t, "new", "dev")
 	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "dev", "team.yaml"),
@@ -281,32 +281,25 @@ func TestHireRecordsWhoAddedTheWorker(t *testing.T) {
 	t.Setenv("HERDR_PANE_ID", "p9")
 
 	mustRun(t, "up", "dev")
+	path := filepath.Join(f.state, "hergy", "launches", "log.jsonl")
+	before, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
 	mustRun(t, "hire", "researcher", "--purpose", "research",
 		"--task", "read the docs", "--team", "dev", "--from", "lead")
 
-	_, records := launchLog(t, f)
-	last := records[len(records)-1]
-	if !last.IsHire() || last.Hire == nil {
-		t.Fatalf("the last record is not a hire line: %+v", last)
+	after, err := os.ReadFile(path)
+	if err != nil || !bytes.Equal(before, after) {
+		t.Fatalf("hire changed launch history: %s %v", after, err)
 	}
-	want := launchlog.Hire{Worker: fixtureSeen("dev-researcher"), From: "lead", Purpose: "research", Tab: fixtureSeen("worker:dev/researcher")}
-	if *last.Hire != want {
-		t.Errorf("hire = %+v, want %+v", *last.Hire, want)
+	name, _ := domainname.ParseTeamName("dev")
+	state, exists := currentTeamState(name)
+	if !exists {
+		t.Fatal("hire lost current state")
 	}
-	if last.Project.String() != f.proj || last.Team.String() != "dev" || last.Definition != "dev" {
-		t.Errorf("project/team/definition = %q/%q/%q", last.Project, last.Team, last.Definition)
-	}
-	if len(last.Members) != 0 || len(last.Docs) != 0 || last.TeamYAML.String() != "" {
-		t.Errorf("a hire line carries members, docs or team_yaml: %+v", last)
-	}
-
-	found := false
-	for _, record := range records {
-		if record.Command == launchlog.CommandUp && record.Team.String() == "dev" {
-			found = true
-		}
-	}
-	if !found {
-		t.Errorf("the up's own launch line is gone: %+v", records)
+	workers := state.Workers()
+	if len(workers) != 1 || workers[0].Name != "dev-researcher" || workers[0].From != "lead" || workers[0].Purpose != "research" || workers[0].Tab != "worker:dev/researcher" {
+		t.Fatalf("hired workers=%+v", workers)
 	}
 }

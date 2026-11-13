@@ -187,10 +187,10 @@ func TestInitialPromptReceiptOperations(t *testing.T) {
 						if !strings.Contains(stderr.String(), "hergy down demo-worker -C '"+f.proj+"' && hergy hire worker --team demo -C '"+f.proj+"' --purpose 'research' --task 'read docs' --from a") {
 							t.Fatalf("wrong recovery: %s", &stderr)
 						}
-						_, records := launchLog(t, f)
-						last := records[len(records)-1]
-						if !last.IsHire() || last.Hire.Worker.String() != target || last.Hire.From != "a" {
-							t.Fatalf("hire not recorded: %+v", last)
+						state, exists := currentTeamState(fixtureDemoTeam())
+						workers := state.Workers()
+						if !exists || len(workers) != 1 || workers[0].Name != target || workers[0].From != "a" {
+							t.Fatalf("hire not kept in current state: exists=%t workers=%+v", exists, workers)
 						}
 						if strings.Contains(calls, "pane close") {
 							t.Fatalf("worker closed: %s", calls)

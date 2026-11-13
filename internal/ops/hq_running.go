@@ -122,7 +122,7 @@ func (h *hqRead) workspaceOf(space herdr.Workspace, running runningTeam, last st
 func (h *hqRead) lastTeamsByWorkspace() map[string]string {
 	out := map[string]string{}
 	for _, record := range h.launchRecords() {
-		if record.Workspace != "" && record.Team.String() != "" {
+		if record.StartedInWorkspace() && record.Team.String() != "" {
 			out[record.Workspace] = record.Team.String()
 		}
 	}
@@ -135,7 +135,7 @@ func (h *hqRead) lastTeamsByWorkspace() map[string]string {
 // each other's launch (M1).
 func (h *hqRead) lastWorkspaceOf(read herdrNow, teamYAML domainplace.Project) *HQWorkspace {
 	record, ok, err := latestLaunch(teamYAML)
-	if err != nil || !ok || record.WorkspaceID == "" {
+	if err != nil || !ok {
 		return nil
 	}
 	squatter := ""

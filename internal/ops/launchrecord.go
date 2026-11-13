@@ -3,7 +3,6 @@ package ops
 import (
 	"time"
 
-	domainname "github.com/aq2bq/hergy/internal/domain/name"
 	domainplace "github.com/aq2bq/hergy/internal/domain/place"
 
 	"github.com/aq2bq/hergy/internal/definition"
@@ -23,8 +22,8 @@ import (
 // receipts use recordReceivedLaunch: up always keeps the team's identity, even
 // with no recipient; refresh, reprompt and apply write only with a recipient.
 // Startup failures, sending failures and cancellation keep no launch record.
-// A hire has its own recordHire, independently of prompt receipt. A record that
-// cannot be written is reported on stderr and does not decide the operation.
+// A record that cannot be written is reported on stderr and does not decide
+// the operation.
 func recordLaunch(env Environment, r *Resolved, command string, members []definition.Start) string {
 	return recordLaunchIn(env, r, command, members, launchlog.Workspace{})
 }
@@ -61,37 +60,6 @@ func recordLaunchIn(env Environment, r *Resolved, command string, members []defi
 		return i18n.Tf("launch.not_recorded", err)
 	}
 	return ""
-}
-
-// recordHire writes the one line a hire leaves in this machine's record: which
-// worker it added, which member added it, the purpose and the tab (d-b4b9). The
-// activity screen reads it to say "<member> が追加". A line that cannot be
-// written is one line on stderr and nothing else: the worker is already up.
-func recordHire(env Environment, r *Resolved, worker definition.Start, now func() time.Time) string {
-	stateNote := runningStateWarning(hireRunningState(r, worker, now))
-	log, err := launchlog.Open()
-	if err == nil {
-		workerName, _ := domainname.ParseWorkerName(worker.Short.String())
-		err = log.Append(launchlog.Record{
-			Time:       time.Now().Format(time.RFC3339),
-			Command:    launchlog.CommandHire,
-			Hergy:      version.Line(),
-			Project:    env.ProjectRoot.Seen(),
-			Layer:      domainplace.Selection(r.Team.Definition.Layer),
-			Definition: r.Team.Definition.Name.String(),
-			Team:       r.Team.Name.Observation(),
-			Hire: &launchlog.Hire{
-				Worker:  worker.Name.Observation(),
-				From:    worker.From.String(),
-				Purpose: worker.Purpose,
-				Tab:     r.ModelTeamName().WorkerTab(workerName),
-			},
-		})
-	}
-	if err != nil {
-		return i18n.Tf("launch.not_recorded", err)
-	}
-	return stateNote
 }
 
 // writeLaunch builds one record and appends it. The texts the record points at —

@@ -4,6 +4,8 @@
 
 ### Changed
 
+- Headquarters keeps the last started workspace after refresh, reprompt or apply instead of losing it to those operations' history entries.
+
 - Worker recipients, hirers and stop-time worktree lists use the current team state, preserving them without launch history and keeping earlier runs separate; the watcher recognizes workers hired after it starts.
 - Apply comparisons and recorded prompts read the current run state, so deleting launch history no longer changes them or mixes in members from an earlier run.
 
