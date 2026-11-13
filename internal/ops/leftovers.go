@@ -8,7 +8,6 @@ import (
 
 	domainname "github.com/aq2bq/hergy/internal/domain/name"
 
-	"github.com/aq2bq/hergy/internal/ops/internal/launchlog"
 	"github.com/aq2bq/hergy/internal/ops/internal/protocol"
 	"github.com/aq2bq/hergy/internal/ops/internal/team"
 )
@@ -51,11 +50,8 @@ func workerPaneDirs(tabs []team.Tab, label domainname.Seen) []domainplace.Seen {
 	return nil
 }
 
-// LeftoverOwner is whose worktrees a leftover list is about: the team that was
-// started, or the worker that was hired, and when hergy recorded that in the
-// launch record. Known is false when hergy has no line to read the time from —
-// a team started before the record was kept, or a launch whose line could not be
-// written — and hergy then cannot say when a worktree came (d-970c).
+// LeftoverOwner identifies the team or worker and its time in the current
+// run. Without readable state, worktrees are listed without a time cutoff.
 type LeftoverOwner struct {
 	Name  string
 	Since time.Time
@@ -64,87 +60,41 @@ type LeftoverOwner struct {
 	Hired bool
 }
 
-// teamLeftovers is the owner of a team's leftover list, read from the newest up
-// line of that team in that project.
+// teamLeftovers reads the current run's start time.
 func teamLeftovers(projectRoot domainplace.Project, teamName string) LeftoverOwner {
 	since, known := teamStartedAt(projectRoot, teamName)
 	return LeftoverOwner{Name: teamName, Since: since, Known: known}
 }
 
-// workerLeftovers is the owner of one worker's leftover list, read from the hire
-// line that named it.
+// workerLeftovers reads the worker's hire time in the current run.
 func workerLeftovers(projectRoot domainplace.Project, teamName, herdrName string) LeftoverOwner {
 	since, known := workerHiredAt(projectRoot, teamName, herdrName)
 	return LeftoverOwner{Name: herdrName, Since: since, Known: known, Hired: true}
 }
 
-// teamStartedAt is when hergy last started this team in this project: the newest
-// up line of the launch record for that team and project.
+// teamStartedAt is the beginning of this team's current run in this project.
 func teamStartedAt(projectRoot domainplace.Project, teamName string) (time.Time, bool) {
-	records, ok := availableLaunchRecords()
-	if !ok {
+	state, exists := projectTeamState(projectRoot, teamName)
+	if !exists {
 		return time.Time{}, false
 	}
-	var best time.Time
-	for _, record := range records {
-		if record.Command != launchlog.CommandUp || record.Team.String() != teamName || record.Project.Project().Compare(projectRoot) == domainplace.Different {
-			continue
-		}
-		if at, ok := recordTime(record); ok && at.After(best) {
-			best = at
-		}
-	}
-	return best, !best.IsZero()
+	at := state.Launch().StartedAt
+	return at, !at.IsZero()
 }
 
-// workerHiredAt is when hergy recorded hiring this worker: the newest hire line
-// that named it. A worker hired before hergy wrote hire lines has no line, and
-// its team's start is the earliest time it can have been hired.
+// workerHiredAt uses only this run's hire. An unregistered worker has no time;
+// the beginning of a team is not evidence that the worker was hired then.
 func workerHiredAt(projectRoot domainplace.Project, teamName, herdrName string) (time.Time, bool) {
-	records, ok := availableLaunchRecords()
-	if !ok {
+	state, exists := projectTeamState(projectRoot, teamName)
+	if !exists {
 		return time.Time{}, false
 	}
-	var best time.Time
-	for _, record := range records {
-		if !record.IsHire() || record.Hire == nil || record.Hire.Worker.String() != herdrName {
-			continue
-		}
-		if record.Project.Project().Compare(projectRoot) == domainplace.Different {
-			continue
-		}
-		if at, ok := recordTime(record); ok && at.After(best) {
-			best = at
+	for _, worker := range state.Workers() {
+		if worker.Name == herdrName {
+			return worker.Time, !worker.Time.IsZero()
 		}
 	}
-	if best.IsZero() {
-		return teamStartedAt(projectRoot, teamName)
-	}
-	return best, true
-}
-
-// recordTime is when one line of the launch record was written. A line whose
-// time does not read has no time hergy can use.
-func recordTime(record launchlog.Record) (time.Time, bool) {
-	at, err := time.Parse(time.RFC3339, record.Time)
-	if err != nil {
-		return time.Time{}, false
-	}
-	return at, true
-}
-
-// readLaunchRecords is this machine's launch record. A record hergy cannot read
-// is no record: the list then falls back to where the panes stood.
-func availableLaunchRecords() ([]launchlog.Record, bool) {
-	log, err := launchlog.Open()
-	if err != nil {
-		return nil, false
-	}
-	records, err := log.Read()
-	if err != nil {
-		return nil, false
-	}
-	return records, true
+	return time.Time{}, false
 }
 
 // TeamIdentity is the observed identity and source of a running team.

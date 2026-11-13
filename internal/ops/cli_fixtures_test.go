@@ -22,6 +22,7 @@ import (
 	"github.com/aq2bq/hergy/internal/ops/internal/launchlog"
 	observedplace "github.com/aq2bq/hergy/internal/ops/internal/place"
 	"github.com/aq2bq/hergy/internal/ops/internal/team" // passingHerdr is a fake herdr that answers every command the CLI may need, so
+	"github.com/aq2bq/hergy/internal/ops/teststate"
 
 	// a boot, a refresh or a down runs to the end.
 	// liveHerdr is a fake herdr that reports the demo team's two members as live, so
@@ -697,11 +698,12 @@ func ledgerProject(t *testing.T, script string) *fixture {
 	return f
 }
 
-// recordStart writes one up line of the launch record for a team in the
-// fixture's project, at the time a test says, the way up writes it after a boot.
+// recordStart registers a run and its history at the time a test says.
 func recordStart(t *testing.T, f *fixture, teamName string, at time.Time) {
-	seedRunningTeam(t, f.proj, teamName, teamName)
 	t.Helper()
+	if err := teststate.Write(teststate.Team{Name: teamName, Definition: teamName, Project: f.proj, StartedAt: at}); err != nil {
+		t.Fatal(err)
+	}
 	log := launchlog.At(filepath.Join(f.state, "hergy", "launches"))
 	if err := log.Append(launchlog.Record{
 		Time: at.Format(time.RFC3339), Command: launchlog.CommandUp,

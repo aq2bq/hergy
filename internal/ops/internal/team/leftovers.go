@@ -44,7 +44,7 @@ func (l Leftovers) Empty() bool { return len(l.Worktrees) == 0 && l.Stashes == 0
 // root, and the number of stashes the project holds.
 //
 // since is when the team was started, or when the worker was hired, read from
-// the launch record. hergy cannot tell which worktree a team made — an agent
+// the current run state. hergy cannot tell which worktree a team made — an agent
 // keeps its pane in the project root and cds into a worktree for each command —
 // so it says when the worktree came instead of whose it is (d-970c).
 //

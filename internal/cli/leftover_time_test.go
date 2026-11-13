@@ -8,15 +8,21 @@ import (
 	"time"
 
 	"encoding/json"
+
+	"github.com/aq2bq/hergy/internal/ops/teststate"
 )
 
-// recordStart writes one up line of the launch record for a team in the
-// fixture's project, at the time a test says, the way up writes it after a boot.
+// recordStart registers a run and its history at the time a test says.
 func recordStart(t *testing.T, f *fixture, team string, at time.Time) {
-	seedRunningTeam(t, f.proj, team, team)
+	if err := teststate.Write(teststate.Team{Name: team, Definition: team, Project: f.proj, StartedAt: at}); err != nil {
+		t.Fatal(err)
+	}
 	appendFixtureLaunch(t, f, map[string]any{"time": at.Format(time.RFC3339), "command": "up", "project": f.proj, "team": team, "definition": team})
 }
 func recordHireLine(t *testing.T, f *fixture, team, worker string, at time.Time) {
+	if err := teststate.Hire(team, teststate.Worker{Name: worker, Time: at}); err != nil {
+		t.Fatal(err)
+	}
 	appendFixtureLaunch(t, f, map[string]any{"time": at.Format(time.RFC3339), "command": "hire", "project": f.proj, "team": team, "definition": team, "hire": map[string]any{"worker": worker}})
 }
 func appendFixtureLaunch(t *testing.T, f *fixture, record map[string]any) {
@@ -75,7 +81,7 @@ func (f *fixture) gitBase(t *testing.T) {
 // TestDownListsTheWorktreesMadeWhileTheTeamRan: an agent keeps its pane in the
 // project root and cds into a worktree for each command, so hergy down cannot
 // find the team's worktrees by where the panes stand. It reads when the team was
-// started from the launch record instead, and lists the worktrees of the project
+// started from its current state instead, and lists the worktrees of the project
 // that came after the start, leaving out the one that was there before it
 // (d-970c).
 func TestDownListsTheWorktreesMadeWhileTheTeamRan(t *testing.T) {
@@ -91,7 +97,20 @@ func TestDownListsTheWorktreesMadeWhileTheTeamRan(t *testing.T) {
 	t.Setenv("HERDR_ENV", "1")
 	t.Setenv("HERDR_PANE_ID", "p9")
 
-	got := mustRun(t, "down", "draft", "--lang", "ja")
+	got := mustRun(t, "down", "draft", "--dry", "--lang", "ja")
+	if !strings.Contains(got, "draft が動いている間にできたワークツリー（git、閉じたあとに残る予定）:") ||
+		!strings.Contains(got, "ワークツリー: "+mine) || strings.Contains(got, theirs) {
+		t.Errorf("down --dry does not plan the same list:\n%s", got)
+	}
+	before := mustRun(t, "down", "draft", "--dry", "--json")
+	if err := os.Remove(filepath.Join(f.state, "hergy", "launches", "log.jsonl")); err != nil {
+		t.Fatal(err)
+	}
+	after := mustRun(t, "down", "draft", "--dry", "--json")
+	if before != after {
+		t.Fatalf("down plan changed after removing history:\nbefore %s\nafter %s", before, after)
+	}
+	got = mustRun(t, "down", "draft", "--lang", "ja")
 	if !strings.Contains(got, "draft が動いている間にできたワークツリー（git）:") {
 		t.Errorf("down does not say when the worktrees were made:\n%s", got)
 	}
@@ -105,18 +124,11 @@ func TestDownListsTheWorktreesMadeWhileTheTeamRan(t *testing.T) {
 	if strings.Contains(got, "（ペインの作業ディレクトリがここにあった）") {
 		t.Errorf("down marks a worktree no pane stood in:\n%s", got)
 	}
-
-	got = mustRun(t, "down", "draft", "--dry", "--lang", "ja")
-	if !strings.Contains(got, "draft が動いている間にできたワークツリー（git、閉じたあとに残る予定）:") ||
-		!strings.Contains(got, "ワークツリー: "+mine) || strings.Contains(got, theirs) {
-		t.Errorf("down --dry does not plan the same list:\n%s", got)
-	}
 }
 
 // TestDownALoneWorkerListsTheWorktreesMadeAfterItWasHired: closing one worker
-// lists the worktrees that came after that worker was hired, from its hire line
-// in the launch record — not the ones that came after the team was started, and
-// not the ones that were there before the hire (d-970c).
+// lists worktrees made after the current hire, excluding the ones made before
+// the hire even when the team was already running (d-970c).
 func TestDownALoneWorkerListsTheWorktreesMadeAfterItWasHired(t *testing.T) {
 	f := newFixture(t)
 	mustRun(t, "new", "draft")
@@ -148,6 +160,14 @@ esac
 	t.Setenv("HERDR_ENV", "1")
 	t.Setenv("HERDR_PANE_ID", "p9")
 
+	before := mustRun(t, "down", "bench", "--dry", "--json")
+	if err := os.Remove(filepath.Join(f.state, "hergy", "launches", "log.jsonl")); err != nil {
+		t.Fatal(err)
+	}
+	after := mustRun(t, "down", "bench", "--dry", "--json")
+	if before != after {
+		t.Fatalf("down plan changed after removing history:\nbefore %s\nafter %s", before, after)
+	}
 	got := mustRun(t, "down", "bench", "--lang", "ja")
 	if !strings.Contains(got, "draft-bench を雇ったあとにできたワークツリー（git）:") {
 		t.Errorf("down does not say when the worktrees were made:\n%s", got)

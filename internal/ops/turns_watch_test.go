@@ -10,8 +10,10 @@ import (
 	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/ops/internal/herdr"
 	"github.com/aq2bq/hergy/internal/ops/internal/protocol"
+	"github.com/aq2bq/hergy/internal/ops/internal/runningstate"
 	"github.com/aq2bq/hergy/internal/ops/internal/team"
 	"github.com/aq2bq/hergy/internal/ops/internal/turns"
+	"github.com/aq2bq/hergy/internal/ops/teststate"
 )
 
 // turnsPort is a fake herdr for the watcher: the panes' text by herdr name,
@@ -74,6 +76,8 @@ type turnsFixture struct {
 
 func newTurnsFixture(t *testing.T) *turnsFixture {
 	t.Helper()
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	inJapanese(t)
 	f := &turnsFixture{port: &turnsPort{panes: map[string]string{}}, out: &bytes.Buffer{}, scr: &bytes.Buffer{}, now: time.Date(2026, 11, 6, 21, 20, 0, 0, time.UTC)}
 	dir := t.TempDir()
@@ -546,5 +550,51 @@ func TestTurnsDoesNotReadAWiredMembersPaneEachTurn(t *testing.T) {
 	}
 	if got := f.port.reads["demo-lead"]; got < 3 {
 		t.Errorf("the member with no signal was read %d times over 3 stops, want one read a stop", got)
+	}
+}
+
+func TestTurnsRecognizesAWorkerHiredAfterWatchingBegan(t *testing.T) {
+	f := newTurnsFixture(t)
+	if err := teststate.Write(teststate.Team{Name: "demo", Definition: "demo", Project: t.TempDir(), StartedAt: f.now}); err != nil {
+		t.Fatal(err)
+	}
+	f.set("demo-lead", "idle", 1)
+	f.w.tick() // The watcher is already running before the hire.
+	store, err := runningstate.Open()
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, exists, err := store.Read(fixtureDemoTeam())
+	if err != nil || !exists {
+		t.Fatalf("state: %t %v", exists, err)
+	}
+	if err := store.Hire(fixtureDemoTeam(), state.Generation(), runningstate.Worker{Name: "demo-scroll", From: "lead", Tab: "worker:demo/scroll", Time: f.now}); err != nil {
+		t.Fatal(err)
+	}
+	f.w.read = func() ([]team.Tab, []protocol.Agent, bool, error) {
+		return []team.Tab{
+			{ID: "t1", Label: fixtureSeen("demo"), Agents: fixtureSeenList([]string{"demo-lead"})},
+			{ID: "tw", Label: fixtureSeen("worker:demo/scroll"), Agents: fixtureSeenList([]string{"demo-scroll"})},
+		}, f.agents, true, nil
+	}
+	f.set("demo-scroll", "working", 2)
+	f.later(time.Second)
+	f.port.panes["demo-scroll"] = "finished the task"
+	f.set("demo-scroll", "done", 3)
+	f.later(time.Second)
+	question, asked := f.w.state.Asked["scroll"]
+	if !asked || len(question.Waiting) != 1 || question.Waiting[0] != "lead" {
+		t.Fatalf("worker's first turn: asked=%t question=%+v; want its hirer lead waiting", asked, question)
+	}
+	if len(f.port.prompts) != 1 || !strings.HasPrefix(f.port.prompts[0], "demo-scroll\n") {
+		t.Fatalf("prompts=%q", f.port.prompts)
+	}
+	f.set("demo-scroll", "working", 4)
+	f.later(time.Second)
+	f.port.panes["demo-scroll"] = "lead"
+	f.set("demo-scroll", "done", 5)
+	f.later(time.Second)
+	if len(f.port.prompts) != 2 || !strings.HasPrefix(f.port.prompts[1], "demo-lead\n") || !strings.Contains(f.port.prompts[1], "finished the task") {
+		t.Fatalf("worker result was not handed to its hirer: %q", f.port.prompts)
 	}
 }
