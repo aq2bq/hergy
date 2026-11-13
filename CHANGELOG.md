@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.10.3 - 2026-11-13
+
+### Fixed
+
+- A team started under a name this machine had not used before (`hergy up <definition> --as <team>`) gets its watcher: the watcher's pane ended with "there is no team definition <team>".
+
 ## 0.10.2 - 2026-11-13
 
 ### Changed
