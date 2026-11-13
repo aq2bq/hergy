@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.10.2 - 2026-11-13
+
+### Changed
+
+- `hergy cheat` and `hergy cheat --ai` are each command's line and one line on what it does.
+- `hergy <command> --help` is the usage, the arguments and the flags, one line each; refusals are read where they happen, as errors.
+- README and the bundled skill no longer repeat the cheatsheet.
+- `hergy status` says "not running" where it said "not present".
+- The screens drop 25 notes that repeated what their headings, buttons and states already show.
+- The activity screen's "端末で返答する" is "herdr でペインへ移動", and says "herdr で移動しました" once herdr has selected the pane.
+
 ## 0.10.1 - 2026-11-13
 
 ### Changed
