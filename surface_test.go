@@ -12,7 +12,6 @@ import (
 
 	"github.com/aq2bq/hergy/internal/cheat"
 	"github.com/aq2bq/hergy/internal/options"
-	"github.com/aq2bq/hergy/internal/words"
 )
 
 // This file holds what every page a person or an agent reads says about which
@@ -50,7 +49,7 @@ func surfaces(t *testing.T) []surface {
 		if err != nil {
 			t.Fatal(err)
 		}
-		out = append(out, surface{path, words.Handwritten(string(raw))})
+		out = append(out, surface{path, string(raw)})
 	}
 	return out
 }

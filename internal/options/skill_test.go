@@ -5,8 +5,6 @@ import (
 	"regexp"
 	"strings"
 	"testing"
-
-	"github.com/aq2bq/hergy/internal/words"
 )
 
 // hergyCommand finds a command mention. A command is written as "hergy <word>"
@@ -50,7 +48,7 @@ func TestHandwrittenSkillNamesExist(t *testing.T) {
 		if err != nil {
 			t.Fatalf("read the bundled skill: %v", err)
 		}
-		sources[strings.TrimPrefix(path, "../../")] = words.Handwritten(string(skill))
+		sources[strings.TrimPrefix(path, "../../")] = string(skill)
 	}
 
 	commands := map[string]bool{}
