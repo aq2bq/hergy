@@ -302,7 +302,7 @@
   "label.document": "document",
   "label.mode": "mode",
   "label.timeout": "timeout",
-  "label.prompt": "prompt",
+  "label.prompt": "bootstrap prompt",
   "label.path": "path",
   "label.file": "file",
   "label.result": "result",

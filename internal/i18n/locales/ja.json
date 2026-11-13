@@ -292,7 +292,7 @@
   "label.member": "メンバー",
   "label.role": "ロール",
   "label.role_file": "ロールの文書",
-  "label.kind": "種類",
+  "label.kind": "kind",
   "label.profile": "プロファイル",
   "label.purpose": "目的",
   "label.args": "引数",

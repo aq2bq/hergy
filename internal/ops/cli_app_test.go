@@ -613,7 +613,7 @@ func TestUpDryShapePrintsThePromptUnescaped(t *testing.T) {
 		"  role: lead",
 		"  role document: .hergy/roles/lead.md",
 		"  reads: .hergy/teams/demo/agreement.md",
-		"  prompt: |",
+		"  bootstrap prompt: |",
 		"    You are demo-lead (lead) on team demo.",
 		"    - Hand over a task the receiver can start without reading your conversation.",
 		"    - Work along the gy-loop skill, so that work can resume from gy when a conversation ends.",
