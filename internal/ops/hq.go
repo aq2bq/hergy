@@ -324,9 +324,7 @@ func (h *hqRead) projectOf(path domainplace.Project, listed bool, sourceName str
 	one.Running = h.runningIn(env.ProjectRoot)
 	if record, ok := h.latestProjectLaunch(env.ProjectRoot); ok {
 		one.LastLaunch = record.Time
-		if record.Workspace != "" {
-			one.LastWorkspace = &HQWorkspace{ID: record.WorkspaceID, Label: record.Workspace}
-		}
+		one.LastWorkspace = &HQWorkspace{ID: record.WorkspaceID, Label: record.Workspace}
 	}
 	return one, nil
 }
@@ -398,9 +396,6 @@ func launchProjects(records []launchlog.Record) []domainplace.Project {
 	seen := map[domainplace.Project]bool{}
 	var out []domainplace.Project
 	for _, record := range slices.Backward(records) {
-		if record.IsHire() {
-			continue
-		}
 		project := record.Project.Project()
 		if project.IsZero() || seen[project] {
 			continue
@@ -411,14 +406,11 @@ func launchProjects(records []launchlog.Record) []domainplace.Project {
 	return out
 }
 
-// latestProjectLaunch is the newest launch record of one project.
+// latestProjectLaunch is the newest workspace-bearing up of one project.
 func (h *hqRead) latestProjectLaunch(path domainplace.Project) (launchlog.Record, bool) {
 	records := h.launchRecords()
 	for _, record := range slices.Backward(records) {
-		if record.IsHire() {
-			continue
-		}
-		if record.Project.Project().Compare(path) == domainplace.Same {
+		if record.StartedInWorkspace() && record.Project.Project().Compare(path) == domainplace.Same {
 			return record, true
 		}
 	}

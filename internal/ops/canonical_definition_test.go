@@ -38,7 +38,7 @@ func TestCanonicalDefinitionPathKeepsOldRecordsAndNormalizesNewOnes(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	old := launchlog.Record{Command: launchlog.CommandUp, Team: fixtureSeen("demo"), Definition: "demo", Project: env.ProjectRoot.Seen(), TeamYAML: observedplace.Observe(filepath.Join(alias, "teams", "demo", "team.yaml"))}
+	old := launchlog.Record{Command: launchlog.CommandUp, Workspace: "workspace", WorkspaceID: "w1", Team: fixtureSeen("demo"), Project: env.ProjectRoot.Seen(), TeamYAML: observedplace.Observe(filepath.Join(alias, "teams", "demo", "team.yaml"))}
 	if err := log.Append(old); err != nil {
 		t.Fatal(err)
 	}
@@ -49,7 +49,7 @@ func TestCanonicalDefinitionPathKeepsOldRecordsAndNormalizesNewOnes(t *testing.T
 	if _, found, err := log.Latest(projectPath(canonical)); err != nil || !found {
 		t.Fatalf("old alias record not found: %t %v", found, err)
 	}
-	if warning := recordLaunch(env, r, launchlog.CommandUp, r.Starts); warning != "" {
+	if warning := recordLaunchIn(env, r, launchlog.CommandUp, launchlog.Workspace{}); warning != "" {
 		t.Fatal(warning)
 	}
 	after, err := os.ReadFile(filepath.Join(log.Dir(), "log.jsonl"))

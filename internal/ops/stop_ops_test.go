@@ -182,7 +182,7 @@ func TestScreenStopAcceptsEmptyTeamTab(t *testing.T) {
 			f, env, r, port, h := stopFixture(t)
 			log := launchlog.At(filepath.Join(f.state, "hergy", "launches"))
 			if recorded {
-				if err := writeLaunch(log, env, r, launchlog.CommandUp, r.Starts, launchlog.Workspace{}); err != nil {
+				if err := writeLaunch(log, env, r, launchlog.CommandUp, launchlog.Workspace{}); err != nil {
 					t.Fatal(err)
 				}
 			}

@@ -48,85 +48,30 @@ func TestDefaultDirFollowsXDGStateHome(t *testing.T) {
 	}
 }
 
-// TestAppendAndRead: a record is one line, the texts it points at come back by
-// hash, the same text is stored once, and the records read oldest first.
+// TestAppendAndRead checks metadata order and leaves no blob store behind.
 func TestAppendAndRead(t *testing.T) {
 	log := testLog(t)
-	prompt, err := log.Put([]byte("you are the lead"))
-	if err != nil {
-		t.Fatal(err)
+	for _, rec := range []Record{
+		{Time: "2026-10-15T22:10:03+09:00", Command: CommandUp, Project: observedplace.Observe("/tmp/project"), Team: fixtureSeen("demo"), TeamYAML: observedplace.Observe("/tmp/project/team.yaml"), Workspace: "workspace", WorkspaceID: "w1"},
+		{Time: "2026-10-15T22:20:00+09:00", Command: CommandReprompt, Team: fixtureSeen("demo")},
+	} {
+		if err := log.Append(rec); err != nil {
+			t.Fatal(err)
+		}
 	}
-	twice, err := log.Put([]byte("you are the lead"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if twice != prompt {
-		t.Fatalf("the same text was stored as %q and %q", prompt, twice)
-	}
-	doc, err := log.Put([]byte("rules: one"))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	first := Record{
-		Time: "2026-10-15T22:10:03+09:00", Command: CommandUp, Hergy: "hergy abc1234",
-		Project: observedplace.Observe("/tmp/project"), Layer: "local", Definition: "agile-dev", Team: fixtureSeen("agile-dev"),
-		TeamYAML: observedplace.Observe("/tmp/project/.hergy/teams/agile-dev/team.yaml"), Hash: "0123456789abcdef",
-		Members: []Member{{Name: fixtureSeen("agile-dev-lead"), Short: "lead", Prompt: prompt}},
-		Docs:    []Doc{{Path: "/tmp/project/.hergy/common/00_TEAM_PROTOCOL.yaml", Layer: "local", Revision: 3, SHA256: doc}},
-	}
-	if err := log.Append(first); err != nil {
-		t.Fatal(err)
-	}
-	second := Record{
-		Time: "2026-10-15T22:20:00+09:00", Command: CommandReprompt, Layer: "local",
-		Definition: "agile-dev", Team: fixtureSeen("agile-dev"), Hash: "0123456789abcdef",
-		Members: []Member{{Name: fixtureSeen("agile-dev-worker"), Short: "worker", Prompt: doc}},
-	}
-	if err := log.Append(second); err != nil {
-		t.Fatal(err)
-	}
-
 	records, err := log.Read()
-	if err != nil {
-		t.Fatal(err)
+	if err != nil || len(records) != 2 {
+		t.Fatalf("records=%+v err=%v", records, err)
 	}
-	if len(records) != 2 {
-		t.Fatalf("Read() returned %d records, want 2", len(records))
+	if records[0].Command != CommandUp || records[1].Command != CommandReprompt || records[0].Team.String() != "demo" || records[0].WorkspaceID != "w1" {
+		t.Fatalf("metadata changed: %+v", records)
 	}
-	if records[0].Command != CommandUp || records[1].Command != CommandReprompt {
-		t.Errorf("Read() returned %q then %q, want them oldest first", records[0].Command, records[1].Command)
+	if _, err := os.Stat(filepath.Join(log.Dir(), "blobs")); !os.IsNotExist(err) {
+		t.Fatalf("history created blobs: %v", err)
 	}
-	if got := records[0]; got.Members[0].Prompt != prompt || got.Docs[0].Revision != 3 || got.Team.String() != "agile-dev" {
-		t.Errorf("the first record came back as %+v", got)
-	}
-	text, err := log.Text(prompt)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if string(text) != "you are the lead" {
-		t.Errorf("Text(%q) = %q", prompt, text)
-	}
-
-	// One blob per text: the prompt was put twice and the doc once.
-	entries, err := os.ReadDir(filepath.Join(log.Dir(), blobsDir))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(entries) != 2 {
-		t.Errorf("blobs/ holds %d files, want 2 (the same text is stored once)", len(entries))
-	}
-	// The line carries no prompt text: a log is handed around and read by a
-	// screen, and the text lives in one place.
-	line, err := os.ReadFile(filepath.Join(log.Dir(), logName))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if strings.Contains(string(line), "you are the lead") {
-		t.Errorf("a line carries the prompt text:\n%s", line)
-	}
-	if strings.Count(string(line), "\n") != 2 {
-		t.Errorf("log.jsonl holds %d lines, want one per launch", strings.Count(string(line), "\n"))
+	raw, err := os.ReadFile(filepath.Join(log.Dir(), logName))
+	if err != nil || strings.Count(string(raw), "\n") != 2 {
+		t.Fatalf("history lines=%q err=%v", raw, err)
 	}
 }
 
@@ -166,8 +111,8 @@ func TestReadNamesABrokenLine(t *testing.T) {
 }
 
 // TestLatestPicksTheNewestOfOneDefinition: the last launch of a team definition
-// wins, whatever command it was, and a launch of another definition — including a
-// definition of the same name in another project — is not it.
+// with a workspace wins. Later prompt operations and another project's
+// same-named definition cannot hide it.
 func TestLatestPicksTheNewestOfOneDefinition(t *testing.T) {
 	log := testLog(t)
 	const (
@@ -176,13 +121,14 @@ func TestLatestPicksTheNewestOfOneDefinition(t *testing.T) {
 		global = "/cfg/hergy/teams/demo/team.yaml"
 	)
 	for _, rec := range []Record{
-		{Command: CommandUp, Layer: "local", Definition: "demo", TeamYAML: observedplace.Observe(demo), Hash: "first"},
-		{Command: CommandUp, Layer: "global", Definition: "demo", TeamYAML: observedplace.Observe(global), Hash: "global"},
-		{Command: CommandUp, Layer: "local", Definition: "other", TeamYAML: observedplace.Observe(other), Hash: "other"},
+		{Command: CommandUp, Workspace: "workspace", WorkspaceID: "w1", TeamYAML: observedplace.Observe(demo)},
+		{Command: CommandUp, Workspace: "workspace", WorkspaceID: "w1", TeamYAML: observedplace.Observe(global)},
+		{Command: CommandUp, Workspace: "workspace", WorkspaceID: "w1", TeamYAML: observedplace.Observe(other)},
 		// The same definition name in another project: the team.yaml tells them
 		// apart, so this one is not the launch of the definition above (M1).
-		{Command: CommandUp, Layer: "local", Definition: "demo", TeamYAML: observedplace.Observe("/elsewhere/.hergy/teams/demo/team.yaml"), Hash: "elsewhere"},
-		{Command: CommandReprompt, Layer: "local", Definition: "demo", TeamYAML: observedplace.Observe(demo), Hash: "last"},
+		{Command: CommandUp, Workspace: "workspace", WorkspaceID: "w1", TeamYAML: observedplace.Observe("/elsewhere/.hergy/teams/demo/team.yaml")},
+		{Command: CommandUp, Workspace: "next-workspace", WorkspaceID: "w2", TeamYAML: observedplace.Observe(demo)},
+		{Command: CommandReprompt, TeamYAML: observedplace.Observe(demo)},
 	} {
 		if err := log.Append(rec); err != nil {
 			t.Fatal(err)
@@ -192,116 +138,11 @@ func TestLatestPicksTheNewestOfOneDefinition(t *testing.T) {
 	if err != nil || !ok {
 		t.Fatalf("Latest() = %v, %v", ok, err)
 	}
-	if got.Hash != "last" || got.Command != CommandReprompt {
+	if got.Command != CommandUp || got.WorkspaceID != "w2" {
 		t.Errorf("Latest(%s) = %+v, want the last launch of it", demo, got)
 	}
 	if _, ok, err := log.Latest(projectPath("/nowhere/.hergy/teams/demo/team.yaml")); err != nil || ok {
 		t.Errorf("Latest() found a record for a definition no launch read: %v, %v", ok, err)
-	}
-}
-
-// TestHashIsStableAndSeparates: the hash of a launch does not depend on the
-// order an environment happens to be written in, and two launches that hand a
-// member different things — a different prompt, another argument, another
-// environment, another settings file, another member — do not hash alike.
-func TestHashIsStableAndSeparates(t *testing.T) {
-	base := Material{
-		TeamYAML: []byte("version: 1\n"),
-		Members: []MaterialMember{{
-			Kind:   "claude",
-			Args:   []string{"--model", "opus"},
-			Env:    map[string]string{"A": "1", "B": "2"},
-			Prompt: "you are the lead",
-		}},
-	}
-	same := Material{
-		TeamYAML: []byte("version: 1\n"),
-		Members: []MaterialMember{{
-			Kind: "claude",
-			Args: []string{"--model", "opus"},
-			// The same environment, written in the other order.
-			Env:    map[string]string{"B": "2", "A": "1"},
-			Prompt: "you are the lead",
-		}},
-	}
-	if Hash(base) != Hash(same) {
-		t.Errorf("the same launch hashed as %q and %q", Hash(base), Hash(same))
-	}
-
-	different := map[string]Material{
-		"a prompt that differs": {TeamYAML: base.TeamYAML, Members: []MaterialMember{{Kind: "claude", Args: []string{"--model", "opus"}, Env: base.Members[0].Env, Prompt: "you are the lead!"}}},
-		"another argument":      {TeamYAML: base.TeamYAML, Members: []MaterialMember{{Kind: "claude", Args: []string{"--model", "sonnet"}, Env: base.Members[0].Env, Prompt: "you are the lead"}}},
-		"another kind":          {TeamYAML: base.TeamYAML, Members: []MaterialMember{{Kind: "codex", Args: []string{"--model", "opus"}, Env: base.Members[0].Env, Prompt: "you are the lead"}}},
-		"another environment":   {TeamYAML: base.TeamYAML, Members: []MaterialMember{{Kind: "claude", Args: []string{"--model", "opus"}, Env: map[string]string{"A": "9"}, Prompt: "you are the lead"}}},
-		"another settings file": {TeamYAML: []byte("version: 2\n"), Members: base.Members},
-		"another member":        {TeamYAML: base.TeamYAML, Members: append(append([]MaterialMember{}, base.Members...), MaterialMember{Kind: "claude", Prompt: "you are the worker"})},
-	}
-	for what, material := range different {
-		if Hash(base) == Hash(material) {
-			t.Errorf("%s hashed like the launch it is not: %q", what, Hash(base))
-		}
-	}
-}
-
-// TestFingerprintsTellAStartAndAnEnv: the start fingerprint follows the kind and
-// args and nothing else, and the env fingerprint follows the keys and values in
-// any order, so a profile change is seen and an env change is a different
-// question (d-36ef).
-func TestFingerprintsTellAStartAndAnEnv(t *testing.T) {
-	if StartFingerprint("claude", []string{"--model", "opus"}) == StartFingerprint("claude", []string{"--model", "sonnet"}) {
-		t.Error("two starts hashed alike")
-	}
-	if StartFingerprint("claude", nil) == StartFingerprint("codex", nil) {
-		t.Error("two kinds hashed alike")
-	}
-	one := EnvFingerprint(map[string]string{"A": "1", "B": "2"})
-	if one != EnvFingerprint(map[string]string{"B": "2", "A": "1"}) {
-		t.Error("the same environment hashed two ways")
-	}
-	if one == EnvFingerprint(map[string]string{"A": "1", "B": "3"}) {
-		t.Error("a changed value hashed like the value it changed from")
-	}
-	if one == StartFingerprint("claude", nil) {
-		t.Error("an environment hashed like a start")
-	}
-}
-
-// TestHashSeparatesFields: a field cannot slide into the next one, so two
-// launches whose members carry the same bytes split differently do not hash
-// alike.
-func TestHashSeparatesFields(t *testing.T) {
-	one := Material{Members: []MaterialMember{{Kind: "ab", Args: []string{"c"}}}}
-	other := Material{Members: []MaterialMember{{Kind: "a", Args: []string{"bc"}}}}
-	if Hash(one) == Hash(other) {
-		t.Errorf("kind ab + arg c hashed like kind a + arg bc")
-	}
-	env := Material{Members: []MaterialMember{{Kind: "a", Env: map[string]string{"b": "c"}}}}
-	if Hash(one) == Hash(env) {
-		t.Errorf("a kind hashed like an environment key")
-	}
-}
-
-// TestPutKeepsABlobWhole: a blob is written under its own hash, so a text that
-// is already there is left alone rather than rewritten.
-func TestPutKeepsABlobWhole(t *testing.T) {
-	log := testLog(t)
-	hash, err := log.Put([]byte("one"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	path := filepath.Join(log.Dir(), blobsDir, hash)
-	if err := os.Chmod(path, 0o400); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := log.Put([]byte("one")); err != nil {
-		t.Fatalf("Put() of a text that is already stored: %v", err)
-	}
-	text, err := log.Text(hash)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if string(text) != "one" {
-		t.Errorf("the stored text is %q", text)
 	}
 }
 
@@ -325,11 +166,11 @@ func TestLatestMatchesCanonicalDefinitionPath(t *testing.T) {
 	}
 	log := At(filepath.Join(root, "launches"))
 	recorded := filepath.Join(alias, "team.yaml")
-	if err := log.Append(Record{TeamYAML: observedplace.Observe(recorded), Hash: "same-file"}); err != nil {
+	if err := log.Append(Record{Command: CommandUp, Workspace: "workspace", WorkspaceID: "w1", TeamYAML: observedplace.Observe(recorded)}); err != nil {
 		t.Fatal(err)
 	}
 	got, ok, err := log.Latest(projectPath(realFile))
-	if err != nil || !ok || got.Hash != "same-file" || got.TeamYAML.String() != recorded {
+	if err != nil || !ok || got.TeamYAML.String() != recorded {
 		t.Fatalf("latest=%+v, found=%t, err=%v", got, ok, err)
 	}
 }

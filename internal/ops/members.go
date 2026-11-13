@@ -197,7 +197,7 @@ func Hire(ctx context.Context, in HireInput) (MemberResult, error) {
 	l := operationLauncher(ctx, r, in.Timeout, in.Port, in.Observe)
 	err = execute(ctx, l, in.Observe, nil, func() error { return l.Hire(worker, in.Task) })
 	if ctx.Err() == nil && (err == nil || launcher.IsUndelivered(err)) {
-		warning(in.Observe, recordHire(in.Env, r, *worker, in.Now))
+		warning(in.Observe, runningStateWarning(hireRunningState(r, *worker, in.Now)))
 	}
 	return out, err
 }

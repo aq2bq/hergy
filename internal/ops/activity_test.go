@@ -114,10 +114,9 @@ func newActivityFixture(t *testing.T) *activityFixture {
 		seedRunningTeam(t, f.proj, one.team, one.definition)
 		record := launchlog.Record{
 			Time: activityNow.Format(time.RFC3339), Command: launchlog.CommandUp,
-			Hergy: "hergy (test)", Project: observedplace.Observe(f.proj), Layer: "local",
-			Definition: one.definition, Team: fixtureSeen(one.team),
+			Project:  observedplace.Observe(f.proj),
+			Team:     fixtureSeen(one.team),
 			TeamYAML: observedplace.Observe(filepath.Join(f.proj, ".hergy", "teams", one.definition, "team.yaml")),
-			Hash:     "test",
 		}
 		if err := log.Append(record); err != nil {
 			t.Fatal(err)
@@ -326,9 +325,9 @@ func TestActivityListKeepsOnlyThisProject(t *testing.T) {
 		seedRunningTeam(t, filepath.Join(f.cfg, "another"), one.team, one.definition)
 		if err := log.Append(launchlog.Record{
 			Time: activityNow.Format(time.RFC3339), Command: launchlog.CommandUp,
-			Hergy: "hergy (test)", Project: observedplace.Observe(filepath.Join(f.cfg, "another")), Layer: "local",
-			Definition: one.definition, Team: fixtureSeen(one.team),
-			TeamYAML: observedplace.Observe(filepath.Join(f.cfg, "another", one.definition, "team.yaml")), Hash: "test",
+			Project:  observedplace.Observe(filepath.Join(f.cfg, "another")),
+			Team:     fixtureSeen(one.team),
+			TeamYAML: observedplace.Observe(filepath.Join(f.cfg, "another", one.definition, "team.yaml")),
 		}); err != nil {
 			t.Fatal(err)
 		}
@@ -480,9 +479,8 @@ func TestActivityOneSaysWhenTheDefinitionDoesNotRead(t *testing.T) {
 	log := launchlog.At(filepath.Join(f.state, "hergy", "launches"))
 	if err := log.Append(launchlog.Record{
 		Time: activityNow.Format(time.RFC3339), Command: launchlog.CommandUp,
-		Hergy: "hergy (test)", Project: observedplace.Observe(f.proj), Layer: "local",
-		Definition: "broken", Team: fixtureSeen("broken"), TeamYAML: observedplace.Observe(filepath.Join(f.proj, ".hergy", "teams", "broken", "team.yaml")),
-		Hash: "test",
+		Project: observedplace.Observe(f.proj),
+		Team:    fixtureSeen("broken"), TeamYAML: observedplace.Observe(filepath.Join(f.proj, ".hergy", "teams", "broken", "team.yaml")),
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -736,8 +734,8 @@ func TestATeamOfTheSameNameInTwoProjectsKeepsItsOwnDefinition(t *testing.T) {
 	} {
 		if err := log.Append(launchlog.Record{
 			Time: one.when.Format(time.RFC3339), Command: launchlog.CommandUp,
-			Project: observedplace.Observe(one.proj), Layer: "local", Definition: "core", Team: fixtureSeen("core"),
-			TeamYAML: observedplace.Observe(filepath.Join(one.proj, ".hergy", "teams", "core", "team.yaml")), Hash: "test",
+			Project: observedplace.Observe(one.proj), Team: fixtureSeen("core"),
+			TeamYAML: observedplace.Observe(filepath.Join(one.proj, ".hergy", "teams", "core", "team.yaml")),
 		}); err != nil {
 			t.Fatal(err)
 		}

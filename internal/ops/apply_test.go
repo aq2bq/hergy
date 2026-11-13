@@ -27,7 +27,7 @@ func TestApplySaysHowEachMemberIsPutRight(t *testing.T) {
 		t.Fatal(err)
 	}
 	startTestState(t, env, r, r.Starts)
-	if err := writeLaunch(log, env, r, launchlog.CommandUp, r.Starts, launchlog.Workspace{}); err != nil {
+	if err := writeLaunch(log, env, r, launchlog.CommandUp, launchlog.Workspace{}); err != nil {
 		t.Fatalf("record demo: %v", err)
 	}
 	rolePath := filepath.Join(f.proj, ".hergy", "roles", "lead.md")
@@ -88,7 +88,7 @@ func TestApplyLeavesAWorkingMemberAndSaysWhy(t *testing.T) {
 		t.Fatal(err)
 	}
 	startTestState(t, env, r, r.Starts)
-	if err := writeLaunch(log, env, r, launchlog.CommandUp, r.Starts, launchlog.Workspace{}); err != nil {
+	if err := writeLaunch(log, env, r, launchlog.CommandUp, launchlog.Workspace{}); err != nil {
 		t.Fatalf("record demo: %v", err)
 	}
 	rolePath := filepath.Join(f.proj, ".hergy", "roles", "lead.md")

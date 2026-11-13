@@ -85,7 +85,7 @@ type Doc struct {
 
 // Compare is what changed between the prompt a member last read and the prompt
 // its current definition builds. lang is the language both prompts are written
-// in (the launch record's, which the current prompt is rebuilt with); oldDocs is
+// in (the receipt's, which the current prompt is rebuilt with); oldDocs is
 // only that member's previously read documents by path; current is the current Start (its
 // prompt, segments, turns and workers) and docs are the current rule documents.
 func Compare(team domainname.TeamName, lang, oldPrompt string, oldDocs map[string]string, current definition.Start, docs []Doc) []Change {

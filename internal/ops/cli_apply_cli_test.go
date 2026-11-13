@@ -29,9 +29,20 @@ func TestApplyAddsAMemberTheTeamHasNoAgentFor(t *testing.T) {
 		}
 	}
 	_, records := launchLog(t, f)
-	if last := records[len(records)-1]; last.Command != "apply" || len(last.Members) != 1 || last.Members[0].Short != "builder" {
+	if last := records[len(records)-1]; last.Command != "apply" {
 		t.Fatalf("the last record = %+v, want an apply of builder", last)
 	}
+	receipts := teamState(t, "demo").Members()
+	found := false
+	for _, receipt := range receipts {
+		if receipt.Short == "builder" && receipt.Command == "apply" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("builder receipt missing: %+v", receipts)
+	}
+
 }
 
 func TestApplyDrySaysHowAndWhatChanged(t *testing.T) {

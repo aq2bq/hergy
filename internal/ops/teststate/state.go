@@ -33,6 +33,9 @@ type Team struct {
 // Write begins a run in the test's XDG_STATE_HOME. Empty Layer means local;
 // empty TeamYAML means the named definition in the project's .hergy directory.
 func Write(in Team) error {
+	if err := requireStateHome(); err != nil {
+		return err
+	}
 	name, err := domainname.ParseTeamName(in.Name)
 	if err != nil {
 		return err

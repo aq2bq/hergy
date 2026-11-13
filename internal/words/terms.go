@@ -71,7 +71,7 @@ var terms = []Term{
 	{ID: "report-shape", English: "report shape", Japanese: "報告の形", Meaning: "the fields of one report, written under reports"},
 	{ID: "incident", English: "incident", Japanese: "インシデント", Meaning: "something that went wrong and put a rule there; one kind of origin"},
 	{ID: "activity", English: "activity", Japanese: "アクティビティ", Meaning: "how a running team stands now: who is waiting on the human, what needs deciding, and why it is stopped"},
-	{ID: "launch-record", English: "launch record", Japanese: "起動記録", Meaning: "what a running team was started from: the definition and the hash of its content at that time"},
+	{ID: "launch-record", English: "launch record", Japanese: "起動記録", Meaning: "history of a team's launches: the project, definition path, time and workspace"},
 	{ID: "undo", English: "undo", Japanese: "取り消す", Meaning: "take back the one operation just made (the notice's 取り消す and ⌘Z); a change already saved is not brought back by it"},
 	{ID: "revert", English: "revert", Japanese: "元に戻す", Meaning: "throw away every change not saved in this panel and write the file's own text again (the save band's 元に戻す)"},
 	{ID: "settings-check", English: "settings check", Japanese: "設定の検査", Meaning: "the result of checking the settings; the CLI remains hergy validate"},

@@ -26,33 +26,3 @@ func (r *Record) UnmarshalJSON(raw []byte) error {
 	r.TeamYAML = place.Observe(w.TeamYAML)
 	return nil
 }
-
-// UnmarshalJSON restores the member spelling exactly as recorded.
-func (m *Member) UnmarshalJSON(raw []byte) error {
-	type plain Member
-	w := struct {
-		*plain
-		Name string `json:"name"`
-	}{plain: (*plain)(m)}
-	if err := json.Unmarshal(raw, &w); err != nil {
-		return err
-	}
-	m.Name = name.Observe(w.Name)
-	return nil
-}
-
-// UnmarshalJSON restores the worker and tab spellings exactly as recorded.
-func (h *Hire) UnmarshalJSON(raw []byte) error {
-	type plain Hire
-	w := struct {
-		*plain
-		Worker string `json:"worker"`
-		Tab    string `json:"tab"`
-	}{plain: (*plain)(h)}
-	if err := json.Unmarshal(raw, &w); err != nil {
-		return err
-	}
-	h.Worker = name.Observe(w.Worker)
-	h.Tab = name.Observe(w.Tab)
-	return nil
-}

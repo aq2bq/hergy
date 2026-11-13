@@ -83,8 +83,7 @@ func TestRosterChangeHasNoOtherMembersDocumentsOnEitherDeliveryPath(t *testing.T
 			}
 		}
 	}
-	_, records := launchLog(t, f)
-	for _, member := range records[len(records)-1].Members {
+	for _, member := range teamState(t, "demo").Members() {
 		if len(member.Docs) != 2 {
 			t.Fatalf("record lacks reading: %+v", member)
 		}
@@ -92,7 +91,7 @@ func TestRosterChangeHasNoOtherMembersDocumentsOnEitherDeliveryPath(t *testing.T
 		if member.Short == "builder" {
 			other = "lead"
 		}
-		if slices.Contains(member.Docs, filepath.Join(f.proj, ".hergy/roles/"+other+".md")) {
+		if slices.ContainsFunc(member.Docs, func(doc runningstate.Doc) bool { return doc.Path == filepath.Join(f.proj, ".hergy/roles/"+other+".md") }) {
 			t.Fatalf("record contains peer: %+v", member)
 		}
 	}

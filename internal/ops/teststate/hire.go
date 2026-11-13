@@ -13,6 +13,9 @@ type Worker runningstate.Worker
 // Hire adds a worker with the current generation, including for CLI tests that
 // cannot import ops/internal/runningstate directly. It never creates a run.
 func Hire(team string, worker Worker) error {
+	if err := requireStateHome(); err != nil {
+		return err
+	}
 	name, err := domainname.ParseTeamName(team)
 	if err != nil {
 		return err

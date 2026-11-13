@@ -20,8 +20,7 @@ import (
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/ops/internal/herdr"
 	"github.com/aq2bq/hergy/internal/ops/internal/launchlog"
-	observedplace "github.com/aq2bq/hergy/internal/ops/internal/place"
-	"github.com/aq2bq/hergy/internal/ops/internal/team" // passingHerdr is a fake herdr that answers every command the CLI may need, so
+	observedplace "github.com/aq2bq/hergy/internal/ops/internal/place" // passingHerdr is a fake herdr that answers every command the CLI may need, so
 	"github.com/aq2bq/hergy/internal/ops/teststate"
 
 	// a boot, a refresh or a down runs to the end.
@@ -227,7 +226,6 @@ func memberEnv(t *testing.T, plan map[string]any, name string) map[string]string
 // workersFixture writes a dev team whose lead may hire for 調査 (seeker) and
 // 実装 (developer), and points the fake herdr at the running team.
 func workersFixture(t *testing.T) {
-	seedRunningTeam(t, serveEnv(t).ProjectRoot.String(), "dev", "dev")
 	t.Helper()
 	f := newFixture(t)
 	workersProject(t, f)
@@ -293,7 +291,7 @@ func recordAgain(t *testing.T) {
 		t.Fatal(err)
 	}
 	startTestState(t, env, r, r.Starts)
-	if err := writeLaunch(log, env, r, launchlog.CommandUp, r.Starts, launchlog.Workspace{}); err != nil {
+	if err := writeLaunch(log, env, r, launchlog.CommandUp, launchlog.Workspace{}); err != nil {
 		t.Fatalf("record demo: %v", err)
 	}
 }
@@ -620,35 +618,9 @@ func recordTeamLaunch(t *testing.T, team string) {
 		t.Fatal(err)
 	}
 	startTestState(t, env, r, r.Starts)
-	if err := writeLaunch(log, env, r, launchlog.CommandUp, r.Starts, launchlog.Workspace{}); err != nil {
+	if err := writeLaunch(log, env, r, launchlog.CommandUp, launchlog.Workspace{}); err != nil {
 		t.Fatalf("record %s: %v", team, err)
 	}
-}
-
-// recordDev records one launch of the dev definition from the files on disk,
-// the way up does after a boot, and returns what it appended.
-func recordDev(t *testing.T, f *fixture) launchlog.Record {
-	t.Helper()
-	seedRunningTeam(t, f.proj, "dev", "dev")
-	env, err := team.NewEnv()
-	if err != nil {
-		t.Fatal(err)
-	}
-	r, err := ReadDefinition(env.Catalog(source.Disk{}), env.ProjectRoot, "dev", "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	var stderr bytes.Buffer
-	startTestState(t, env, r, r.Starts)
-	launchWarning(&stderr, recordLaunch(env, r, launchlog.CommandUp, r.Starts))
-	if stderr.Len() > 0 {
-		t.Fatalf("recording dev failed: %s", stderr.String())
-	}
-	_, records := launchLog(t, f)
-	if len(records) == 0 {
-		t.Fatal("recording dev wrote no record")
-	}
-	return records[len(records)-1]
 }
 
 // failingStartHerdr is a fake herdr whose agent start fails, so a boot stops
@@ -710,7 +682,7 @@ func recordStart(t *testing.T, f *fixture, teamName string, at time.Time) {
 	log := launchlog.At(filepath.Join(f.state, "hergy", "launches"))
 	if err := log.Append(launchlog.Record{
 		Time: at.Format(time.RFC3339), Command: launchlog.CommandUp,
-		Project: observedplace.Observe(f.proj), Team: fixtureSeen(teamName), Definition: teamName,
+		Project: observedplace.Observe(f.proj), Team: fixtureSeen(teamName),
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -740,7 +712,7 @@ func aliasProjectRun(t *testing.T, recordAlias bool) (Environment, string) {
 		t.Fatal(err)
 	}
 	startTestState(t, env, r, r.Starts)
-	if err := writeLaunch(log, env, r, launchlog.CommandUp, r.Starts, launchlog.Workspace{}); err != nil {
+	if err := writeLaunch(log, env, r, launchlog.CommandUp, launchlog.Workspace{}); err != nil {
 		t.Fatal(err)
 	}
 	records, err := log.Read()
@@ -915,9 +887,8 @@ func writeLaunchRecord(t *testing.T, teamName, definition string) {
 		t.Fatal(err)
 	}
 	if err := log.Append(launchlog.Record{
-		Command:    launchlog.CommandUp,
-		Team:       fixtureSeen(teamName),
-		Definition: definition,
+		Command: launchlog.CommandUp,
+		Team:    fixtureSeen(teamName),
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -939,11 +910,6 @@ func runExpectingError(t *testing.T, stdin io.Reader, argv ...string) (string, e
 		return stdout, nil
 	}
 	return stdout, errors.New(stderr)
-}
-func launchWarning(out io.Writer, note string) {
-	if note != "" {
-		fmt.Fprintln(out, note)
-	}
 }
 func runStdin(t *testing.T, stdin io.Reader, argv ...string) (string, string, int) {
 	t.Helper()
