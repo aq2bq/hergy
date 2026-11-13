@@ -2,6 +2,7 @@ package launcher
 
 import (
 	"errors"
+	"slices"
 	"strings"
 
 	domainname "github.com/aq2bq/hergy/internal/domain/name"
@@ -42,6 +43,20 @@ func (l *Launcher) Received(name string) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	return l.progress.States[name] == i18n.T("progress.mark.bootstrap_submitted")
+}
+
+// Started reports that this operation started the member and received its prompt.
+func (l *Launcher) Started(name string) bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return slices.Contains(l.started, name)
+}
+
+// CreatedPane reports that this operation created the member's pane.
+func (l *Launcher) CreatedPane(name string) bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return slices.Contains(l.created, name)
 }
 
 // hireRetry reconstructs the original task and effective hiring member, rather

@@ -43,7 +43,7 @@ func recordReceivedLaunch(env Environment, r *Resolved, command string, members 
 	if command != launchlog.CommandUp && len(received) == 0 {
 		return ""
 	}
-	stateNote := runningStateWarning(receiveRunningState(r, command, received, now))
+	stateNote := runningStateWarning(receiveRunningState(r, command, received, now, l.Started, l.CreatedPane))
 	if note := recordLaunchIn(env, r, command, received, workspace); note != "" {
 		return note
 	}

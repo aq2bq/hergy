@@ -292,6 +292,7 @@ func recordAgain(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	startTestState(t, env, r, r.Starts)
 	if err := writeLaunch(log, env, r, launchlog.CommandUp, r.Starts, launchlog.Workspace{}); err != nil {
 		t.Fatalf("record demo: %v", err)
 	}
@@ -618,6 +619,7 @@ func recordTeamLaunch(t *testing.T, team string) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	startTestState(t, env, r, r.Starts)
 	if err := writeLaunch(log, env, r, launchlog.CommandUp, r.Starts, launchlog.Workspace{}); err != nil {
 		t.Fatalf("record %s: %v", team, err)
 	}
@@ -637,6 +639,7 @@ func recordDev(t *testing.T, f *fixture) launchlog.Record {
 		t.Fatal(err)
 	}
 	var stderr bytes.Buffer
+	startTestState(t, env, r, r.Starts)
 	launchWarning(&stderr, recordLaunch(env, r, launchlog.CommandUp, r.Starts))
 	if stderr.Len() > 0 {
 		t.Fatalf("recording dev failed: %s", stderr.String())
@@ -736,6 +739,7 @@ func aliasProjectRun(t *testing.T, recordAlias bool) (Environment, string) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	startTestState(t, env, r, r.Starts)
 	if err := writeLaunch(log, env, r, launchlog.CommandUp, r.Starts, launchlog.Workspace{}); err != nil {
 		t.Fatal(err)
 	}

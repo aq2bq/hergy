@@ -1,8 +1,6 @@
 package ops
 
 import (
-	domainplace "github.com/aq2bq/hergy/internal/domain/place"
-
 	"time"
 
 	domainname "github.com/aq2bq/hergy/internal/domain/name"
@@ -14,7 +12,7 @@ import (
 	"github.com/aq2bq/hergy/internal/ops/internal/deliver"
 	"github.com/aq2bq/hergy/internal/ops/internal/launchlog"
 	"github.com/aq2bq/hergy/internal/ops/internal/prompt"
-	"github.com/aq2bq/hergy/internal/source"
+	"github.com/aq2bq/hergy/internal/ops/internal/runningstate"
 	"github.com/aq2bq/hergy/internal/words"
 )
 
@@ -67,7 +65,7 @@ func byHerdrOf(judged activity.Team) map[string]activity.Node {
 // planTeam adds one running team's drift to the plan: the members whose prompt,
 // start or env differs, the members the definition has and no agent is live for,
 // and the members the definition no longer has.
-func planTeam(one *DeliveryPlan, running RunningTeam, judged activity.Team, byHerdr map[string]activity.Node, records map[domainplace.Project]map[string]map[string]launchlog.Record, log launchlog.Log, logErr error) {
+func planTeam(one *DeliveryPlan, running RunningTeam, judged activity.Team, byHerdr map[string]activity.Node) {
 	row := ApplyTeam{
 		Team: running.Name.String(), Definition: running.Definition,
 		Project: running.Project, ProjectName: running.ProjectName,
@@ -84,7 +82,7 @@ func planTeam(one *DeliveryPlan, running RunningTeam, judged activity.Team, byHe
 		}
 		return
 	}
-	recorded := teamsRecorded(records, running.Project)[running.Name.String()]
+	recorded := memberReceipts(running.state)
 	oldRecord := false
 	noted := map[string]bool{}
 	addNote := func(text string) {
@@ -110,10 +108,10 @@ func planTeam(one *DeliveryPlan, running RunningTeam, judged activity.Team, byHe
 			continue
 		}
 		record, hasRecord := recorded[start.Name.String()]
-		if hasRecord && !fingerprinted(record, start) {
+		if hasRecord && !fingerprinted(record) {
 			oldRecord = true
 		}
-		drift := readMemberDrift(running.Catalog, log, logErr, running, start, record, hasRecord)
+		drift := readMemberDrift(running.Catalog, running, start, record, hasRecord)
 		state := node.State.Slug()
 		planned := PlannedMember{
 			Team: running, Start: start, State: state,
@@ -143,20 +141,18 @@ func planTeam(one *DeliveryPlan, running RunningTeam, judged activity.Team, byHe
 		}
 		row.Members = append(row.Members, applied)
 	}
-	if newest, ok := newestRecord(recorded); ok {
-		for _, note := range workerNotes(newest, running.Built) {
-			addNote(note)
-		}
+	for _, note := range workerNotes(running.state.Launch().Workers, running.Built) {
+		addNote(note)
 	}
+
 	if oldRecord {
-		// The record was written before hergy kept the fingerprint: a profile
-		// that changed since then cannot be told from one that did not, so the
-		// sheet says so rather than claiming the member is current.
+		// Without a known process fingerprint a changed profile cannot be
+		// distinguished from the one still running.
 		addNote(i18n.T("apply.note_old_record"))
 	}
 	// A member the definition no longer has is still live: hergy cannot put it
 	// right without stopping and starting the team (d-36ef). Only an agent the
-	// launch record holds as this team's member is that; the others are hired
+	// running state holds as this team's member is that; the others are hired
 	// workers, which a stop leaves alone too but which are outside the apply.
 	for _, hired := range judged.Hired {
 		if _, was := recorded[hired.Herdr.String()]; !was {
@@ -180,30 +176,15 @@ func planTeam(one *DeliveryPlan, running RunningTeam, judged activity.Team, byHe
 	}
 }
 
-// newestRecord is the newest launch among the records of one team's Members: the
-// team-level facts (its worker entries) are the same in each, so the newest is
-// the one the note reads.
-func newestRecord(recorded map[string]launchlog.Record) (launchlog.Record, bool) {
-	var best launchlog.Record
-	found := false
-	for _, record := range recorded {
-		if !found || record.Time > best.Time {
-			best, found = record, true
-		}
-	}
-	return best, found
-}
-
 // workerNotes is the team's own note: a worker entry's profile changed since the
 // launch, so the next worker hired from it gets the new engine, while the workers
-// already hired keep theirs (d-36ef). A record written before the worker
-// fingerprints were kept says nothing.
-func workerNotes(record launchlog.Record, r *Resolved) []string {
-	if len(record.Workers) == 0 {
+// already hired keep theirs (d-36ef). A run with no worker entries says nothing.
+func workerNotes(workers []runningstate.WorkerDefinition, r *Resolved) []string {
+	if len(workers) == 0 {
 		return nil
 	}
-	before := map[string]launchlog.Worker{}
-	for _, worker := range record.Workers {
+	before := map[string]runningstate.WorkerDefinition{}
+	for _, worker := range workers {
 		before[worker.From+"/"+worker.Purpose] = worker
 	}
 	var out []string
@@ -228,8 +209,8 @@ func workerNotes(record launchlog.Record, r *Resolved) []string {
 
 // memberDrift is what one live member differs in: its prompt, how it is started,
 // and its environment. The start and the env come from the fingerprints the
-// launch record keeps, so a changed profile is told from a changed prompt; a
-// record written before the fingerprints were kept leaves both false.
+// running state keeps, so a changed profile is told from a changed prompt; a
+// receipt without known fingerprints leaves both false.
 type memberDrift struct {
 	prompt  bool
 	Start   bool
@@ -270,11 +251,11 @@ func (d memberDrift) RefusalRule() words.RuleID {
 }
 
 // memberDrift reads one live member's drift: the prompt comparison, and the
-// fingerprints the launch record keeps of the start and the env.
-func readMemberDrift(cat *catalog.Catalog, log launchlog.Log, logErr error, running RunningTeam, start definition.Start, record launchlog.Record, hasRecord bool) memberDrift {
+// fingerprints the running state keeps of the start and the env.
+func readMemberDrift(cat *catalog.Catalog, running RunningTeam, start definition.Start, recorded runningstate.Receipt, hasRecord bool) memberDrift {
 	var drift memberDrift
-	drift.prompt, drift.Changes = memberChanges(cat, log, logErr, running, start, record, hasRecord)
-	if recorded, ok := recordedMemberOf(record, start); ok && hasRecord {
+	drift.prompt, drift.Changes = memberChanges(cat, running, start, recorded, hasRecord)
+	if hasRecord {
 		if recorded.Start != "" {
 			drift.Start = recorded.Start != launchlog.StartFingerprint(start.Kind, start.Args)
 		}
@@ -291,46 +272,27 @@ func readMemberDrift(cat *catalog.Catalog, log launchlog.Log, logErr error, runn
 	return drift
 }
 
-// recordedMemberOf is one member in the launch record, by herdr name first and
-// then by short name.
-func recordedMemberOf(record launchlog.Record, start definition.Start) (launchlog.Member, bool) {
-	for i := range record.Members {
-		if record.Members[i].Name.String() == start.Name.String() || record.Members[i].Short == start.Short.String() {
-			return record.Members[i], true
-		}
-	}
-	return launchlog.Member{}, false
-}
-
-// fingerprinted says the record holds the fingerprints the drift needs.
-func fingerprinted(record launchlog.Record, start definition.Start) bool {
-	member, ok := recordedMemberOf(record, start)
-	return ok && member.Start != "" && member.Env != ""
+// fingerprinted says this receipt identifies how the member's process started.
+func fingerprinted(receipt runningstate.Receipt) bool {
+	return receipt.Start != "" && receipt.Env != ""
 }
 
 // memberChanges says whether the prompt this member last read differs from the
 // prompt its current definition builds, and what changed. The old prompt and
-// documents come from the launch record; the current prompt is built with the
-// facts recorded at that launch, so the comparison is about the definition, not
+// documents come from the running state; the current prompt is built with the
+// facts recorded at that receipt, so the comparison is about the definition, not
 // about which hergy or project is reading it now.
-func memberChanges(cat *catalog.Catalog, log launchlog.Log, logErr error, running RunningTeam, start definition.Start, record launchlog.Record, hasRecord bool) (bool, []Change) {
-	if !hasRecord || logErr != nil {
+func memberChanges(cat *catalog.Catalog, running RunningTeam, start definition.Start, recorded runningstate.Receipt, hasRecord bool) (bool, []Change) {
+	if !hasRecord {
 		return false, nil
 	}
-	recorded, ok := recordedMemberOf(record, start)
-	if !ok {
-		return false, nil
-	}
-	old, err := log.Text(recorded.Prompt)
-	if err != nil {
-		return false, nil
-	}
+	old := recorded.Prompt
 	node, ok := running.Built.Team.Definition.Graph.Member(start.Short.String())
 	if !ok {
 		return false, nil
 	}
 	run := prompt.Run{
-		Team: domainname.RunningNames(running.Built.Team.Name), Executable: record.Executable, Base: record.Project.Project(), Lang: record.Lang,
+		Team: domainname.RunningNames(running.Built.Team.Name), Executable: recorded.Executable, Base: running.Project, Lang: recorded.Lang,
 		Reader: cat.Reader(), Sources: cat, Display: cat.Display,
 	}
 	if run.Executable == "" {
@@ -351,81 +313,18 @@ func memberChanges(cat *catalog.Catalog, log launchlog.Log, logErr error, runnin
 	current := start
 	current.Prompt, current.Segments = built.Text, built.Segments
 	current.RoleDoc, current.HasRole, current.Read = built.Role, built.HasRole, built.Read
-	changes := readChanges(deliver.Compare(running.Built.ModelTeamName(), record.Lang, string(old), oldDocs(log, record, recorded, string(old)), current, currentDocs(cat, built)))
+	changes := readChanges(deliver.Compare(running.Built.ModelTeamName(), recorded.Lang, string(old), oldDocs(recorded), current, deliveryDocs(cat, built.Documents)))
 	if len(changes) == 0 {
 		changes = []Change{{Kind: "prompt", Text: i18n.T("delivery.prompt_changed")}}
 	}
 	return true, changes
 }
 
-// latestMemberRecords is, for each project, each of its teams and each of that
-// team's members, the newest launch that handed that member a prompt. A reprompt
-// records only the members it sent, so a team's newest line is not a snapshot of
-// the others: each member's own last prompt is the one to compare.
-//
-// The project stands in the key: the headquarters shows several projects, and a
-// record is the one its own project wrote (r-2e49). A record that names no project
-// — one written before the record kept it — stands under "", and is read for a
-// team whose project has no record of its own (teamsRecorded).
-func latestMemberRecords() map[domainplace.Project]map[string]map[string]launchlog.Record {
-	out := map[domainplace.Project]map[string]map[string]launchlog.Record{}
-	log, err := launchlog.Open()
-	if err != nil {
-		return out
-	}
-	records, err := log.Read()
-	if err != nil {
-		return out
-	}
-	for _, record := range records {
-		if record.Team.String() == "" || record.Definition == "" || record.IsHire() {
-			continue
-		}
-		project := record.Project.Project()
-		if out[project] == nil {
-			out[project] = map[string]map[string]launchlog.Record{}
-		}
-		if out[project][record.Team.String()] == nil {
-			out[project][record.Team.String()] = map[string]launchlog.Record{}
-		}
-		// The record is history, oldest first: the last record that carries a
-		// member is that member's last prompt.
-		for _, member := range record.Members {
-			if member.Name.String() != "" {
-				out[project][record.Team.String()][member.Name.String()] = record
-			}
-		}
-	}
-	return out
-}
-
-// teamsRecorded is one project's teams as the launch record holds them, found the
-// way the record names the project: the same directory, symlinks and all. A
-// project with no record of its own falls back to the records that name none
-// (r-2e49).
-func teamsRecorded(records map[domainplace.Project]map[string]map[string]launchlog.Record, project domainplace.Project) map[string]map[string]launchlog.Record {
-	if teams, ok := records[project]; ok {
-		return teams
-	}
-	return records[domainplace.Project{}]
-}
-
-// currentDocs is the rule documents of one current prompt, with the path a
-// screen shows.
-func currentDocs(cat *catalog.Catalog, built *prompt.Built) []deliver.Doc {
+// deliveryDocs projects the captured rule contents for comparison and display.
+func deliveryDocs(cat *catalog.Catalog, documents []definition.ReadDocument) []deliver.Doc {
 	var out []deliver.Doc
-	add := func(doc source.Doc) {
-		text, err := source.Disk{}.Read(doc)
-		if err != nil {
-			return
-		}
-		out = append(out, deliver.Doc{Path: doc.Path, Display: cat.Display(doc.Path), Text: string(text)})
-	}
-	if built.HasRole {
-		add(built.Role)
-	}
-	for _, doc := range built.Read {
-		add(doc)
+	for _, doc := range documents {
+		out = append(out, deliver.Doc{Path: doc.Doc.Path, Display: cat.Display(doc.Doc.Path), Text: doc.Text})
 	}
 	return out
 }
@@ -449,11 +348,9 @@ func computeDelivery(in deliveryInput) DeliveryPlan {
 		one.Apply.Herdr = ReadNote{Text: in.Session.Err.Error()}
 		return one
 	}
-	records := latestMemberRecords()
-	log, logErr := launchlog.Open()
 	for _, running := range readRunningTeamsIn(in.Views, in.Session, false) {
 		judged := judgeOf(running, in.Session, in.Now)
-		planTeam(&one, running, judged, byHerdrOf(judged), records, log, logErr)
+		planTeam(&one, running, judged, byHerdrOf(judged))
 	}
 	return one
 }

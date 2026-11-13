@@ -5,10 +5,17 @@
 ### Changed
 
 - Worker recipients, hirers and stop-time worktree lists use the current team state, preserving them without launch history and keeping earlier runs separate; the watcher recognizes workers hired after it starts.
+- Apply comparisons and recorded prompts read the current run state, so deleting launch history no longer changes them or mixes in members from an earlier run.
 
 - Running teams require a saved state file and an exactly matching herdr tab; status and the screens omit unregistered tabs, while `hergy down <team>` can still close their named panes.
 - Team startup stops before creating a tab when its state cannot be saved; a failure to write launch history still reports a warning and continues.
 - `hergy turns --definition` was removed; the watcher reads the team definition from the running team state.
+
+### Fixed
+
+- Restarting an agent in an existing pane preserves its environment fingerprint, so apply continues to require down/up after an env change.
+- Resending a bootstrap prompt preserves the running process fingerprints, so apply still detects a changed start or environment.
+- Recorded rule documents keep the text read while building the delivered prompt, even when a file changes before receipt is recorded.
 
 ## 0.10.3 - 2026-11-13
 

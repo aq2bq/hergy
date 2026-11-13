@@ -1,4 +1,4 @@
-import { registerRunningTeam } from './running-state';
+import { registerRunningTeam, receiveRunningPrompts } from './running-state';
 // ⑤ r-ba9b / ac-c7ee / ac-1f12: the prompt's table. What a member or a worker is
 // handed is read by one owner, follows the definition's unsaved edits and the
 // running teams (no run, one, one alias, two), and matches what the same hergy
@@ -39,11 +39,12 @@ function setLive(app: App, teams: string[]): void {
   teams.forEach((team, ti) => {
  registerRunningTeam(app,team,'core');
     const plan = planFor(app, team);
+    receiveRunningPrompts(app, team, plan.members);
     const members = plan.members.map((m) => {
-      const name = team + m.name.slice('core'.length);
+      const name = m.name;
       const hash = createHash('sha256').update(m.prompt).digest('hex');
       writeFileSync(path.join(dir, 'blobs', hash), m.prompt);
-      return { name, short: m.name.slice('core-'.length), prompt: hash };
+      return { name, short: m.name.slice(team.length + 1), prompt: hash };
     });
     lines.push(JSON.stringify({
       time: new Date().toISOString(), command: 'up', project: realpathSync(app.proj), layer: 'local',

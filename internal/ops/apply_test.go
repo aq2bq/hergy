@@ -26,6 +26,7 @@ func TestApplySaysHowEachMemberIsPutRight(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	startTestState(t, env, r, r.Starts)
 	if err := writeLaunch(log, env, r, launchlog.CommandUp, r.Starts, launchlog.Workspace{}); err != nil {
 		t.Fatalf("record demo: %v", err)
 	}
@@ -86,6 +87,7 @@ func TestApplyLeavesAWorkingMemberAndSaysWhy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	startTestState(t, env, r, r.Starts)
 	if err := writeLaunch(log, env, r, launchlog.CommandUp, r.Starts, launchlog.Workspace{}); err != nil {
 		t.Fatalf("record demo: %v", err)
 	}

@@ -1,14 +1,15 @@
 package ops
 
 import (
-	"encoding/hex"
 	"fmt"
 	"sync"
 	"time"
 
+	domainname "github.com/aq2bq/hergy/internal/domain/name"
 	domainplace "github.com/aq2bq/hergy/internal/domain/place"
 
 	"github.com/aq2bq/hergy/internal/ops/internal/catalog"
+	"github.com/aq2bq/hergy/internal/ops/internal/runningstate"
 )
 
 // This file is the live half of the prompt reading (⑤ r-ba9b): which teams of
@@ -106,31 +107,35 @@ func (a *Reader) PromptHistory(_ domainplace.Project, definition, place, member,
 		out.Reason = "このメンバーは動いていないため、今の文だけを表示します"
 		return out, nil
 	}
+	store, err := runningstate.Open()
+	if err != nil {
+		return out, err
+	}
+	key, err := domainname.ParseTeamName(team.Team.String())
+	if err != nil {
+		return out, err
+	}
+	state, exists, err := store.Read(key)
+	if err != nil {
+		return out, err
+	}
+	if !exists {
+		return out, nil
+	}
 	cat, err := a.hq.catalogAt(team.Project)
 	if err != nil {
 		return out, err
 	}
+	cat = catalogOfRun(cat, state.Launch())
 	path := cat.TeamPath(definition, domainplace.Selection(place).Layer())
-	records, err := readLaunchRecords()
-	if err != nil {
-		return out, err
-	}
-	record, entry, ok := lastPromptRecord(records, team.Project, path, definition, team.Team.String(), member)
+	entry, ok := lastPromptReceipt(state, team.Project, path, definition, member)
 	if !ok {
 		out.Status = "missing"
 		out.Reason = "このメンバーへ渡した本文を一意に特定できる記録がありません"
 		return out, nil
 	}
-	hash, err := hex.DecodeString(entry.Prompt)
-	if err != nil || len(hash) != 32 {
-		return out, fmt.Errorf("記録の本文ハッシュが壊れています")
-	}
-	text, err := recordedPromptText(entry.Prompt)
-	if err != nil {
-		return out, fmt.Errorf("記録の本文を読めません: %w", err)
-	}
 	out.Status = "recorded"
 	out.Reason = ""
-	out.Recorded = &RecordedPrompt{Text: string(text), Command: record.Command, Time: record.Time}
+	out.Recorded = &RecordedPrompt{Text: entry.Prompt, Command: entry.Command, Time: entry.Time.Format(time.RFC3339)}
 	return out, nil
 }

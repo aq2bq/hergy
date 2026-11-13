@@ -5,8 +5,7 @@ import (
 	domainplace "github.com/aq2bq/hergy/internal/domain/place"
 	"github.com/aq2bq/hergy/internal/ops/internal/catalog"
 	"github.com/aq2bq/hergy/internal/ops/internal/deliver"
-	"github.com/aq2bq/hergy/internal/ops/internal/launchlog"
-	"github.com/aq2bq/hergy/internal/source"
+	"github.com/aq2bq/hergy/internal/ops/internal/runningstate"
 )
 
 // This file is what hergy hands a member when it sends the bootstrap prompt
@@ -16,54 +15,30 @@ import (
 // prompt without restarting its work.
 
 // promptsToResend is the prompts a resend hands to the members: each member's
-// current prompt, with the preamble when the launch record shows a change. A
+// current prompt, with the preamble when the running state shows a change. A
 // member the record does not know, or one whose prompt is the prompt it already
 // read, is sent as it is.
 func promptsToResend(cat *catalog.Catalog, project domainplace.Project, r *Resolved, members []definition.Start) []definition.Start {
 	out := append([]definition.Start(nil), members...)
-	log, err := launchlog.Open()
+	store, err := runningstate.Open()
 	if err != nil {
 		return out
 	}
-	recorded := teamsRecorded(latestMemberRecords(), project)[r.Team.Name.String()]
+	state, exists, err := store.Read(r.ModelTeamName())
+	if err != nil || !exists || state.Launch().Project.Compare(project) != domainplace.Same {
+		return out
+	}
+	recorded := memberReceipts(state)
 	for i := range out {
 		record, ok := recorded[out[i].Name.String()]
 		if !ok {
 			continue
 		}
-		recordedMember, ok := recordedMemberOf(record, out[i])
-		if !ok {
-			continue
-		}
-		old, err := log.Text(recordedMember.Prompt)
-		if err != nil {
-			continue
-		}
-		changes := deliver.Compare(r.ModelTeamName(), record.Lang, string(old), oldDocs(log, record, recordedMember, string(old)), out[i], docsOfStart(cat, out[i]))
+		changes := deliver.Compare(r.ModelTeamName(), record.Lang, record.Prompt, oldDocs(record), out[i], deliveryDocs(cat, out[i].Documents))
 		if len(changes) == 0 {
 			continue
 		}
 		out[i].Prompt = deliver.Preamble(changes) + out[i].Prompt
-	}
-	return out
-}
-
-// docsOfStart is the rule documents one built member read, as the comparison
-// reads them.
-func docsOfStart(cat *catalog.Catalog, start definition.Start) []deliver.Doc {
-	var out []deliver.Doc
-	add := func(doc source.Doc) {
-		text, err := source.Disk{}.Read(doc)
-		if err != nil {
-			return
-		}
-		out = append(out, deliver.Doc{Path: doc.Path, Display: cat.Display(doc.Path), Text: string(text)})
-	}
-	if start.HasRole {
-		add(start.RoleDoc)
-	}
-	for _, doc := range start.Read {
-		add(doc)
 	}
 	return out
 }

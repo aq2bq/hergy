@@ -136,7 +136,7 @@ var localeMessages = map[string]Text{
 
 	"apply.start_changed":    bilingual("the way the {{member}} {{start}}s changed", "{{start}}の仕方が変わった"),
 	"apply.env_changed":      bilingual("the environment changed", "環境変数（env）が変わった"),
-	"apply.note_old_record":  bilingual("the {{launch-record}} is older than the fingerprints, so a change to a {{profile}} cannot be told here", "{{start}}の記録が古いので、{{profile}}の変更は見分けられません"),
+	"apply.note_old_record":  bilingual("the running process fingerprints are unknown, so a change to a {{profile}} cannot be told here", "動いているプロセスの起動情報がないので、{{profile}}の変更は見分けられません"),
 	"apply.preamble_lead":    bilingual("The {{team-definition}} changed, so hergy is sending the {{bootstrap-prompt}} again.", "{{team}}の定義が変わったので、{{bootstrap-prompt}}を{{reprompt}}ます。"),
 	"apply.preamble_close":   bilingual("Take what follows as the {{bootstrap-prompt}} in place of the one you received before. Keep going with the work and conversation you have now, and do not repeat the steps you do just after a {{start}}.", "前に受け取った{{bootstrap-prompt}}の代わりに、このあとに従ってください。今の仕事と会話は、そのまま続けてください。{{start}}の直後にする手順は、やり直さないでください。"),
 	"apply.none_selected":    bilingual("Choose at least one {{member}} to {{apply}}", "{{apply}}する{{member}}を選んでください"),

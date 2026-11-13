@@ -22,12 +22,3 @@ func latestLaunch(path domainplace.Project) (launchlog.Record, bool, error) {
 	}
 	return log.Latest(path)
 }
-
-// recordedPromptText reads a previously recorded prompt body.
-func recordedPromptText(hash string) ([]byte, error) {
-	log, err := launchlog.Open()
-	if err != nil {
-		return nil, err
-	}
-	return log.Text(hash)
-}
