@@ -31,12 +31,8 @@ func TestWordsGateRejectsStaleOutputAndMissingDocumentMarkers(t *testing.T) {
 		document += "<!-- words:" + name + ":start -->\nold\n<!-- words:" + name + ":end -->\n"
 	}
 	document += "advice stays\n"
-	messages := map[string]string{"usage": "", "cheat.people": ""}
-	for _, rule := range words.Rules() {
-		if rule.ErrorKey != "" {
-			messages[rule.ErrorKey] = ""
-		}
-	}
+	messages := words.LocaleMessages("en")
+	messages["usage"], messages["cheat.people"] = "", ""
 	raw, err := json.MarshalIndent(messages, "", "  ")
 	if err != nil {
 		t.Fatal(err)

@@ -72,12 +72,9 @@ func projectedDocuments(root string) (map[string][]byte, error) {
 		if err != nil {
 			return nil, err
 		}
-		generated := map[string]string{"cheat.people": cheat.BuildPeople(lang), "usage": options.BuildUsage(lang)}
-		for _, rule := range words.Rules() {
-			if rule.ErrorKey != "" {
-				generated[rule.ErrorKey] = rule.Pattern(lang)
-			}
-		}
+		generated := words.LocaleMessages(lang)
+		generated["cheat.people"] = cheat.BuildPeople(lang)
+		generated["usage"] = options.BuildUsage(lang)
 		made, err := projectLocale(raw, generated)
 		if err != nil {
 			return nil, err

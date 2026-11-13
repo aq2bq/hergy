@@ -137,6 +137,9 @@ func Errorf(rule RuleID, lang string, args ...any) error {
 
 // GeneratedLocaleKey distinguishes projected messages from handwritten messages.
 func GeneratedLocaleKey(key string) bool {
+	if _, ok := localeMessages[key]; ok {
+		return true
+	}
 	if key == "cheat.people" || key == "usage" {
 		return true
 	}
