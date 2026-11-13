@@ -4,17 +4,15 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"testing"
 
 	domainname "github.com/aq2bq/hergy/internal/domain/name"
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/ops/internal/launchlog"
-	"github.com/aq2bq/hergy/internal/source" // TestUpRecordsTheLaunch: a successful boot leaves one line with what was
-	// handed out, and every text the line points at is in blobs/ at its full text.
 )
 
+// Up keeps launch identity and workspace history without a blob store.
 func TestUpRecordsTheLaunch(t *testing.T) {
 	f := newFixture(t)
 	mustRun(t, "new", "demo")
@@ -24,101 +22,39 @@ func TestUpRecordsTheLaunch(t *testing.T) {
 	mustRun(t, "up", "demo")
 	log, records := launchLog(t, f)
 	if len(records) != 1 {
-		t.Fatalf("up left %d records, want 1", len(records))
+		t.Fatalf("up left %d records", len(records))
 	}
 	rec := records[0]
-	if rec.Command != launchlog.CommandUp {
-		t.Errorf("command = %q, want %q", rec.Command, launchlog.CommandUp)
-	}
-	if rec.Project.String() != f.proj {
-		t.Errorf("project = %q, want %q", rec.Project, f.proj)
-	}
-	if rec.Layer != source.LayerLocal || rec.Definition != "demo" || rec.Team.String() != "demo" {
-		t.Errorf("layer/definition/team = %q/%q/%q, want local/demo/demo", rec.Layer, rec.Definition, rec.Team)
+	if rec.Command != launchlog.CommandUp || rec.Project.String() != f.proj || rec.Team.String() != "demo" || rec.Time == "" {
+		t.Fatalf("launch identity=%+v", rec)
 	}
 	if want := filepath.Join(f.proj, ".hergy", "teams", "demo", "team.yaml"); rec.TeamYAML.String() != want {
-		t.Errorf("team_yaml = %q, want %q", rec.TeamYAML, want)
+		t.Fatalf("definition path=%s want=%s", rec.TeamYAML, want)
 	}
-	if len(rec.Hash) != 64 {
-		t.Errorf("hash = %q, want the sha256 of the launched team in hex", rec.Hash)
+	if rec.WorkspaceID == "" {
+		t.Fatalf("launch lost workspace: %+v", rec)
 	}
-	if rec.Time == "" || rec.Hergy == "" {
-		t.Errorf("time/hergy = %q/%q, want the time and which hergy ran", rec.Time, rec.Hergy)
-	}
-
-	wantMembers := map[string]string{"demo-lead": "lead", "demo-builder": "builder"}
-	if len(rec.Members) != len(wantMembers) {
-		t.Fatalf("members = %v, want both members of the definition", rec.Members)
-	}
-	prompts := map[string]string{}
-	for _, member := range rec.Members {
-		short, ok := wantMembers[member.Name.String()]
-		if !ok || member.Short != short {
-			t.Errorf("member %q with short name %q, want one of %v", member.Name, member.Short, wantMembers)
-		}
-		text, err := log.Text(member.Prompt)
-		if err != nil {
-			t.Fatalf("the prompt of %s is not in blobs/: %v", member.Name, err)
-		}
-		prompts[member.Name.String()] = string(text)
-	}
-	if prompts["demo-lead"] == "" || prompts["demo-lead"] == prompts["demo-builder"] {
-		t.Errorf("the members' prompts are %q and %q, want two texts",
-			prompts["demo-lead"], prompts["demo-builder"])
-	}
-
-	wantDocs := []string{
-		filepath.Join(f.proj, ".hergy", "roles", "builder.md"),
-		filepath.Join(f.proj, ".hergy", "roles", "lead.md"),
-		filepath.Join(f.proj, ".hergy", "teams", "demo", "agreement.md"),
-	}
-	gotDocs := make([]string, len(rec.Docs))
-	for i, doc := range rec.Docs {
-		gotDocs[i] = doc.Path
-		if doc.Layer != source.LayerLocal {
-			t.Errorf("the document %s carries layer %q, want local", doc.Path, doc.Layer)
-		}
-		text, err := log.Text(doc.SHA256)
-		if err != nil {
-			t.Fatalf("the text of %s is not in blobs/: %v", doc.Path, err)
-		}
-		if want := readFile(t, doc.Path); string(text) != want {
-			t.Errorf("the record holds another text for %s than the file has:\n%s", doc.Path, text)
-		}
-	}
-	sort.Strings(gotDocs)
-	if strings.Join(gotDocs, "\n") != strings.Join(wantDocs, "\n") {
-		t.Errorf("the record names the files\n%s\nwant\n%s", strings.Join(gotDocs, "\n"), strings.Join(wantDocs, "\n"))
+	if _, err := os.Stat(filepath.Join(log.Dir(), "blobs")); !os.IsNotExist(err) {
+		t.Fatalf("up created blobs: %v", err)
 	}
 }
 
-// TestTheRecordFollowsWhatTheCommandHandedOut: up hands a prompt to every member
-// and reprompt to the member it was asked for, while the hash is the hash of the
-// whole definition either way, so two commands of one team line up.
-func TestTheRecordFollowsWhatTheCommandHandedOut(t *testing.T) {
+func TestLaunchHistoryKeepsUpAndReprompt(t *testing.T) {
 	f := newFixture(t)
 	mustRun(t, "new", "demo")
 	f.statefulHerdr(t)
 	t.Setenv("HERDR_ENV", "1")
 	t.Setenv("HERDR_PANE_ID", "p9")
-
 	mustRun(t, "up", "demo")
 	mustRun(t, "reprompt", "lead", "--team", "demo")
-
 	_, records := launchLog(t, f)
-	if len(records) != 2 {
-		t.Fatalf("up and reprompt left %d records, want 2", len(records))
+	if len(records) != 2 || records[0].Command != launchlog.CommandUp || records[1].Command != launchlog.CommandReprompt {
+		t.Fatalf("launch history=%+v", records)
 	}
-	if got := len(records[0].Members); got != 2 {
-		t.Errorf("up recorded %d members, want both", got)
-	}
-	last := records[1]
-	if last.Command != launchlog.CommandReprompt || len(last.Members) != 1 || last.Members[0].Name.String() != "demo-lead" {
-		t.Errorf("reprompt recorded %q with %v, want one prompt to demo-lead", last.Command, last.Members)
-	}
-	if records[0].Hash != last.Hash {
-		t.Errorf("one definition hashed %q at up and %q at reprompt",
-			records[0].Hash, last.Hash)
+	for _, record := range records {
+		if record.Team.String() != "demo" || record.Project.String() != f.proj {
+			t.Fatalf("history lost identity: %+v", record)
+		}
 	}
 }
 
@@ -215,54 +151,6 @@ func TestALaunchThatCannotBeRecordedStillRuns(t *testing.T) {
 	if len(lines) != 1 || !strings.HasPrefix(lines[0], prefix) {
 		t.Fatalf("stderr is %q, want one line starting %q", stderr, prefix)
 	}
-}
-
-// TestTheHashFollowsTheProfilesTheMembersRead: the team's hash covers the
-// members after their profiles are resolved, so a change to a profile nobody
-// reads leaves it alone and a change to one a member reads moves it.
-func TestTheHashFollowsTheProfilesTheMembersRead(t *testing.T) {
-	f := newFixture(t)
-	mustRun(t, "new", "dev")
-	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "dev", "team.yaml"),
-		"version: 1\ndescription: a description for the test\nmembers:\n"+
-			"  - name: lead\n    role: lead\n    profile: fast\n"+
-			"  - name: builder\n    role: builder\n    profile: fast\n"+
-			"turns:\n  - human -> lead\n  - lead -> builder\n  - builder -> human\n")
-	writeFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml"), profilesYAML("--fast", "--slow"))
-
-	before := recordDev(t, f).Hash
-
-	writeFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml"), profilesYAML("--fast", "--slower"))
-	if got := recordDev(t, f).Hash; got != before {
-		t.Errorf("a profile no member reads changed the hash: %q, want %q", got, before)
-	}
-
-	writeFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml"), profilesYAML("--faster", "--slow"))
-	if got := recordDev(t, f).Hash; got == before {
-		t.Errorf("a profile a member reads left the hash at %q", got)
-	}
-}
-
-// TestTheRecordKeepsARevision: a rule file that gives itself a revision carries
-// it into the record, which is what the screens show as the document's name for
-// its current shape.
-func TestTheRecordKeepsARevision(t *testing.T) {
-	f := newFixture(t)
-	mustRun(t, "new", "dev")
-	protocol := filepath.Join(f.proj, ".hergy", "teams", "dev", "agreement.md")
-	writeFile(t, protocol, "- one\n")
-
-	rec := recordDev(t, f)
-	for _, doc := range rec.Docs {
-		if doc.Path != protocol {
-			continue
-		}
-		if doc.Revision != 0 {
-			t.Errorf("the record gives %s revision %d, want 0", protocol, doc.Revision)
-		}
-		return
-	}
-	t.Fatalf("the record does not name %s:\n%v", protocol, rec.Docs)
 }
 
 // Hire updates current state without appending to launch history.

@@ -86,7 +86,7 @@ func hqFixture(t *testing.T) (*fixture, Environment, string) {
 		}
 		if err := log.Append(launchlog.Record{
 			Time: "2026-10-24T09:00:00+09:00", Command: launchlog.CommandUp,
-			Project: observedplace.Observe(one.project), Layer: "local", Definition: one.teamName, Team: fixtureSeen(one.teamName),
+			Project: observedplace.Observe(one.project), Team: fixtureSeen(one.teamName),
 			TeamYAML:    observedplace.Observe(filepath.Join(one.project, ".hergy", "teams", one.teamName, "team.yaml")),
 			Workspace:   map[string]string{f.proj: "proj-dev", other: "ledger-dev"}[one.project],
 			WorkspaceID: map[string]string{f.proj: "w1", other: "w2"}[one.project],
@@ -734,7 +734,7 @@ func TestActivityKeepsTheLaunchDefinitionPlace(t *testing.T) {
 			log := launchlog.At(filepath.Join(f.state, "hergy", "launches"))
 			if err := log.Append(launchlog.Record{
 				Time: "2026-11-05T09:00:00+09:00", Command: launchlog.CommandUp,
-				Project: observedplace.Observe(f.proj), Layer: "global", Definition: "blueprint", Team: fixtureSeen("core"),
+				Project: observedplace.Observe(f.proj), Team: fixtureSeen("core"),
 				TeamYAML: observedplace.Observe(filepath.Join(global, "team.yaml")),
 			}); err != nil {
 				t.Fatal(err)

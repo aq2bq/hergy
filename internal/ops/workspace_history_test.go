@@ -16,7 +16,7 @@ func TestWorkspaceHistorySurvivesLaterOperations(t *testing.T) {
 			f, env, _ := hqFixture(t)
 			log := launchlog.At(filepath.Join(f.state, "hergy", "launches"))
 			path := projectPath(filepath.Join(f.proj, ".hergy", "teams", "core", "team.yaml"))
-			if err := log.Append(launchlog.Record{Command: command, Team: fixtureSeen("core"), Definition: "core", Project: env.ProjectRoot.Seen(), TeamYAML: observedplace.Observe(path.String())}); err != nil {
+			if err := log.Append(launchlog.Record{Command: command, Team: fixtureSeen("core"), Project: env.ProjectRoot.Seen(), TeamYAML: observedplace.Observe(path.String())}); err != nil {
 				t.Fatal(err)
 			}
 			h := newActivityRead(env).hq
@@ -51,7 +51,7 @@ func TestLegacyHireCannotBecomeProjectTeamOrWorkspaceHistory(t *testing.T) {
 	for _, project := range []string{f.proj, t.TempDir()} {
 		// These old entries carry real launch identity fields. Skipping empty team
 		// or definition names is insufficient to keep them out of history.
-		if err := log.Append(launchlog.Record{Command: "hire", Team: fixtureSeen("legacy-alias"), Definition: "core", Project: observedplace.Observe(project), TeamYAML: path.Seen(), Workspace: "proj-dev", WorkspaceID: "w1"}); err != nil {
+		if err := log.Append(launchlog.Record{Command: "hire", Team: fixtureSeen("legacy-alias"), Project: observedplace.Observe(project), TeamYAML: path.Seen(), Workspace: "proj-dev", WorkspaceID: "w1"}); err != nil {
 			t.Fatal(err)
 		}
 	}

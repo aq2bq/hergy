@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/aq2bq/hergy/internal/ops/internal/launchlog"
+	"github.com/aq2bq/hergy/internal/ops/internal/runningstate"
 	"github.com/aq2bq/hergy/internal/source" // receiptHerdr augments the existing fake binary with ordered prompt answers.
 	// Only the middle recipient fails; later recipients must still be contacted.
 )
@@ -199,11 +200,11 @@ func TestInitialPromptReceiptOperations(t *testing.T) {
 					if operation == "apply-cli" || operation == "apply-screen" {
 						_, records := launchLog(t, f)
 						last := records[len(records)-1]
-						if last.Command != launchlog.CommandApply || len(last.Members) != 2 {
+						if last.Command != launchlog.CommandApply || len(stateReceiptsFor(t, "demo", "apply")) != 2 {
 							t.Fatalf("successful members not recorded: %+v", last)
 						}
-						for _, m := range last.Members {
-							if m.Name.String() == target {
+						for _, m := range stateReceiptsFor(t, "demo", last.Command) {
+							if m.Name == target {
 								t.Fatalf("undelivered member recorded: %+v", m)
 							}
 						}
@@ -272,11 +273,11 @@ func TestApplyContinuesAcrossDeliveryKinds(t *testing.T) {
 				}
 				_, records := launchLog(t, f)
 				last := records[len(records)-1]
-				if last.Command != launchlog.CommandApply || len(last.Members) != 2 {
+				if last.Command != launchlog.CommandApply || len(stateReceiptsFor(t, "demo", "apply")) != 2 {
 					t.Fatalf("record=%+v", last)
 				}
-				for _, member := range last.Members {
-					if member.Name.String() == "demo-b" {
+				for _, member := range stateReceiptsFor(t, "demo", last.Command) {
+					if member.Name == "demo-b" {
 						t.Fatalf("unreceived prompt recorded: %+v", member)
 					}
 				}
@@ -406,11 +407,11 @@ func TestReceiptLaunchRecords(t *testing.T) {
 				if allMissing {
 					wantMembers = 0
 				}
-				if last.Team.String() != "demo" || last.Definition != "demo" || last.Project.String() != f.proj || len(last.Members) != wantMembers {
+				if last.Team.String() != "demo" || last.Project.String() != f.proj || len(stateReceiptsFor(t, "demo", last.Command)) != wantMembers {
 					t.Fatalf("record=%+v", last)
 				}
-				for _, m := range last.Members {
-					if m.Name.String() == "demo-b" {
+				for _, m := range stateReceiptsFor(t, "demo", last.Command) {
+					if m.Name == "demo-b" {
 						t.Fatalf("unreceived member recorded: %+v", last)
 					}
 				}
@@ -460,7 +461,7 @@ func TestUndeliveredAliasCanReprompt(t *testing.T) {
 				t.Fatalf("missing recovery: %s", &stderr)
 			}
 			_, records := launchLog(t, f)
-			if len(records) != 1 || records[0].Team.String() != "alias" || records[0].Definition != "demo" {
+			if len(records) != 1 || records[0].Team.String() != "alias" || teamState(t, "alias").Launch().Definition.String() != "demo" {
 				t.Fatalf("alias missing: %+v", records)
 			}
 			f.herdr(t, original)
@@ -471,9 +472,21 @@ func TestUndeliveredAliasCanReprompt(t *testing.T) {
 			}
 			_, records = launchLog(t, f)
 			last := records[len(records)-1]
-			if last.Command != launchlog.CommandReprompt || last.Definition != "demo" || len(last.Members) != 1 || last.Members[0].Name.String() != "alias-b" {
+			if last.Command != launchlog.CommandReprompt || len(stateReceiptsFor(t, "alias", "reprompt")) != 1 || stateReceiptsFor(t, "alias", "reprompt")[0].Name != "alias-b" {
 				t.Fatalf("recovery=%+v", last)
 			}
 		})
 	}
+}
+
+// stateReceiptsFor selects confirmations of one operation from the current run.
+func stateReceiptsFor(t *testing.T, name, command string) []runningstate.Receipt {
+	t.Helper()
+	var out []runningstate.Receipt
+	for _, receipt := range teamState(t, name).Members() {
+		if receipt.Command == command {
+			out = append(out, receipt)
+		}
+	}
+	return out
 }

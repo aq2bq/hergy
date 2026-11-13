@@ -31,7 +31,7 @@ func applyDemo(t *testing.T) *fixture {
 		t.Fatal(err)
 	}
 	startTestState(t, env, r, r.Starts)
-	if err := writeLaunch(log, env, r, launchlog.CommandUp, r.Starts, launchlog.Workspace{}); err != nil {
+	if err := writeLaunch(log, env, r, launchlog.CommandUp, launchlog.Workspace{}); err != nil {
 		t.Fatalf("record demo: %v", err)
 	}
 	return f
@@ -134,15 +134,12 @@ esac
 	if !strings.Contains(calls, i18n.T("apply.preamble_lead")) {
 		t.Fatalf("the reprompt did not head the prompt with what changed:\n%s", calls)
 	}
-	launches, records := launchLog(t, f)
-	last := records[len(records)-1]
-	text, err := launches.Text(last.Members[0].Prompt)
-	if err != nil {
-		t.Fatal(err)
+	for _, member := range teamState(t, "demo").Members() {
+		if member.Name == "demo-lead" && strings.Contains(member.Prompt, i18n.T("apply.preamble_lead")) {
+			t.Fatalf("state kept the preamble: %q", member.Prompt)
+		}
 	}
-	if strings.Contains(string(text), i18n.T("apply.preamble_lead")) {
-		t.Errorf("the record kept the preamble as the member's prompt: %q", string(text))
-	}
+
 }
 
 // TestApplyNotesAChangedWorkerProfile: a worker's profile reaches the next worker
@@ -165,7 +162,7 @@ func TestApplyNotesAChangedWorkerProfile(t *testing.T) {
 		t.Fatal(err)
 	}
 	startTestState(t, env, r, r.Starts)
-	if err := writeLaunch(log, env, r, launchlog.CommandUp, r.Starts, launchlog.Workspace{}); err != nil {
+	if err := writeLaunch(log, env, r, launchlog.CommandUp, launchlog.Workspace{}); err != nil {
 		t.Fatal(err)
 	}
 	writeFile(t, filepath.Join(f.proj, ".hergy", "profiles.yaml"),
@@ -204,7 +201,7 @@ func TestApplyTellsAChangedWorkerProfileFromAnAddedWorker(t *testing.T) {
 		t.Fatal(err)
 	}
 	startTestState(t, env, r, r.Starts)
-	if err := writeLaunch(log, env, r, launchlog.CommandUp, r.Starts, launchlog.Workspace{}); err != nil {
+	if err := writeLaunch(log, env, r, launchlog.CommandUp, launchlog.Workspace{}); err != nil {
 		t.Fatal(err)
 	}
 

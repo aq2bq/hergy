@@ -9,7 +9,6 @@ import (
 	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/ops/internal/launcher"
-	"github.com/aq2bq/hergy/internal/ops/internal/launchlog"
 	"github.com/aq2bq/hergy/internal/ops/internal/runningstate"
 	"github.com/aq2bq/hergy/internal/words"
 )
@@ -32,7 +31,7 @@ func beginRunningState(store runningstate.Store, env Environment, r *Resolved, w
 		}
 		launch.Workers = append(launch.Workers, runningstate.WorkerDefinition{
 			From: worker.From, Purpose: worker.Purpose.String(), Profile: worker.Profile,
-			Start: launchlog.StartFingerprint(p.Kind, p.Args), Env: launchlog.EnvFingerprint(p.Env)})
+			Start: runningstate.StartFingerprint(p.Kind, p.Args), Env: runningstate.EnvFingerprint(p.Env)})
 	}
 	return store.Begin(r.ModelTeamName(), launch)
 }
@@ -55,7 +54,7 @@ func receiveRunningState(r *Resolved, command string, members []definition.Start
 		member := &members[i]
 		receipt := runningstate.Receipt{Name: member.Name.String(), Short: member.Short.String(),
 			Prompt: member.Prompt, Command: command, Time: at, Executable: executable(), Lang: i18n.Language(),
-			Start: launchlog.StartFingerprint(member.Kind, member.Args), Env: launchlog.EnvFingerprint(member.Env)}
+			Start: runningstate.StartFingerprint(member.Kind, member.Args), Env: runningstate.EnvFingerprint(member.Env)}
 		for _, doc := range member.Documents {
 			receipt.Docs = append(receipt.Docs, runningstate.Doc{Path: doc.Doc.Path, Layer: doc.Doc.Layer, Text: doc.Text})
 		}

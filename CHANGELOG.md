@@ -4,6 +4,8 @@
 
 ### Changed
 
+- Launch history keeps only launch identity and workspace metadata; new entries no longer store prompts, documents or blobs, while existing log entries and blobs stay untouched.
+
 - Headquarters keeps the last started workspace after refresh, reprompt or apply instead of losing it to those operations' history entries.
 
 - Worker recipients, hirers and stop-time worktree lists use the current team state, preserving them without launch history and keeping earlier runs separate; the watcher recognizes workers hired after it starts.

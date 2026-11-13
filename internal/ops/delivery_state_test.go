@@ -8,9 +8,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/aq2bq/hergy/internal/ops/internal/runningstate"
+
 	"github.com/aq2bq/hergy/internal/ops/internal/herdr"
 	"github.com/aq2bq/hergy/internal/ops/internal/herdrcli"
-	"github.com/aq2bq/hergy/internal/ops/internal/launchlog"
 	"github.com/aq2bq/hergy/internal/source"
 )
 
@@ -212,7 +213,7 @@ func TestApplyRecordsTheEnvironmentOnlyForANewMembersPane(t *testing.T) {
 	mustRun(t, "apply", "d", "--team", "demo")
 	for _, receipt := range teamState(t, "demo").Members() {
 		if receipt.Short == "d" {
-			want := launchlog.EnvFingerprint(map[string]string{"MODE": "new-pane", "GY_ACTOR": "demo-d"})
+			want := runningstate.EnvFingerprint(map[string]string{"MODE": "new-pane", "GY_ACTOR": "demo-d"})
 			if receipt.Env != want {
 				t.Fatalf("new pane environment: got %s want %s", receipt.Env, want)
 			}

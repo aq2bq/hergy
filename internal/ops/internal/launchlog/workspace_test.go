@@ -11,11 +11,11 @@ func TestLatestWorkspaceSurvivesLaterOperations(t *testing.T) {
 		t.Run(command, func(t *testing.T) {
 			log := testLog(t)
 			path := projectPath("/project/.hergy/teams/demo/team.yaml")
-			up := Record{Command: CommandUp, TeamYAML: path.Seen(), Team: fixtureSeen("demo"), Definition: "demo", Workspace: "workspace", WorkspaceID: "w1"}
+			up := Record{Command: CommandUp, TeamYAML: path.Seen(), Team: fixtureSeen("demo"), Workspace: "workspace", WorkspaceID: "w1"}
 			if err := log.Append(up); err != nil {
 				t.Fatal(err)
 			}
-			later := Record{Command: command, TeamYAML: observedplace.Observe(path.String()), Team: fixtureSeen("demo"), Definition: "demo"}
+			later := Record{Command: command, TeamYAML: observedplace.Observe(path.String()), Team: fixtureSeen("demo")}
 			if err := log.Append(later); err != nil {
 				t.Fatal(err)
 			}

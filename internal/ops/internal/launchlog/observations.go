@@ -26,17 +26,3 @@ func (r *Record) UnmarshalJSON(raw []byte) error {
 	r.TeamYAML = place.Observe(w.TeamYAML)
 	return nil
 }
-
-// UnmarshalJSON restores the member spelling exactly as recorded.
-func (m *Member) UnmarshalJSON(raw []byte) error {
-	type plain Member
-	w := struct {
-		*plain
-		Name string `json:"name"`
-	}{plain: (*plain)(m)}
-	if err := json.Unmarshal(raw, &w); err != nil {
-		return err
-	}
-	m.Name = name.Observe(w.Name)
-	return nil
-}

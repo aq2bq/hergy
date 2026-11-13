@@ -10,7 +10,6 @@ import (
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/ops/internal/catalog"
 	"github.com/aq2bq/hergy/internal/ops/internal/deliver"
-	"github.com/aq2bq/hergy/internal/ops/internal/launchlog"
 	"github.com/aq2bq/hergy/internal/ops/internal/prompt"
 	"github.com/aq2bq/hergy/internal/ops/internal/runningstate"
 	"github.com/aq2bq/hergy/internal/words"
@@ -198,8 +197,8 @@ func workerNotes(workers []runningstate.WorkerDefinition, r *Resolved) []string 
 			continue
 		}
 		if was.Profile == worker.Profile &&
-			was.Start == launchlog.StartFingerprint(p.Kind, p.Args) &&
-			was.Env == launchlog.EnvFingerprint(p.Env) {
+			was.Start == runningstate.StartFingerprint(p.Kind, p.Args) &&
+			was.Env == runningstate.EnvFingerprint(p.Env) {
 			continue
 		}
 		out = append(out, i18n.Tf("apply.note_worker", worker.Purpose))
@@ -257,10 +256,10 @@ func readMemberDrift(cat *catalog.Catalog, running RunningTeam, start definition
 	drift.prompt, drift.Changes = memberChanges(cat, running, start, recorded, hasRecord)
 	if hasRecord {
 		if recorded.Start != "" {
-			drift.Start = recorded.Start != launchlog.StartFingerprint(start.Kind, start.Args)
+			drift.Start = recorded.Start != runningstate.StartFingerprint(start.Kind, start.Args)
 		}
 		if recorded.Env != "" {
-			drift.env = recorded.Env != launchlog.EnvFingerprint(start.Env)
+			drift.env = recorded.Env != runningstate.EnvFingerprint(start.Env)
 		}
 	}
 	if drift.Start {

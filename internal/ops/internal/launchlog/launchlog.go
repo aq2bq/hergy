@@ -1,19 +1,8 @@
-// Package launchlog writes and reads the record of hergy's launches: what hergy
-// recorded for each member, and which rule files it read to build it. The WebUI reads
-// it to show what changed since the last launch and how the prompts differ; an
-// evaluation reads it to line the launches up with an agent's own logs. The
-// commands write it after a launch succeeds, and a launch that cannot write it
-// still runs (spec/11).
-//
-// The files live under $XDG_STATE_HOME/hergy/launches: log.jsonl, one line per
-// launch, and blobs/<sha256>, one file per text. A line holds no prompt text —
-// only the hashes of the texts it points at — so the same document read by five
-// members is stored once, and a launch that changes one document adds one blob.
+// Package launchlog stores append-only launch history. It records the project,
+// team, definition path, time and workspace; current run state lives elsewhere.
 package launchlog
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -21,8 +10,6 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"sort"
-	"strconv"
 	"strings"
 
 	domainplace "github.com/aq2bq/hergy/internal/domain/place"
@@ -33,8 +20,6 @@ import (
 const (
 	// logName is the one line per launch, appended and never rewritten.
 	logName = "log.jsonl"
-	// blobsDir is where the texts live, one file per text, named by its hash.
-	blobsDir = "blobs"
 )
 
 // Command is the operation that wrote a launch history entry.
@@ -45,81 +30,17 @@ const (
 	CommandApply    = "apply"
 )
 
-// Member records the body before any apply/reprompt change-reason preamble.
-// New launch records include only members whose prompt receipt was confirmed.
-// Prompt is the hash of the prompt text, which is in blobs/. Start and Env are
-// the fingerprints of how the member was started: what the comparison needs to
-// tell a changed profile from a changed prompt (d-36ef). A record written before
-// they were kept has neither.
-type Member struct {
-	// Docs names the documents this member read. Nil means a legacy record.
-	Docs   []string        `json:"docs"`
-	Name   domainname.Seen `json:"name"`            // the name herdr sees ("<team>-<member>")
-	Short  string          `json:"short"`           // the short name team.yaml writes
-	Prompt string          `json:"prompt"`          // sha256 of the prompt text
-	Start  string          `json:"start,omitempty"` // sha256 of the command the member is started by
-	Env    string          `json:"env,omitempty"`   // sha256 of the env keys and values; the values are written nowhere
-}
-
-// Worker is one worker entry of a team definition as it stood at a launch: the
-// member that hires it, the purpose, the profile, and the fingerprints of how a
-// worker hired from it would start. A worker's profile change reaches the next
-// worker hired, not the live ones, so the record keeps this to tell a change from
-// none (d-36ef).
-type Worker struct {
-	From    string `json:"from"`
-	Purpose string `json:"purpose"`
-	Profile string `json:"profile"`
-	Start   string `json:"start,omitempty"`
-	Env     string `json:"env,omitempty"`
-}
-
-// Doc is one rule file a member read. Revision is the document's own revision,
-// or 0 when it has none.
-type Doc struct {
-	Path     string `json:"path"`
-	Layer    string `json:"layer"`
-	Revision int    `json:"revision,omitempty"`
-	SHA256   string `json:"sha256"`
-}
-
-// Record is one launch: one line of log.jsonl. The texts it points at are in
-// blobs/, under Member.Prompt and Doc.SHA256. No environment value is written
-// here or in a blob — a value can be a key — and env counts toward Hash only.
-//
-// The facts the prompts were built with are written here too (Executable, the
-// project root, the language), because a prompt names this hergy's own path and
-// the language it is written in: a screen that rebuilds a prompt to see what has
-// changed since the launch builds it from these, not from how hergy is run now.
-// A record written before these were kept has neither, and nothing can be
-// rebuilt from it.
+// Record is the identity and workspace of a past launch. Current members,
+// prompts and workers belong to runningstate rather than launch history.
 type Record struct {
-	Time       string                `json:"time"` // RFC 3339, where hergy ran
-	Command    string                `json:"command"`
-	Hergy      string                `json:"hergy"` // which hergy wrote this: version.Line()
-	Project    domainplace.Seen      `json:"project"`
-	Layer      domainplace.Selection `json:"layer"`
-	Definition string                `json:"definition"`
-	Team       domainname.Seen       `json:"team"`
-	TeamYAML   domainplace.Seen      `json:"team_yaml"`
-	// Workspace is the herdr workspace the team was started in: the label a
-	// person reads, and the id it had then. The headquarters offers the last one
-	// as "前に動いた所" (d-73fc). A record written before this was kept has
-	// neither, and neither do refresh, reprompt and apply: they start no tab.
-	Workspace   string   `json:"workspace,omitempty"`
-	WorkspaceID string   `json:"workspace_id,omitempty"`
-	Hash        string   `json:"hash"`
-	Executable  string   `json:"executable,omitempty"`
-	Lang        string   `json:"lang,omitempty"`
-	Members     []Member `json:"members"`
-	Docs        []Doc    `json:"docs"`
-	// Workers are the definition's worker entries at this launch, for the note
-	// that a worker's profile changed (d-36ef).
-	Workers []Worker `json:"workers,omitempty"`
+	Time        string           `json:"time"`
+	Command     string           `json:"command"`
+	Project     domainplace.Seen `json:"project"`
+	Team        domainname.Seen  `json:"team"`
+	TeamYAML    domainplace.Seen `json:"team_yaml"`
+	Workspace   string           `json:"workspace,omitempty"`
+	WorkspaceID string           `json:"workspace_id,omitempty"`
 }
-
-// IsHire says this line records a worker's hire, not a launch.
-func (r Record) IsHire() bool { return r.Command == "hire" }
 
 // StartedInWorkspace reports a team start with both workspace identifiers.
 // Later prompt operations create no tab and cannot replace its workspace.
@@ -132,106 +53,6 @@ func (r Record) StartedInWorkspace() bool {
 type Workspace struct {
 	Label string
 	ID    string
-}
-
-// Material is what the hash of a launch is made of: the team definition's
-// settings file, and for every member of the definition, how it is started and
-// the prompt it is handed. hergy compares two launches of one team definition by
-// this hash; revision, which a person bumps, is a name they use and never a
-// substitute for it.
-type Material struct {
-	TeamYAML []byte
-	Members  []MaterialMember
-}
-
-// MaterialMember is one member's part of the hash: what a member is started
-// with, after its profile is resolved, and the prompt it is handed.
-type MaterialMember struct {
-	Kind   string
-	Args   []string
-	Env    map[string]string
-	Prompt string
-}
-
-// Hash is the hash of one team definition as it is launched, in lowercase hex
-// over the whole definition: every member, in the order the definition lists
-// them, whatever it is that reached them. A change to a profile no member reads
-// does not reach a member, so it does not change the hash; a change to a profile
-// a member reads does.
-func Hash(m Material) string {
-	var b strings.Builder
-	field(&b, "team.yaml", string(m.TeamYAML))
-	field(&b, "members", strconv.Itoa(len(m.Members)))
-	for _, member := range m.Members {
-		field(&b, "kind", member.Kind)
-		field(&b, "args", strconv.Itoa(len(member.Args)))
-		for _, arg := range member.Args {
-			field(&b, "arg", arg)
-		}
-		// An env map has no order of its own, so the keys are sorted: two runs
-		// that hand a member the same environment hash the same. The values are
-		// folded in here and written nowhere else.
-		keys := make([]string, 0, len(member.Env))
-		for key := range member.Env {
-			keys = append(keys, key)
-		}
-		sort.Strings(keys)
-		field(&b, "env", strconv.Itoa(len(keys)))
-		for _, key := range keys {
-			field(&b, "env key", key)
-			field(&b, "env value", member.Env[key])
-		}
-		field(&b, "prompt", member.Prompt)
-	}
-	sum := sha256.Sum256([]byte(b.String()))
-	return hex.EncodeToString(sum[:])
-}
-
-// StartFingerprint is the hash of how a member is started: the kind and the
-// profile's args, which are the command hergy starts the agent with. The env is
-// not part of it: env is fixed when the pane is made, so a change to it is a
-// different question (EnvFingerprint). A person reads this fingerprint only as
-// "changed", never as a command.
-func StartFingerprint(kind string, args []string) string {
-	var b strings.Builder
-	field(&b, "kind", kind)
-	field(&b, "args", strconv.Itoa(len(args)))
-	for _, arg := range args {
-		field(&b, "arg", arg)
-	}
-	sum := sha256.Sum256([]byte(b.String()))
-	return hex.EncodeToString(sum[:])
-}
-
-// EnvFingerprint is the hash of one member's environment: the keys, in order, and
-// their values. The values are folded in here and written nowhere else, so a
-// change to one can be seen without the record holding a secret.
-func EnvFingerprint(env map[string]string) string {
-	keys := make([]string, 0, len(env))
-	for key := range env {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	var b strings.Builder
-	field(&b, "env", strconv.Itoa(len(keys)))
-	for _, key := range keys {
-		field(&b, "env key", key)
-		field(&b, "env value", env[key])
-	}
-	sum := sha256.Sum256([]byte(b.String()))
-	return hex.EncodeToString(sum[:])
-}
-
-// field writes one labelled field: its name, its length, then its bytes. The
-// length is what keeps two fields from running into each other, so a member
-// whose prompt is "ab" and whose kind is "c" cannot hash like one whose prompt
-// is "a" and whose kind is "bc".
-func field(b *strings.Builder, name, value string) {
-	b.WriteString(name)
-	b.WriteByte(':')
-	b.WriteString(strconv.Itoa(len(value)))
-	b.WriteByte(':')
-	b.WriteString(value)
 }
 
 // Log is one machine's record of launches.
@@ -269,51 +90,8 @@ func At(dir string) Log { return Log{dir: dir} }
 // Dir is where this record's files go.
 func (l Log) Dir() string { return l.dir }
 
-// Put stores one text and returns the hash it is stored under: sha256 of the
-// text, in lowercase hex. The same text is stored once — putting it again writes
-// nothing — so a launch that changes one document adds one file.
-func (l Log) Put(text []byte) (string, error) {
-	sum := sha256.Sum256(text)
-	hash := hex.EncodeToString(sum[:])
-	dir := filepath.Join(l.dir, blobsDir)
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return "", err
-	}
-	path := filepath.Join(dir, hash)
-	if _, err := os.Stat(path); err == nil {
-		return hash, nil
-	}
-	// A temp file and a rename, so a reader never sees half a text under a name
-	// that claims to be its whole hash.
-	tmp, err := os.CreateTemp(dir, hash+".*")
-	if err != nil {
-		return "", err
-	}
-	defer func() { _ = os.Remove(tmp.Name()) }()
-	if _, err := tmp.Write(text); err != nil {
-		_ = tmp.Close()
-		return "", err
-	}
-	if err := tmp.Close(); err != nil {
-		return "", err
-	}
-	if err := os.Chmod(tmp.Name(), 0o600); err != nil {
-		return "", err
-	}
-	if err := os.Rename(tmp.Name(), path); err != nil {
-		return "", err
-	}
-	return hash, nil
-}
-
-// Text is the text stored under one hash.
-func (l Log) Text(hash string) ([]byte, error) {
-	return os.ReadFile(filepath.Join(l.dir, blobsDir, hash))
-}
-
-// Append adds one launch: one line at the end of log.jsonl. The texts the record
-// points at are put first (Put), and the line is written with one write, so a
-// reader sees whole lines. Nothing is ever rewritten: the record is history.
+// Append adds one launch with one write. Existing lines and legacy blobs are
+// left untouched: this file is history.
 func (l Log) Append(rec Record) error {
 	line, err := json.Marshal(rec)
 	if err != nil {

@@ -92,9 +92,19 @@ esac
 	}
 	_, records := launchLog(t, f)
 	last := records[len(records)-1]
-	if last.Command != launchlog.CommandApply || len(last.Members) != 2 {
+	if last.Command != launchlog.CommandApply {
 		t.Fatalf("the last record = %+v, want an apply of the two members", last)
 	}
+	count := 0
+	for _, member := range teamState(t, "demo").Members() {
+		if member.Command == "apply" {
+			count++
+		}
+	}
+	if count != 2 {
+		t.Fatalf("apply saved %d receipts, want 2", count)
+	}
+
 }
 
 // TestApplyMembersRefusesAWorkingMember: a member that is working is not applied
