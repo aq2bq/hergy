@@ -192,7 +192,8 @@ type turnWatcher struct {
 	state  *turns.State
 	prev   []turns.Agent
 	// snaps is each agent's pane as it last stood while the agent was stopped,
-	// so what it writes in its next turn is the part after it. The pane is read
+	// so what it writes in its next turn is the part after it; only agents with
+	// no signal have one (remember). The pane is read
 	// when the agent stops (and once at the start, for agents already stopped):
 	// herdr cannot read a working agent's scrollback (agent_not_idle, measured
 	// 2026-11-06), so the turn's start is too late to read it.
@@ -322,9 +323,13 @@ func (w *turnWatcher) observe(live []protocol.Agent) []turns.Agent {
 
 // remember takes a snapshot of each stopped agent's pane at this stop (by
 // herdr's seq), once: what the agent writes in its next turn is read past it.
+// A wired agent is not read: its turn's text comes with its signal, and herdr
+// scrolls a pane to read its scrollback, which moves it under the person
+// reading it at every stop (r-a269). When its signal does not come, the pane
+// is read then and taken whole.
 func (w *turnWatcher) remember(now []turns.Agent) {
 	for _, a := range now {
-		if a.Status == "working" || a.Status == "blocked" {
+		if a.Status == "working" || a.Status == "blocked" || w.wired[a.Name] {
 			continue
 		}
 		if have, ok := w.snaps[a.Name]; ok && have.seq == a.Seq {

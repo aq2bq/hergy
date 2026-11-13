@@ -18,8 +18,9 @@ import (
 // the prompts it was asked to send, and whether a prompt lands.
 type turnsPort struct {
 	panes   map[string]string
-	prompts []string // "<target>\n<text>"
-	stall   bool     // every prompt answers agent_prompt_stalled
+	reads   map[string]int // how many times each pane was read
+	prompts []string       // "<target>\n<text>"
+	stall   bool           // every prompt answers agent_prompt_stalled
 }
 
 func (p *turnsPort) Verify(string) error { return nil }
@@ -38,6 +39,10 @@ func (p *turnsPort) JSON(args ...string) (map[string]any, error) {
 
 func (p *turnsPort) Text(args ...string) (string, error) {
 	if len(args) >= 3 && args[0] == "agent" && args[1] == "read" {
+		if p.reads == nil {
+			p.reads = map[string]int{}
+		}
+		p.reads[args[2]]++
 		return p.panes[args[2]], nil
 	}
 	return "", protocol.Failure(args, "", "unexpected: "+strings.Join(args, " "), 1)
@@ -507,3 +512,39 @@ func (p *orphanPort) JSON(args ...string) (map[string]any, error) {
 	return p.Port.JSON(args...)
 }
 func (p *orphanPort) Text(args ...string) (string, error) { p.calls++; return p.Port.Text(args...) }
+
+// TestTurnsDoesNotReadAWiredMembersPaneEachTurn: herdr scrolls an agent's pane
+// to read its scrollback, so a pane read at every stop is a pane that moves
+// under the person reading it. A wired member's text comes with its signal:
+// its pane is not read while the signals come. A member that is not wired is
+// still read at each stop, for the part it wrote since (ac-73f0).
+func TestTurnsDoesNotReadAWiredMembersPaneEachTurn(t *testing.T) {
+	f := newTurnsFixture(t)
+	f.w.wired["builder"] = true
+	f.set("demo-lead", "idle", 1)
+	f.set("demo-builder", "idle", 1)
+	f.w.tick()
+	seq := 1
+	for range 3 {
+		f.tell(t, "lead", "builder")
+		seq++
+		f.set("demo-builder", "working", seq)
+		f.set("demo-lead", "working", seq)
+		f.later(time.Second)
+		if err := turns.WriteSignal(f.w.signals, turns.Signal{Member: "builder", At: f.now, Text: "done", Source: "claude"}); err != nil {
+			t.Fatal(err)
+		}
+		f.later(time.Second)
+		seq++
+		f.set("demo-builder", "done", seq)
+		f.set("demo-lead", "idle", seq)
+		f.later(time.Second)
+		f.later(turns.SignalGrace)
+	}
+	if got := f.port.reads["demo-builder"]; got != 0 {
+		t.Errorf("the wired member's pane was read %d times over 3 turns, want 0", got)
+	}
+	if got := f.port.reads["demo-lead"]; got < 3 {
+		t.Errorf("the member with no signal was read %d times over 3 stops, want one read a stop", got)
+	}
+}
