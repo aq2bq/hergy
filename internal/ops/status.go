@@ -77,7 +77,7 @@ func Status(ctx context.Context, in StatusInput) ([]TeamStatus, error) {
 	return out, nil
 }
 func isRunningTeam(read session, name string) bool {
-	_, ok := team.FindRunning(team.RunningTeams(read.Tabs, launchTeams(), read.AgentsRead), name)
+	_, ok := team.FindRunning(team.RunningTeams(read.Tabs, currentTeamStates()), name)
 	return ok
 }
 func statusTeam(ctx context.Context, in StatusInput, one RunningTeam) (TeamStatus, error) {

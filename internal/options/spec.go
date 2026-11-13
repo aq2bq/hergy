@@ -239,7 +239,6 @@ var specs = []Spec{
 		}},
 		Flags: []Use{
 			use(flagLog, words.Sentences("flag.log.turns")),
-			use(flagDefinition, words.Sentences("flag.definition.turns")),
 			use(flagDir, descDir),
 		},
 	},

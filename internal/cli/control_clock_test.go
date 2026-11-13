@@ -100,6 +100,7 @@ func setClock(t *testing.T, at time.Time) {
 // per step). That is how the fake herdr stands for a harness that stops on the
 // first esc, one that stops on the second, and one that never stops.
 func (f *fixture) controlHerdr(t *testing.T, agents string) {
+	seedRunningTeam(t, f.proj, "demo", "demo")
 	t.Helper()
 	status := filepath.Join(f.cfg, "status.txt")
 	logPath := filepath.Join(f.cfg, "herdr.log")
@@ -123,7 +124,7 @@ if [ -z "$s" ]; then
   exit 0
 fi
 case "$g $s" in
-  "tab list") echo '{"result":{"tabs":[{"tab_id":"t1","label":"team:demo"}]}}' ;;
+  "tab list") echo '{"result":{"tabs":[{"tab_id":"t1","label":"demo"}]}}' ;;
   "agent list")
     printf '{"result":{"agents":['
     first=1

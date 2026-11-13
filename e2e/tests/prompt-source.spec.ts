@@ -1,3 +1,4 @@
+import { registerRunningTeam } from './running-state';
 // ⑤ r-ba9b / ac-c7ee / ac-1f12: the prompt's table. What a member or a worker is
 // handed is read by one owner, follows the definition's unsaved edits and the
 // running teams (no run, one, one alias, two), and matches what the same hergy
@@ -36,6 +37,7 @@ function setLive(app: App, teams: string[]): void {
   const tabs: { tab_id: string; label: string; workspace_id: string }[] = [];
   const agents: { name: string; agent: string; agent_status: string; pane_id: string; tab_id: string; workspace_id: string }[] = [];
   teams.forEach((team, ti) => {
+ registerRunningTeam(app,team,'core');
     const plan = planFor(app, team);
     const members = plan.members.map((m) => {
       const name = team + m.name.slice('core'.length);

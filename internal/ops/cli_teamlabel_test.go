@@ -1,6 +1,7 @@
 package ops
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -33,7 +34,7 @@ func TestStatusListsOnlyHergeTeams(t *testing.T) {
 	f := newFixture(t)
 	mustRun(t, "new", "qw")
 	writeLaunchRecord(t, "qw2", "qw")
-	writeLaunchRecord(t, "docs", "docs-team")
+
 	tabs := `{"tab_id":"t1","label":"qw2"},{"tab_id":"t2","label":"notes"},{"tab_id":"t3","label":"docs"}`
 	agents := `{"name":"qw2-lead","agent":"claude","agent_status":"idle","pane_id":"p1","tab_id":"t1"}` + `,{"name":"claude-1","agent":"claude","agent_status":"idle","pane_id":"p3","tab_id":"t3"}`
 	f.runningHerdr(t, tabs, agents)
@@ -58,6 +59,7 @@ func TestATeamWhoseBootFailedIsStillFound(t *testing.T) {
 	initLocales(t)
 	mustRun(t, "new", "qw")
 	log := f.halfBootedHerdr(t)
+	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "qw", "team.yaml"), "version: 1\ndescription: \n")
 	t.Setenv("HERDR_ENV", "1")
 	t.Setenv("HERDR_PANE_ID", "p9")
 
@@ -68,13 +70,13 @@ func TestATeamWhoseBootFailedIsStillFound(t *testing.T) {
 	if !strings.Contains(stderr, "qw2") || !strings.Contains(stderr, i18n.Tf("status.can_down", "qw2")) {
 		t.Fatalf("status does not say what can be done about the team:\n%s", stderr)
 	}
-	if listed := mustRun(t, "status"); !strings.Contains(listed, "team: qw2\n") {
+	if listed := mustRun(t, "status"); !strings.Contains(listed, "team: qw2 (from qw)\n") {
 		t.Fatalf("status does not list the half-booted team's tab:\n%s", listed)
 	}
 
 	down := mustRun(t, "down", "qw2")
 	for _, line := range []string{
-		"team: qw2",
+		"team: qw2 (from qw)",
 		i18n.T("down.closes_by_name"),
 		"qw2-m: closing (pane p-qw2-m)",
 		"closed: 1",
@@ -95,16 +97,11 @@ func TestATeamWhoseBootFailedIsStillFound(t *testing.T) {
 
 // TestOlderLabelsStillFindTheirTeams: a team booted before the label was cut
 // down is still found, from the label alone, with the definition it carries.
-func TestOlderLabelsStillFindTheirTeams(t *testing.T) {
+func TestOlderLabelsDoNotCreateRunningTeams(t *testing.T) {
 	f := newFixture(t)
 	mustRun(t, "new", "qw")
-	tabs := `{"tab_id":"t1","label":"team:qw2@qw"},{"tab_id":"t2","label":"team:bare"}`
-	f.runningHerdr(t, tabs, "")
-
-	got := mustRun(t, "status")
-	for _, line := range []string{"team: qw2 (from qw)"} {
-		if !strings.Contains(got, line+"\n") {
-			t.Fatalf("status does not read the older label: missing %q:\n%s", line, got)
-		}
+	f.runningHerdr(t, `{"tab_id":"t1","label":"team:qw2@qw"},{"tab_id":"t2","label":"qw"}`, "")
+	if got := mustRun(t, "status"); !strings.Contains(got, "no teams are running") {
+		t.Fatalf("unregistered/legacy labels: %s", got)
 	}
 }

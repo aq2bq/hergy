@@ -109,6 +109,7 @@ func newActivityFixture(t *testing.T) *activityFixture {
 
 		{"core-hotfix", "core"},
 	} {
+		seedRunningTeam(t, f.proj, one.team, one.definition)
 		record := launchlog.Record{
 			Time: activityNow.Format(time.RFC3339), Command: launchlog.CommandUp,
 			Hergy: "hergy (test)", Project: observedplace.Observe(f.proj), Layer: "local",
@@ -320,6 +321,7 @@ func TestActivityListKeepsOnlyThisProject(t *testing.T) {
 
 	log := launchlog.At(filepath.Join(f.state, "hergy", "launches"))
 	for _, one := range []struct{ team, definition string }{{"core", "core"}, {"core-hotfix", "core"}} {
+		seedRunningTeam(t, filepath.Join(f.cfg, "another"), one.team, one.definition)
 		if err := log.Append(launchlog.Record{
 			Time: activityNow.Format(time.RFC3339), Command: launchlog.CommandUp,
 			Hergy: "hergy (test)", Project: observedplace.Observe(filepath.Join(f.cfg, "another")), Layer: "local",
@@ -470,6 +472,7 @@ func TestActivityOneIsNotFoundForATeamThatIsNotRunning(t *testing.T) {
 // question or pane (spec-activity 2.2, 6 A1).
 func TestActivityOneSaysWhenTheDefinitionDoesNotRead(t *testing.T) {
 	f := newActivityFixture(t)
+	seedRunningTeam(t, f.proj, "broken", "broken")
 
 	writeFile(t, filepath.Join(f.proj, ".hergy", "teams", "core", "team.yaml"), "version: 1\ndescription: \n")
 	log := launchlog.At(filepath.Join(f.state, "hergy", "launches"))
@@ -687,15 +690,16 @@ func nodeNamed(t *testing.T, nodes []ActivityNode, name string) ActivityNode {
 	return ActivityNode{}
 }
 
-// TestATeamOfTheSameNameInTwoProjectsKeepsItsOwnDefinition: two listed projects
-// run a team of the same name, and the other project's launch is the newer one.
-// The tab's panes stand in this project, so the row is this project's team, read
-// from this project's definition: the record of a project and a name is the one a
-// team is read from, not the newest record of its name (r-87c8, d-73fc).
+// A run keeps its registered project even when another project has newer
+// history for the same name. This fixture also places the panes in that other
+// project, so both the old log and the cwd would choose the wrong definition.
+// Only the current state supplies the project and definition for the run.
+// The reading remains scoped to the projects explicitly passed by the caller.
 func TestATeamOfTheSameNameInTwoProjectsKeepsItsOwnDefinition(t *testing.T) {
 	f := newFixture(t)
 	mustRun(t, "new", "core")
 	alpha := f.proj
+	seedRunningTeam(t, alpha, "core", "core")
 	beta := filepath.Join(filepath.Dir(f.proj), "other")
 	if err := copyTree(filepath.Join(alpha, ".hergy"), filepath.Join(beta, ".hergy")); err != nil {
 		t.Fatal(err)
@@ -744,7 +748,7 @@ func TestATeamOfTheSameNameInTwoProjectsKeepsItsOwnDefinition(t *testing.T) {
 	read := herdrNow{
 		tabs: []team.Tab{{
 			ID: "t1", Label: fixtureSeen("core"), WorkspaceID: "w1",
-			Agents: fixtureSeenList([]string{"core-lead"}), Panes: fixtureSeenList([]string{"core-lead"}), PaneDirs: seenPaths([]string{alpha}),
+			Agents: fixtureSeenList([]string{"core-lead"}), Panes: fixtureSeenList([]string{"core-lead"}), PaneDirs: seenPaths([]string{beta}),
 		}},
 		agentsRead: true,
 		seen:       map[string]activity.Watch{},
@@ -755,7 +759,7 @@ func TestATeamOfTheSameNameInTwoProjectsKeepsItsOwnDefinition(t *testing.T) {
 	}
 	one := out[0]
 	if one.Project.Compare(projectPath(alpha)) != domainplace.Same {
-		t.Errorf("the team stands in %q, want the project its panes stand in, %q", one.Project, alpha)
+		t.Errorf("the team stands in %q, want the registered project, %q", one.Project, alpha)
 	}
 	if one.Built == nil {
 		t.Fatalf("the team's definition did not read: %q", one.Broken)

@@ -17,6 +17,7 @@ import (
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/ops/internal/launchlog"
 	"github.com/aq2bq/hergy/internal/ops/internal/team" // hqHerdr is a fake herdr with two workspaces and two teams, one in each. It
+	"github.com/aq2bq/hergy/internal/ops/teststate"
 	// answers the calls the headquarters makes: the tabs with their workspace, the
 	// panes hergy named, the agents, the workspaces, and the calls a raise makes (a
 	// member with no pane is given one in the team's tab). Every call is written to
@@ -79,6 +80,10 @@ func hqFixture(t *testing.T) (*fixture, Environment, string) {
 	for _, one := range []struct{ teamName, project string }{
 		{"core", f.proj}, {"ledger", other},
 	} {
+		if err := teststate.Write(teststate.Team{Name: one.teamName, Definition: one.teamName, Project: one.project,
+			WorkspaceID: map[string]string{f.proj: "w3", other: "w2"}[one.project], WorkspaceLabel: map[string]string{f.proj: "scratch", other: "ledger-dev"}[one.project]}); err != nil {
+			t.Fatal(err)
+		}
 		if err := log.Append(launchlog.Record{
 			Time: "2026-10-24T09:00:00+09:00", Command: launchlog.CommandUp,
 			Project: observedplace.Observe(one.project), Layer: "local", Definition: one.teamName, Team: fixtureSeen(one.teamName),
@@ -448,6 +453,7 @@ func TestALaunchSaysWhereAStartupQuestionWaits(t *testing.T) {
 // A pane close empties the tabs, panes and agents: what herdr reports after a
 // team is put away.
 func (f *fixture) stateHerdr(t *testing.T) string {
+	seedRunningTeam(t, f.proj, "wave", "wave")
 	t.Helper()
 	dir := filepath.Join(f.cfg, "state-herdr")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -578,28 +584,23 @@ func TestAStartDecisionReadsCurrentHerdrState(t *testing.T) {
 // TestAnUnrecordedTeamBelongsToTheProjectItsPanesStandIn: a tab this machine has
 // no launch record of is placed by where its named panes stand, so another
 // project's team is not taken for this one's (d-73fc).
-func TestAnUnrecordedTeamBelongsToTheProjectItsPanesStandIn(t *testing.T) {
+func TestUnregisteredTabsAreNeverPlacedByPaneCwd(t *testing.T) {
 	f := newFixture(t)
 	dir := f.stateHerdr(t)
-	env, err := team.NewEnv()
-	if err != nil {
-		t.Fatal(err)
-	}
+	env := serveEnv(t)
 	read := newActivityRead(env)
-	read.now = func() time.Time { return activityNow }
-	other := filepath.Join(filepath.Dir(f.proj), "other")
-	writeState(t, dir, "stray", other)
-	if got := len(read.Running().Teams); got != 0 {
-		t.Errorf("a team whose panes stand in another project is here: %d", got)
+	for _, cwd := range []string{f.proj, filepath.Join(filepath.Dir(f.proj), "other")} {
+		writeState(t, dir, "stray", cwd)
+		if got := len(read.Running().Teams); got != 0 {
+			t.Fatalf("unregistered tab with cwd %s became a team", cwd)
+		}
 	}
-	writeState(t, dir, "stray", f.proj)
+	seedRunningTeam(t, f.proj, "stray", "stray")
 	if got := len(read.Running().Teams); got != 1 {
-		t.Errorf("a team whose panes stand in this project is not here: %d", got)
+		t.Fatalf("registered project was replaced by cwd: %d", got)
 	}
 }
 
-// writeState writes the stateful fake's files for one team whose panes stand in
-// one directory.
 func writeState(t *testing.T, dir, name, cwd string) {
 	t.Helper()
 	tabs := `{"result":{"tabs":[{"tab_id":"t1","label":"` + name + `","workspace_id":"w1"}]}}`
@@ -724,6 +725,10 @@ func TestActivityKeepsTheLaunchDefinitionPlace(t *testing.T) {
 				t.Fatal(err)
 			}
 			if err := os.Rename(filepath.Join(f.proj, ".hergy", "teams", "core"), global); err != nil {
+				t.Fatal(err)
+			}
+			if err := teststate.Write(teststate.Team{Name: "core", Definition: "blueprint", Project: f.proj, Layer: "global",
+				TeamYAML: filepath.Join(global, "team.yaml"), WorkspaceID: "w1", WorkspaceLabel: "proj-dev"}); err != nil {
 				t.Fatal(err)
 			}
 			log := launchlog.At(filepath.Join(f.state, "hergy", "launches"))

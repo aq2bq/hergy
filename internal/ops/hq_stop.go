@@ -40,7 +40,7 @@ func (h *hqRead) Stop(teamName string) (HQStopped, error) {
 }
 
 func (h *hqRead) stopInput(env Environment, one runningTeam, read herdrNow) StopInput {
-	running := team.Running{Team: domainname.TeamFromObservation(one.Name), Definition: one.Definition, Project: one.Project}
+	running := team.Running{Team: domainname.TeamFromObservation(one.Name), Definition: one.Definition, Project: one.Project, State: one.state}
 	target := teamStopTarget(running, read.tabs)
 	return StopInput{Env: env, Target: target, Layer: one.Place.Layer(), Timeout: 30000,
 		SelfPane: CurrentPane(), Port: h.act.herdrPort(), Now: h.stopNow, Pause: h.stopPause,
@@ -54,15 +54,7 @@ func (h *hqRead) findRunning(read herdrNow, name string) (runningTeam, bool) {
 			return one, true
 		}
 	}
-	if one, ok := stoppedTeam(read.tabs, name); ok {
-		view, record, found := projectOf(one, latestLaunches(), h.act.projectViews(), read.tabs, false)
-		if found {
-			tab, _ := teamTab(read.tabs, one.Team.Observation())
-			return runningTeam{Name: one.Team.Observation(), Definition: one.Definition, Project: view.Path,
-				Place: record.Layer.At(view.Path), WorkspaceID: tab.WorkspaceID,
-				WorkspaceLabel: workspaceLabel(read.spaces, tab.WorkspaceID), TabID: tab.ID}, true
-		}
-	}
+
 	return runningTeam{}, false
 }
 

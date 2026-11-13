@@ -13,6 +13,7 @@ import (
 // recordStart writes one up line of the launch record for a team in the
 // fixture's project, at the time a test says, the way up writes it after a boot.
 func recordStart(t *testing.T, f *fixture, team string, at time.Time) {
+	seedRunningTeam(t, f.proj, team, team)
 	appendFixtureLaunch(t, f, map[string]any{"time": at.Format(time.RFC3339), "command": "up", "project": f.proj, "team": team, "definition": team})
 }
 func recordHireLine(t *testing.T, f *fixture, team, worker string, at time.Time) {

@@ -12,6 +12,7 @@ import (
 func TestApplyNamesAStartWithAnEmptyChangesList(t *testing.T) {
 	f := newFixture(t)
 	mustRun(t, "new", "demo")
+	seedRunningTeam(t, f.proj, "demo", "demo")
 	f.runningHerdr(t, `{"tab_id":"t1","label":"demo"}`,
 		`{"name":"demo-lead","agent":"claude","agent_status":"idle","pane_id":"p1","tab_id":"t1","state_change_seq":1}`)
 	got := newActivityRead(serveEnv(t)).Apply()

@@ -260,7 +260,7 @@ func StopWorker(ctx context.Context, in StopInput) (out StopResult, err error) {
 		if stateErr == nil {
 			name, nameErr := domainname.ParseTeamName(worker.Team.String())
 			if nameErr == nil {
-				stateErr = store.RemoveWorker(name, worker.Herdr.String())
+				stateErr = store.RemoveWorker(name, in.Target.team.State.Generation(), worker.Herdr.String())
 			}
 		}
 		if stateErr != nil {

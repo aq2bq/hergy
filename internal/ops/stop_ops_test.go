@@ -44,6 +44,7 @@ func stopFixture(t *testing.T) (*fixture, Environment, *Resolved, *stopBoundaryP
 	t.Helper()
 	f := newFixture(t)
 	receiptTeam(t, f)
+	seedRunningTeam(t, f.proj, "demo", "demo")
 	useJapanese(t)
 	env := serveEnv(t)
 	r, err := ReadDefinition(env.Catalog(source.Disk{}), env.ProjectRoot, "demo", "demo")

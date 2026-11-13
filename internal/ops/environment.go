@@ -22,8 +22,8 @@ func ReadConfiguration(text, path string) (Configuration, error) { return team.R
 // An unavailable session preserves ls's definition-only fallback.
 func RunningDefinitions() map[string][]string {
 	out := map[string][]string{}
-	if tabs, read, err := herdrTabs(); err == nil {
-		for _, t := range team.RunningTeams(tabs, launchTeams(), read) {
+	if tabs, _, err := herdrTabs(); err == nil {
+		for _, t := range team.RunningTeams(tabs, currentTeamStates()) {
 			out[t.Definition] = append(out[t.Definition], t.Team.String())
 		}
 	}

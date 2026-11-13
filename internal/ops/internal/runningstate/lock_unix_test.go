@@ -11,11 +11,13 @@ import (
 )
 
 func TestMutationLockSurvivesStateReplacementAndEnd(t *testing.T) {
+	var generation Generation
 	store := At(t.TempDir())
 	name := testName(t, "demo")
-	if err := store.Begin(name, testLaunch(t)); err != nil {
+	if _, err := store.Begin(name, testLaunch(t)); err != nil {
 		t.Fatal(err)
 	}
+	generation = requireState(t, store, name).Generation()
 	path := filepath.Join(store.dir, ".locks", "demo")
 	before, err := os.Stat(path)
 	if err != nil {
@@ -35,15 +37,16 @@ func TestMutationLockSurvivesStateReplacementAndEnd(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.Receive(name, []Receipt{{Name: "demo-a", Prompt: "new"}}); err != nil {
+	if err := store.Receive(name, generation, []Receipt{{Name: "demo-a", Prompt: "new"}}); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.End(name); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.Begin(name, testLaunch(t)); err != nil {
+	if _, err := store.Begin(name, testLaunch(t)); err != nil {
 		t.Fatal(err)
 	}
+
 	after, err := os.Stat(path)
 	if err != nil {
 		t.Fatal(err)

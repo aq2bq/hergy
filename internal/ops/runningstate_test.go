@@ -15,6 +15,7 @@ import (
 	"github.com/aq2bq/hergy/internal/ops/internal/herdr"
 	"github.com/aq2bq/hergy/internal/ops/internal/herdrcli"
 	"github.com/aq2bq/hergy/internal/ops/internal/runningstate"
+	"github.com/aq2bq/hergy/internal/ops/teststate"
 )
 
 func teamState(t *testing.T, name string) runningstate.State {
@@ -301,21 +302,20 @@ func TestRunningStateFailedTabLeavesNoFile(t *testing.T) {
 	}
 }
 
-func TestRunningStateUnavailableWarnsOnceWhileHistoryStillWrites(t *testing.T) {
+func TestRunningStateUnavailableRefusesBeforeTab(t *testing.T) {
 	f := newFixture(t)
 	receiptTeam(t, f)
 	writeFile(t, filepath.Join(f.state, "hergy", "teams"), "not a directory")
-	stdout, stderr, code := run("up", "demo")
-	if code != 0 || !strings.Contains(stdout, "booted:") {
-		t.Fatalf("state failure stopped startup: code=%d stderr=%s", code, stderr)
+	_, stderr, code := run("up", "demo")
+	if code == 0 || !strings.Contains(stderr, "cannot save the running team state") {
+		t.Fatalf("startup did not refuse: %d %s", code, stderr)
 	}
-	lines := strings.Split(strings.TrimSuffix(stderr, "\n"), "\n")
-	if len(lines) != 1 || !strings.Contains(lines[0], "the launch was not recorded:") {
-		t.Fatalf("state warning: %q", stderr)
+	if calls := readFile(t, filepath.Join(f.cfg, "herdr.log")); strings.Contains(calls, "tab create") {
+		t.Fatal("refusal created tab")
 	}
 	_, records := launchLog(t, f)
-	if len(records) != 1 || len(records[0].Members) != 3 {
-		t.Fatalf("state failure suppressed history: %+v", records)
+	if len(records) != 0 {
+		t.Fatal("refusal appended launch")
 	}
 }
 
@@ -327,7 +327,7 @@ func TestRunningStateUsesTeamStopCleanupBoundary(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := beginRunningState(store, env, r, runningstate.Workspace{ID: "w1", Label: "demo"}, h.stopNow); err != nil {
+			if _, err := beginRunningState(store, env, r, runningstate.Workspace{ID: "w1", Label: "demo"}, h.stopNow); err != nil {
 				t.Fatal(err)
 			}
 			port.failure = outcome
@@ -351,9 +351,10 @@ func TestRunningStateUnavailableHireKeepsExistingSingleWarning(t *testing.T) {
 	f := newFixture(t)
 	receiptTeam(t, f)
 	mustRun(t, "up", "demo")
-	blocked := filepath.Join(f.cfg, "blocked-state")
-	writeFile(t, blocked, "not a directory")
-	t.Setenv("XDG_STATE_HOME", blocked)
+	if err := os.RemoveAll(filepath.Join(f.state, "hergy", "launches")); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, filepath.Join(f.state, "hergy", "launches"), "not a directory")
 	_, stderr, code := run("hire", "one", "--team", "demo", "--purpose", "research", "--task", "read docs", "--from", "a")
 	if code != 0 {
 		t.Fatalf("state failure stopped hire: %s", stderr)
@@ -361,5 +362,101 @@ func TestRunningStateUnavailableHireKeepsExistingSingleWarning(t *testing.T) {
 	lines := strings.Split(strings.TrimSuffix(stderr, "\n"), "\n")
 	if len(lines) != 1 || !strings.Contains(lines[0], "the launch was not recorded:") {
 		t.Fatalf("duplicate warning: %q", stderr)
+	}
+}
+
+func TestTeamCommandsResolveWithoutLaunchHistory(t *testing.T) {
+	f := newFixture(t)
+	receiptTeam(t, f)
+	mustRun(t, "up", "demo", "--as", "alpha")
+	if err := os.RemoveAll(filepath.Join(f.state, "hergy", "launches")); err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{
+		{"status", "alpha"}, {"tell", "a", "hello", "--team", "alpha"}, {"stop", "a", "--team", "alpha"},
+		{"focus", "a", "--team", "alpha"}, {"nudge", "a", "continue", "--team", "alpha"}, {"down", "alpha"},
+	} {
+		mustRun(t, args...)
+	}
+	noTeamState(t, "alpha")
+}
+
+func TestRepromptKeepsTheGenerationItResolved(t *testing.T) {
+	f := newFixture(t)
+	receiptTeam(t, f)
+	mustRun(t, "up", "demo")
+	env := serveEnv(t)
+	replaced := false
+	port := &applyCallbackPort{Port: herdrcli.New(os.Getenv("HERGY_HERDR")), onPrompt: func() {
+		if replaced {
+			return
+		}
+		replaced = true
+		store, err := runningstate.Open()
+		if err != nil {
+			t.Fatal(err)
+		}
+		state := teamState(t, "demo")
+		if err := store.End(state.Name()); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := store.Begin(state.Name(), state.Launch()); err != nil {
+			t.Fatal(err)
+		}
+	}}
+	_, err := Reprompt(context.Background(), MemberInput{Env: env, Team: downInput("demo"), Member: "a", Port: port, Timeout: 1000})
+	if err != nil || !replaced {
+		t.Fatalf("reprompt: replaced=%t err=%v", replaced, err)
+	}
+	if members := teamState(t, "demo").Members(); len(members) != 0 {
+		t.Fatalf("old operation wrote to new run: %+v", members)
+	}
+}
+
+func TestUnregisteredTabIsOnlyAStopCleanupTarget(t *testing.T) {
+	f := newFixture(t)
+	f.runningHerdr(t, `{"tab_id":"t1","label":"orphan"}`, "")
+	path := os.Getenv("HERGY_HERDR")
+	script := readFile(t, path)
+	script = strings.Replace(script, `  *) echo '{"result":{}}' ;;`, `  "pane list") echo '{"result":{"panes":[{"pane_id":"p1","label":"orphan-lead","tab_id":"t1"},{"pane_id":"mine","label":"personal","tab_id":"t1"}]}}' ;;
+  "agent get") echo '{"error":{"code":"agent_not_found"}}' ;;
+  *) echo '{"result":{}}' ;;`, 1)
+	log := filepath.Join(f.cfg, "herdr.log")
+	script = strings.Replace(script, `g="$1"; s="$2"`, `printf '%s\n' "$*" >> '`+log+`'
+g="$1"; s="$2"`, 1)
+	f.herdr(t, script)
+	if status := mustRun(t, "status"); !strings.Contains(status, "no teams are running") {
+		t.Fatal(status)
+	}
+	if rows := newActivityRead(serveEnv(t)).Running().Teams; len(rows) != 0 {
+		t.Fatalf("unregistered tab appears on screen: %+v", rows)
+	}
+	t.Setenv("HERDR_ENV", "1")
+	t.Setenv("HERDR_PANE_ID", "outside")
+	mustRun(t, "down", "orphan")
+	calls := readFile(t, log)
+	if !strings.Contains(calls, "pane close p1") || strings.Contains(calls, "pane close mine") {
+		t.Fatalf("cleanup closed wrong panes: %s", calls)
+	}
+}
+
+func TestRunningDefinitionUsesItsSavedTeamYAML(t *testing.T) {
+	f := newFixture(t)
+	mustRun(t, "new", "demo")
+	original := filepath.Join(f.cfg, "hergy", "teams", "original")
+	if err := os.MkdirAll(filepath.Dir(original), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(filepath.Join(f.proj, ".hergy", "teams", "demo"), original); err != nil {
+		t.Fatal(err)
+	}
+	if err := teststate.Write(teststate.Team{Name: "alias", Definition: "original", Project: f.proj, Layer: "global", TeamYAML: filepath.Join(original, "team.yaml")}); err != nil {
+		t.Fatal(err)
+	}
+	f.runningHerdr(t, `{"tab_id":"t1","label":"alias"}`, `{"name":"alias-lead","agent":"claude","agent_status":"idle","pane_id":"p1","tab_id":"t1"}`)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	stdout, stderr, code := run("status", "alias")
+	if code != 0 || !strings.Contains(stdout, "alias-lead: idle") {
+		t.Fatalf("saved definition was replaced by caller config: %d %s %s", code, stdout, stderr)
 	}
 }

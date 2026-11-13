@@ -198,9 +198,7 @@ func TestALaunchThatCannotBeRecordedStillRuns(t *testing.T) {
 	t.Setenv("HERDR_ENV", "1")
 	t.Setenv("HERDR_PANE_ID", "p9")
 
-	blocked := filepath.Join(filepath.Dir(f.state), "blocked")
-	writeFile(t, blocked, "not a directory\n")
-	t.Setenv("XDG_STATE_HOME", blocked)
+	writeFile(t, filepath.Join(f.state, "hergy", "launches"), "not a directory\n")
 
 	stdout, stderr, code := run("up", "demo")
 	if code != 0 {

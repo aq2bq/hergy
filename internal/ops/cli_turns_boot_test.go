@@ -28,7 +28,7 @@ func TestUpStartsTheWatcherUnderTheMembers(t *testing.T) {
 			split = i
 		case strings.HasSuffix(line, " demo-turns") && strings.HasPrefix(line, "pane rename"):
 			rename = i
-		case strings.HasPrefix(line, "pane run ") && strings.Contains(line, " turns demo --definition demo -C "+f.proj+" --lang "):
+		case strings.HasPrefix(line, "pane run ") && strings.Contains(line, " turns demo -C "+f.proj+" --lang "):
 			run = i
 		}
 	}
@@ -69,6 +69,7 @@ func TestUpStartsTheWatcherUnderTheMembers(t *testing.T) {
 func TestStatusSaysWhoHoldsTheTurn(t *testing.T) {
 	f := newFixture(t)
 	mustRun(t, "new", "demo")
+	seedRunningTeam(t, f.proj, "demo", "demo")
 	f.herdr(t, liveHerdr)
 	path := turns.Path(filepath.Join(f.state, "hergy"), "demo")
 	if err := turns.Save(path, &turns.State{Team: fixtureSeen("demo"), Holder: "lead", From: "builder", Since: time.Now()}); err != nil {

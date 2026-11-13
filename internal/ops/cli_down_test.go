@@ -199,6 +199,8 @@ func TestDownRefusesAWorkerNameTwoTeamsHave(t *testing.T) {
 	f := newFixture(t)
 	mustRun(t, "new", "draft")
 	mustRun(t, "new", "ops")
+	seedRunningTeam(t, f.proj, "draft", "draft")
+	seedRunningTeam(t, f.proj, "ops", "ops")
 	f.herdr(t, `#!/bin/sh
 g="$1"; s="$2"
 if [ -z "$s" ]; then

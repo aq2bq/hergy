@@ -12,6 +12,7 @@ import (
 	"github.com/aq2bq/hergy/internal/ops/internal/launchlog"
 	"github.com/aq2bq/hergy/internal/ops/internal/runningstate"
 	"github.com/aq2bq/hergy/internal/source"
+	"github.com/aq2bq/hergy/internal/words"
 )
 
 func operationTime(now func() time.Time) time.Time {
@@ -21,7 +22,7 @@ func operationTime(now func() time.Time) time.Time {
 	return time.Now()
 }
 
-func beginRunningState(store runningstate.Store, env Environment, r *Resolved, workspace runningstate.Workspace, now func() time.Time) error {
+func beginRunningState(store runningstate.Store, env Environment, r *Resolved, workspace runningstate.Workspace, now func() time.Time) (runningstate.Generation, error) {
 	launch := runningstate.Launch{Definition: r.Team.Definition.Name, Project: env.ProjectRoot,
 		Layer: domainplace.Selection(r.Team.Definition.Layer), TeamYAML: r.Team.Definition.TeamYAML.Project(),
 		Workspace: workspace, StartedAt: operationTime(now), Executable: executable(), Lang: i18n.Language()}
@@ -65,7 +66,7 @@ func receiveRunningState(r *Resolved, command string, members []definition.Start
 		}
 		receipts = append(receipts, receipt)
 	}
-	return store.Receive(r.ModelTeamName(), receipts)
+	return store.Receive(r.ModelTeamName(), r.generation, receipts)
 }
 
 func hireRunningState(r *Resolved, worker definition.Start, now func() time.Time) error {
@@ -74,7 +75,7 @@ func hireRunningState(r *Resolved, worker definition.Start, now func() time.Time
 		return err
 	}
 	workerName, _ := domainname.ParseWorkerName(worker.Short.String())
-	return store.Hire(r.ModelTeamName(), runningstate.Worker{Name: worker.Name.String(), From: worker.From.String(),
+	return store.Hire(r.ModelTeamName(), r.generation, runningstate.Worker{Name: worker.Name.String(), From: worker.From.String(),
 		Purpose: worker.Purpose, Tab: r.ModelTeamName().WorkerTab(workerName).String(), Time: operationTime(now)})
 }
 
@@ -96,26 +97,23 @@ func endRunningState(store runningstate.Store, raw string) error {
 
 // prepareRunningState installs the start operation's write at the launcher's
 // workspace boundary; cleanup removes it only if no tab was created.
-func prepareRunningState(l *launcher.Launcher, in StartInput, r *Resolved, workspace WorkspaceInfo) func(bool) {
+func prepareRunningState(l *launcher.Launcher, in StartInput, r *Resolved, workspace WorkspaceInfo) func() {
 	store, stateErr := runningstate.Open()
 	began := false
 	l.BeforeBoot(func(id, label string) error {
+		if stateErr == nil {
+			if label == "" {
+				label = workspace.Label
+			}
+			r.generation, stateErr = beginRunningState(store, in.Env, r, runningstate.Workspace{ID: id, Label: label}, in.Now)
+			began = stateErr == nil
+		}
 		if stateErr != nil {
-			return nil
+			return words.Errorf("up.state-unavailable", i18n.Language(), stateErr)
 		}
-		if label == "" {
-			label = workspace.Label
-		}
-		stateErr = beginRunningState(store, in.Env, r, runningstate.Workspace{ID: id, Label: label}, in.Now)
-		began = stateErr == nil
-		// State storage follows the existing startup contract: unavailable state
-		// cannot stop a boot. Its failure is reported after the operation.
 		return nil
 	})
-	return func(warned bool) {
-		if !warned {
-			warning(in.Observe, runningStateWarning(stateErr))
-		}
+	return func() {
 		if began && !l.CreatedTeamTab() {
 			warning(in.Observe, runningStateWarning(store.End(r.ModelTeamName())))
 		}
