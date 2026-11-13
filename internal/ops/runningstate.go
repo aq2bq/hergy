@@ -11,7 +11,6 @@ import (
 	"github.com/aq2bq/hergy/internal/ops/internal/launcher"
 	"github.com/aq2bq/hergy/internal/ops/internal/launchlog"
 	"github.com/aq2bq/hergy/internal/ops/internal/runningstate"
-	"github.com/aq2bq/hergy/internal/source"
 	"github.com/aq2bq/hergy/internal/words"
 )
 
@@ -38,7 +37,7 @@ func beginRunningState(store runningstate.Store, env Environment, r *Resolved, w
 	return store.Begin(r.ModelTeamName(), launch)
 }
 
-func receiveRunningState(r *Resolved, command string, members []definition.Start, now func() time.Time) error {
+func receiveRunningState(r *Resolved, command string, members []definition.Start, now func() time.Time, started, created func(string) bool) error {
 	if len(members) == 0 {
 		return nil
 	}
@@ -51,22 +50,31 @@ func receiveRunningState(r *Resolved, command string, members []definition.Start
 		return err
 	}
 	at := operationTime(now)
-	receipts := make([]runningstate.Receipt, 0, len(members))
+	var receipts, restarts, resends []runningstate.Receipt
 	for i := range members {
 		member := &members[i]
 		receipt := runningstate.Receipt{Name: member.Name.String(), Short: member.Short.String(),
 			Prompt: member.Prompt, Command: command, Time: at, Executable: executable(), Lang: i18n.Language(),
 			Start: launchlog.StartFingerprint(member.Kind, member.Args), Env: launchlog.EnvFingerprint(member.Env)}
-		for _, doc := range docsReadBy(member) {
-			text, err := source.Disk{}.Read(doc)
-			if err != nil {
-				return err
-			}
-			receipt.Docs = append(receipt.Docs, runningstate.Doc{Path: doc.Path, Layer: doc.Layer, Text: string(text)})
+		for _, doc := range member.Documents {
+			receipt.Docs = append(receipt.Docs, runningstate.Doc{Path: doc.Doc.Path, Layer: doc.Doc.Layer, Text: doc.Text})
 		}
-		receipts = append(receipts, receipt)
+		switch {
+		case !started(member.Name.String()):
+			resends = append(resends, receipt)
+		case created(member.Name.String()):
+			receipts = append(receipts, receipt)
+		default:
+			restarts = append(restarts, receipt)
+		}
 	}
-	return store.Receive(r.ModelTeamName(), r.generation, receipts)
+	if err := store.Receive(r.ModelTeamName(), r.generation, receipts); err != nil {
+		return err
+	}
+	if err := store.Restart(r.ModelTeamName(), r.generation, restarts); err != nil {
+		return err
+	}
+	return store.Resend(r.ModelTeamName(), r.generation, resends)
 }
 
 func hireRunningState(r *Resolved, worker definition.Start, now func() time.Time) error {

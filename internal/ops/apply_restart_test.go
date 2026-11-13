@@ -30,6 +30,7 @@ func applyDemo(t *testing.T) *fixture {
 	if err != nil {
 		t.Fatal(err)
 	}
+	startTestState(t, env, r, r.Starts)
 	if err := writeLaunch(log, env, r, launchlog.CommandUp, r.Starts, launchlog.Workspace{}); err != nil {
 		t.Fatalf("record demo: %v", err)
 	}
@@ -163,6 +164,7 @@ func TestApplyNotesAChangedWorkerProfile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	startTestState(t, env, r, r.Starts)
 	if err := writeLaunch(log, env, r, launchlog.CommandUp, r.Starts, launchlog.Workspace{}); err != nil {
 		t.Fatal(err)
 	}
@@ -201,6 +203,7 @@ func TestApplyTellsAChangedWorkerProfileFromAnAddedWorker(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	startTestState(t, env, r, r.Starts)
 	if err := writeLaunch(log, env, r, launchlog.CommandUp, r.Starts, launchlog.Workspace{}); err != nil {
 		t.Fatal(err)
 	}

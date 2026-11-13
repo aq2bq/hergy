@@ -8,86 +8,23 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aq2bq/hergy/internal/definition"
 	"github.com/aq2bq/hergy/internal/ops/internal/deliver"
-	"github.com/aq2bq/hergy/internal/ops/internal/launchlog"
-	"github.com/aq2bq/hergy/internal/ops/internal/migrate"
+	"github.com/aq2bq/hergy/internal/ops/internal/runningstate"
 	"github.com/aq2bq/hergy/internal/source"
 )
 
 func TestPreviousDocumentsBelongToTheirReader(t *testing.T) {
-	initLocales(t)
-	for _, legacy := range []bool{false, true} {
-		t.Run(map[bool]string{false: "markdown", true: "legacy YAML"}[legacy], func(t *testing.T) {
-			log := launchlog.At(t.TempDir())
-			text, ext := "# Shared wording\nDo the task.\n", ".md"
-			rendered := text
-			if legacy {
-				ext = ".yaml"
-				text = "version: 1\ntitle: Shared wording\nsections:\n  - rules:\n      - id: ABCD\n        text: Do the task.\n"
-				var err error
-				rendered, err = migrate.LegacyMarkdown(text, "role.yaml")
-				if err != nil {
-					t.Fatal(err)
-				}
-			}
-			hash, err := log.Put([]byte(text))
-			if err != nil {
-				t.Fatal(err)
-			}
-			record := launchlog.Record{Team: fixtureSeen("demo"), Lang: "en", Docs: []launchlog.Doc{{Path: "/roles/first" + ext, SHA256: hash}, {Path: "/roles/second" + ext, SHA256: hash}}}
-			for _, role := range []string{"first", "second"} {
-				member := launchlog.Member{Name: fixtureSeen("demo-" + role), Short: role}
-				prompt := "You are " + member.Name.String() + " (" + role + ") on team demo.\n\n" + rendered
-				old := oldDocs(log, record, member, prompt)
-				if len(old) != 1 || old["/roles/"+role+ext] != text {
-					t.Fatalf("%s read %+v", role, old)
-				}
-				now := rendered
-				if legacy {
-					converted, err := migrate.Convert(text, "role.yaml")
-					if err != nil {
-						t.Fatal(err)
-					}
-					now = converted.Text
-				}
-				current := definition.Start{Prompt: prompt + "new roster", Segments: []definition.PromptSegment{{Kind: "roster", Text: "new roster"}}}
-				docs := []deliver.Doc{{Path: "/roles/" + role + ".md", Display: role + ".md", Text: now}}
-				got := deliver.Compare(fixtureDemoTeam(), "en", prompt, old, current, docs)
-				if len(got) != 1 || got[0].Kind != "roster" {
-					t.Fatalf("unchanged documents: %+v", got)
-				}
-				docs[0].Text += "Changed.\n"
-				got = deliver.Compare(fixtureDemoTeam(), "en", prompt, old, current, docs)
-				if len(got) != 2 || got[0].Document != role+".md" || strings.Contains(got[0].Text, ".yaml") {
-					t.Fatalf("changed document: %+v", got)
-				}
-
-				got = deliver.Compare(fixtureDemoTeam(), "en", prompt, old, current, []deliver.Doc{{Path: "/roles/third.md", Display: "third.md", Text: "New role.\n"}})
-				if len(got) != 3 || got[1].Document != "/roles/"+role+".md" {
-					t.Fatalf("role switch: %+v", got)
-				}
-			}
-		})
-	}
-}
-func TestRecordedMemberDocsOverridePromptText(t *testing.T) {
-	log := launchlog.At(t.TempDir())
-	hash, err := log.Put([]byte("same text"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	record := launchlog.Record{Docs: []launchlog.Doc{{Path: "/roles/old.md", SHA256: hash}, {Path: "/roles/peer.md", SHA256: hash}}}
-	member := launchlog.Member{Docs: []string{"/roles/old.md"}}
-	got := oldDocs(log, record, member, "same text")
-	if len(got) != 1 || got["/roles/old.md"] != "same text" {
+	receipt := runningstate.Receipt{Docs: []runningstate.Doc{{Path: "/roles/old.md", Text: "same text"}, {Path: "/agreement.md", Text: ""}}}
+	got := oldDocs(receipt)
+	if len(got) != 2 || got["/roles/old.md"] != "same text" {
 		t.Fatalf("member documents: %+v", got)
 	}
-	member.Docs = []string{}
-	if got := oldDocs(log, record, member, "same text"); len(got) != 0 {
+	receipt.Docs = nil
+	if got := oldDocs(receipt); len(got) != 0 {
 		t.Fatalf("empty reading: %+v", got)
 	}
 }
+
 func TestRosterChangeHasNoOtherMembersDocumentsOnEitherDeliveryPath(t *testing.T) {
 	f := applyDemo(t)
 	f.runningHerdr(t, `{"tab_id":"t1","label":"demo"}`,

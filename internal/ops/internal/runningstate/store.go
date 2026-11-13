@@ -120,15 +120,49 @@ func (s Store) List() ([]State, error) {
 	return out, nil
 }
 
-// Receive replaces only the confirmed members. Missing state is left missing:
-// teams started before this store existed must be stopped and started again.
+// Receive records a confirmed body in a newly created pane: both process
+// fingerprints are the values the pane and agent were actually created with.
 func (s Store) Receive(name domainname.TeamName, generation Generation, receipts []Receipt) error {
+	return s.receive(name, generation, receipts, newPane)
+}
+
+// Restart records a confirmed body after starting an agent in an existing pane.
+// The start changes, while the pane's environment stays as it was.
+func (s Store) Restart(name domainname.TeamName, generation Generation, receipts []Receipt) error {
+	return s.receive(name, generation, receipts, newStart)
+}
+
+// Resend records a received body while retaining the process that is still running.
+// A member without a previous receipt has unknown process fingerprints.
+func (s Store) Resend(name domainname.TeamName, generation Generation, receipts []Receipt) error {
+	return s.receive(name, generation, receipts, sameProcess)
+}
+
+type receiptProcess uint8
+
+const (
+	newPane receiptProcess = iota
+	newStart
+	sameProcess
+)
+
+func (s Store) receive(name domainname.TeamName, generation Generation, receipts []Receipt, process receiptProcess) error {
 	if len(receipts) == 0 {
 		return nil
 	}
 	return s.update(name, generation, func(data *snapshot) {
 		for _, receipt := range receipts {
 			index := slices.IndexFunc(data.Members, func(member Receipt) bool { return member.Name == receipt.Name })
+			var previous Receipt
+			if index >= 0 {
+				previous = data.Members[index]
+			}
+			if process != newPane {
+				receipt.Env = previous.Env
+			}
+			if process == sameProcess {
+				receipt.Start = previous.Start
+			}
 			if index < 0 {
 				data.Members = append(data.Members, receipt)
 			} else {

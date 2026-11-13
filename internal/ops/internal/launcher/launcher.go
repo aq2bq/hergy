@@ -72,6 +72,7 @@ type Launcher struct {
 	// says both (d-5f02).
 	failedMember string
 	started      []string
+	created      []string
 	// strip is the watcher's pane and tabRows the tab's rows when the strip was
 	// cut, for trimStripAgain; empty when the rows could not be read.
 	closedPanes []ClosedPane
@@ -1594,7 +1595,7 @@ func (l *Launcher) createTab(workspace string, first *definition.Start, label st
 	if err != nil {
 		return "", err
 	}
-	l.place(first.Name.String(), root)
+	l.placeCreated(first.Name.String(), root)
 	l.notify(Event{CreatedTab: label, Workspace: l.workspace})
 	return root, nil
 }
@@ -1619,7 +1620,7 @@ func (l *Launcher) splitPane(source domainname.PaneID, member *definition.Start,
 	if err != nil {
 		return err
 	}
-	l.place(member.Name.String(), pane)
+	l.placeCreated(member.Name.String(), pane)
 	return nil
 }
 
@@ -1690,6 +1691,13 @@ func (l *Launcher) mark(name, state string) {
 	l.progress.Mark(name, state)
 	l.mu.Unlock()
 	l.notify(Event{Member: name, State: state, Workspace: l.workspace})
+}
+
+func (l *Launcher) placeCreated(name string, pane domainname.PaneID) {
+	l.mu.Lock()
+	l.created = append(l.created, name)
+	l.mu.Unlock()
+	l.place(name, pane)
 }
 
 func (l *Launcher) place(name string, pane domainname.PaneID) {

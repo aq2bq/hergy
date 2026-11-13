@@ -1,4 +1,4 @@
-import { registerRunningTeam } from './running-state';
+import { registerRunningTeam, receiveRunningPrompts } from './running-state';
 import { test, expect } from './fixtures';
 import { ready } from './helpers';
 import { execFileSync } from 'node:child_process';
@@ -17,6 +17,7 @@ for (const theme of ['light','dark'] as const) {
   // Use the CLI's real prompt builder and launch-log format; Herdr membership
   // is the isolated fixture's, not an agent on the developer's machine.
   const plan=JSON.parse(execFileSync(hergyBin,['up','core','--dry','--json','--lang','ja'],{cwd:app.proj,env:{...process.env,...app.env},encoding:'utf8'}));
+  receiveRunningPrompts(app, 'core', plan.members);
   const dir=path.join(app.state,'hergy/launches');mkdirSync(path.join(dir,'blobs'),{recursive:true});
   const members=plan.members.map((m: {name:string;prompt:string})=>{
    const hash=createHash('sha256').update(m.prompt).digest('hex');writeFileSync(path.join(dir,'blobs',hash),m.prompt);

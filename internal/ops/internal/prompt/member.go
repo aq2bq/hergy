@@ -136,7 +136,8 @@ type Built struct {
 	// Read is the documents the prompt read besides the role document, in the
 	// order they appear: the agreement every team of the layer shares, then the
 	// team's own.
-	Read []source.Doc
+	Read      []source.Doc
+	Documents []definition.ReadDocument
 }
 
 // Member builds the bootstrap prompt of one member of a definition (this is the
@@ -168,6 +169,7 @@ func Member(def *definition.Definition, node *definition.MemberNode, run Run) (*
 	var buildErr error
 	var roleDoc *source.Doc
 	var read []source.Doc
+	var documents []definition.ReadDocument
 
 	readDoc := func(doc source.Doc, what Where) (string, bool) {
 		document, err := run.Reader.Read(doc)
@@ -177,6 +179,7 @@ func Member(def *definition.Definition, node *definition.MemberNode, run Run) (*
 			}
 			return "", false
 		}
+		documents = append(documents, definition.ReadDocument{Doc: doc, Text: document})
 		return document, true
 	}
 
@@ -272,7 +275,7 @@ func Member(def *definition.Definition, node *definition.MemberNode, run Run) (*
 	if buildErr != nil {
 		return nil, buildErr
 	}
-	built := &Built{Text: text, Segments: segments, Read: read}
+	built := &Built{Text: text, Segments: segments, Read: read, Documents: documents}
 	if roleDoc != nil {
 		built.Role = *roleDoc
 		built.HasRole = true

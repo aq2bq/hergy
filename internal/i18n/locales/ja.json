@@ -244,7 +244,7 @@
   "apply.refused_env": "%s の環境変数が変わり、反映できない。env はペインの作成時に決まる。変更したら hergy down のあと hergy up を使う。",
   "apply.start_changed": "起動の仕方が変わった",
   "apply.env_changed": "環境変数（env）が変わった",
-  "apply.note_old_record": "起動の記録が古いので、プロファイルの変更は見分けられません",
+  "apply.note_old_record": "動いているプロセスの起動情報がないので、プロファイルの変更は見分けられません",
   "apply.preamble_lead": "チームの定義が変わったので、初期プロンプトを送り直します。",
   "apply.preamble_close": "前に受け取った初期プロンプトの代わりに、このあとに従ってください。今の仕事と会話は、そのまま続けてください。起動の直後にする手順は、やり直さないでください。",
   "apply.none_selected": "反映するメンバーを選んでください",

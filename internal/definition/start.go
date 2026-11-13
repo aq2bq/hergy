@@ -39,6 +39,8 @@ type Start struct {
 	HasRole bool
 	// Read is the documents the prompt read, in order.
 	Read []source.Doc
+	// Documents holds the exact rule text read while this prompt was built.
+	Documents []ReadDocument
 	// Turns is who this member hands the turn to, in the order turns: writes
 	// them: "human" or another member's short name (段 5).
 	Turns []string
@@ -52,6 +54,12 @@ type Start struct {
 	// ends (r-378e): kept apart from Args and Env, which stay the profile's,
 	// so a fingerprint, a plan and apply read the profile's alone.
 	Signal Signal
+}
+
+// ReadDocument is a rule file and its contents at prompt construction.
+type ReadDocument struct {
+	Doc  source.Doc
+	Text string
 }
 
 // Signal is the harness's turn-end signal wired into one start: the arguments

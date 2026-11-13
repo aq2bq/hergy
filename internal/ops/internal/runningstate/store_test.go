@@ -270,3 +270,52 @@ func TestLateOperationCannotChangeNextRun(t *testing.T) {
 		t.Fatal("current operation was lost")
 	}
 }
+
+func TestResendKeepsTheProcessAndItsGeneration(t *testing.T) {
+	store := At(t.TempDir())
+	name := testName(t, "alias")
+	generation, err := store.Begin(name, testLaunch(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	before := Receipt{Name: "alias-lead", Short: "lead", Prompt: "old", Start: "old-start", Env: "old-env"}
+	if err := store.Receive(name, generation, []Receipt{before}); err != nil {
+		t.Fatal(err)
+	}
+	after := before
+	after.Prompt, after.Start, after.Env = "new body", "new-start", "new-env"
+	after.Docs = []Doc{{Path: "/rules.md", Layer: "local", Text: "new rules"}}
+	if err := store.Resend(name, generation, []Receipt{after}); err != nil {
+		t.Fatal(err)
+	}
+	after.Start, after.Env = before.Start, before.Env
+	if got := requireState(t, store, name).Members(); !reflect.DeepEqual(got, []Receipt{after}) {
+		t.Fatalf("resend: %+v", got)
+	}
+	after.Start, after.Env = "restarted", "should-not-replace-env"
+	if err := store.Restart(name, generation, []Receipt{after}); err != nil {
+		t.Fatal(err)
+	}
+	if got := requireState(t, store, name).Members()[0]; got.Start != "restarted" || got.Env != before.Env {
+		t.Fatalf("restart replaced env: %+v", got)
+	}
+	if _, err := store.Begin(name, testLaunch(t)); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Resend(name, generation, []Receipt{after}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Restart(name, generation, []Receipt{after}); err != nil {
+		t.Fatal(err)
+	}
+	if got := requireState(t, store, name).Members(); len(got) != 0 {
+		t.Fatalf("stale resend: %+v", got)
+	}
+	current := requireState(t, store, name).Generation()
+	if err := store.Resend(name, current, []Receipt{after}); err != nil {
+		t.Fatal(err)
+	}
+	if got := requireState(t, store, name).Members()[0]; got.Start != "" || got.Env != "" {
+		t.Fatalf("invented process: %+v", got)
+	}
+}

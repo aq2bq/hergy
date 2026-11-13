@@ -6,40 +6,36 @@ import (
 	"testing"
 	"time"
 
-	observedplace "github.com/aq2bq/hergy/internal/ops/internal/place"
-
-	"github.com/aq2bq/hergy/internal/ops/internal/launchlog"
+	"github.com/aq2bq/hergy/internal/ops/internal/runningstate"
 )
 
-func TestLastPromptRecordIsPerMemberAndExactTarget(t *testing.T) {
-	project := t.TempDir()
-	path := filepath.Join(project, "team.yaml")
-	base := launchlog.Record{Team: fixtureSeen("demo"), Definition: "core", Project: observedplace.Observe(project), TeamYAML: observedplace.Observe(path), Command: "up", Members: []launchlog.Member{{Name: fixtureSeen("demo-lead"), Prompt: "old-lead"}, {Name: fixtureSeen("demo-builder"), Prompt: "old-builder"}}}
-	latest := base
-	latest.Command = "reprompt"
-	latest.Members = []launchlog.Member{{Name: fixtureSeen("demo-lead"), Prompt: "new-lead"}}
-	foreign := latest
-	foreign.Project = observedplace.Observe(t.TempDir())
-	foreign.Members = []launchlog.Member{{Name: fixtureSeen("demo-lead"), Prompt: "foreign"}}
-	wrongPath := latest
-	wrongPath.TeamYAML = observedplace.Observe(filepath.Join(project, "other.yaml"))
-	hire := latest
-	hire.Command = "hire"
-	records := []launchlog.Record{base, latest, foreign, wrongPath, hire}
+func TestLastPromptReceiptIsPerMemberAndExactTarget(t *testing.T) {
+	f := newFixture(t)
+	seedRunningTeam(t, f.proj, "demo", "core")
+	store, _ := runningstate.Open()
+	state := teamState(t, "demo")
+	if err := store.Receive(state.Name(), state.Generation(), []runningstate.Receipt{{Name: "demo-lead", Short: "lead", Prompt: "old-lead"}, {Name: "demo-builder", Short: "builder", Prompt: "old-builder"}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Resend(state.Name(), state.Generation(), []runningstate.Receipt{{Name: "demo-lead", Short: "lead", Prompt: "new-lead"}}); err != nil {
+		t.Fatal(err)
+	}
+	state = teamState(t, "demo")
+	path := state.Launch().TeamYAML
 	for member, want := range map[string]string{"lead": "new-lead", "builder": "old-builder"} {
-		_, got, ok := lastPromptRecord(records, projectPath(project), projectPath(path), "core", "demo", member)
+		got, ok := lastPromptReceipt(state, projectPath(f.proj), path, "core", member)
 		if !ok || got.Prompt != want {
 			t.Fatalf("%s: %+v %t", member, got, ok)
 		}
 	}
-	legacy := base
-	legacy.Project = observedplace.Observe("")
-	if _, _, ok := lastPromptRecord([]launchlog.Record{legacy}, projectPath(project), projectPath(path), "core", "demo", "lead"); !ok {
-		t.Fatal("exact legacy path lost")
+	if _, ok := lastPromptReceipt(state, projectPath(t.TempDir()), path, "core", "lead"); ok {
+		t.Fatal("foreign project adopted")
 	}
-	legacy.TeamYAML = observedplace.Observe("")
-	if _, _, ok := lastPromptRecord([]launchlog.Record{legacy}, projectPath(project), projectPath(path), "core", "demo", "lead"); ok {
-		t.Fatal("ambiguous legacy record adopted")
+	if _, ok := lastPromptReceipt(state, projectPath(f.proj), projectPath(filepath.Join(f.proj, "other.yaml")), "core", "lead"); ok {
+		t.Fatal("foreign path adopted")
+	}
+	if _, ok := lastPromptReceipt(state, projectPath(f.proj), path, "other", "lead"); ok {
+		t.Fatal("foreign definition adopted")
 	}
 }
 func TestPromptHistoryReadsLiveMembersOnly(t *testing.T) {
@@ -60,17 +56,10 @@ func TestPromptHistoryReadsLiveMembersOnly(t *testing.T) {
 }
 func TestPromptHistoryExactBodyAndReadFailures(t *testing.T) {
 	_, env, _ := hqFixture(t)
-	log, err := launchlog.Open()
-	if err != nil {
-		t.Fatal(err)
-	}
+	store, _ := runningstate.Open()
+	state := teamState(t, "core")
 	body := "recorded\r\n\t  \nno final newline"
-	hash, err := log.Put([]byte(body))
-	if err != nil {
-		t.Fatal(err)
-	}
-	record := launchlog.Record{Team: fixtureSeen("core"), Definition: "core", Project: env.ProjectRoot.Seen(), TeamYAML: observedplace.Observe(filepath.Join(env.ProjectRoot.String(), ".hergy", "teams", "core", "team.yaml")), Command: launchlog.CommandRefresh, Members: []launchlog.Member{{Name: fixtureSeen("core-lead"), Prompt: hash}}}
-	if err := log.Append(record); err != nil {
+	if err := store.Receive(state.Name(), state.Generation(), []runningstate.Receipt{{Name: "core-lead", Short: "lead", Prompt: body, Command: "refresh", Time: activityNow}}); err != nil {
 		t.Fatal(err)
 	}
 	read := newActivityRead(env)
@@ -79,27 +68,10 @@ func TestPromptHistoryExactBodyAndReadFailures(t *testing.T) {
 	if err != nil || out.Recorded == nil || out.Recorded.Text != body || out.Recorded.Command != "refresh" {
 		t.Fatalf("%+v %v", out, err)
 	}
-	record.Members[0].Prompt = "../log.jsonl"
-	if err := log.Append(record); err != nil {
+	if err := os.WriteFile(store.Path(state.Name()), []byte("broken\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
 	if _, err = read.PromptHistory(env.ProjectRoot, "core", "project", "lead", "core"); err == nil {
-		t.Fatal("invalid hash accepted")
-	}
-	record.Members[0].Prompt = hash
-	if err := log.Append(record); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Remove(filepath.Join(log.Dir(), "blobs", hash)); err != nil {
-		t.Fatal(err)
-	}
-	if _, err = read.PromptHistory(env.ProjectRoot, "core", "project", "lead", "core"); err == nil {
-		t.Fatal("missing blob hidden")
-	}
-	if err := os.WriteFile(filepath.Join(log.Dir(), "log.jsonl"), []byte("broken\n"), 0600); err != nil {
-		t.Fatal(err)
-	}
-	if _, err = read.PromptHistory(env.ProjectRoot, "core", "project", "lead", "core"); err == nil {
-		t.Fatal("broken record hidden")
+		t.Fatal("broken state hidden")
 	}
 }
