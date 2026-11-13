@@ -4,10 +4,8 @@ import (
 	"fmt"
 	"os"
 	"reflect"
-	"strings"
 	"testing"
 
-	"github.com/aq2bq/hergy/internal/cheat"
 	"github.com/aq2bq/hergy/internal/i18n"
 )
 
@@ -37,44 +35,6 @@ func TestParseProfilesHoldsTheFileToTheSettingsRules(t *testing.T) {
 				t.Error("a broken profiles.yaml did not stop the parse")
 			}
 		})
-	}
-}
-
-// TestCheatMachineNamesEveryProfileKey: the keys a profiles.yaml reads are named
-// in the cheatsheet for an agent, so a key added later cannot be left out. The
-// keys of the other settings files are checked by the package that reads them.
-func TestCheatMachineNamesEveryProfileKey(t *testing.T) {
-	keys := map[string]bool{}
-	collectYAMLKeys(keys, reflect.TypeFor[rawProfiles]())
-	if len(keys) == 0 {
-		t.Fatal("no yaml keys were collected; the reflection walk is broken")
-	}
-	for key := range keys {
-		if !strings.Contains(cheat.Machine, key) {
-			t.Errorf("cheat --ai does not name the profiles.yaml key %q", key)
-		}
-	}
-}
-
-func collectYAMLKeys(keys map[string]bool, typ reflect.Type) {
-	if typ == nil {
-		return
-	}
-	switch typ.Kind() {
-	case reflect.Pointer, reflect.Slice, reflect.Array, reflect.Map:
-		collectYAMLKeys(keys, typ.Elem())
-	case reflect.Struct:
-		if typ.PkgPath() != reflect.TypeFor[rawProfile]().PkgPath() {
-			return
-		}
-		for field := range typ.Fields() {
-			if tag, _, _ := strings.Cut(field.Tag.Get("yaml"), ","); tag != "" && tag != "-" {
-				keys[tag] = true
-			}
-			collectYAMLKeys(keys, field.Type)
-		}
-	default:
-		// scalars carry no yaml keys.
 	}
 }
 

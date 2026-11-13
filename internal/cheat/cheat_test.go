@@ -4,108 +4,34 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/options"
 )
 
-// TestEveryCommandAndFlagHasItsWords: the cheatsheet for an agent writes what a
-// command does and what a flag means by hand; the command line and the commands
-// that take a flag come from the table. A command or flag added to the table
-// without those words fails here.
-func TestEveryCommandAndFlagHasItsWords(t *testing.T) {
-	for _, kind := range options.Kinds {
-		for _, lang := range []string{"en", "ja"} {
-			if strings.TrimSpace(options.Description(kind, lang)) == "" {
-				t.Errorf("command %d has no %s rules", kind, lang)
+// TestCheatIsEveryCommandsLineAndSummary: both cheatsheets are the table's own
+// lines, a command's synopsis and under it what it does, in the table's order.
+// A command added to the table shows up here without a hand.
+func TestCheatIsEveryCommandsLineAndSummary(t *testing.T) {
+	for _, lang := range []string{"en", "ja"} {
+		want := ""
+		for _, kind := range options.Kinds {
+			if options.Summary(kind, lang) == "" {
+				t.Errorf("command %d has no %s summary", kind, lang)
 			}
+			want += options.Synopsis(kind, lang) + "\n    " + options.Summary(kind, lang) + "\n"
+		}
+		if got := commandLines(lang, ""); got != want {
+			t.Errorf("[%s] the command lines:\n got %q\nwant %q", lang, got, want)
+		}
+		if !strings.HasSuffix(BuildPeople(lang), "\n\n"+want) {
+			t.Errorf("[%s] hergy cheat does not end with the command lines", lang)
 		}
 	}
-	for _, flag := range options.FlagSummaries() {
-		for _, lang := range []string{"en", "ja"} {
-			if strings.TrimSpace(options.FlagDescriptions(flag.Name, lang)) == "" {
-				t.Errorf("flag %s has no %s meaning", flag.Name, lang)
-			}
-		}
-	}
-}
-
-// TestMachineLinesComeFromTheTable: each command's line is the Synopsis of its
-// row, so a flag added to or taken from the table shows up here without a hand.
-func TestMachineLinesComeFromTheTable(t *testing.T) {
 	for _, kind := range options.Kinds {
-		want := "\n  " + options.Synopsis(kind, "en") + "\n"
-		if !strings.Contains(Machine, want) {
-			t.Errorf("cheat --ai does not hold the command line %q", strings.TrimSpace(want))
+		if line := "\n  " + options.Synopsis(kind, "en") + "\n      " + options.Summary(kind, "en") + "\n"; !strings.Contains(Machine, line) {
+			t.Errorf("hergy cheat --ai does not hold %q", line)
 		}
 	}
-	for _, sum := range options.FlagSummaries() {
-		if !strings.Contains(Machine, "\n  "+sum.Label+" ") {
-			t.Errorf("cheat --ai has no Flags: line for %q", sum.Label)
-		}
-		if len(sum.Commands) > 0 && !strings.Contains(Machine, "Commands: "+strings.Join(sum.Commands, ", ")+".\n") {
-			t.Errorf("cheat --ai does not list the commands that take --%s: %v", sum.Name, sum.Commands)
-		}
-	}
-}
-
-// TestCheatMachineDoesNotNameGoneKeys: an agent reads cheat --ai and writes the
-// keys it names. The keys and flags that are gone must not be among them: the
-// layer flags (段 3), the old document keys (段 5) and may_spawn, and kind: under
-// a member, which is the profile's (I7, 段 7). A file that writes one is stopped
-// with the sentence that says where it went.
-func TestCheatMachineDoesNotNameGoneKeys(t *testing.T) {
-	for _, gone := range []string{"--local", "docs:", "roles:", "may_spawn"} {
-		if strings.Contains(Machine, gone) {
-			t.Errorf("cheat --ai names %q, which is gone", gone)
-		}
-	}
-	// kind: is a profile's and a rule's origin, not a member's: under the
-	// members block it must not appear.
-	inMembers := false
-	for line := range strings.SplitSeq(Machine, "\n") {
-		switch {
-		case strings.HasPrefix(line, "    members:"):
-			inMembers = true
-			continue
-		case strings.HasPrefix(line, "    workers:"):
-			inMembers = false
-		}
-		if inMembers && strings.Contains(line, "kind:") {
-			t.Errorf("cheat --ai writes kind: under a member: %q", line)
-		}
-	}
-}
-
-// TestFlagLinesAlignAndNameCommandsOnlyWhenTheyExist: every flag's meaning
-// starts at the same column (the widest label plus two spaces), and a flag every
-// command takes ends with its meaning, not with an empty "Commands: ." list.
-func TestFlagLinesAlignAndNameCommandsOnlyWhenTheyExist(t *testing.T) {
-	summaries := options.FlagSummaries()
-	width, global := 0, 0
-	for _, sum := range summaries {
-		width = max(width, i18n.Width(sum.Label))
-		if len(sum.Commands) == 0 {
-			global++
-		}
-	}
-	if global == 0 {
-		t.Fatal("no flag without a command list: the empty-list case is not measured")
-	}
-	lines := strings.Split(strings.TrimSuffix(flagLines("en"), "\n"), "\n")
-	if len(lines) != len(summaries) {
-		t.Fatalf("flagLines wrote %d lines for %d flags", len(lines), len(summaries))
-	}
-	for i, sum := range summaries {
-		meaning := options.FlagDescriptions(sum.Name, "en")
-		if len(sum.Commands) > 0 {
-			meaning += " Commands: " + strings.Join(sum.Commands, ", ") + "."
-		}
-		want := "  " + sum.Label + strings.Repeat(" ", width-i18n.Width(sum.Label)) + "  " + meaning
-		if lines[i] != want {
-			t.Errorf("flag line %d:\n got %q\nwant %q", i, lines[i], want)
-		}
-		if len(sum.Commands) == 0 && strings.Contains(lines[i], "Commands:") {
-			t.Errorf("--%s is taken by every command but its line lists commands: %q", sum.Name, lines[i])
-		}
+	if !strings.HasPrefix(Machine, "hergy cheat --ai\n\n  hergy up") {
+		t.Errorf("hergy cheat --ai does not open with its name and the first command: %q", Machine[:40])
 	}
 }

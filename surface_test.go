@@ -6,7 +6,6 @@ import (
 	"os"
 	"regexp"
 	"slices"
-	"sort"
 	"strings"
 	"testing"
 
@@ -158,66 +157,6 @@ func TestCheatAICommandLinesNameEveryFlag(t *testing.T) {
 			if !named {
 				t.Errorf("cheat --ai: the line of hergy %s does not name --%s, a flag it takes:\n    %s", command, flag, strings.TrimSpace(line))
 			}
-		}
-	}
-}
-
-// flagsSection is the "Flags:" block of the cheatsheet for an agent: the lines
-// that start a flag, one per flag.
-func flagsSection(t *testing.T) []string {
-	t.Helper()
-	var lines []string
-	in := false
-	for line := range strings.SplitSeq(cheat.Machine, "\n") {
-		switch {
-		case line == "Flags:":
-			in = true
-		case in && line == "":
-			return lines
-		case in:
-			lines = append(lines, line)
-		}
-	}
-	t.Fatal("cheat --ai has no Flags: section")
-	return nil
-}
-
-var flagsLabel = regexp.MustCompile(`^  (?:-[A-Za-z], )?--([a-z][a-z0-9-]*)`)
-
-// TestCheatAIFlagsSectionNamesTheRightCommands: the Flags: section says, flag by
-// flag, which commands take it in the generated Commands: suffix. Prose may
-// also use words such as "stop" without naming a command. Every flag has a line.
-func TestCheatAIFlagsSectionNamesTheRightCommands(t *testing.T) {
-	token := regexp.MustCompile(`[A-Za-z_-]+`)
-	described := map[string]bool{}
-	for _, line := range flagsSection(t) {
-		m := flagsLabel.FindStringSubmatch(line)
-		if m == nil {
-			t.Errorf("cheat --ai, Flags: a line that is not a flag:\n    %s", line)
-			continue
-		}
-		flag := m[1]
-		described[flag] = true
-		_, commandList, _ := strings.Cut(line, " Commands: ")
-		for _, word := range token.FindAllString(commandList, -1) {
-			kind, isCommand := kindNamed(word)
-			if isCommand && !acceptsFlag(kind, flag) {
-				t.Errorf("cheat --ai, Flags: the line of --%s names hergy %s, which does not take it:\n    %s", flag, word, strings.TrimSpace(line))
-			}
-		}
-	}
-	var missing []string
-	for _, kind := range options.Kinds {
-		for _, flag := range options.Flags(kind) {
-			if !described[flag] {
-				missing = append(missing, flag)
-			}
-		}
-	}
-	sort.Strings(missing)
-	for i, flag := range missing {
-		if i == 0 || flag != missing[i-1] {
-			t.Errorf("cheat --ai: the Flags: section has no line for --%s", flag)
 		}
 	}
 }

@@ -11,8 +11,7 @@ import (
 	"github.com/aq2bq/hergy/internal/words"
 )
 
-// wordsGate uses the same pure renderer for comparisons and -write. Unmarked
-// document text is input to projection, never overwritten by the generator.
+// wordsGate uses the same pure renderer for comparisons and -write.
 func (r *runner) wordsGate() error {
 	outputs, err := words.Generated()
 	if err != nil {

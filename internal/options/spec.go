@@ -30,9 +30,8 @@ type Arg struct {
 // command lines all read it.
 type Spec struct {
 	Kind    Kind
-	Name    string         // the command word
-	Summary Text           // one line; the same sentence as the command's row in hergy --help
-	Rules   []words.RuleID // public facts, owned by internal/words
+	Name    string // the command word
+	Summary Text   // one line; the same sentence as the command's row in hergy --help
 	Args    []Arg
 	Flags   []Use // the flags of this command, in the order --help shows them; never --lang or --help
 	Bare    bool  // version: answers before any flag is read, has no help page of its own
@@ -64,7 +63,7 @@ var (
 // specs is every command, in the order the cheatsheet lists them.
 var specs = []Spec{
 	{
-		Kind: Up, Name: "up", Rules: words.ForCommand("up"),
+		Kind: Up, Name: "up",
 		Summary: words.Label("up.summary"),
 		Args: []Arg{{
 			Name: words.Label("argument.definition"), Optional: true,
@@ -79,7 +78,7 @@ var specs = []Spec{
 		},
 	},
 	{
-		Kind: Down, Name: "down", Rules: words.ForCommand("down"),
+		Kind: Down, Name: "down",
 		Summary: words.Label("down.summary"),
 		Args: []Arg{{
 			Name: words.Label("argument.team-or-worker"), Optional: true,
@@ -92,7 +91,7 @@ var specs = []Spec{
 		},
 	},
 	{
-		Kind: Status, Name: "status", Rules: words.ForCommand("status"),
+		Kind: Status, Name: "status",
 		Summary: words.Label("status.summary"),
 		Args: []Arg{{
 			Name: words.Label("argument.team"), Optional: true,
@@ -104,7 +103,7 @@ var specs = []Spec{
 		},
 	},
 	{
-		Kind: Refresh, Name: "refresh", Rules: words.ForCommand("refresh"),
+		Kind: Refresh, Name: "refresh",
 		Summary: words.Label("refresh.summary"),
 		Args: []Arg{{
 			Name: words.Label("argument.member"), Or: flagAll,
@@ -120,7 +119,7 @@ var specs = []Spec{
 		},
 	},
 	{
-		Kind: Reprompt, Name: "reprompt", Rules: words.ForCommand("reprompt"),
+		Kind: Reprompt, Name: "reprompt",
 		Summary: words.Label("reprompt.summary"),
 		Args: []Arg{{
 			Name: words.Label("argument.member"), Or: flagAll,
@@ -135,7 +134,7 @@ var specs = []Spec{
 		},
 	},
 	{
-		Kind: Apply, Name: "apply", Rules: words.ForCommand("apply"), Variadic: true,
+		Kind: Apply, Name: "apply", Variadic: true,
 		Summary: words.Label("apply.summary"),
 		Args: []Arg{{
 			Name: words.Label("argument.member"), Optional: true,
@@ -150,7 +149,7 @@ var specs = []Spec{
 		},
 	},
 	{
-		Kind: Focus, Name: "focus", Rules: words.ForCommand("focus"),
+		Kind: Focus, Name: "focus",
 		Summary: words.Label("focus.summary"),
 		Args: []Arg{{
 			Name: words.Label("argument.member"),
@@ -162,7 +161,7 @@ var specs = []Spec{
 		},
 	},
 	{
-		Kind: Nudge, Name: "nudge", Rules: words.ForCommand("nudge"),
+		Kind: Nudge, Name: "nudge",
 		Summary: words.Label("nudge.summary"),
 		Args: []Arg{
 			{
@@ -181,7 +180,7 @@ var specs = []Spec{
 		},
 	},
 	{
-		Kind: Stop, Name: "stop", Rules: words.ForCommand("stop"),
+		Kind: Stop, Name: "stop",
 		Summary: words.Label("stop.summary"),
 		Args: []Arg{{
 			Name: words.Label("argument.member"),
@@ -194,7 +193,7 @@ var specs = []Spec{
 		},
 	},
 	{
-		Kind: Tell, Name: "tell", Rules: words.ForCommand("tell"),
+		Kind: Tell, Name: "tell",
 		Summary: words.Label("tell.summary"),
 		Args: []Arg{
 			{
@@ -214,7 +213,7 @@ var specs = []Spec{
 		},
 	},
 	{
-		Kind: Hire, Name: "hire", Rules: words.ForCommand("hire"),
+		Kind: Hire, Name: "hire",
 		Summary: words.Label("hire.summary"),
 		Args: []Arg{{
 			Name: words.Label("argument.name"),
@@ -232,7 +231,7 @@ var specs = []Spec{
 		},
 	},
 	{
-		Kind: Turns, Name: "turns", Rules: words.ForCommand("turns"),
+		Kind: Turns, Name: "turns",
 		Summary: words.Label("turns.summary"),
 		Args: []Arg{{
 			Name: words.Label("argument.team"), Optional: true,
@@ -244,7 +243,7 @@ var specs = []Spec{
 		},
 	},
 	{
-		Kind: TurnDone, Name: "turn-done", Rules: words.ForCommand("turn-done"),
+		Kind: TurnDone, Name: "turn-done",
 		Summary: words.Label("turn-done.summary"),
 		Args: []Arg{
 			{Name: words.Label("argument.team"), Desc: words.Label("argument.team-name")},
@@ -253,14 +252,14 @@ var specs = []Spec{
 		},
 	},
 	{
-		Kind: Ls, Name: "ls", Rules: words.ForCommand("ls"),
+		Kind: Ls, Name: "ls",
 		Summary: words.Label("ls.summary"),
 		Flags: []Use{
 			use(flagDir, descDir),
 		},
 	},
 	{
-		Kind: Show, Name: "show", Rules: words.ForCommand("show"),
+		Kind: Show, Name: "show",
 		Summary: words.Label("show.summary"),
 		Args: []Arg{{
 			Name: words.Label("argument.definition"),
@@ -271,7 +270,7 @@ var specs = []Spec{
 		},
 	},
 	{
-		Kind: New, Name: "new", Rules: words.ForCommand("new"),
+		Kind: New, Name: "new",
 		Summary: words.Label("new.summary"),
 		Args: []Arg{{
 			Name: words.Label("argument.definition"),
@@ -281,17 +280,17 @@ var specs = []Spec{
 			use(flagDir, descDir),
 		},
 	},
-	{Kind: Migrate, Name: "migrate", Rules: words.ForCommand("migrate"), Summary: words.Label("migrate.summary"),
+	{Kind: Migrate, Name: "migrate", Summary: words.Label("migrate.summary"),
 		Flags: []Use{use(flagDry, words.Sentences("flag.dry.migrate")), use(flagGlobal, words.Sentences("flag.global.migrate")), use(flagDir, descDir)}},
 	{
-		Kind: Validate, Name: "validate", Rules: words.ForCommand("validate"),
+		Kind: Validate, Name: "validate",
 		Summary: words.Label("validate.summary"),
 		Flags: []Use{
 			use(flagDir, descDir),
 		},
 	},
 	{
-		Kind: Serve, Name: "serve", Rules: words.ForCommand("serve"),
+		Kind: Serve, Name: "serve",
 		Summary: words.Label("serve.summary"),
 		Flags: []Use{
 			use(flagPort, words.Sentences("flag.port.serve")),
@@ -300,11 +299,11 @@ var specs = []Spec{
 		},
 	},
 	{
-		Kind: Version, Name: "version", Rules: words.ForCommand("version"), Bare: true,
+		Kind: Version, Name: "version", Bare: true,
 		Summary: words.Label("version.summary"),
 	},
 	{
-		Kind: Cheat, Name: "cheat", Rules: words.ForCommand("cheat"),
+		Kind: Cheat, Name: "cheat",
 		Summary: words.Label("cheat.summary"),
 		Flags: []Use{
 			use(flagAI, words.Sentences("flag.ai.cheat")),

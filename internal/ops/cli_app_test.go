@@ -1892,22 +1892,14 @@ func TestStatusDoesNotNeedAHerdrPane(t *testing.T) {
 	}
 }
 
-// TestCheatAIListsEveryCommandAndFlag reads the command and flag tables from
-// options and checks the agent cheatsheet names each one, so a command or flag
-// added later cannot be left out of the cheatsheet.
-func TestCheatAIListsEveryCommandAndFlag(t *testing.T) {
+// TestCheatAIListsEveryCommand reads the command table from options and checks
+// the agent cheatsheet names each one.
+func TestCheatAIListsEveryCommand(t *testing.T) {
 	newFixture(t)
 	got := mustRun(t, "cheat", "--ai")
 	for _, command := range options.Commands() {
 		if !strings.Contains(got, "hergy "+command) {
 			t.Errorf("cheat --ai does not name the command %q", command)
-		}
-	}
-	for _, kind := range options.Kinds {
-		for _, flag := range options.Flags(kind) {
-			if !strings.Contains(got, "--"+flag) {
-				t.Errorf("cheat --ai does not name the flag --%s", flag)
-			}
 		}
 	}
 }

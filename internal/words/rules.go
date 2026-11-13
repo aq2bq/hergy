@@ -20,9 +20,7 @@ type RuleID string
 // when explaining a precondition; an operation supplies actual subjects on refusal.
 // ErrorKey is only a compatibility key for existing translated presentations.
 type Rule struct {
-	Detail    bool // shown under the usage line, rather than only in flag help/reference
 	ID        RuleID
-	Commands  []string
 	Statement Text
 	Recovery  Text
 	Slots     []TermID
@@ -117,17 +115,6 @@ func Describe(ids []RuleID, lang string) string {
 		parts = append(parts, Find(id).Explain(lang))
 	}
 	return strings.Join(parts, "\n")
-}
-
-// ForCommand is the single association of commands with operation facts.
-func ForCommand(command string) []RuleID {
-	var out []RuleID
-	for _, rule := range rules {
-		if rule.Detail && slices.Contains(rule.Commands, command) {
-			out = append(out, rule.ID)
-		}
-	}
-	return out
 }
 
 // Refusal keeps the reason machine-readable through wrapping and adapters.
