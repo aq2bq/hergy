@@ -5,10 +5,12 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"unicode"
 )
 
 // Text is a template in each shipped language. {{term-id}} is resolved only
-// from the vocabulary. Renderers cannot substitute another name for a term.
+// from the vocabulary. {{term-id|cap}} capitalizes its first letter for a
+// sentence or heading. Renderers cannot substitute another name for a term.
 type Text map[string]string
 
 // RuleID identifies one public operation fact.
@@ -31,12 +33,19 @@ func bilingual(en, ja string) Text { return Text{"en": en, "ja": ja} }
 
 var ruleToken = regexp.MustCompile(`\[\[([a-z][a-z0-9.-]+)\]\]`)
 
-var termToken = regexp.MustCompile(`\{\{([a-z-]+)\}\}`)
+var termToken = regexp.MustCompile(`\{\{([a-z-]+)(\|cap)?\}\}`)
 
 func expand(s, lang string) string {
 	s = ruleToken.ReplaceAllStringFunc(s, func(token string) string { return Find(RuleID(token[2 : len(token)-2])).Explain(lang) })
 	return termToken.ReplaceAllStringFunc(s, func(token string) string {
-		return TermID(token[2 : len(token)-2]).Text(lang)
+		id, casing, _ := strings.Cut(token[2:len(token)-2], "|")
+		name := TermID(id).Text(lang)
+		if casing == "cap" {
+			letters := []rune(name)
+			letters[0] = unicode.ToUpper(letters[0])
+			name = string(letters)
+		}
+		return name
 	})
 }
 

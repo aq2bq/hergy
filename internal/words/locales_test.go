@@ -41,3 +41,13 @@ func TestLocaleProjectionRejectsUnknownVocabulary(t *testing.T) {
 	}()
 	LocaleMessages("en")
 }
+
+func TestTextCapitalizationPreservesVocabulary(t *testing.T) {
+	text := bilingual("{{project|cap}} / {{project}}", "{{project|cap}} / {{project}}")
+	if got := text.In("en"); got != "Project / project" {
+		t.Fatal(got)
+	}
+	if got := text.In("ja"); got != "プロジェクト / プロジェクト" {
+		t.Fatal(got)
+	}
+}

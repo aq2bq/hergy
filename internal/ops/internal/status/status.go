@@ -42,7 +42,7 @@ type Row struct {
 
 // Text is one row's state, as hergy status prints it: the live state with the
 // word that state carries ("working" that has stood for a while, "blocked" that
-// is waiting for permission), "not present" when no agent is live, and the
+// is waiting for permission), "not running" when no agent is live, and the
 // worker mark on a hired worker.
 func (r Row) Text() string {
 	state := r.State
