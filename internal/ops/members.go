@@ -29,6 +29,7 @@ type MemberInput struct {
 	RequirePane, ManagedPane bool
 	Port                     Port
 	Observe                  func(Event)
+	Now                      func() time.Time
 }
 
 // MemberResult carries a dry plan or the next action after interruption.
@@ -127,7 +128,7 @@ func Refresh(ctx context.Context, in MemberInput) (MemberResult, error) {
 	l := operationLauncher(ctx, r, in.Timeout, in.Port, in.Observe)
 	err = execute(ctx, l, in.Observe, nil, func() error { return l.Refresh(plan.Members, CurrentPane()) })
 	if ctx.Err() == nil && (err == nil || launcher.IsUndelivered(err)) {
-		warning(in.Observe, recordReceivedLaunch(in.Env, r, launchlog.CommandRefresh, plan.Members, l, launchlog.Workspace{}))
+		warning(in.Observe, recordReceivedLaunch(in.Env, r, launchlog.CommandRefresh, plan.Members, l, launchlog.Workspace{}, in.Now))
 	}
 	return out, err
 }
@@ -156,7 +157,7 @@ func Reprompt(ctx context.Context, in MemberInput) (MemberResult, error) {
 	sent := promptsToResend(in.Env.Catalog(source.Disk{}), in.Env.ProjectRoot, r, plan.Members)
 	err = execute(ctx, l, in.Observe, nil, func() error { return l.Reprompt(sent) })
 	if ctx.Err() == nil && (err == nil || launcher.IsUndelivered(err)) {
-		warning(in.Observe, recordReceivedLaunch(in.Env, r, launchlog.CommandReprompt, plan.Members, l, launchlog.Workspace{}))
+		warning(in.Observe, recordReceivedLaunch(in.Env, r, launchlog.CommandReprompt, plan.Members, l, launchlog.Workspace{}, in.Now))
 	}
 	return out, err
 }
@@ -196,7 +197,7 @@ func Hire(ctx context.Context, in HireInput) (MemberResult, error) {
 	l := operationLauncher(ctx, r, in.Timeout, in.Port, in.Observe)
 	err = execute(ctx, l, in.Observe, nil, func() error { return l.Hire(worker, in.Task) })
 	if ctx.Err() == nil && (err == nil || launcher.IsUndelivered(err)) {
-		warning(in.Observe, recordHire(in.Env, r, *worker))
+		warning(in.Observe, recordHire(in.Env, r, *worker, in.Now))
 	}
 	return out, err
 }

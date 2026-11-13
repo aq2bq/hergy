@@ -41,10 +41,11 @@ type Launcher struct {
 	// ctx stops a wait when the caller that asked for the operation goes away,
 	// as the headquarters does when the start is given up. A launcher without
 	// one waits as the command line always has.
-	ctx       context.Context
-	observe   func(Event)
-	workspace string
-	wsLabel   string
+	ctx        context.Context
+	observe    func(Event)
+	workspace  string
+	wsLabel    string
+	beforeBoot func(workspace, label string) error
 	// noNext drops the "next: hergy reprompt --all" line a refresh prints after
 	// adding a member: apply is the caller that hands the lineup itself, so the
 	// command line it suggests would be wrong (d-36ef).
@@ -156,6 +157,16 @@ func (l *Launcher) WorkspaceID() string { return l.workspace }
 // WorkspaceLabel is that workspace's label, when herdr could be read.
 func (l *Launcher) WorkspaceLabel() string { return l.wsLabel }
 
+// BeforeBoot installs the operation's callback after workspace resolution and
+// before creating any team tab. Returning an error prevents creation.
+func (l *Launcher) BeforeBoot(fn func(workspace, label string) error) *Launcher {
+	l.beforeBoot = fn
+	return l
+}
+
+// CreatedTeamTab includes a tab whose root pane could not subsequently be read.
+func (l *Launcher) CreatedTeamTab() bool { return l.tabID() != "" }
+
 // defaultKill sends SIGTERM to a process group.
 func defaultKill(pgid int) error {
 	return syscall.Kill(-pgid, syscall.SIGTERM)
@@ -184,6 +195,11 @@ func (l *Launcher) BootIn(workspace, up string) error {
 	l.workspace = workspace
 	if space, err := l.herdr.Workspace(workspace); err == nil {
 		l.wsLabel = space.Label
+	}
+	if l.beforeBoot != nil {
+		if err := l.beforeBoot(workspace, l.wsLabel); err != nil {
+			return err
+		}
 	}
 	root, err := l.createTab(workspace, &members[0], l.teamTabLabel())
 	if err != nil {
