@@ -22,7 +22,7 @@ var terms = []Term{
 	{ID: "herdr-name", English: "herdr name", Japanese: "herdr 名", Meaning: "the name herdr and the agents see: <team>-<member>"},
 	{ID: "worker", English: "worker", Japanese: "ワーカー", Meaning: "an agent a member hired with hergy hire, outside the roster"},
 	{ID: "layer", English: "layer", Japanese: "層", Meaning: "one of the two settings roots: the project (<project>/.hergy) and outside it ($XDG_CONFIG_HOME/hergy). It stays inside hergy: it is not a word a person reads (I11)"},
-	{ID: "project", English: "project", Japanese: "プロジェクト", Meaning: "the directory whose .hergy holds its own settings; hergy serve lists projects by their paths and reads each together with the global settings"},
+	{ID: "project", English: "project", Japanese: "プロジェクト", Meaning: "the directory a team works in, known by its path; settings of its own, when it has any, stand in its .hergy; hergy serve lists projects by their paths and reads each together with the global settings"},
 	{ID: "global", English: "global", Japanese: "グローバル", Meaning: "one of the two places a settings file stands in: プロジェクト (<project>/.hergy) or グローバル (~/.config/hergy). A screen writes it beside プロジェクト"},
 	{ID: "place", English: "place", Japanese: "置き場所", Meaning: "the two settings roots a person names together: プロジェクト (<project>/.hergy) and グローバル (~/.config/hergy). It is the word a person reads for what layer says inside hergy; a screen's button names the place itself (the project's name, or グローバル), and a list draws a head for each place (d-e77c)"},
 	{ID: "preferred", English: "preferred", Japanese: "優先", Meaning: "the mark on the project row when both the project and global places hold the same name; the project's profile, role document or team definition is used"},
