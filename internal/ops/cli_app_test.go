@@ -1844,14 +1844,14 @@ func TestStatusNobodyWorking(t *testing.T) {
 	}
 }
 
-// TestStatusAbsentAndNoJudgement: a member that is not live reads "not present",
+// TestStatusAbsentAndNoJudgement: a member that is not live reads "not running",
 // and one working member with nobody blocked has no judgement line.
 func TestStatusAbsentAndNoJudgement(t *testing.T) {
 	f := newFixture(t)
 	mustRun(t, "new", "demo")
 	f.herdr(t, absentHerdr)
 	got := mustRun(t, "status", "demo")
-	for _, line := range []string{"demo-lead: idle", "demo-builder: not present"} {
+	for _, line := range []string{"demo-lead: idle", "demo-builder: not running"} {
 		if !strings.Contains(got, line+"\n") {
 			t.Fatalf("status is missing %q:\n%s", line, got)
 		}
@@ -2043,7 +2043,7 @@ func TestTeamCommandFollowsTheTeamNameNotTheDefinition(t *testing.T) {
 	f.runningHerdr(t, tabs, agents)
 
 	first := mustRun(t, "status", "qw")
-	for _, line := range []string{"team: qw", "qw-lead: working", "qw-builder: not present"} {
+	for _, line := range []string{"team: qw", "qw-lead: working", "qw-builder: not running"} {
 		if !strings.Contains(first, line+"\n") {
 			t.Fatalf("status qw is missing %q:\n%s", line, first)
 		}

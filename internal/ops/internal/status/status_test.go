@@ -18,7 +18,7 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-// TestRowText: one row prints its live state, "not present" when no agent is
+// TestRowText: one row prints its live state, "not running" when no agent is
 // live, and the worker mark on a hired worker.
 func TestRowText(t *testing.T) {
 	cases := []struct {
@@ -28,11 +28,11 @@ func TestRowText(t *testing.T) {
 	}{
 		{"live", Row{Name: "a", State: "working", Live: true}, "working"},
 		{"idle", Row{Name: "a", State: "idle", Live: true}, "idle"},
-		{"absent", Row{Name: "a"}, "not present"},
+		{"absent", Row{Name: "a"}, "not running"},
 		{"blocked", Row{Name: "a", State: "blocked", Live: true}, "blocked (waiting for permission)"},
 		{"working unchanged", Row{Name: "a", State: "working", Live: true, UnchangedMinutes: new(7)}, "working (unchanged for 7 min)"},
 		{"live worker", Row{Name: "w", State: "blocked", Live: true, Worker: true}, "blocked (waiting for permission) (worker)"},
-		{"absent worker", Row{Name: "w", Worker: true}, "not present (worker)"},
+		{"absent worker", Row{Name: "w", Worker: true}, "not running (worker)"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

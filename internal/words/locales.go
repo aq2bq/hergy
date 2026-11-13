@@ -6,7 +6,7 @@ var localeMessages = map[string]Text{
 	"status.blocked_suffix":       bilingual(" ({{waiting-for-permission}})", "（{{waiting-for-permission}}）"),
 	"status.unchanged":            bilingual("{{working}} (unchanged for %d min)", "{{working}}（%d 分変化なし）"),
 	"status.can_down":             bilingual("hergy down %s still closes the panes hergy started for this {{team}}", "hergy down %s は、この{{team}}のために hergy が{{start}}したペインを閉じられます"),
-	"status.not_live":             bilingual("not present", "{{not-running}}"),
+	"status.not_live":             bilingual("{{not-running}}", "{{not-running}}"),
 	"status.worker_suffix":        bilingual(" ({{worker}})", "（{{worker}}）"),
 	"status.human_waiting":        bilingual("waiting for a {{human}}: %s", "{{handed}}: %s"),
 	"status.nobody_working":       bilingual("nobody is {{working}}", "誰も動いていません"),
@@ -22,7 +22,7 @@ var localeMessages = map[string]Text{
 	"status.turn_why_unanswered":  bilingual(": it could not be asked", "。本人に聞けなかったため"),
 	"status.turn_holder_asked":    bilingual("%s (handed by %s); asked who it is for", "%s（%s から受けた）。渡し先を聞いています"),
 	"status.turn_waits":           bilingual("awaiting", "答え待ち"),
-	"status.no_watcher":           bilingual("no watcher is running; hergy turns %s starts it\n", "見張りが居ません。hergy turns %s で{{start}}できます\n"),
+	"status.no_watcher":           bilingual("no watcher is running; hergy turns %s {{start}}s it\n", "見張りが居ません。hergy turns %s で{{start}}できます\n"),
 }
 
 // LocaleMessages projects the catalog-owned locale values through the same
