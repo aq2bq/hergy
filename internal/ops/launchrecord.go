@@ -33,7 +33,7 @@ func recordLaunch(env Environment, r *Resolved, command string, members []defini
 // an empty launch is kept (d-8e2f). The team created by up must remain resolvable
 // by its alias even when nobody received a prompt; other operations create no
 // team and keep no new record when nobody received one.
-func recordReceivedLaunch(env Environment, r *Resolved, command string, members []definition.Start, l *launcher.Launcher, workspace launchlog.Workspace) string {
+func recordReceivedLaunch(env Environment, r *Resolved, command string, members []definition.Start, l *launcher.Launcher, workspace launchlog.Workspace, now func() time.Time) string {
 	var received []definition.Start
 	for _, member := range members {
 		if l.Received(member.Name.String()) {
@@ -43,7 +43,11 @@ func recordReceivedLaunch(env Environment, r *Resolved, command string, members 
 	if command != launchlog.CommandUp && len(received) == 0 {
 		return ""
 	}
-	return recordLaunchIn(env, r, command, received, workspace)
+	stateNote := runningStateWarning(receiveRunningState(r, command, received, now))
+	if note := recordLaunchIn(env, r, command, received, workspace); note != "" {
+		return note
+	}
+	return stateNote
 }
 
 // recordLaunchIn writes one launch, naming the workspace its tab was made in
@@ -63,7 +67,8 @@ func recordLaunchIn(env Environment, r *Resolved, command string, members []defi
 // worker it added, which member added it, the purpose and the tab (d-b4b9). The
 // activity screen reads it to say "<member> が追加". A line that cannot be
 // written is one line on stderr and nothing else: the worker is already up.
-func recordHire(env Environment, r *Resolved, worker definition.Start) string {
+func recordHire(env Environment, r *Resolved, worker definition.Start, now func() time.Time) string {
+	stateNote := runningStateWarning(hireRunningState(r, worker, now))
 	log, err := launchlog.Open()
 	if err == nil {
 		workerName, _ := domainname.ParseWorkerName(worker.Short.String())
@@ -86,7 +91,7 @@ func recordHire(env Environment, r *Resolved, worker definition.Start) string {
 	if err != nil {
 		return i18n.Tf("launch.not_recorded", err)
 	}
-	return ""
+	return stateNote
 }
 
 // writeLaunch builds one record and appends it. The texts the record points at —

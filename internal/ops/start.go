@@ -5,6 +5,7 @@ import (
 	"errors"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/aq2bq/hergy/internal/ops/internal/catalog"
 	"github.com/aq2bq/hergy/internal/ops/internal/protocol"
@@ -53,6 +54,7 @@ type StartInput struct {
 	Timeout                       int
 	Port                          Port
 	Observe                       func(Event)
+	Now                           func() time.Time
 }
 
 // StartPlan is published only once all start preconditions hold and the start
@@ -117,6 +119,10 @@ func StartTeam(ctx context.Context, in StartInput) (*Plan, error) {
 		emit(in.Observe, Event{Text: note})
 	}
 	l := operationLauncher(ctx, r, in.Timeout, in.Port, in.Observe).WithWatcher(watcherCommand(r.Team.Name.String(), r.Team.Definition.Name.String(), in.Env.ProjectRoot))
+	finishState := prepareRunningState(l, in, r, WorkspaceInfo(workspace))
+	warned := false
+	defer func() { finishState(warned) }()
+
 	transform := func(err error) error {
 		if launcher.IsUndelivered(err) {
 			return err
@@ -139,7 +145,9 @@ func StartTeam(ctx context.Context, in StartInput) (*Plan, error) {
 		if label == "" {
 			label = l.WorkspaceLabel()
 		}
-		warning(in.Observe, recordReceivedLaunch(in.Env, r, launchlog.CommandUp, r.Starts, l, launchlog.Workspace{Label: label, ID: l.WorkspaceID()}))
+		note := recordReceivedLaunch(in.Env, r, launchlog.CommandUp, r.Starts, l, launchlog.Workspace{Label: label, ID: l.WorkspaceID()}, in.Now)
+		warned = note != ""
+		warning(in.Observe, note)
 	}
 	return plan, err
 }

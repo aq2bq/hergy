@@ -140,7 +140,7 @@ func applyGroup(ctx context.Context, in ApplyInput, group []PlannedMember) error
 			emit(in.Observe, Event{Applied: &Applied{Member: member}})
 		}
 	}
-	warning(in.Observe, recordReceivedLaunch(env, r, launchlog.CommandApply, all, l, launchlog.Workspace{}))
+	warning(in.Observe, recordReceivedLaunch(env, r, launchlog.CommandApply, all, l, launchlog.Workspace{}, in.Now))
 	return err
 }
 func applyFix(group []PlannedMember) string {

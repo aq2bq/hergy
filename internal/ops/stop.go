@@ -14,6 +14,7 @@ import (
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/ops/internal/herdrcli"
 	"github.com/aq2bq/hergy/internal/ops/internal/launcher"
+	"github.com/aq2bq/hergy/internal/ops/internal/runningstate"
 	"github.com/aq2bq/hergy/internal/ops/internal/screenlog"
 	"github.com/aq2bq/hergy/internal/ops/internal/team"
 	"github.com/aq2bq/hergy/internal/ops/internal/turns"
@@ -164,7 +165,7 @@ func StopTeam(ctx context.Context, in StopInput) (out StopResult, err error) {
 	}
 	out.Leftovers = readLeftovers(plan.Project, plan.Owner.Since, dirs)
 	out.HasLeftovers = true
-	cleanupErr := clearTurn(plan.Team.Team.String())
+	cleanupErr := errors.Join(clearTurn(plan.Team.Team.String()), clearRunningState(plan.Team.Team.String()))
 	in.Locks.CancelTeam(plan.Team.Team.String())
 	finishLaunchFor(plan.Team.Team.Observation(), in.PendingLaunches, in.Now)
 	if cleanupErr != nil {
@@ -253,6 +254,18 @@ func StopWorker(ctx context.Context, in StopInput) (out StopResult, err error) {
 	}
 	if err != nil && !in.Dry {
 		stopEvent(in, StopEvent{Failure: err})
+	}
+	if err == nil && !in.Dry {
+		store, stateErr := runningstate.Open()
+		if stateErr == nil {
+			name, nameErr := domainname.ParseTeamName(worker.Team.String())
+			if nameErr == nil {
+				stateErr = store.RemoveWorker(name, worker.Herdr.String())
+			}
+		}
+		if stateErr != nil {
+			return out, stateErr
+		}
 	}
 	if err == nil {
 		out.Leftovers = readLeftovers(project, out.Plan.Owner.Since, dirs)
