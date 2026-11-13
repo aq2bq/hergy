@@ -13,6 +13,7 @@
 
 ### Fixed
 
+- Apply refuses a plan when its team was stopped or started again before execution, preserving the new run's agents and receipts.
 - Restarting an agent in an existing pane preserves its environment fingerprint, so apply continues to require down/up after an env change.
 - Resending a bootstrap prompt preserves the running process fingerprints, so apply still detects a changed start or environment.
 - Recorded rule documents keep the text read while building the delivered prompt, even when a file changes before receipt is recorded.
