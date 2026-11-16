@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- The activity screen shows waiting members and pane actions in each team card, removes the single list tab and turn selector, and draws all team-definition turns.
+
 ## 0.12.2 - 2026-11-16
 
 ### Fixed

@@ -95,17 +95,17 @@ test.describe('profiles', () => {
 test.describe('activity', () => {
   test.use({ reads: 'activity' });
 
-  test('PAGE-POSITION-A1 a waiting row brings its team into view', async ({ page, app }) => {
-    await page.setViewportSize({ width: 1200, height: 400 });
+  test('PAGE-POSITION-A1 selecting a team card keeps the place', async ({ page, app }) => {
+    await page.setViewportSize({ width: 1200, height: 700 });
     await page.goto(`${app.base}/activity`);
     await ready(page);
-    const waiting = page.locator('.hq-att .hq-at[data-pick]').first();
-    await expect(waiting).toBeVisible();
-    const team = await waiting.getAttribute('data-pick');
-    await page.evaluate(() => window.scrollTo(0, 0));
-    await waiting.click();
-    await expect(page.locator(`.hq-tile[data-team="${team}"]`)).toBeInViewport();
-    await expect.poll(() => place(page)).toBeGreaterThan(0);
+    const card = page.locator('.hq-tile[data-team="migrate"]');
+    const heading = card.locator('.hq-th');
+    await heading.scrollIntoViewIfNeeded();
+    const before = await place(page);
+    await heading.click();
+    await expect(card).toHaveClass(/(^|\s)sel(\s|$)/);
+    await expect.poll(() => place(page)).toBe(before);
   });
 
   test('PAGE-POSITION-A2 the team the address names is brought into view', async ({ page, app }) => {

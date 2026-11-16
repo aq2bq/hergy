@@ -30,9 +30,9 @@ const answer = {
 };
 
 // where is what the three places say about the handed state: the activity's
-// first tier, the legend under the tile, and the tile's own figure.
+// card heading, the legend under the tile, and the tile's own figure.
 const where = `(function(){
-  var at=[...document.querySelectorAll('.hq-at .st')].map(function(e){return e.textContent});
+  var at=[...document.querySelectorAll('.hq-th .st')].map(function(e){return e.textContent});
   var legend=[...document.querySelectorAll('.hq-tc')].map(function(e){return e.textContent}).join('|');
   var fig=[...document.querySelectorAll('.hq-n.handed title')].map(function(e){return e.textContent}).join('|');
   return {at:at, legend:legend, fig:fig, handed:document.querySelectorAll('.hq-n.handed').length};
@@ -67,7 +67,7 @@ const sheet = `(function(){
     intro:s.querySelector('.apl-intro').textContent};
 })()`;
 
-test('the sheet separates what is pressed from what is told, and handed reads one way', async ({ page, app }) => {
+test('the sheet separates what is pressed from what is told, and handed reads one way', async ({ page, app }, testInfo) => {
   await page.route('**/api/apply/count', (route) => route.fulfill({ json: { count: 5 } }));
   await page.route('**/api/apply', (route) => route.fulfill({ json: answer }));
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -75,10 +75,12 @@ test('the sheet separates what is pressed from what is told, and handed reads on
   await wait(page, `!!document.querySelector('.hq-tile') && !!document.querySelector('.bar .apl-bandbtn')`);
   await wait(page, `!document.querySelector('.bar .apl-bandbtn').hidden`);
 
-  // The activity says 人間の返事待ち in its first tier, in the legend under the
+  // The activity says 人間の返事待ち in its card heading, in the legend under the
   // tile and in the tile's figure.
-  await readTo(page, `(function(){var w=${where};return [w.handed>0, w.at.indexOf('人間の返事待ち')>=0, w.legend.indexOf('人間の返事待ち')>=0, w.fig.indexOf('人間の返事待ち')>=0];})()`,
-    'the activity never said 人間の返事待ち in all three places').toEqual([true, true, true, true]);
+  await readTo(page, `(function(){var w=${where};return [w.handed>0, w.at.indexOf('人間の返事待ち')>=0, w.at.indexOf('許可待ち')>=0, w.legend.indexOf('人間の返事待ち')>=0, w.fig.indexOf('人間の返事待ち')>=0];})()`,
+    'the activity never said 人間の返事待ち in all three places').toEqual([true, true, true, true, true]);
+
+  await page.screenshot({ path: testInfo.outputPath('activity-wait-heading.png'), fullPage: true });
 
   // The band's button opens the sheet on the reading the serve gave it.
   await press(page, `document.querySelector('.bar .apl-bandbtn')`);

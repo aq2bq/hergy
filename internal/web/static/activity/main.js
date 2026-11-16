@@ -10,7 +10,7 @@
 import {
   movePage,
   installWheel
-} from "../chunk/nav-pddpm49r.js";
+} from "../chunk/nav-yyqvsr9q.js";
 import {
   S,
   R,
@@ -180,36 +180,13 @@ function pick(name) {
 
 // activity/figure.tsx
 function Figure({ team }) {
-  const [member, setMember] = d("human");
-  const turns = team.turns.filter(([from, to]) => from === member || to === member);
   const unknown = team.workers.some((w) => !team.crew.some((m) => m.name === w.from));
   return /* @__PURE__ */ u("div", {
     class: "hq-fig",
     children: [
-      /* @__PURE__ */ u("label", {
-        class: "hq-worker-note",
-        children: [
-          `表示する${term("turn")} `,
-          /* @__PURE__ */ u("select", {
-            "aria-label": `${team.name} の表示する${term("turn")}`,
-            value: member,
-            onChange: (e) => setMember(e.currentTarget.value),
-            children: [
-              /* @__PURE__ */ u("option", {
-                value: "human",
-                children: term("human")
-              }),
-              team.crew.map((m) => /* @__PURE__ */ u("option", {
-                value: m.name,
-                children: m.name
-              }))
-            ]
-          })
-        ]
-      }),
       /* @__PURE__ */ u(TeamFigure2, {
         team,
-        turns,
+        turns: team.turns,
         W: 440,
         layout: "packed"
       }),
@@ -227,18 +204,11 @@ var whereText = (t, node) => [
   `タブ ${t.name}`,
   `ペイン ${node && node.herdr || t.name}`
 ].filter(Boolean).join(" · ");
-var tabWhere = (t) => [t.workspace ? `${term("workspace")} ${t.workspace}` : "", `タブ ${t.name}`].filter(Boolean).join(" · ");
-function pickTile(name) {
-  pick(name);
-  const tile = Array.from(document.querySelectorAll(".hq-tile[data-team]")).find((el) => el.dataset.team === name);
-  if (tile)
-    movePage("waitingRow", tile);
-}
-function Attention({ rows }) {
+function Waiting({ team: t }) {
   const [error, setError] = d("");
   const [pending, setPending] = d("");
   const [moved, setMoved] = d("");
-  async function focus(t, m) {
+  async function focus(m) {
     if (pending)
       return;
     setPending(m.herdr);
@@ -253,152 +223,45 @@ function Attention({ rows }) {
       setPending("");
     }
   }
-  const waiting = [];
-  for (const t of rows) {
-    for (const m of t.crew) {
-      if (m.state !== "blocked" && m.state !== "handed")
-        continue;
-      const q = m.question || t.question || (t.starting ? `${term("start")}の途中で、このフォルダを信頼するかを聞いています` : "");
-      waiting.push(/* @__PURE__ */ u("div", {
-        class: "hq-at",
-        "data-pick": t.name,
-        onClick: () => pickTile(t.name),
-        children: [
-          /* @__PURE__ */ u("span", {
-            class: "st " + (m.state === "blocked" ? "answer" : "turn"),
-            children: m.state === "blocked" ? term("waiting-for-permission") : ST.turn
-          }),
-          /* @__PURE__ */ u("span", {
-            class: "hq-aw",
-            children: [
-              /* @__PURE__ */ u("code", {
-                children: m.herdr || t.name + "-" + m.name
-              }),
-              /* @__PURE__ */ u("span", {
-                class: "hq-pw",
-                children: t.projectName
-              })
-            ]
-          }),
-          /* @__PURE__ */ u("span", {
-            class: "hq-aq",
-            children: q
-          }),
-          /* @__PURE__ */ u("span", {
-            class: "hq-where",
-            children: whereText(t, m)
-          }),
-          /* @__PURE__ */ u("span", {
-            class: "hq-tl",
-            children: m.since ? m.since : ""
-          }),
-          /* @__PURE__ */ u("button", {
-            type: "button",
-            class: "hq-btn",
-            onClick: () => pickTile(t.name),
-            children: `${term("team")}を見る`
-          }),
-          /* @__PURE__ */ u("button", {
-            type: "button",
-            class: "hq-btn primary",
-            disabled: !!pending,
-            "aria-busy": pending === m.herdr,
-            onClick: (e) => {
-              e.stopPropagation();
-              focus(t, m);
-            },
-            children: pending === m.herdr ? "移動中…" : moved === m.herdr ? "herdr で移動しました" : "herdr でペインへ移動"
-          })
-        ]
-      }));
-    }
-  }
-  const stalled = rows.filter((t) => t.state === "stalled").map((t) => /* @__PURE__ */ u("button", {
-    type: "button",
-    class: "hq-at stall",
-    "data-pick": t.name,
-    onClick: () => pickTile(t.name),
+  const waiting = t.crew.filter((m) => m.state === "blocked" || m.state === "handed");
+  if (!waiting.length)
+    return null;
+  return /* @__PURE__ */ u("div", {
+    class: "hq-waiting",
     children: [
-      /* @__PURE__ */ u("span", {
-        class: "st stalled",
-        children: term("stalled")
-      }),
-      /* @__PURE__ */ u("span", {
-        class: "hq-aw",
-        children: [
-          /* @__PURE__ */ u("code", {
-            children: t.name
-          }),
-          /* @__PURE__ */ u("span", {
-            class: "hq-pw",
-            children: t.projectName
-          })
-        ]
-      }),
-      /* @__PURE__ */ u("span", {
-        class: "hq-aq",
-        children: `誰も${term("turn")}を持っていない`
-      }),
-      /* @__PURE__ */ u("span", {
-        class: "hq-where",
-        children: tabWhere(t)
-      }),
-      /* @__PURE__ */ u("span", {
-        class: "hq-tl",
-        children: t.since && t.since.len || ""
-      })
-    ]
-  }));
-  if (!waiting.length && !stalled.length)
-    return /* @__PURE__ */ u("section", {
-      class: "hq-att calm",
-      children: /* @__PURE__ */ u("p", {
-        children: `${term("waiting-for-the-human")}${term("team")}も、${term("stalled")}${term("team")}もありません。`
-      })
-    });
-  return /* @__PURE__ */ u("section", {
-    class: "hq-att",
-    children: [
-      /* @__PURE__ */ u("div", {
-        class: "hq-ah",
-        children: [
-          /* @__PURE__ */ u("b", {
-            children: term("waiting-for-the-human")
-          }),
-          /* @__PURE__ */ u("span", {
-            class: "n",
-            children: waiting.length
-          }),
-          stalled.length ? /* @__PURE__ */ u(S, {
-            children: [
-              /* @__PURE__ */ u("b", {
-                class: "sp",
-                children: term("stalled")
-              }),
-              /* @__PURE__ */ u("span", {
-                class: "n",
-                children: stalled.length
-              })
-            ]
-          }) : ""
-        ]
-      }),
-      /* @__PURE__ */ u("div", {
-        class: "hq-al",
-        children: [
-          waiting,
-          stalled
-        ]
+      waiting.map((m) => {
+        const q = m.question || t.question || (t.starting ? `${term("start")}の途中で、このフォルダを信頼するかを聞いています` : "");
+        return /* @__PURE__ */ u("div", {
+          class: "hq-wait",
+          "data-member": m.herdr,
+          children: [
+            /* @__PURE__ */ u("code", {
+              children: m.herdr || t.name + "-" + m.name
+            }),
+            /* @__PURE__ */ u("span", {
+              class: "hq-question",
+              children: q
+            }),
+            /* @__PURE__ */ u("span", {
+              class: "hq-where",
+              children: whereText(t, m)
+            }),
+            /* @__PURE__ */ u("button", {
+              type: "button",
+              class: "hq-btn primary",
+              disabled: !!pending,
+              "aria-busy": pending === m.herdr,
+              onClick: () => focus(m),
+              children: pending === m.herdr ? "移動中…" : moved === m.herdr ? "herdr で移動しました" : "herdr でペインへ移動"
+            })
+          ]
+        }, m.herdr);
       }),
       error ? /* @__PURE__ */ u("p", {
         role: "alert",
         class: "hq-err",
         children: error
-      }) : null,
-      /* @__PURE__ */ u("p", {
-        class: "hq-sub",
-        children: `${term("idle")}：${term("agent")}は${term("start")}していますが、今は仕事をしていません。${term("not-running")}：${term("start")}中の${term("agent")}がいません。`
-      })
+      }) : null
     ]
   });
 }
@@ -516,6 +379,9 @@ function Tile({ team: t }) {
       turnLine(t),
       broken,
       stall,
+      /* @__PURE__ */ u(Waiting, {
+        team: t
+      }),
       countsLine(t),
       /* @__PURE__ */ u("div", {
         class: "hq-tactions",
@@ -583,9 +449,6 @@ function BoardRows() {
   return /* @__PURE__ */ u("div", {
     class: "hq-board",
     children: [
-      /* @__PURE__ */ u(Attention, {
-        rows
-      }),
       /* @__PURE__ */ u("div", {
         class: "hq-tiles",
         children: rows.map((t) => /* @__PURE__ */ u(Tile, {

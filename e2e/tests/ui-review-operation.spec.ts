@@ -13,7 +13,7 @@ test('moving to a pane announces progress while waiting and says it was done', a
     await route.fulfill({ json: { ok: true } });
   });
   await page.goto(app.base + '/activity'); await ready(page);
-  const button = page.locator('.hq-at[data-pick="migrate"] .hq-btn.primary');
+  const button = page.locator('.hq-tile[data-team="migrate"] .hq-wait .hq-btn.primary');
   await expect(button).toHaveText('herdr でペインへ移動');
   await button.click();
   await expect(button).toHaveText('移動中…');
@@ -27,18 +27,41 @@ test('moving to a pane announces progress while waiting and says it was done', a
 test('missing herdr executable gives an actionable error without exec details', async ({ page, app }) => {
   await page.goto(app.base + '/activity'); await ready(page);
   rmSync(path.join(app.work, 'bin', 'herdr'));
-  await page.locator('.hq-at[data-pick="migrate"] .hq-btn.primary').click();
+  await page.locator('.hq-tile[data-team="migrate"] .hq-wait .hq-btn.primary').click();
   await expect(page.getByRole('alert')).toContainText('herdrのインストール');
   await expect(page.getByRole('alert')).not.toContainText('fork/exec');
 });
 
 test('390px activity controls fit the viewport', async ({ page, app }, testInfo) => {
   await page.setViewportSize({ width: 390, height: 844 });
+  await page.route('**/api/activity/migrate', async (route) => {
+    const response = await route.fetch();
+    const body = await response.json();
+    const question = body.doc.question + '\n' + 'Long permission command details\n'.repeat(40);
+    body.doc.question = question;
+    for (const member of body.doc.nodes) if (member.state === 'blocked') member.question = question;
+    await route.fulfill({ response, json: body });
+  });
   await page.goto(app.base + '/activity'); await ready(page);
   await expect.poll(() => page.locator('button, input, select, a').evaluateAll((elements) => elements.flatMap((el) => {
     const rect = el.getBoundingClientRect();
     return rect.width > 0 && (rect.right > innerWidth + 1 || rect.left < -1) ? [(el.textContent || el.getAttribute('aria-label') || el.tagName).trim()] : [];
   }))).toEqual([]);
+  await expect(page.locator('nav.tabs')).toHaveCount(0);
+  const card = page.locator('.hq-tile[data-team="migrate"]');
+  await expect(card.locator('select')).toHaveCount(0);
+  const question = card.locator('.hq-question');
+  await expect(question).toContainText('0042_split_ledger.sql');
+  await expect.poll(() => question.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
+  await expect.poll(() => question.evaluate((el) => {
+    const style = getComputedStyle(el);
+    return el.scrollHeight > el.clientHeight && el.clientHeight <= parseFloat(style.maxHeight) && style.overflowY === 'auto';
+  })).toBe(true);
+  const reply = card.locator('.hq-wait .hq-btn.primary');
+  await reply.scrollIntoViewIfNeeded();
+  await expect(reply).toBeInViewport();
+  await reply.click();
+  await expect(reply).toHaveText('herdr で移動しました');
   await page.screenshot({ path: testInfo.outputPath('activity-390.png'), fullPage: true });
 });
 

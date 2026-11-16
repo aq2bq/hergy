@@ -134,7 +134,7 @@ test.describe('review 1-8: default project', () => {
     for (const [index, terminal] of cases.entries()) {
       writeFileSync(file, terminal);
       await page.goto(`${app.base}/activity`); await ready(page);
-      const question = page.locator('.hq-at[data-pick="migrate"] .hq-aq');
+      const question = page.locator('.hq-tile[data-team="migrate"] .hq-wait .hq-question');
       if (index < 3) {
         await expect(question).toContainText('rm -rf /data');
         await expect(question).toContainText('3. No');
@@ -151,10 +151,10 @@ test.describe('review 1-8: default project', () => {
     const file = path.join(app.work, 'herdr', 'screens', 'migrate-tester.txt');
     writeFileSync(file, 'private old log\n'.repeat(40) + readFileSync(file, 'utf8'));
     await page.goto(`${app.base}/activity`); await ready(page);
-    const question = page.locator('.hq-at[data-pick="migrate"] .hq-aq');
+    const question = page.locator('.hq-tile[data-team="migrate"] .hq-wait .hq-question');
     await expect(question).toContainText('0042_split_ledger.sql');
     await expect(question).not.toContainText('private old log');
-    const reply = page.locator('.hq-at[data-pick="migrate"]').getByRole('button', { name: 'herdr でペインへ移動' });
+    const reply = page.locator('.hq-tile[data-team="migrate"] .hq-wait').getByRole('button', { name: 'herdr でペインへ移動' });
     await expect.poll(async () => (await reply.boundingBox())?.width || 0).toBeLessThan(240);
     await expect.poll(() => question.evaluate((el) => el.scrollHeight <= el.clientHeight)).toBe(true);
     const response = await page.request.get(`${app.base}/api/activity/migrate`);

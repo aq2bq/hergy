@@ -10,7 +10,7 @@
 import {
   movePage,
   installWheel
-} from "../chunk/nav-pddpm49r.js";
+} from "../chunk/nav-yyqvsr9q.js";
 import {
   S,
   R,

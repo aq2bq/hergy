@@ -28,7 +28,7 @@ type a2PageData struct {
 	Words template.JS
 }
 
-// a2Page draws the activity screen: the 一覧 tab, and an empty list the script
+// a2Page draws the activity screen: its heading and an empty list the script
 // fills. Nothing about a team is written into the page itself, so what a person
 // reads after a re-reading is the answer of that moment and not what the page
 // was built with (spec-activity 2.6).

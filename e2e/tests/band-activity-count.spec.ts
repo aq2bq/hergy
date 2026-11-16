@@ -31,9 +31,8 @@ test('the band is the activity screen, and it follows a team that ends', async (
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto(`${app.base}/activity`); await ready(page);
   const running = await tiles().count();
-  // The waiting rows are the attention list's own number: 待ち N reads the same.
-  const waitingText = await page.locator('.hq-att .hq-ah .n').first().textContent();
-  const waiting = Number(waitingText || 0);
+  // Each waiting member appears once in its team card; 待ち N reads the same.
+  const waiting = await page.locator('.hq-tile .hq-wait').count();
   await expect.poll(band.running).toBe(String(running));
   await expect.poll(band.waiting).toBe(`待ち ${waiting}`);
 
