@@ -40,7 +40,7 @@ test.describe('UI review: waiting and editing', () => {
   test.use({ reads: 'activity' });
   test('permission shows the command and offers a guarded focus action', async ({ page, app }, testInfo) => {
     await page.goto(app.base + '/activity'); await ready(page);
-    const waiting = page.locator('.hq-at[data-pick="migrate"]');
+    const waiting = page.locator('.hq-tile[data-team="migrate"] .hq-wait');
     await expect(waiting).toContainText('0042_split_ledger.sql');
     const denied = await page.request.post(app.base + '/api/activity/focus', { data: { team: 'migrate', member: 'migrate-tester' } });
     expect(denied.status()).toBe(403);

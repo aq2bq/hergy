@@ -226,9 +226,11 @@ func TestTheActivityCountsStandOnEveryBand(t *testing.T) {
 		t.Errorf("the profile screen's band does not hold %s:\n%s", want, profiles)
 	}
 	_, activity := f.get(t, server, "/activity")
+	if strings.Contains(activity, `<nav class="tabs">`) {
+		t.Errorf("the activity screen still holds a single list tab:\n%s", activity)
+	}
 	for _, want := range []string{
 		`<span class="scr on" aria-current="page" data-screen="activity">アクティビティ<span class="n">4</span><span class="wait">待ち 2</span></span>`,
-		`<span class="tab">一覧</span>`,
 		`<main class="list" id="list">`,
 		`/static/activity-v2.css`,
 		`<script type="module" src="/static/activity/main.js"></script>`,

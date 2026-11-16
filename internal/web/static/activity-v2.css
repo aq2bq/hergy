@@ -62,13 +62,6 @@ a { color: inherit; text-decoration: none; }
 
 .wrap { padding-block: 0 72px; }
 
-.top { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 6px 28px; border-bottom: 1px solid var(--line); margin-bottom: 0; padding-top: 6px; }
-.tabs { display: flex; gap: 26px; }
-.tab {
-  background: none; border: 0; padding: 0 0 10px; font-size: 20px; font-weight: 700; color: var(--ink); letter-spacing: .02em;
-  border-bottom: 3px solid var(--accent); margin-bottom: -1px; display: flex; align-items: baseline; gap: 8px;
-}
-
 /* 動いているチームの並び */
 .list { display: grid; }
 .act { border-bottom: 1px solid var(--line); }

@@ -84,10 +84,10 @@ test("'band' leaves a row that is already under the band alone", () => {
   }
 });
 
-test("'nearest' and 'center' put the element into view by that block", () => {
+test("'center' puts the element into view", () => {
   const el = document.createElement('div');
   document.body.appendChild(el);
-  for (const act of ['waitingRow', 'assignPerson', 'personFromURL']) {
+  for (const act of ['assignPerson', 'personFromURL']) {
     const seen = calls();
     try {
       movePage(act, el);

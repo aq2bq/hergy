@@ -57,6 +57,6 @@ test('a starting team and an unread question say what they are', async () => {
 
   expect(document.querySelector('.hq-tile[data-team="migrate"] .st').textContent).toBe('起動の途中 · 許可待ち');
   expect(document.querySelector('.hq-tile[data-team="ledger"] .st').textContent).toBe('許可待ち');
-  expect(document.querySelector('.hq-at[data-pick="migrate"] .hq-aq').textContent).toBe('Trust this folder?');
-  expect(document.querySelector('.hq-at[data-pick="ledger"] .hq-aq').textContent).toBe('聞いていることは、画面から読めませんでした');
+  expect(document.querySelector('.hq-tile[data-team="migrate"] .hq-wait .hq-question').textContent).toBe('Trust this folder?');
+  expect(document.querySelector('.hq-tile[data-team="ledger"] .hq-wait .hq-question').textContent).toBe('聞いていることは、画面から読めませんでした');
 });

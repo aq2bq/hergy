@@ -30,9 +30,9 @@ const answer = {
 };
 
 // where is what the three places say about the handed state: the activity's
-// first tier, the legend under the tile, and the tile's own figure.
+// waiting member, the legend under the tile, and the tile's own figure.
 const where = `(function(){
-  var at=[...document.querySelectorAll('.hq-at .st')].map(function(e){return e.textContent});
+  var at=[...document.querySelectorAll('.hq-wait .st')].map(function(e){return e.textContent});
   var legend=[...document.querySelectorAll('.hq-tc')].map(function(e){return e.textContent}).join('|');
   var fig=[...document.querySelectorAll('.hq-n.handed title')].map(function(e){return e.textContent}).join('|');
   return {at:at, legend:legend, fig:fig, handed:document.querySelectorAll('.hq-n.handed').length};

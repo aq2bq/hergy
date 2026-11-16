@@ -2,13 +2,7 @@ import { launchWaitingLabel, stopTeamLabel } from '../lib/screen-words.js';
 import { term } from '../lib/terms.generated.js';
 import { call, problemText } from '../lib/api';
 import { useState, useEffect, useRef } from '../lib/preact';
-// activity/board.tsx — アクティビティの画面（spec 6 章、r-8a67、d-8a45）。
-//
-// 上から、人間を待っている（許可待ち・人間の返事待ち）と止まっているチーム、
-// 動いているチームの図（1 チーム 1 枚）。行の一覧は使わない。
-// ここは state.ts の signal を読んで描くだけで、DOM を自分では書かない
-// （webui-preact-design 5 章 1）。class と data-* は CSS と e2e が読むので、
-// 移す前のマークアップから 1 つも変えない（5 章 6）。
+// The activity board draws each team's figure and the members waiting for a human.
 import type { JSX } from 'preact';
 import * as A from '../lib/hq.js';
 import { openSheet, teamCount } from '../lib/apply/state.js';
@@ -24,48 +18,31 @@ const whereText = (t: ActivityTeam, node: Pick<CrewMember, 'herdr' | 'name'> | n
   `タブ ${t.name}`,
   `ペイン ${(node && node.herdr) || t.name}`,
 ].filter(Boolean).join(' · ');
-const tabWhere = (t: ActivityTeam): string => [t.workspace ? `${term('workspace')} ${t.workspace}` : '', `タブ ${t.name}`].filter(Boolean).join(' · ');
-
-function pickTile(name: string): void {
-  pick(name);
-  const tile = Array.from(document.querySelectorAll<HTMLElement>('.hq-tile[data-team]')).find((el) => el.dataset.team === name);
-  if (tile) movePage('waitingRow', tile);
-}
-
-// attention is the first tier: every member waiting for a human, with where to
-// answer, and every team none of whose members holds the turn (spec 6 章).
-function Attention({ rows }: { rows: ActivityTeam[] }): JSX.Element {
+// A waiting member's question and the action to answer it live in its team card.
+function Waiting({ team: t }: { team: ActivityTeam }): JSX.Element | null {
   const [error, setError] = useState('');
   const [pending, setPending] = useState('');
-  // The member whose pane herdr was last told to select: the press changes
-  // nothing in the browser, so its row says that it was done (r-0ae1).
   const [moved, setMoved] = useState('');
-  async function focus(t: ActivityTeam, m: CrewMember) {
+  async function focus(m: CrewMember) {
     if (pending) return;
     setPending(m.herdr); setError(''); setMoved('');
     try { await call('POST', '/api/activity/focus', { team: t.name, member: m.herdr }); setMoved(m.herdr); }
     catch (e) { setError(problemText(e, 'herdr でペインへ移動できませんでした')); }
     finally { setPending(''); }
   }
-  const waiting: JSX.Element[] = [];
-  for (const t of rows) {
-    for (const m of t.crew) {
-      if (m.state !== 'blocked' && m.state !== 'handed') continue;
-      const q = m.question || t.question || (t.starting ? `${term('start')}の途中で、このフォルダを信頼するかを聞いています` : '');
-      waiting.push(<div class="hq-at" data-pick={t.name} onClick={() => pickTile(t.name)}><span class={'st ' + (m.state === 'blocked' ? 'answer' : 'turn')}>{m.state === 'blocked' ? term('waiting-for-permission') : ST.turn}</span>
-        <span class="hq-aw"><code>{m.herdr || (t.name + '-' + m.name)}</code><span class="hq-pw">{t.projectName}</span></span>
-        <span class="hq-aq">{q}</span>
-        <span class="hq-where">{whereText(t, m)}</span>
-        <span class="hq-tl">{m.since ? m.since : ''}</span><button type="button" class="hq-btn" onClick={() => pickTile(t.name)}>{`${term('team')}を見る`}</button><button type="button" class="hq-btn primary" disabled={!!pending} aria-busy={pending === m.herdr} onClick={(e) => { e.stopPropagation(); focus(t, m); }}>{pending === m.herdr ? '移動中…' : moved === m.herdr ? 'herdr で移動しました' : 'herdr でペインへ移動'}</button></div>);
-    }
-  }
-  const stalled: JSX.Element[] = rows.filter((t) => t.state === 'stalled').map((t) => <button type="button" class="hq-at stall" data-pick={t.name} onClick={() => pickTile(t.name)}><span class="st stalled">{term('stalled')}</span>
-    <span class="hq-aw"><code>{t.name}</code><span class="hq-pw">{t.projectName}</span></span>
-    <span class="hq-aq">{`誰も${term('turn')}を持っていない`}</span>
-    <span class="hq-where">{tabWhere(t)}</span>
-    <span class="hq-tl">{(t.since && t.since.len) || ''}</span></button>);
-  if (!waiting.length && !stalled.length) return <section class="hq-att calm"><p>{`${term('waiting-for-the-human')}${term('team')}も、${term('stalled')}${term('team')}もありません。`}</p></section>;
-  return <section class="hq-att"><div class="hq-ah"><b>{term('waiting-for-the-human')}</b><span class="n">{waiting.length}</span>{stalled.length ? <><b class="sp">{term('stalled')}</b><span class="n">{stalled.length}</span></> : ''}</div><div class="hq-al">{waiting}{stalled}</div>{error ? <p role="alert" class="hq-err">{error}</p> : null}<p class="hq-sub">{`${term('idle')}：${term('agent')}は${term('start')}していますが、今は仕事をしていません。${term('not-running')}：${term('start')}中の${term('agent')}がいません。`}</p></section>;
+  const waiting = t.crew.filter((m) => m.state === 'blocked' || m.state === 'handed');
+  if (!waiting.length) return null;
+  return <div class="hq-waiting">{waiting.map((m) => {
+    const q = m.question || t.question || (t.starting ? `${term('start')}の途中で、このフォルダを信頼するかを聞いています` : '');
+    return <div class="hq-wait" data-member={m.herdr} key={m.herdr}>
+      <span class={'st ' + (m.state === 'blocked' ? 'answer' : 'turn')}>{m.state === 'blocked' ? term('waiting-for-permission') : ST.turn}</span>
+      <code>{m.herdr || (t.name + '-' + m.name)}</code>
+      <span class="hq-question">{q}</span>
+      <span class="hq-where">{whereText(t, m)}</span>
+      <span class="hq-tl">{m.since || ''}</span>
+      <button type="button" class="hq-btn primary" disabled={!!pending} aria-busy={pending === m.herdr} onClick={() => focus(m)}>{pending === m.herdr ? '移動中…' : moved === m.herdr ? 'herdr で移動しました' : 'herdr でペインへ移動'}</button>
+    </div>;
+  })}{error ? <p role="alert" class="hq-err">{error}</p> : null}</div>;
 }
 
 function countsLine(t: ActivityTeam): JSX.Element {
@@ -110,6 +87,7 @@ function Tile({ team: t }: { team: ActivityTeam }): JSX.Element {
     {turnLine(t)}
     {broken}
     {stall}
+    <Waiting team={t} />
     {countsLine(t)}
     <div class="hq-tactions" aria-label={`${t.name} の操作`}>
       <a class="hq-btn sm" href={defHref}>{`${term('team-definition')}を開く`}</a>
@@ -119,8 +97,7 @@ function Tile({ team: t }: { team: ActivityTeam }): JSX.Element {
   </article>;
 }
 
-// Board is the whole screen: attention rows and team tiles, or the one line a board with
-// nothing to show carries (2.6, 2.7).
+// Board is the team cards, or the one line a board with nothing to show carries.
 export function Board(): JSX.Element {
   // The confirmation every screen shares (r-d480): /activity stops a team
   // through it too, so the shape is the same on all four screens.
@@ -140,5 +117,5 @@ function BoardRows(): JSX.Element {
   }, [rows]);
   if (!rows.length) return <p class="gone">{n.ok ? noneText : n.text}</p>;
   if (!n.ok) return <p class="gone">{n.text}</p>;
-  return <div class="hq-board"><Attention rows={rows} /><div class="hq-tiles">{rows.map((t) => <Tile key={t.name} team={t} />)}</div>{rows.some(t => t.workers.some(w => !w.from)) ? <p class="hq-worker-guide">{`雇い主不明：${term('launch-record')}には、${term('worker')}を雇った${term('member')}の情報がありません。${term('worker')}のペインで確認してください。`}</p> : null}</div>;
+  return <div class="hq-board"><div class="hq-tiles">{rows.map((t) => <Tile key={t.name} team={t} />)}</div>{rows.some(t => t.workers.some(w => !w.from)) ? <p class="hq-worker-guide">{`雇い主不明：${term('launch-record')}には、${term('worker')}を雇った${term('member')}の情報がありません。${term('worker')}のペインで確認してください。`}</p> : null}</div>;
 }

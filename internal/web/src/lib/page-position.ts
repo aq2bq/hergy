@@ -25,7 +25,7 @@ import { term } from './terms.generated.js';
 export type PageAt = 'band' | 'nearest' | 'center' | 'stay';
 export type PageAction =
   | 'copyRow' | 'newRow' | 'dupRow' | 'editSelection'
-  | 'waitingRow' | 'assignPerson' | 'personFromURL' | 'openByURL'
+  | 'assignPerson' | 'personFromURL' | 'openByURL'
   | 'openRow' | 'switchTab' | 'switchDoc' | 'switchView'
   | 'problemLine' | 'filter' | 'reread' | 'saveAnswer' | 'theme' | 'select';
 
@@ -35,7 +35,6 @@ export const PAGE_POSITION: Readonly<Record<PageAction, Readonly<{ at: PageAt; w
   newRow: { at: 'band', why: '新しく作った行が画面の外にできる', d: 'd-c5ce' },
   dupRow: { at: 'band', why: '複製した行が画面の外にできる', d: 'd-c5ce' },
   editSelection: { at: 'band', why: '利用者が「選択した属性を編集」で行き先を名指しした', d: 'd-c5ce' },
-  waitingRow: { at: 'nearest', why: `待っている行から、その${term('team')}の札へ行く`, d: 'd-c5ce' },
   assignPerson: { at: 'center', why: '人の札から、その人の割り当ての行へ行く', d: 'd-c5ce' },
   personFromURL: { at: 'center', why: 'URL が人を名指しした (#team.member)', d: 'd-c5ce' },
   openByURL: { at: 'band', why: 'URL が行・札を名指しした', d: 'd-c5ce' },
