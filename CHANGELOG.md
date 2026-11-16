@@ -8,6 +8,7 @@
 
 ### Fixed
 
+- The activity screen shows team-list fetch errors and keeps the previous cards when a later fetch fails.
 - Turn state forgets departed members and workers, returns a departed holder's turn to the human, and shows each awaited answer once.
 - The activity screen waits for its first reading before saying no teams are running.
 

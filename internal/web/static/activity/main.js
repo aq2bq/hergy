@@ -40,20 +40,21 @@ import {
   openSheet,
   memberStateWord,
   teamStateWord
-} from "../chunk/nav-d6fwgcxh.js";
+} from "../chunk/nav-sswhnw5b.js";
 import {
   rowAddress,
   token2,
   readOpen2,
   writeOpen2,
   placeGroup,
+  teamStatusReadFailure,
   launchWaitingLabel,
   stopTeamLabel
-} from "../chunk/nav-wz2hf67d.js";
+} from "../chunk/nav-bvnbggvb.js";
 import {
   TeamFigure2,
   exports_hq
-} from "../chunk/nav-cjh29zr9.js";
+} from "../chunk/nav-gfmm0ken.js";
 import {
   resource
 } from "../chunk/nav-s0ve3rge.js";
@@ -156,6 +157,7 @@ async function readBoard(stop) {
   return { items, note, docs, teams };
 }
 var reading = resource(readBoard);
+var fetchError = O(() => reading.error.value ? problemText2(reading.error.value, teamStatusReadFailure()) : "");
 var teams = O(() => reading.value.value ? reading.value.value.teams : []);
 var empty = O(() => reading.value.value !== null && teams.value.length === 0);
 var note = O(() => reading.value.value && reading.value.value.note || { ok: true, text: "" });
@@ -421,7 +423,14 @@ function Tile({ team: t }) {
 }
 function Board() {
   return /* @__PURE__ */ u(S, {
-    children: /* @__PURE__ */ u(BoardRows, {})
+    children: [
+      fetchError.value ? /* @__PURE__ */ u("p", {
+        class: "hq-err",
+        "data-role": "hq-error",
+        children: fetchError.value
+      }) : null,
+      /* @__PURE__ */ u(BoardRows, {})
+    ]
   });
 }
 function BoardRows() {

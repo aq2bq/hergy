@@ -83,16 +83,17 @@ import {
   readOpen2,
   writeOpen2,
   rowsFor,
+  teamStatusReadFailure,
   globalPlaceNotice,
   turnRecipientLabel
-} from "../chunk/nav-wz2hf67d.js";
+} from "../chunk/nav-bvnbggvb.js";
 import {
   st,
   projectName2
-} from "../chunk/nav-d6fwgcxh.js";
+} from "../chunk/nav-sswhnw5b.js";
 import {
   RunCell2
-} from "../chunk/nav-cjh29zr9.js";
+} from "../chunk/nav-gfmm0ken.js";
 import {
   copyGroupOf,
   groupPlace,
@@ -3581,7 +3582,7 @@ function noteOf(answer, name, error) {
   if (!answer)
     return "";
   if (answer.status === "error")
-    return `${answer.reason || `${term("team")}の${term("status")}を読めませんでした`} そのため、${term("team-definition-name")} ${name} で作っています。`;
+    return `${answer.reason || teamStatusReadFailure()} そのため、${term("team-definition-name")} ${name} で作っています。`;
   if (answer.selected)
     return `実行中の${term("team")} ${answer.team} の名前で作っています。`;
   const runs = answer.runs || [];

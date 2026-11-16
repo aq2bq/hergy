@@ -70,6 +70,9 @@ function rowsFor(ref, rows, of, current) {
 }
 
 // lib/screen-words.ts
+function teamStatusReadFailure() {
+  return `${term("team")}の${term("status")}を読めませんでした`;
+}
 function globalDefinitionNotice() {
   return `${term("global")}の${term("team-definition")}です。直すと、すべての${term("project")}の同じ${term("team-definition")}が変わります`;
 }
@@ -92,4 +95,4 @@ function turnRecipientLabel() {
   return `${term("hands-the-turn-to")}相手`;
 }
 
-export { rowAddress, token2, parseOpen2, readOpen2, writeOpen2, placeGroup, rowsFor, globalDefinitionNotice, globalPlaceNotice, noTeamDefinitions, launchLabel, launchWaitingLabel, stopTeamLabel, turnRecipientLabel };
+export { rowAddress, token2, parseOpen2, readOpen2, writeOpen2, placeGroup, rowsFor, teamStatusReadFailure, globalDefinitionNotice, globalPlaceNotice, noTeamDefinitions, launchLabel, launchWaitingLabel, stopTeamLabel, turnRecipientLabel };

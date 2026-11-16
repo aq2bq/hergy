@@ -9,7 +9,8 @@ import { term } from '../lib/terms.generated.js';
 import { memberStateWord, teamStateWord } from '../lib/state-words.js';
 import { signal, computed } from '../lib/preact.js';
 import { resource } from '../lib/resource';
-import { read } from '../lib/api.js';
+import { read, problemText } from '../lib/api.js';
+import { teamStatusReadFailure } from '../lib/screen-words.js';
 import * as A from '../lib/hq.js';
 import { placeGroup, rowAddress } from '../lib/address.js';
 import type { components } from '../../../apicontract/api-types';
@@ -175,6 +176,8 @@ async function readBoard(stop: AbortSignal): Promise<ActivityBoard> {
 // out starts nothing (refresh), and every answer that arrives after a newer
 // request is dropped by the resource itself.
 export const reading = resource(readBoard);
+
+export const fetchError = computed(() => reading.error.value ? problemText(reading.error.value, teamStatusReadFailure()) : '');
 
 export const teams = computed<ActivityTeam[]>(() => (reading.value.value ? reading.value.value.teams : []));
 export const empty = computed(() => reading.value.value !== null && teams.value.length === 0);
