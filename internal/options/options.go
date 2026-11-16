@@ -52,6 +52,8 @@ const (
 	Migrate
 	// Serve opens the web UI: a small server on 127.0.0.1 for this machine.
 	Serve
+	// Projects lists one directory's project in config.yaml's projects:.
+	Projects
 	// Help prints usage.
 	Help
 	// Version prints which hergy this is.
@@ -75,6 +77,7 @@ type Options struct {
 	// name; none means every member with drift.
 	Members []string
 	Body    string // nudge/tell positional: the message text
+	Path    string // projects add positional: the directory to list
 	All     bool   // refresh/reprompt --all
 	Log     bool   // turns --log: print the watcher's log and stop
 
@@ -211,6 +214,16 @@ func parseFlags(args []string, o *Options) ([]string, error) {
 	return positionals, nil
 }
 
+// noArgsError is the sentence each command that takes no positional argument
+// refuses one with.
+var noArgsError = map[Kind]string{
+	Ls:       "error.ls_no_args",
+	Validate: "error.validate_no_args",
+	Migrate:  "error.validate_no_args",
+	Serve:    "error.serve_no_args",
+	Cheat:    "error.cheat_no_args",
+}
+
 func assignPositionals(o *Options, positionals []string) error {
 	switch o.Kind {
 	case Up, Down, Status, Show, New, Turns:
@@ -244,22 +257,15 @@ func assignPositionals(o *Options, positionals []string) error {
 		if len(positionals) == 3 {
 			o.Body = positionals[2]
 		}
-	case Ls:
+	case Ls, Validate, Migrate, Serve, Cheat:
 		if len(positionals) != 0 {
-			return i18n.Errorf("error.ls_no_args", positionals)
+			return i18n.Errorf(noArgsError[o.Kind], positionals)
 		}
-	case Validate, Migrate:
-		if len(positionals) != 0 {
-			return i18n.Errorf("error.validate_no_args", positionals)
+	case Projects:
+		if len(positionals) != 2 || positionals[0] != projectsAdd {
+			return i18n.Errorf("error.projects_needs_add")
 		}
-	case Serve:
-		if len(positionals) != 0 {
-			return i18n.Errorf("error.serve_no_args", positionals)
-		}
-	case Cheat:
-		if len(positionals) != 0 {
-			return i18n.Errorf("error.cheat_no_args", positionals)
-		}
+		o.Path = positionals[1]
 	default:
 		// help and version take no positionals; they are handled before parsing.
 	}
