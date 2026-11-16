@@ -6,7 +6,7 @@ import { useState, useEffect, useRef } from '../lib/preact';
 import type { JSX } from 'preact';
 import * as A from '../lib/hq.js';
 import { openSheet, teamCount } from '../lib/apply/state.js';
-import { teams, empty, note, current, noneText, ST, NS, lastMoment, pick, openedTeam } from './state.js';
+import { teams, empty, fetchError, note, current, noneText, ST, NS, lastMoment, pick, openedTeam } from './state.js';
 import type { ActivityTeam, CrewMember } from './state.js';
 import { Figure } from './figure.js';
 import { movePage } from '../lib/page-position.js';
@@ -99,7 +99,7 @@ function Tile({ team: t }: { team: ActivityTeam }): JSX.Element {
 export function Board(): JSX.Element {
   // The confirmation every screen shares (r-d480): /activity stops a team
   // through it too, so the shape is the same on all four screens.
-  return <><BoardRows /></>;
+  return <>{fetchError.value ? <p class="hq-err" data-role="hq-error">{fetchError.value}</p> : null}<BoardRows /></>;
 }
 
 function BoardRows(): JSX.Element {

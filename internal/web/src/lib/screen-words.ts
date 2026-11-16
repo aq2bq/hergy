@@ -1,6 +1,10 @@
 // Shared sentences stay together so every screen uses the same vocabulary.
 import { term } from './terms.generated.js';
 
+export function teamStatusReadFailure(): string {
+  return `${term('team')}の${term('status')}を読めませんでした`;
+}
+
 export function globalDefinitionNotice(): string {
   return `${term('global')}の${term('team-definition')}です。直すと、すべての${term('project')}の同じ${term('team-definition')}が変わります`;
 }

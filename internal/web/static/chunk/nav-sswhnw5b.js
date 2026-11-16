@@ -36,7 +36,7 @@ import {
   token2,
   launchLabel,
   stopTeamLabel
-} from "./nav-wz2hf67d.js";
+} from "./nav-bvnbggvb.js";
 
 // lib/band-counts.ts
 var scr = (name) => document.querySelector('.screens .scr[data-screen="' + name + '"]');
