@@ -51,7 +51,7 @@ import {
   globalDefinitionNotice,
   globalPlaceNotice,
   noTeamDefinitions
-} from "../chunk/nav-wz2hf67d.js";
+} from "../chunk/nav-bvnbggvb.js";
 import {
   Measure,
   fromJSON2,
