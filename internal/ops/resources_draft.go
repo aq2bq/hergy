@@ -362,16 +362,23 @@ func (s ResourceScope) checkDefinitionDraft(in ResourceDraftInput, row ResourceD
 	cat := base.With(path, row.Team).With(filepath.Join(filepath.Dir(path), "agreement.md"), row.Agree)
 	report := check.Team(check.TeamInput{Catalog: cat, Name: name, Layer: row.Layer, Ops: ops})
 	def, _ := cat.Definition(name, row.Layer)
-	findings := report.Problems
-	if row.Starter {
-		findings = s.t2StarterFindings(row, cat, def, findings)
-	}
-	carry := s.t2CarryOf(in, row, def)
-	findings = s.carryFindings(carry, t2ChosenOf(in), def, findings)
 	draft, err := editDefinitionText(row.Team, display, ops)
 	if err != nil {
 		return ResourceDraftChecked{}, &ResourceFailure{Text: err.Error()}
 	}
+	// The findings are about the draft with the screen's edits applied, so the
+	// members they are read against are that draft's members: a member rewritten
+	// to a profile nobody holds is not the starter's member any more (n-8a71).
+	judged := def
+	if edited, _ := cat.With(path, draft).Definition(name, row.Layer); edited != nil {
+		judged = edited
+	}
+	findings := report.Problems
+	if row.Starter {
+		findings = s.t2StarterFindings(row, cat, judged, findings)
+	}
+	carry := s.t2CarryOf(in, row, judged)
+	findings = s.carryFindings(carry, t2ChosenOf(in), judged, findings)
 	hasProfiles, _ := newteam.HasProfiles(cat)
 	out := ResourceDraftChecked{Row: row, Findings: findings, NameProblems: s.t2NameProblems(in), Definition: def, Draft: draft, Display: display, Writes: s.t2DraftWrites(row, in, in.Name, draft), HasRoles: newteam.HasRoles(cat), HasProfiles: hasProfiles}
 	if carry != nil {
