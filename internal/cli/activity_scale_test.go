@@ -345,9 +345,8 @@ func serveAt(t *testing.T) {
 }
 
 // TestACTIVITY_C4_judgesATeamFromTheAgents judges one team from the fixture's
-// agent states and seq: core waits for the human, its lead alone handing the
-// turn over (handed), and its members stand in the order 5.2 lists them — the
-// one waiting for the human first, then the stopped ones, the newest stop first
+// agent states and seq: core has an agent-held turn and no watcher, so its
+// stopped members stay idle and stand with the newest stop first
 // (6 A3). No member of this fixture is 動いていない (absent): every member the
 // definition names has a live agent.
 func TestACTIVITY_C4_judgesATeamFromTheAgents(t *testing.T) {
@@ -372,7 +371,7 @@ func TestACTIVITY_C4_judgesATeamFromTheAgents(t *testing.T) {
 	}
 
 	wantState := map[string]string{
-		"lead": "handed", "impl-a": "idle", "impl-b": "idle", "reviewer": "idle", "analyst": "idle",
+		"lead": "idle", "impl-a": "idle", "impl-b": "idle", "reviewer": "idle", "analyst": "idle",
 	}
 	names := make([]string, 0, len(doc.Nodes))
 	for _, node := range doc.Nodes {
@@ -502,17 +501,16 @@ func TestACTIVITY_S3_listsTheRunningTeams(t *testing.T) {
 	if !list.Herdr.OK {
 		t.Fatalf("herdr = %+v, want a herdr that read", list.Herdr)
 	}
-	if got := activityItemNames(list.Items); got != "core,migrate,core-hotfix,research" {
+	if got := activityItemNames(list.Items); got != "migrate,core-hotfix,core,research" {
 		t.Errorf("the rows are %q, want activity.Sort's order", got)
 	}
-	if list.Running != 4 || list.Waiting != 2 {
-		t.Errorf("the band reads running=%d waiting=%d, want 4 and 2", list.Running, list.Waiting)
+	if list.Running != 4 || list.Waiting != 1 {
+		t.Errorf("the band reads running=%d waiting=%d, want 4 and 1", list.Running, list.Waiting)
 	}
 	want := []struct{ name, state, definition string }{
-		{"core", "turn", "core"},
 		{"migrate", "answer", "migrate"},
-
 		{"core-hotfix", "stalled", "core"},
+		{"core", "stalled", "core"},
 		{"research", "working", "research"},
 	}
 	if len(list.Items) != len(want) {

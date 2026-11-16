@@ -26,13 +26,11 @@ const (
 	// WaitingAnswer is a node blocked on a permission or an input: the human
 	// answers and the node goes on.
 	WaitingAnswer State = iota
-	// WaitingTurn is every agent stopped, with the node that stopped last
-	// handing the turn to the human.
+	// WaitingTurn is a watched turn whose holder is the human.
 	WaitingTurn
-	// Stalled is every agent stopped, with the node that stopped last handing
-	// the turn to no one (or there being no agent at all).
+	// Stalled is a team with no working agent and no observed human turn.
 	Stalled
-	// Working is at least one agent working.
+	// Working is an agent working while no human wait takes precedence.
 	Working
 )
 
@@ -90,7 +88,7 @@ type Question struct {
 type Input struct {
 	// Team is the team's name.
 	Team domainname.Seen
-	// Graph is the definition's graph: which nodes hand the turn to the human.
+	// Graph supplies the definition's nodes for the figure.
 	Graph *definition.Graph
 	// Agents are the live agents of the team. An agent whose Node is empty (a
 	// hired worker) counts for whether the team works or waits, and stands in
@@ -99,7 +97,15 @@ type Input struct {
 	// Seen is when each agent's current state was first seen, by herdr name.
 	Seen map[string]Watch
 	// Now is when the judgement is made.
-	Now time.Time
+	Now      time.Time
+	Turn     *Turn
+	Watching bool
+}
+
+// Turn is the caller's reading of the current turn, absent when no state exists.
+type Turn struct {
+	Holder, From string
+	Since        time.Time
 }
 
 // Node is one node of the team, with its live state.
@@ -126,9 +132,8 @@ type Team struct {
 	State State
 	// Line is the one line the section shows.
 	Line string
-	// Last is the node the line is about: the blocked node for a wait on an
-	// answer, and the node that stopped last (the last turn) for the two
-	// stopped states. It is empty when no agent is live.
+	// Last is the blocked node, the turn's sender for a human turn, or the
+	// last stopped node for a stalled team. It may be empty.
 	Last string
 	// Stalled is how long the node the line is about has been where it is.
 	Stalled time.Duration
@@ -167,6 +172,23 @@ func Of(in Input) Team {
 		team.Stalled, team.Lower = length.d, length.lower
 		team.At = last.at
 		team.Line = i18n.Tf("activity.line_stuck", last.name, length.words())
+	case in.Watching && in.Turn != nil && in.Turn.Holder == (definition.Human{}).ID().Name:
+		team.State, team.Last = WaitingTurn, in.Turn.From
+		length := lasted{}
+		for _, l := range lives {
+			if l.name == in.Turn.From || domainname.ShortIn(l.herdr, in.Team).String() == in.Turn.From {
+				length, team.At = since(in, l), l.at
+			}
+		}
+		if !in.Turn.Since.IsZero() {
+			team.At = in.Turn.Since
+			length = lasted{d: max(in.Now.Sub(in.Turn.Since), 0), known: true}
+		}
+		team.Stalled, team.Lower = length.d, length.lower
+		team.Line = i18n.Tf("activity.line_waiting_human", team.Last, length.words())
+		if team.Last == "" {
+			team.Line = team.State.Text()
+		}
 	case len(working) > 0:
 		team.State = Working
 		team.Line = workingLine(lives)
@@ -176,18 +198,12 @@ func Of(in Input) Team {
 		team.State = Stalled
 		team.Line = i18n.Tf("activity.line_no_agent", in.Team)
 	default:
-		// Every live agent is stopped. The node that stopped last decides which
-		// wait it is.
+		// The last stop supplies the time and name, not the turn's holder.
 		last := newest(stopped)
 		length := since(in, last)
 		team.Last = last.name
 		team.Stalled, team.Lower = length.d, length.lower
 		team.At = last.at
-		if last.human {
-			team.State = WaitingTurn
-			team.Line = i18n.Tf("activity.line_waiting_human", last.name, length.words())
-			break
-		}
 		team.State = Stalled
 		team.Line = i18n.Tf("activity.line_team_stuck", length.words()) +
 			i18n.Tf("activity.line_last_turn", last.name)
@@ -196,7 +212,7 @@ func Of(in Input) Team {
 		// The node that handed the turn over is the one the human answers, so
 		// the figure shows it as waiting too.
 		for i := range lives {
-			if lives[i].name == team.Last {
+			if lives[i].state == Idle && (lives[i].name == team.Last || domainname.ShortIn(lives[i].herdr, in.Team).String() == team.Last) {
 				lives[i].state = HandedOver
 			}
 		}

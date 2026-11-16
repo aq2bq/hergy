@@ -87,6 +87,7 @@ func TestOfStates(t *testing.T) {
 		{
 			name: "waiting for the human's turn",
 			in: Input{
+				Watching: true, Turn: &Turn{Holder: "human", From: "lead"},
 				Graph:  twoWay,
 				Agents: []Agent{{Herdr: fixtureSeen("demo-lead"), Node: fixtureSeen("lead"), Status: "idle", Seq: 9}, {Herdr: fixtureSeen("demo-spec"), Node: fixtureSeen("spec"), Status: "idle", Seq: 3}},
 				Seen:   map[string]Watch{"demo-lead": ago(12 * time.Minute)},
@@ -157,7 +158,7 @@ func TestOfStates(t *testing.T) {
 // stopped for hours (5.2). The node waiting for the human comes first.
 func TestOfLowerBound(t *testing.T) {
 	in := Input{
-		Team:   fixtureSeen("demo"),
+		Watching: true, Turn: &Turn{Holder: "human", From: "lead"}, Team: fixtureSeen("demo"),
 		Graph:  graphOf([]string{"lead"}, [2]string{"human", "lead"}, [2]string{"lead", "human"}),
 		Agents: []Agent{{Herdr: fixtureSeen("demo-lead"), Node: fixtureSeen("lead"), Status: "idle", Seq: 4}},
 		Seen:   map[string]Watch{"demo-lead": watchedAgo(9 * time.Minute)},
@@ -208,7 +209,7 @@ func TestOfNoAgents(t *testing.T) {
 // second. There is no lower bound either, because nothing was watched.
 func TestOfUnknownLength(t *testing.T) {
 	got := Of(Input{
-		Team:   fixtureSeen("demo"),
+		Watching: true, Turn: &Turn{Holder: "human", From: "lead"}, Team: fixtureSeen("demo"),
 		Graph:  graphOf([]string{"lead"}, [2]string{"human", "lead"}, [2]string{"lead", "human"}),
 		Agents: []Agent{{Herdr: fixtureSeen("demo-lead"), Node: fixtureSeen("lead"), Status: "idle", Seq: 4}},
 		Now:    now,
@@ -384,6 +385,7 @@ func TestLinesReadInJapanese(t *testing.T) {
 		{
 			name: "waiting for the human's turn",
 			in: Input{
+				Watching: true, Turn: &Turn{Holder: "human", From: "lead"},
 				Graph:  twoWay,
 				Agents: []Agent{{Herdr: fixtureSeen("demo-lead"), Node: fixtureSeen("lead"), Status: "idle", Seq: 2}},
 				Seen:   map[string]Watch{"demo-lead": ago(12 * time.Minute)},

@@ -68,7 +68,7 @@ function Tile({ team: t }: { team: ActivityTeam }): JSX.Element {
   const sel = t.name === current.value?.name;
   const projectWorkspace = [t.projectName, t.workspace].filter(Boolean).join(' · ');
   const stall = t.state === 'stalled'
-    ? <p class="hq-why">{`誰も${term('turn')}を持っていません。${term('handed')}の${term('member')}もいません。最後に動いたのは `}{lastMoment(t) || (t.since && t.since.at) || ''}。lead に続きを渡すか、<code>hergy nudge</code> でうながす</p>
+    ? <p class="hq-why">{`${term('handed')}の${term('member')}はいません。最後に動いたのは `}{lastMoment(t) || (t.since && t.since.at) || ''}。lead に続きを渡すか、<code>hergy nudge</code> でうながす</p>
     : '';
   // 定義を組み立てられないチームは、理由も直し方もこの行に出す: 本部の動きの欄と
   // 同じ文で、hergy status が書くもの（r-fc16）。

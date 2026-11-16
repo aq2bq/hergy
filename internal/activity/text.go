@@ -4,7 +4,24 @@ import (
 	"time"
 
 	"github.com/aq2bq/hergy/internal/i18n"
+	"github.com/aq2bq/hergy/internal/words"
 )
+
+// Text is the existing team-state label, shared with the activity screen.
+func (s State) Text() string {
+	var term words.TermID
+	switch s {
+	case WaitingAnswer:
+		term = words.TermWaitingForPermission
+	case WaitingTurn:
+		term = words.TermHanded
+	case Stalled:
+		term = words.TermStalled
+	default:
+		term = words.TermWorking
+	}
+	return term.Text(i18n.Language())
+}
 
 // The words the screen says about time (6 A4). They live here rather than in the
 // screen because the server makes every one of them: the screen writes no time

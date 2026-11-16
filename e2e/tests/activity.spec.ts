@@ -66,12 +66,10 @@ function agentState(cfg: string, name: string, state: string): void {
   writeFileSync(at, JSON.stringify(doc));
 }
 
-test('ACTIVITY-T1 the tile says who holds the turn', async ({ page, app }) => {
-  // r-bc26: the watcher's record of the turn (turns/core.json in the state
-  // directory) is read onto the tile; a team the watcher has not seen has no
-  // such line.
+test('ACTIVITY-T1 an unwatched tile leaves out old turn details', async ({ page, app }) => {
+  // core has a saved turn but no watcher; research has no saved turn.
   await open(page, app.base, '');
-  await readTo<string>(page, `document.querySelector('.hq-tile[data-team="core"] .hq-turn').textContent`, 'core holds its turn as the watcher wrote it').toBe('ターン: lead（impl-a から）');
+  await readTo<number>(page, `document.querySelectorAll('.hq-tile[data-team="core"] .hq-turn').length`, 'core has no watcher, so its old turn is not shown').toBe(0);
   await readTo<number>(page, `document.querySelectorAll('.hq-tile[data-team="research"] .hq-turn').length`, 'research has no turn line').toBe(0);
 });
 

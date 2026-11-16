@@ -10,6 +10,8 @@
 
 - Turn state forgets departed members and workers, returns a departed holder's turn to the human, and shows each awaited answer once.
 - The activity screen waits for its first reading before saying no teams are running.
+- `hergy status` uses the activity screen's state labels and the recorded turn when its watcher is present.
+- The activity screen judges human turns and marks their senders from recorded turn state instead of team-definition turns.
 
 ## 0.12.2 - 2026-11-16
 
