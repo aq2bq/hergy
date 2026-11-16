@@ -800,7 +800,11 @@ func runProjects(env ops.Environment, opts *options.Options, stdout io.Writer) e
 	if err != nil {
 		return err
 	}
-	fmt.Fprintln(stdout, i18n.Tf("projects.added", added.Entry, added.Config))
+	key := "projects.added"
+	if added.Already {
+		key = "projects.already"
+	}
+	fmt.Fprintln(stdout, i18n.Tf(key, added.Entry, added.Config))
 	return nil
 }
 
