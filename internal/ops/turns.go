@@ -264,7 +264,7 @@ func (w *turnWatcher) tick() {
 	run, err := readTurnRun(w.team)
 	if err != nil {
 		fmt.Fprint(w.out, i18n.Tf("turns.read_error", err.Error()))
-		return
+		run = runningstate.State{}
 	}
 	w.hirers, w.names = hirersIn(run)
 	// Retain recipients witnessed in worker tabs or named panes, even when
@@ -282,7 +282,7 @@ func (w *turnWatcher) tick() {
 		}
 	}
 	now := w.observe(teamAgents(tabs, agents, w.team.Observation()))
-	changed := w.state.ForgetAbsent(turnRoster(w.graph, run, now...), w.clock())
+	changed := err == nil && w.state.ForgetAbsent(turnRoster(w.graph, run, now...), w.clock())
 	w.band.seen(now)
 	actions := turns.Step(w.state, turns.Input{
 		Team: domainname.RunningNames(w.team.Ref()), Graph: w.graph, Before: w.prev, Now: now, Wrote: w.wrote, At: w.clock(),

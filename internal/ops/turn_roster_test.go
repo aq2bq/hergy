@@ -101,6 +101,29 @@ func TestWatcherForgetsStoppedWorkerWithoutAnotherTurn(t *testing.T) {
 	}
 }
 
+func TestWatcherKeepsTellAndStateWhenRunCannotBeRead(t *testing.T) {
+	f := newTurnsFixture(t)
+	f.w.state.Opened = map[string][]turns.Opening{"old": {{By: "lead", At: f.now}}}
+	f.w.state.Started = map[string]time.Time{"old": f.now}
+	store, err := runningstate.Open()
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, store.Path(fixtureDemoTeam()), "{broken")
+	f.tell(t, "lead", "builder")
+	f.w.tick()
+	if f.w.state.Holder != "builder" || !reflect.DeepEqual(f.w.state.Waits(), []string{"lead → builder", "lead → old"}) || !f.w.state.Started["old"].Equal(f.now) {
+		t.Fatalf("unreadable run lost the tell or forgot state: %+v", f.w.state)
+	}
+	saved, err := turns.Load(f.w.path, fixtureSeen("demo"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if saved.Holder != "builder" || !reflect.DeepEqual(saved.Waits(), f.w.state.Waits()) {
+		t.Fatalf("tell was not saved: %+v", saved)
+	}
+}
+
 func TestStopWorkerForgetsOnlyItsWaitWithBrokenDefinition(t *testing.T) {
 	for _, broken := range []bool{false, true} {
 		t.Run(map[bool]string{false: "definition", true: "broken definition"}[broken], func(t *testing.T) {
