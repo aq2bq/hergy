@@ -277,3 +277,103 @@ func TestOptionErrorsPointAtTheCommandsHelp(t *testing.T) {
 		}
 	}
 }
+
+// TestWrapDetail fixes where a description breaks: at the last space that fits,
+// inside a word only when the word alone is too long, and never on an empty
+// paragraph.
+func TestWrapDetail(t *testing.T) {
+	for _, c := range []struct {
+		name, text string
+		width      int
+		want       string
+	}{
+		{"fits exactly", "aaaaa bbbb", 10, "aaaaa bbbb"},
+		{"breaks at the last space that fits", "aaa bbb ccc ddd", 10, "aaa bbb\nccc ddd"},
+		{"a word longer than the line is cut", "aaaaaaaaaaaa", 5, "aaaaa\naaaaa\naa"},
+		{"a long word after a short one", "ab cccccccc", 5, "ab\nccccc\nccc"},
+		{"an empty paragraph adds no line", "aa\n\nbb", 10, "aa\nbb"},
+		{"wide characters count two columns", "ああああ", 6, "あああ\nあ"},
+		{"a character wider than the line still moves on", "ああ", 1, "あ\nあ"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			if got := wrapDetail(c.text, c.width); got != c.want {
+				t.Errorf("wrapDetail(%q, %d) = %q, want %q", c.text, c.width, got, c.want)
+			}
+		})
+	}
+}
+
+// TestWriteRowsWrapsUnderTheSecondColumn fixes the table's shape: a description
+// is cut so the line ends by column 100, and what is cut off carries on under
+// the second column.
+func TestWriteRowsWrapsUnderTheSecondColumn(t *testing.T) {
+	const col = 10
+	fits := strings.Repeat("a", 43) + " " + strings.Repeat("b", 42) // 86 = 100 - col - 4
+	over := fits + "b"
+	var b strings.Builder
+	writeRows(&b, []row{{"--one", fits}, {"--two", over}}, col)
+	want := "  --one       " + fits + "\n" +
+		"  --two       " + strings.Repeat("a", 43) + "\n" +
+		strings.Repeat(" ", 14) + strings.Repeat("b", 43) + "\n"
+	if got := b.String(); got != want {
+		t.Errorf("rows:\n%q\nwant:\n%q", got, want)
+	}
+}
+
+// TestCommandHelpNamesArgumentsOnlyWhenThereAreSome keeps the arguments heading
+// off the page of a command that takes none.
+func TestCommandHelpNamesArgumentsOnlyWhenThereAreSome(t *testing.T) {
+	useLanguage(t, "en")
+	heading := "\n" + i18n.T("help.arguments") + "\n"
+	with, without := 0, 0
+	for _, s := range specs {
+		if s.Bare {
+			continue
+		}
+		got := strings.Contains(CommandHelp(s.Kind), heading)
+		if want := len(s.Args) > 0; got != want {
+			t.Errorf("hergy %s --help: arguments heading %t, want %t", s.Name, got, want)
+		}
+		if len(s.Args) > 0 {
+			with++
+		} else {
+			without++
+		}
+	}
+	if with == 0 || without == 0 {
+		t.Fatalf("the table has %d commands with arguments and %d without: both are needed here", with, without)
+	}
+}
+
+// TestHasFindsOnlyTheCommandsOwnFlags reads one command's flags against another's.
+func TestHasFindsOnlyTheCommandsOwnFlags(t *testing.T) {
+	var owner, other *Spec
+	for i := range specs {
+		if len(specs[i].Flags) > 0 && owner == nil {
+			owner = &specs[i]
+		}
+	}
+	if owner == nil {
+		t.Fatal("no command with a flag of its own")
+	}
+	own := owner.Flags[0].Flag
+	for i := range specs {
+		lacks := true
+		for _, u := range specs[i].Flags {
+			lacks = lacks && u.Flag != own
+		}
+		if lacks {
+			other = &specs[i]
+			break
+		}
+	}
+	if other == nil {
+		t.Fatal("every command takes the same flag")
+	}
+	if !has(*owner, own) {
+		t.Errorf("hergy %s: has() misses its own flag", owner.Name)
+	}
+	if has(*other, own) {
+		t.Errorf("hergy %s: has() finds a flag it does not take", other.Name)
+	}
+}

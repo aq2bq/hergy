@@ -16,7 +16,7 @@ mutation:
     internal/ops/internal/herdrcli: 70   # 実測 75.0
     internal/i18n: 90       # 実測 93.3
     internal/ops/internal/launcher: 85   # 実測 89.8
-    internal/options: 85    # 実測 89.5
+    internal/options: 90    # 実測 94.4
     internal/ops/internal/protocol: 80   # 実測 86.7
     internal/ops/internal/resourcewrite: 75 # moved conditional writes
     internal/source: 75     # 実測 80.0
