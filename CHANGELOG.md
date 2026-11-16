@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.12.1 - 2026-11-16
+
+### Fixed
+
+- `hergy projects add` says "added to projects:" when it wrote the entry and "already in projects:" when the project was listed before; it used one sentence for both.
+
 ## 0.12.0 - 2026-11-16
 
 ### Added

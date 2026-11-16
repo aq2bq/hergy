@@ -38,11 +38,14 @@ func TestProjectsAddListsTheProject(t *testing.T) {
 	if got := readFile(t, config); got != want {
 		t.Fatalf("config.yaml reads:\n%s\nwant:\n%s", got, want)
 	}
-	if !strings.Contains(out, f.proj) {
-		t.Errorf("the answer does not name the project: %s", out)
+	if !strings.HasPrefix(out, "added to projects: "+f.proj+" ") {
+		t.Errorf("the first add answers: %s", out)
 	}
 
-	mustRun(t, "projects", "add", f.proj)
+	// The second add says the project was there, not that it was added.
+	if out := mustRun(t, "projects", "add", f.proj); !strings.HasPrefix(out, "already in projects: "+f.proj+" ") {
+		t.Errorf("the second add answers: %s", out)
+	}
 	if got := readFile(t, config); got != want {
 		t.Errorf("a second add rewrote config.yaml:\n%s", got)
 	}

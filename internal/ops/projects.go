@@ -14,9 +14,13 @@ import (
 // them. The list says which projects hergy serve shows (d-73fc): a team started
 // in a project the list leaves out runs, and no screen shows it.
 
-// AddedProject is what listing one project wrote: the entry as config.yaml now
-// holds it, and the file as a person reads its path.
-type AddedProject struct{ Entry, Config string }
+// AddedProject is what listing one project did: the entry as config.yaml holds
+// it, the file as a person reads its path, and whether the entry was already
+// there (nothing was written then).
+type AddedProject struct {
+	Entry, Config string
+	Already       bool
+}
 
 // AddProject lists the project one directory stands in (its git repository's
 // root, or the directory itself) at the end of the global config.yaml's
@@ -42,11 +46,17 @@ func AddProject(env Environment, dir string) (AddedProject, error) {
 	if err != nil {
 		return AddedProject{}, err
 	}
+	already := false
+	if cfg, err := env.ReadConfigFile(); err == nil {
+		if paths, _, err := env.ProjectPaths(cfg); err == nil {
+			already = listedProject(paths, at.ProjectRoot, env.AtProject)
+		}
+	}
 	entry, err := env.AddProject(at.ProjectRoot.String())
 	if err != nil {
 		return AddedProject{}, err
 	}
-	return AddedProject{Entry: entry, Config: env.DisplayPath(env.ConfigPath())}, nil
+	return AddedProject{Entry: entry, Config: env.DisplayPath(env.ConfigPath()), Already: already}, nil
 }
 
 // expandHome reads ~ and ~/… the way a config.yaml entry is read.

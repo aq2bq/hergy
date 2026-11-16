@@ -687,6 +687,7 @@
   "error.resource_references_unreadable": "次のチーム定義を書き換えられないため、保存しませんでした:\n%s",
   "error.resource_references_write": "書き込みに失敗しました。済んだもの:\n%s\n済んでいないもの:\n%s\n%s",
   "error.projects_needs_add": "hergy projects add <ディレクトリ> の形で書いてください",
-  "projects.added": "projects: にあります: %s（%s）",
-  "start.project_unlisted": "このプロジェクトは %s の projects: に無いので、hergy serve には表示されません。足す: hergy projects add %s"
+  "projects.added": "projects: に足しました: %s（%s）",
+  "start.project_unlisted": "このプロジェクトは %s の projects: に無いので、hergy serve には表示されません。足す: hergy projects add %s",
+  "projects.already": "すでに projects: にあります: %s（%s）"
 }
