@@ -200,8 +200,6 @@
   "down.dry_done": "would close: %d\nwould skip: %d\n",
   "status.not_live": "not running",
   "status.worker_suffix": " (worker)",
-  "status.human_waiting": "waiting for a human: %s",
-  "status.nobody_working": "nobody is working",
   "status.definition_elsewhere": "the team definition is not in this project; run hergy status from the project that booted it",
   "progress.stage.preflight": "preflight",
   "progress.stage.creating_panes": "creating panes",
