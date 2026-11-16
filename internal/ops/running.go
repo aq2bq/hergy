@@ -155,7 +155,7 @@ func brokenTeamLine(env Environment, err error) string {
 }
 
 // judgeOf derives the live state of one team from a snapshot.
-func judgeOf(one RunningTeam, read session, now time.Time) activity.Team {
+func judgeOf(one RunningTeam, read session, now time.Time) judgedTeam {
 	var graph *definition.Graph
 	agents := agentsOf(read, one.Name)
 	if one.Built != nil {
@@ -167,13 +167,15 @@ func judgeOf(one RunningTeam, read session, now time.Time) activity.Team {
 		// hergy gave them, rather than showing nothing at all (2.2).
 		graph = nil
 	}
-	return activity.Of(activity.Input{
+	turn, watching := readTeamTurn(one.Name, read.Tabs)
+	return judgedTeam{Team: activity.Of(activity.Input{
 		Team:   one.Name,
 		Graph:  graph,
 		Agents: agents,
 		Seen:   read.Seen,
 		Now:    now,
-	})
+		Turn:   turnInput(turn), Watching: watching,
+	}), turn: turn}
 }
 
 // agentsOf is one team's live agents as the judgement reads them: the name herdr

@@ -26,9 +26,18 @@ func LogPath(stateDir, team string) string {
 // Load reads one team's turn. A file that is not there is a team whose turn
 // hergy has not seen yet: the human holds it, and nothing waits.
 func Load(path string, team domainname.Seen) (*State, error) {
+	st, err := Lookup(path)
+	if err == nil && st == nil {
+		st = &State{Team: team, Holder: Human}
+	}
+	return st, err
+}
+
+// Lookup reads a recorded turn and returns nil when no state file exists.
+func Lookup(path string) (*State, error) {
 	raw, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
-		return &State{Team: team, Holder: Human}, nil
+		return nil, nil
 	}
 	if err != nil {
 		return nil, err

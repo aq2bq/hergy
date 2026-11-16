@@ -349,7 +349,7 @@ func computeDelivery(in deliveryInput) DeliveryPlan {
 	}
 	for _, running := range readRunningTeamsIn(in.Views, in.Session, false) {
 		judged := judgeOf(running, in.Session, in.Now)
-		planTeam(&one, running, judged, byHerdrOf(judged))
+		planTeam(&one, running, judged.Team, byHerdrOf(judged.Team))
 	}
 	return one
 }

@@ -5,7 +5,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/aq2bq/hergy/internal/ops/internal/turns" // TestUpStartsTheWatcherUnderTheMembers: a boot cuts a strip off the bottom of
 	// the team's tab, names it <team>-turns and runs hergy turns <team> there, before
@@ -72,17 +71,20 @@ func TestStatusSaysWhoHoldsTheTurn(t *testing.T) {
 	seedRunningTeam(t, f.proj, "demo", "demo")
 	f.herdr(t, liveHerdr)
 	path := turns.Path(filepath.Join(f.state, "hergy"), "demo")
-	if err := turns.Save(path, &turns.State{Team: fixtureSeen("demo"), Holder: "lead", From: "builder", Since: time.Now()}); err != nil {
+	if err := turns.Save(path, &turns.State{Team: fixtureSeen("demo"), Holder: "lead", From: "builder", Since: activityNow}); err != nil {
 		t.Fatal(err)
 	}
 	got := mustRun(t, "status", "demo")
-	for _, line := range []string{"turn: lead (handed by builder)", "no watcher is running; hergy turns demo starts it"} {
-		if !strings.Contains(got, line+"\n") {
-			t.Fatalf("status is missing %q:\n%s", line, got)
-		}
+	if strings.Contains(got, "turn:") || !strings.Contains(got, "no watcher is running; hergy turns demo starts it") {
+		t.Fatalf("unwatched turn was shown: %s", got)
+	}
+	f.herdr(t, strings.Replace(liveHerdr, `{"result":{"panes":[]}}`, `{"result":{"panes":[{"pane_id":"watch","label":"demo-turns","tab_id":"t1"}]}}`, 1))
+	got = mustRun(t, "status", "demo")
+	if !strings.Contains(got, "turn: lead (handed by builder)\n") {
+		t.Fatalf("watched turn missing: %s", got)
 	}
 
-	if err := turns.Save(path, &turns.State{Team: fixtureSeen("demo"), Holder: "builder", From: "lead", Since: time.Now(),
+	if err := turns.Save(path, &turns.State{Team: fixtureSeen("demo"), Holder: "builder", From: "lead", Since: activityNow,
 		Asked:  map[string]turns.Question{"builder": {Seq: 3, Text: "x", Candidates: []string{"lead"}}},
 		Opened: map[string][]turns.Opening{"builder": {{By: "lead"}}}}); err != nil {
 		t.Fatal(err)
@@ -93,7 +95,7 @@ func TestStatusSaysWhoHoldsTheTurn(t *testing.T) {
 			t.Fatalf("status is missing %q:\n%s", line, got)
 		}
 	}
-	if err := turns.Save(path, &turns.State{Team: fixtureSeen("demo"), Holder: turns.Human, From: "builder", Why: turns.WhySilent, Since: time.Now()}); err != nil {
+	if err := turns.Save(path, &turns.State{Team: fixtureSeen("demo"), Holder: turns.Human, From: "builder", Why: turns.WhySilent, Since: activityNow}); err != nil {
 		t.Fatal(err)
 	}
 	got = mustRun(t, "status", "demo")

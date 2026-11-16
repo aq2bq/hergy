@@ -55,7 +55,7 @@ var terms = []Term{
 	{ID: "working", English: "working", Japanese: "仕事中", Meaning: "a member's or worker's state: its agent is working (herdr's working); a team is working while at least one of its agents is"},
 	{ID: "idle", English: "idle", Japanese: "待機中", Meaning: "a member's or worker's state: its agent is live and not working (herdr's idle or done). It is the normal rest between turns, and apply, reprompt and nudge act on it; do not call it 止まっている, which is a team's state"},
 	{ID: "not-running", English: "not running", Japanese: "動いていない", Meaning: "a member's state: the definition has it and no agent is live for it"},
-	{ID: "stalled", English: "stalled", Japanese: "止まっている", Meaning: "a running team's state: every agent is idle and the one that stopped last handed the turn to no one, so nothing moves until the human acts. It is not a member's state; a member at rest is 待機中"},
+	{ID: "stalled", English: "stalled", Japanese: "止まっている", Meaning: "a running team with no working or blocked agent and no human-held turn confirmed by its watcher. It is not a member's state; a member at rest is 待機中"},
 	{ID: "workspace", English: "workspace", Japanese: "ワークスペース", Meaning: "herdr's workspace: the set of tabs a team's tab is opened in; one workspace holds one team"},
 	{ID: "agent", English: "agent", Japanese: "エージェント", Meaning: "the harness process (claude, codex, opencode) running in a pane for a member or a worker; herdr reports its state"},
 	{ID: "prompt", English: "prompt", Japanese: "プロンプト", Meaning: "the text hergy composes from a team definition and hands a member or a worker; the first one handed is the 初期プロンプト"},

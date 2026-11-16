@@ -1811,7 +1811,8 @@ func TestStatusShapeWaitsOnTheHuman(t *testing.T) {
 		"demo-lead: working",
 		"demo-builder: blocked (waiting for permission)",
 		"demo-w1: idle (worker)",
-		"waiting for a human: demo-builder",
+		"no watcher is running; hergy turns demo starts it",
+		"waiting for permission",
 	)
 }
 
@@ -1828,7 +1829,7 @@ func TestStatusLabelsFollowTheLanguage(t *testing.T) {
 		"demo-lead: working",
 		"demo-builder: blocked（許可待ち）",
 		"demo-w1: idle（ワーカー）",
-		"人間の返事待ち: demo-builder",
+		"許可待ち",
 	} {
 		if !strings.Contains(got, line+"\n") {
 			t.Fatalf("Japanese status is missing %q:\n%s", line, got)
@@ -1846,7 +1847,7 @@ func TestStatusNobodyWorking(t *testing.T) {
 	for _, line := range []string{
 		"demo-lead: idle",
 		"demo-builder: idle",
-		"nobody is working",
+		"stalled",
 	} {
 		if !strings.Contains(got, line+"\n") {
 			t.Fatalf("status is missing %q:\n%s", line, got)
@@ -1867,14 +1868,14 @@ func TestStatusAbsentAndNoJudgement(t *testing.T) {
 			t.Fatalf("status is missing %q:\n%s", line, got)
 		}
 	}
-	if !strings.HasSuffix(got, "nobody is working\n") {
+	if !strings.HasSuffix(got, "stalled\n") {
 		t.Fatalf("status's last line is not the judgement:\n%s", got)
 	}
 }
 
-// TestStatusWorkingHasNoJudgement: one working member and nobody blocked leaves
-// no judgement line at all.
-func TestStatusWorkingHasNoJudgement(t *testing.T) {
+// TestStatusWorkingJudgement: one working member and nobody blocked
+// prints the working judgement.
+func TestStatusWorkingJudgement(t *testing.T) {
 	f := newFixture(t)
 	mustRun(t, "new", "demo")
 	seedRunningTeam(t, f.proj, "demo", "demo")
@@ -1886,7 +1887,10 @@ func TestStatusWorkingHasNoJudgement(t *testing.T) {
 	if !strings.Contains(got, "demo-lead: working\n") {
 		t.Fatalf("status does not report the working member:\n%s", got)
 	}
-	for _, unwanted := range []string{"nobody is working", "waiting for a human"} {
+	if !strings.Contains(got, "\nworking\n") {
+		t.Fatalf("working judgement missing: %s", got)
+	}
+	for _, unwanted := range []string{"stalled", "waiting for permission", "waiting for a reply"} {
 		if strings.Contains(got, unwanted) {
 			t.Fatalf("status printed the judgement %q with a working member:\n%s", unwanted, got)
 		}
@@ -2174,12 +2178,12 @@ func TestStatusListsEveryRunningTeam(t *testing.T) {
 		"team: qw",
 		"  members: 2",
 		"  workers: 1",
-		"  waiting for a human: qw-builder",
+		"  waiting for permission",
 		"",
 		"team: qw2 (from qw)",
 		"  members: 2",
 		"  workers: 0",
-		"  nobody is working",
+		"  stalled",
 	)
 }
 
@@ -2203,7 +2207,7 @@ func TestStatusListKeepsGoingPastAnotherProjectsTeam(t *testing.T) {
 		"team: qw",
 		"  members: 2",
 		"  workers: 0",
-		"  nobody is working",
+		"  stalled",
 	)
 }
 

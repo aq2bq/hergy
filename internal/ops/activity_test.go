@@ -22,6 +22,7 @@ import (
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/ops/internal/launchlog"
 	"github.com/aq2bq/hergy/internal/ops/internal/team" // activityNow is the clock the tests read the screen at: a fixed moment, so
+	"github.com/aq2bq/hergy/internal/ops/internal/turns"
 	"github.com/aq2bq/hergy/internal/ops/teststate"
 	"github.com/aq2bq/hergy/internal/source"
 	// every length and every time is one a test can write down.
@@ -143,6 +144,7 @@ fi
 case "$1 $2" in
   "tab list")   cat "$d/tabs.json" ;;
   "agent list") cat "$d/agents.json" ;;
+  "pane list")  cat "$d/panes.json" ;;
   "agent read")
     if [ -f "$d/screens/$3.txt" ]; then cat "$d/screens/$3.txt"; else echo '{"error":{"code":"agent_not_found"}}'; exit 1; fi ;;
   "pane current") echo '{"result":{"pane":{"workspace_id":"w1"}}}' ;;
@@ -182,6 +184,7 @@ esac
 // core-lead's pane, and gy's questions.
 func (f *activityFixture) activityAnswers(t *testing.T) {
 	t.Helper()
+	f.writeHerdr(t, "panes.json", `{"result":{"panes":[]}}`)
 
 	f.writeHerdr(t, "tabs.json", `{"result":{"tabs":[
  {"tab_id":"t1","label":"core"},
@@ -234,6 +237,14 @@ func (f *activityFixture) stateFile(t *testing.T, entries map[string]string) {
 	writeFile(t, filepath.Join(f.state, "hergy", "activity.json"), "{"+strings.Join(parts, ",")+"}")
 }
 
+func (f *activityFixture) humanTurn(t *testing.T, since time.Time) {
+	t.Helper()
+	if err := turns.Save(turns.Path(filepath.Join(f.state, "hergy"), "core"), &turns.State{Team: fixtureSeen("core"), Holder: turns.Human, From: "lead", Since: since}); err != nil {
+		t.Fatal(err)
+	}
+	f.writeHerdr(t, "panes.json", `{"result":{"panes":[{"pane_id":"watch","label":"core-turns","tab_id":"t1"}]}}`)
+}
+
 // reader builds the reading the server would be handed, at the fixed clock.
 func (f *activityFixture) reader(t *testing.T) *activityRead {
 	t.Helper()
@@ -258,6 +269,7 @@ func entry(seq int, at time.Time, lower bool) string {
 // (spec-activity 2.2, 5.3).
 func TestActivityListReadsTheRunningTeams(t *testing.T) {
 	f := newActivityFixture(t)
+	f.humanTurn(t, activityNow.Add(-160*time.Minute))
 
 	f.stateFile(t, map[string]string{
 		"core-lead":          entry(90, activityNow.Add(-160*time.Minute), false),
@@ -412,6 +424,7 @@ func TestAskingLineKeepsOnlyOneUsefulLine(t *testing.T) {
 // members, workers and only the question line shown on its waiting row.
 func TestActivityOneReadsTheTileMembersAndQuestion(t *testing.T) {
 	f := newActivityFixture(t)
+	f.humanTurn(t, activityNow.Add(-160*time.Minute))
 	f.stateFile(t, map[string]string{
 		"core-lead": entry(90, activityNow.Add(-160*time.Minute), false),
 	})

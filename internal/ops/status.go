@@ -7,11 +7,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aq2bq/hergy/internal/activity"
 	"github.com/aq2bq/hergy/internal/ops/internal/team"
 
 	domainname "github.com/aq2bq/hergy/internal/domain/name"
 	"github.com/aq2bq/hergy/internal/i18n"
-	"github.com/aq2bq/hergy/internal/ops/internal/herdr"
+	observedname "github.com/aq2bq/hergy/internal/ops/internal/name"
 	"github.com/aq2bq/hergy/internal/ops/internal/screenlog"
 	"github.com/aq2bq/hergy/internal/ops/internal/status"
 	"github.com/aq2bq/hergy/internal/ops/internal/turns"
@@ -54,11 +55,10 @@ func Status(ctx context.Context, in StatusInput) ([]TeamStatus, error) {
 			return nil, err
 		}
 		one := RunningTeam{Name: r.Team.Name.Observation(), Definition: r.Team.Definition.Name.String(), Project: in.Env.ProjectRoot, Built: r}
-		result, err := statusTeam(ctx, in, one)
+		result, err := statusTeam(ctx, in, one, readSession(in.Port))
 		if err != nil {
 			return nil, err
 		}
-		result.Turn, result.NoWatcher = turnStatus(one.Name, in.Port)
 		return []TeamStatus{result}, nil
 	}
 	read := readSession(in.Port)
@@ -68,7 +68,7 @@ func Status(ctx context.Context, in StatusInput) ([]TeamStatus, error) {
 	running := readRunningTeams(in.Env, read)
 	out := make([]TeamStatus, 0, len(running))
 	for _, one := range running {
-		result, err := statusTeam(ctx, in, one)
+		result, err := statusTeam(ctx, in, one, read)
 		if err != nil {
 			return nil, err
 		}
@@ -80,7 +80,7 @@ func isRunningTeam(read session, name string) bool {
 	_, ok := team.FindRunning(team.RunningTeams(read.Tabs, currentTeamStates()), name)
 	return ok
 }
-func statusTeam(ctx context.Context, in StatusInput, one RunningTeam) (TeamStatus, error) {
+func statusTeam(ctx context.Context, in StatusInput, one RunningTeam, read session) (TeamStatus, error) {
 	out := TeamStatus{Team: one}
 	if one.Built == nil {
 		return out, nil
@@ -94,7 +94,17 @@ func statusTeam(ctx context.Context, in StatusInput, one RunningTeam) (TeamStatu
 		out.Rows = append(out.Rows, StatusRow(row))
 	}
 	out.Members, out.Workers = status.Counts(rows)
-	out.Judgement = status.Judge(rows).Text()
+	turn, watching := readTeamTurn(one.Name, read.Tabs)
+	input := activity.Input{Team: one.Name, Turn: turnInput(turn), Watching: watching, Now: operationTime(in.Now)}
+	for _, row := range rows {
+		if row.Live {
+			input.Agents = append(input.Agents, activity.Agent{Herdr: observedname.Observe(row.Name), Status: row.State})
+		}
+	}
+	out.Judgement = activity.Of(input).State.Text()
+	if in.Team.String() != "" {
+		out.Turn, out.NoWatcher = turnStatus(one.Name, turn, watching)
+	}
 	return out, nil
 }
 func markStatusScreens(rows []status.Row, now func() time.Time) {
@@ -129,17 +139,9 @@ func markStatusScreens(rows []status.Row, now func() time.Time) {
 	}
 	_ = log.Write(next)
 }
-func turnStatus(name domainname.Seen, port Port) ([]StatusField, string) {
-	dir, err := screenlog.DefaultDir()
-	if err != nil {
-		return nil, ""
-	}
-	st, err := turns.Load(turns.Path(dir, name.String()), name)
-	if err != nil {
-		return nil, ""
-	}
+func turnStatus(name domainname.Seen, st *turns.State, watching bool) ([]StatusField, string) {
 	var fields []StatusField
-	if !st.Since.IsZero() {
+	if st != nil && !st.Since.IsZero() {
 		text := ""
 		switch {
 		case st.Holder == turns.Human:
@@ -158,14 +160,8 @@ func turnStatus(name domainname.Seen, port Port) ([]StatusField, string) {
 			fields = append(fields, StatusField{Label: i18n.T("status.turn_waits"), Value: strings.Join(waits, i18n.T("list.separator"))})
 		}
 	}
-	panes, err := herdr.New(portOrDefault(port)).Panes()
-	if err != nil {
+	if watching {
 		return fields, ""
-	}
-	for _, pane := range panes {
-		if pane.Label.String() == name.Watcher().String() {
-			return fields, ""
-		}
 	}
 	return fields, i18n.Tf("status.no_watcher", name)
 }

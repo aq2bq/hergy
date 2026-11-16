@@ -247,7 +247,7 @@ func (a *Reader) List() ActivityList {
 // activityRow is one row of the list: the judgement of one team and what the wire
 // needs beside it.
 type activityRow struct {
-	team        activity.Team
+	team        judgedTeam
 	definition  string
 	broken      string
 	project     domainplace.Project
@@ -264,7 +264,7 @@ func orderedRows(rows []activityRow, now time.Time) ([]ActivityItem, int, int) {
 	judged := make([]activity.Team, len(rows))
 	byName := make(map[string]activityRow, len(rows))
 	for i, row := range rows {
-		judged[i] = row.team
+		judged[i] = row.team.Team
 		byName[row.team.Name.String()] = row
 	}
 	activity.Sort(judged)
@@ -293,11 +293,10 @@ func waitingMembers(t activity.Team) int {
 
 // judgeOf judges one team: how it is doing, who the line is about, and the members
 // and workers in it (6 A2, A3). A definition that does not read leaves the live
-// agents as the only members known, so what the row says comes from herdr alone,
-// as 2.2 says.
+// agents as the only members known, as 2.2 says.
 // itemOf is one row of the list as the boundary writes it (spec-activity 3).
 func itemOf(row activityRow, now time.Time) ActivityItem {
-	t := row.team
+	t := row.team.Team
 	item := ActivityItem{
 		Name: t.Name.String(),
 		Summary: ActivitySummary{
@@ -315,19 +314,14 @@ func itemOf(row activityRow, now time.Time) ActivityItem {
 	if since := sinceOf(t, now); since != nil {
 		item.Summary.Since = since
 	}
-	item.Summary.Turn = turnOf(t.Name)
+	item.Summary.Turn = turnOf(row.team.turn)
 	return item
 }
 
 // turnOf is the tile's turn: the holder hergy's watcher keeps for this team
 // (r-bc26), or nil for a team the watcher has not seen.
-func turnOf(teamName domainname.Seen) *ActivityTurn {
-	path := activityStatePath()
-	if path == "" {
-		return nil
-	}
-	st, err := turns.Load(turns.Path(filepath.Dir(path), teamName.String()), teamName)
-	if err != nil || st.Since.IsZero() {
+func turnOf(st *turns.State) *ActivityTurn {
+	if st == nil || st.Since.IsZero() {
 		return nil
 	}
 	return &ActivityTurn{Holder: st.Holder, From: st.From, Why: st.Why, Text: turnText(st)}
@@ -428,7 +422,8 @@ func (a *Reader) One(name string) (ActivityDoc, bool) {
 		// members known (2.2), so they stand in the right-hand column.
 		graph = nil
 	}
-	in := activity.Input{Team: one.Name, Graph: graph, Agents: agents, Seen: read.seen, Now: now}
+	turn, watching := readTeamTurn(one.Name, read.tabs)
+	in := activity.Input{Team: one.Name, Graph: graph, Agents: agents, Seen: read.seen, Now: now, Turn: turnInput(turn), Watching: watching}
 	t := activity.Of(in)
 	// Keep the one line the waiting row already shows, without returning the
 	// pane's tail to the screen. The opened tile itself needs no pane content.

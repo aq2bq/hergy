@@ -18,7 +18,7 @@ func readVisibleTeams(views []projectView, read herdrNow, lenient bool) []runnin
 	return readRunningTeamsIn(views, sessionOf(read), lenient)
 }
 
-func judgeRead(one runningTeam, read herdrNow, now time.Time) activity.Team {
+func judgeRead(one runningTeam, read herdrNow, now time.Time) judgedTeam {
 	return judgeOf(one, sessionOf(read), now)
 }
 func agentsRead(read herdrNow, name domainname.Seen) []activity.Agent {

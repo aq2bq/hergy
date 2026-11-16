@@ -43,74 +43,6 @@ func TestRowText(t *testing.T) {
 	}
 }
 
-// TestJudgeText: the judgement is the names waiting on the human, else that
-// nobody is working, else nothing when the team is working with nobody blocked.
-func TestJudgeText(t *testing.T) {
-	cases := []struct {
-		name string
-		rows []Row
-		want string
-	}{
-		{
-			"waiting",
-			[]Row{{Name: "a", State: "blocked", Live: true}, {Name: "b", State: "working", Live: true}},
-			"waiting for a human: a",
-		},
-		{
-			"waiting in order",
-			[]Row{{Name: "b", State: "blocked", Live: true}, {Name: "a", State: "blocked", Live: true}},
-			"waiting for a human: b, a",
-		},
-		{
-			"nobody working",
-			[]Row{{Name: "a", State: "idle", Live: true}, {Name: "b", Live: false}},
-			"nobody is working",
-		},
-		{
-			"working with nobody blocked",
-			[]Row{{Name: "a", State: "working", Live: true}, {Name: "b", State: "done", Live: true}},
-			"",
-		},
-		{
-			"no rows",
-			nil,
-			"nobody is working",
-		},
-		{
-			"a blocked member with no live agent does not count",
-			[]Row{{Name: "a", State: "blocked", Live: false}, {Name: "b", State: "working", Live: true}},
-			"",
-		},
-	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			v := Judge(c.rows)
-			if got := v.Text(); got != c.want {
-				t.Fatalf("Judge(%+v).Text() = %q, want %q", c.rows, got, c.want)
-			}
-		})
-	}
-}
-
-// TestJudgeCountsWorkingAndWaiting: Judge reports both the waiting names and how
-// many are working, so a caller can show more than the one line.
-func TestJudgeCountsWorkingAndWaiting(t *testing.T) {
-	rows := []Row{
-		{Name: "a", State: "working", Live: true},
-		{Name: "b", State: "working", Live: true},
-		{Name: "c", State: "blocked", Live: true},
-		{Name: "d", State: "idle", Live: true},
-		{Name: "e", Live: false},
-	}
-	got := Judge(rows)
-	if got.Working != 2 {
-		t.Fatalf("Working = %d, want 2", got.Working)
-	}
-	if len(got.Waiting) != 1 || got.Waiting[0] != "c" {
-		t.Fatalf("Waiting = %v, want [c]", got.Waiting)
-	}
-}
-
 // TestCountsSeparatesMembersAndWorkers: workers are counted apart from members,
 // live or not.
 func TestCountsSeparatesMembersAndWorkers(t *testing.T) {
@@ -125,16 +57,11 @@ func TestCountsSeparatesMembersAndWorkers(t *testing.T) {
 	}
 }
 
-// TestWordsFollowTheLanguage: the words are the locales', so a Japanese run
-// prints the Japanese judgement.
+// TestWordsFollowTheLanguage: row wording follows the selected locale.
 func TestWordsFollowTheLanguage(t *testing.T) {
 	t.Cleanup(func() { _ = i18n.Use(i18n.Fallback) })
 	if err := i18n.Use("ja"); err != nil {
 		t.Fatal(err)
-	}
-	rows := []Row{{Name: "a", State: "blocked", Live: true}}
-	if got, want := Judge(rows).Text(), "人間の返事待ち: a"; got != want {
-		t.Fatalf("Japanese judgement = %q, want %q", got, want)
 	}
 	if got, want := (Row{Name: "b"}).Text(), "動いていない"; got != want {
 		t.Fatalf("Japanese absent text = %q, want %q", got, want)

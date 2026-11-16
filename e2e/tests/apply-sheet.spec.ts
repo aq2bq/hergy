@@ -70,6 +70,22 @@ const sheet = `(function(){
 test('the sheet separates what is pressed from what is told, and handed reads one way', async ({ page, app }, testInfo) => {
   await page.route('**/api/apply/count', (route) => route.fulfill({ json: { count: 5 } }));
   await page.route('**/api/apply', (route) => route.fulfill({ json: answer }));
+  // This walk checks the words' connection to the cards, not turn judgement.
+  // Give the activity the same handed member as the sheet's controlled answer.
+  await page.route('**/api/activity', async (route) => {
+    const response = await route.fetch();
+    const json = await response.json();
+    const core = json.items.find((item: { name: string }) => item.name === 'core');
+    core.summary.state = 'turn';
+    core.summary.turn = null;
+    await route.fulfill({ response, json });
+  });
+  await page.route('**/api/activity/core', async (route) => {
+    const response = await route.fetch();
+    const json = await response.json();
+    json.doc.nodes.find((node: { name: string }) => node.name === 'lead').state = 'handed';
+    await route.fulfill({ response, json });
+  });
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto(`${app.base}/activity`);
   await wait(page, `!!document.querySelector('.hq-tile') && !!document.querySelector('.bar .apl-bandbtn')`);

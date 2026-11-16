@@ -11,10 +11,10 @@ function layout() {
   document.body.appendChild(words);
 }
 
-const team = (name, state, since = null) => ({
+const team = (name, state, since = null, turn = null) => ({
   name, project: '', project_name: '注文 API',
   workspace: { id: 'w1', label: '本体' },
-  summary: { definition: name, state, since },
+  summary: { definition: name, state, since, turn },
 });
 const sheet = (nodes, question = '') => ({ doc: { nodes, hired: [], question } });
 
@@ -25,7 +25,7 @@ test('cards show every waiting member once and keep the pane action states', asy
   let fail = false;
   const asked = serve((method, url) => {
     if (url === '/api/activity') return {
-      items: [team('core', 'turn', { len: '2 分', at: '11:01' }), team('migrate', 'answer', { len: '1 分', at: '11:03' }), team('stalled', 'stalled')],
+      items: [team('core', 'turn', { len: '2 分', at: '11:01' }), team('migrate', 'answer', { len: '1 分', at: '11:03' }), team('stalled', 'stalled', null, { holder: 'lead', from: 'human', text: 'turn: lead' })],
       herdr: { ok: true }, running: 3, waiting: 3,
     };
     if (url === '/api/activity/core') return sheet([
@@ -71,7 +71,8 @@ test('cards show every waiting member once and keep the pane action states', asy
     expect(tile.querySelector('.hq-th .hq-tl').textContent).toBe(since);
   }
   expect(document.querySelector('.hq-tile[data-team="stalled"] .hq-wait')).toBe(null);
-  expect(document.querySelector('.hq-tile[data-team="stalled"] .hq-why').textContent).toContain('誰もターンを持っていません');
+  expect(document.querySelector('.hq-tile[data-team="stalled"] .hq-why').textContent).not.toContain('誰もターンを持っていません');
+  expect(document.querySelector('.hq-tile[data-team="stalled"] .hq-why').textContent).toContain('人間の返事待ちのメンバーはいません');
 
   const button = row('core', 'core-lead').querySelector('button');
   button.click();

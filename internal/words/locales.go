@@ -8,8 +8,6 @@ var localeMessages = map[string]Text{
 	"status.can_down":             bilingual("hergy down %s still closes the panes hergy started for this {{team}}", "hergy down %s は、この{{team}}のために hergy が{{start}}したペインを閉じられます"),
 	"status.not_live":             bilingual("{{not-running}}", "{{not-running}}"),
 	"status.worker_suffix":        bilingual(" ({{worker}})", "（{{worker}}）"),
-	"status.human_waiting":        bilingual("waiting for a {{human}}: %s", "{{human}}の返事待ち: %s"),
-	"status.nobody_working":       bilingual("nobody is {{working}}", "誰も動いていません"),
 	"status.definition_elsewhere": bilingual("the {{team-definition}} is not in this {{project}}; run hergy status from the {{project}} that booted it", "この{{project}}にない{{team-definition}}です。{{start}}した{{project}}で hergy status を打ってください"),
 	"status.none":                 bilingual("no {{team}}s are running", "動いている{{team}}はありません"),
 	"status.turn":                 bilingual("{{turn}}", "{{turn}}"),
