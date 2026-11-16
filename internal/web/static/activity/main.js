@@ -235,10 +235,6 @@ function Waiting({ team: t }) {
           class: "hq-wait",
           "data-member": m.herdr,
           children: [
-            /* @__PURE__ */ u("span", {
-              class: "st " + (m.state === "blocked" ? "answer" : "turn"),
-              children: m.state === "blocked" ? term("waiting-for-permission") : ST.turn
-            }),
             /* @__PURE__ */ u("code", {
               children: m.herdr || t.name + "-" + m.name
             }),
@@ -249,10 +245,6 @@ function Waiting({ team: t }) {
             /* @__PURE__ */ u("span", {
               class: "hq-where",
               children: whereText(t, m)
-            }),
-            /* @__PURE__ */ u("span", {
-              class: "hq-tl",
-              children: m.since || ""
             }),
             /* @__PURE__ */ u("button", {
               type: "button",

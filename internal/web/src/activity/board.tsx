@@ -35,11 +35,9 @@ function Waiting({ team: t }: { team: ActivityTeam }): JSX.Element | null {
   return <div class="hq-waiting">{waiting.map((m) => {
     const q = m.question || t.question || (t.starting ? `${term('start')}の途中で、このフォルダを信頼するかを聞いています` : '');
     return <div class="hq-wait" data-member={m.herdr} key={m.herdr}>
-      <span class={'st ' + (m.state === 'blocked' ? 'answer' : 'turn')}>{m.state === 'blocked' ? term('waiting-for-permission') : ST.turn}</span>
       <code>{m.herdr || (t.name + '-' + m.name)}</code>
       <span class="hq-question">{q}</span>
       <span class="hq-where">{whereText(t, m)}</span>
-      <span class="hq-tl">{m.since || ''}</span>
       <button type="button" class="hq-btn primary" disabled={!!pending} aria-busy={pending === m.herdr} onClick={() => focus(m)}>{pending === m.herdr ? '移動中…' : moved === m.herdr ? 'herdr で移動しました' : 'herdr でペインへ移動'}</button>
     </div>;
   })}{error ? <p role="alert" class="hq-err">{error}</p> : null}</div>;
