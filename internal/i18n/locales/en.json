@@ -689,5 +689,6 @@
   "error.projects_needs_add": "write it as hergy projects add <directory>",
   "projects.added": "added to projects: %s (%s)",
   "start.project_unlisted": "hergy serve does not show this project: it is not in the projects: of %s. To list it: hergy projects add %s",
-  "projects.already": "already in projects: %s (%s)"
+  "projects.already": "already in projects: %s (%s)",
+  "up.took_over": "took over: %s (tab %s) was started by an older hergy; its members keep running as they are\n"
 }

@@ -93,6 +93,9 @@ func StartTeam(ctx context.Context, in StartInput) (*Plan, error) {
 	if in.RequirePane && (!in.ManagedPane || CurrentPane() == "") {
 		return nil, words.Errorf("runtime.managed-pane", i18n.Language())
 	}
+	if took, err := takeOverOlderTeam(in, r); took || err != nil {
+		return plan, err
+	}
 	if _, err = startName(in, true); err != nil {
 		return nil, err
 	}

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.12.2 - 2026-11-16
+
+### Fixed
+
+- A team started by a version before 0.11.0 no longer has to be ended to be used again: `hergy up <definition>` (with `--as <team name>` when it was started under one) takes it over as it stands, without starting or ending an agent. Before, `hergy status` and `hergy hire` said the team was not running while `hergy up` said its name was taken.
+
 ## 0.12.1 - 2026-11-16
 
 ### Fixed
