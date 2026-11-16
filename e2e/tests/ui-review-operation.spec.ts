@@ -34,6 +34,14 @@ test('missing herdr executable gives an actionable error without exec details', 
 
 test('390px activity controls fit the viewport', async ({ page, app }, testInfo) => {
   await page.setViewportSize({ width: 390, height: 844 });
+  await page.route('**/api/activity/migrate', async (route) => {
+    const response = await route.fetch();
+    const body = await response.json();
+    const question = body.doc.question + '\n' + 'Long permission command details\n'.repeat(40);
+    body.doc.question = question;
+    for (const member of body.doc.nodes) if (member.state === 'blocked') member.question = question;
+    await route.fulfill({ response, json: body });
+  });
   await page.goto(app.base + '/activity'); await ready(page);
   await expect.poll(() => page.locator('button, input, select, a').evaluateAll((elements) => elements.flatMap((el) => {
     const rect = el.getBoundingClientRect();
@@ -45,6 +53,10 @@ test('390px activity controls fit the viewport', async ({ page, app }, testInfo)
   const question = card.locator('.hq-question');
   await expect(question).toContainText('0042_split_ledger.sql');
   await expect.poll(() => question.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
+  await expect.poll(() => question.evaluate((el) => {
+    const style = getComputedStyle(el);
+    return el.scrollHeight > el.clientHeight && el.clientHeight <= parseFloat(style.maxHeight) && style.overflowY === 'auto';
+  })).toBe(true);
   const reply = card.locator('.hq-wait .hq-btn.primary');
   await reply.scrollIntoViewIfNeeded();
   await expect(reply).toBeInViewport();

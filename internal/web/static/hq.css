@@ -163,7 +163,7 @@
 .hq-wait { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; padding: 10px; border: 1px solid var(--warn); border-radius: 6px; }
 .hq-wait > .st, .hq-wait > .hq-btn { justify-self: start; }
 .hq-wait > code { font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
-.hq-question { font-size: 13px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.hq-question { font-size: 13px; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 18rem; overflow: auto; }
 .hq-wait .hq-where { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
 .hq-wait .hq-tl { text-align: left; white-space: normal; }
 .hq-tl { font-size: 12px; color: var(--muted); white-space: nowrap; text-align: right; font-variant-numeric: tabular-nums; }
