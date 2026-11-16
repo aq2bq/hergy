@@ -5,6 +5,8 @@ import (
 
 	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/ops/internal/runningstate"
+	"github.com/aq2bq/hergy/internal/ops/internal/screenlog"
+	"github.com/aq2bq/hergy/internal/ops/internal/turns"
 	"github.com/aq2bq/hergy/internal/words"
 )
 
@@ -51,6 +53,13 @@ func takeOverOlderTeam(in StartInput, r *Resolved) (bool, error) {
 	}
 	if r.generation, err = beginRunningState(store, in.Env, r, workspace, in.Now); err != nil {
 		return false, words.Errorf("up.state-unavailable", i18n.Language(), err)
+	}
+	dir, err := screenlog.DefaultDir()
+	if err != nil {
+		return false, err
+	}
+	if _, err := loadTurnWithRoster(turns.Path(dir, r.Team.Name.String()), r.Team.Name.Observation(), turnRoster(r.Team.Definition.Graph, runningstate.State{}), operationTime(in.Now)); err != nil {
+		return false, err
 	}
 	emit(in.Observe, Event{Text: i18n.Tf("up.took_over", r.Team.Name.String(), tab.ID)})
 	return true, nil

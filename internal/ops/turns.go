@@ -20,6 +20,7 @@ import (
 	"github.com/aq2bq/hergy/internal/ops/internal/herdr"
 	"github.com/aq2bq/hergy/internal/ops/internal/herdrcli"
 	"github.com/aq2bq/hergy/internal/ops/internal/protocol"
+	"github.com/aq2bq/hergy/internal/ops/internal/runningstate"
 	"github.com/aq2bq/hergy/internal/ops/internal/screenlog"
 	"github.com/aq2bq/hergy/internal/ops/internal/team"
 	"github.com/aq2bq/hergy/internal/ops/internal/turns"
@@ -151,18 +152,19 @@ func printTurnsLog(teamName, path string, stdout io.Writer) error {
 // hirersOf reads this run's workers and confirmed member names. Unreceived
 // members are still observed from herdr's named panes and live agents.
 func hirersOf(teamName domainname.TeamName) (map[string]string, map[string]domainname.Seen) {
+	state, _ := currentTeamState(teamName)
+	return hirersIn(state)
+}
+
+func hirersIn(state runningstate.State) (map[string]string, map[string]domainname.Seen) {
 	out := map[string]string{}
 	names := map[string]domainname.Seen{}
-	state, exists := currentTeamState(teamName)
-	if !exists {
-		return out, names
-	}
 	for _, member := range state.Members() {
 		names[member.Short] = observedname.Observe(member.Name)
 	}
 	for _, worker := range state.Workers() {
 		name := observedname.Observe(worker.Name)
-		short := domainname.ShortIn(name, teamName.Observation()).String()
+		short := domainname.ShortIn(name, state.Name().Observation()).String()
 		names[short] = name
 		out[short] = worker.From
 	}
@@ -221,7 +223,11 @@ func (w *turnWatcher) draw() {
 }
 
 func (w *turnWatcher) load() error {
-	st, err := turns.Load(w.path, w.team.Observation())
+	run, err := readTurnRun(w.team)
+	if err != nil {
+		return err
+	}
+	st, err := loadTurnWithRoster(w.path, w.team.Observation(), turnRoster(w.graph, run), w.clock())
 	if err != nil {
 		return err
 	}
@@ -259,7 +265,18 @@ func (w *turnWatcher) tick() {
 	if !agentsRead {
 		return
 	}
-	w.hirers, w.names = hirersOf(w.team)
+	run, err := readTurnRun(w.team)
+	if err != nil {
+		fmt.Fprint(w.out, i18n.Tf("turns.read_error", err.Error()))
+		return
+	}
+	roster := turnRoster(w.graph, run)
+	changed := w.state.ForgetAbsent(roster, w.clock())
+	tells = slices.DeleteFunc(tells, func(t turns.Tell) bool {
+		return (t.From != "" && t.From != turns.Human && !roster(t.From)) || (t.To != turns.Human && !roster(t.To))
+	})
+	signals = slices.DeleteFunc(signals, func(s turns.Signal) bool { return !roster(s.Member) })
+	w.hirers, w.names = hirersIn(run)
 	// Retain recipients witnessed in worker tabs or named panes, even when
 	// their agents have ended. These are observations, not reconstructed inputs.
 	for _, tab := range tabs {
@@ -275,6 +292,7 @@ func (w *turnWatcher) tick() {
 		}
 	}
 	now := w.observe(teamAgents(tabs, agents, w.team.Observation()))
+	now = slices.DeleteFunc(now, func(a turns.Agent) bool { return !roster(a.Name) })
 	w.band.seen(now)
 	actions := turns.Step(w.state, turns.Input{
 		Team: domainname.RunningNames(w.team.Ref()), Graph: w.graph, Before: w.prev, Now: now, Wrote: w.wrote, At: w.clock(),
@@ -286,7 +304,7 @@ func (w *turnWatcher) tick() {
 		w.band.note(action, w.clock())
 	}
 	w.remember(now)
-	if len(actions) > 0 {
+	if changed || len(actions) > 0 {
 		if err := turns.Save(w.path, w.state); err != nil {
 			fmt.Fprint(w.out, i18n.Tf("turns.save_error", err.Error()))
 		}

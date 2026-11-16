@@ -262,8 +262,8 @@ const (
 	WhyNobody = "nobody"
 	// WhyUnclear: the member's answer named no one candidate.
 	WhyUnclear = "unclear"
-	// WhyUnanswered: hergy's question could not be put to the member (blocked,
-	// or it never started).
+	// WhyUnanswered: the member could not be asked (absent, blocked, or it
+	// never started).
 	WhyUnanswered = "unanswered"
 	// WhyUndelivered: hergy handed the turn on as the member answered and the
 	// recipient never started (herdr saw no working state, after one more try),
@@ -284,14 +284,16 @@ func (st *State) Unanswered(name string, at time.Time) {
 	st.Holder, st.From, st.Since, st.Why = Human, name, at, WhyUnanswered
 }
 
-// Waits is who waits for whose answer, as "a → b" lines: every member opening
-// of a turn that has not ended. It is what status and the screens show.
+// Waits is who waits for whose answer, as "a → b" lines: one per pair of
+// members with an opening that has not ended. Status and the screens show it.
 func (st *State) Waits() []string {
 	var out []string
 	for _, name := range slices.Sorted(maps.Keys(st.Opened)) {
+		seen := map[string]bool{}
 		for _, o := range st.Opened[name] {
-			if o.By != Human {
+			if o.By != Human && !seen[o.By] {
 				out = append(out, o.By+" → "+name)
+				seen[o.By] = true
 			}
 		}
 	}

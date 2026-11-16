@@ -6,6 +6,11 @@
 
 - The activity screen shows waiting members and pane actions in each team card, removes the single list tab and turn selector, and draws all team-definition turns.
 
+### Fixed
+
+- Turn state forgets departed members and workers, returns a departed holder's turn to the human, and shows each awaited answer once.
+- The activity screen waits for its first reading before saying no teams are running.
+
 ## 0.12.2 - 2026-11-16
 
 ### Fixed
