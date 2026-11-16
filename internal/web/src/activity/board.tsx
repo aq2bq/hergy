@@ -6,7 +6,7 @@ import { useState, useEffect, useRef } from '../lib/preact';
 import type { JSX } from 'preact';
 import * as A from '../lib/hq.js';
 import { openSheet, teamCount } from '../lib/apply/state.js';
-import { teams, note, current, noneText, ST, NS, lastMoment, pick, openedTeam } from './state.js';
+import { teams, empty, note, current, noneText, ST, NS, lastMoment, pick, openedTeam } from './state.js';
 import type { ActivityTeam, CrewMember } from './state.js';
 import { Figure } from './figure.js';
 import { movePage } from '../lib/page-position.js';
@@ -113,7 +113,7 @@ function BoardRows(): JSX.Element {
     fromAddress.current = '';
     movePage('openByURL', tile, { instant: true });
   }, [rows]);
-  if (!rows.length) return <p class="gone">{n.ok ? noneText : n.text}</p>;
+  if (!rows.length) return empty.value ? <p class="gone">{n.ok ? noneText : n.text}</p> : <></>;
   if (!n.ok) return <p class="gone">{n.text}</p>;
   return <div class="hq-board"><div class="hq-tiles">{rows.map((t) => <Tile key={t.name} team={t} />)}</div>{rows.some(t => t.workers.some(w => !w.from)) ? <p class="hq-worker-guide">{`雇い主不明：${term('launch-record')}には、${term('worker')}を雇った${term('member')}の情報がありません。${term('worker')}のペインで確認してください。`}</p> : null}</div>;
 }

@@ -157,6 +157,7 @@ async function readBoard(stop) {
 }
 var reading = resource(readBoard);
 var teams = O(() => reading.value.value ? reading.value.value.teams : []);
+var empty = O(() => reading.value.value !== null && teams.value.length === 0);
 var note = O(() => reading.value.value && reading.value.value.note || { ok: true, text: "" });
 var noneText = words.none || `並べた${term("project")}に、動いている${term("team")}はありません。${term("team-definition")}の画面で${term("start")}できます。`;
 var current = O(() => {
@@ -437,10 +438,10 @@ function BoardRows() {
     movePage("openByURL", tile, { instant: true });
   }, [rows]);
   if (!rows.length)
-    return /* @__PURE__ */ u("p", {
+    return empty.value ? /* @__PURE__ */ u("p", {
       class: "gone",
       children: n.ok ? noneText : n.text
-    });
+    }) : /* @__PURE__ */ u(S, {});
   if (!n.ok)
     return /* @__PURE__ */ u("p", {
       class: "gone",

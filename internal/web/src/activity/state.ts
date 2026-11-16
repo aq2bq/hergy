@@ -177,6 +177,7 @@ async function readBoard(stop: AbortSignal): Promise<ActivityBoard> {
 export const reading = resource(readBoard);
 
 export const teams = computed<ActivityTeam[]>(() => (reading.value.value ? reading.value.value.teams : []));
+export const empty = computed(() => reading.value.value !== null && teams.value.length === 0);
 export const note = computed<ActivityNote>(() => (reading.value.value && reading.value.value.note) || { ok: true, text: '' });
 export const noneText = words.none || `並べた${term('project')}に、動いている${term('team')}はありません。${term('team-definition')}の画面で${term('start')}できます。`;
 // current is the opened team: the pick, or the first team while the pick is not
