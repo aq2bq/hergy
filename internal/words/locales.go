@@ -425,6 +425,7 @@ var localeMessages = map[string]Text{
 	"projects.added":                    bilingual("added to projects: %s (%s)", "projects: に足しました: %s（%s）"),
 	"projects.already":                  bilingual("already in projects: %s (%s)", "すでに projects: にあります: %s（%s）"),
 	"start.project_unlisted":            bilingual("hergy serve does not show this {{project}}: it is not in the projects: of %s. To list it: hergy projects add %s", "この{{project}}は %s の projects: に無いので、hergy serve には表示されません。足す: hergy projects add %s"),
+	"up.took_over":                      bilingual("took over: %s (tab %s) was started by an older hergy; its {{member}}s keep running as they are\n", "引き継ぎました: %s（タブ %s）は古い hergy が{{start}}した{{team}}です。{{member}}はそのまま動いています\n"),
 	"error.serve_no_args":               bilingual("hergy serve takes no positional arguments: %v; run `hergy serve` on its own", "hergy serve は位置引数を取りません: %v。hergy serve だけを実行してください"),
 	"error.port_not_int":                bilingual("--port must be a number: %q", "--port は数値で指定してください: %q"),
 	"error.port_range":                  bilingual("--port must be 0 or more and %d or less (0 lets the operating system pick a free port)", "--port は 0 以上 %d 以下にしてください（0 を渡すと、空いているポートを OS が選びます）"),
