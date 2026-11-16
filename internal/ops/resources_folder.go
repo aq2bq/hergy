@@ -123,7 +123,7 @@ func (s ResourceScope) checkDefinitionFolder(ref domainplace.Ref, in definitionF
 	}
 	for _, finding := range edited.Findings {
 		if finding.Stops && !strings.HasPrefix(finding.Field, "node:") && !known[finding.Text] {
-			return written, &ResourceFailure{Text: finding.Text}
+			return written, &ResourceFailure{Text: finding.Text, Field: finding.Field}
 		}
 	}
 	for _, problem := range s.checkDefinitionDraftAgreement(in.Input, in.Draft, agree).Problems {

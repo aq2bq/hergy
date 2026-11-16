@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.12.0 - 2026-11-16
+
+### Fixed
+
+- The teams screen no longer saves a new team definition whose member names a role or a profile that does not exist; the check and the save name the member.
+
 ## 0.11.1 - 2026-11-13
 
 ### Fixed

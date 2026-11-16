@@ -1421,9 +1421,9 @@ func TestTEAMS_R54B8_ADraftWritesNoRoleFilesThePersonDidNotChoose(t *testing.T) 
 
 // TestTEAMS_R54B8_TheStarterRolesFollowTheMembersTheRowHas: the person asked for
 // the starter roles and profile, and then the row's members name other roles and
-// profiles. The save writes no starter document a member does not use, and the
-// band before the save lists the definition's own two files alone (r-54b8,
-// d-86b1).
+// profiles. The band before the save lists the definition's own two files alone
+// (r-54b8, d-86b1). Nobody holds the roles and profiles the members now name, so
+// the save is refused at the first such member and writes nothing (n-8a71).
 func TestTEAMS_R54B8_TheStarterRolesFollowTheMembersTheRowHas(t *testing.T) {
 	f := newFixture(t)
 	server := f.server(t)
@@ -1455,8 +1455,11 @@ func TestTEAMS_R54B8_TheStarterRolesFollowTheMembersTheRowHas(t *testing.T) {
 	}
 	body["part"] = "folder"
 	resp, answer = f.api(t, server, http.MethodPut, "/api/team/ops", body)
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("PUT /api/team/ops answers %d, want 200: %s", resp.StatusCode, answer)
+	if resp.StatusCode != http.StatusUnprocessableEntity || !strings.Contains(answer, `"at":"members[0].role"`) {
+		t.Fatalf("PUT /api/team/ops answers %d, want 422 at members[0].role: %s", resp.StatusCode, answer)
+	}
+	if _, err := os.Stat(filepath.Join(base, "teams", "ops")); !os.IsNotExist(err) {
+		t.Errorf("the refused save left the definition's folder: %v", err)
 	}
 	if got := roleFiles(t, base); len(got) != 0 {
 		t.Errorf("the save wrote the project's roles/: %v", got)
