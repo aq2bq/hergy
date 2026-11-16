@@ -155,20 +155,10 @@ func (h *hqRead) listedProjects() ([]domainplace.Project, bool, error) {
 	return h.act.env.ProjectPaths(cfg)
 }
 
-// isListedProject reports whether path is one of the projects config.yaml lists.
-// A listed directory inside a git repository is that repository's project: the
-// headquarters shows the repository's root, and the screen asks for what it
-// shows, so both spellings name the listed project (r-1db7 L1).
+// isListedProject reports whether path is one of the projects config.yaml lists,
+// read through this serve's environments.
 func (h *hqRead) isListedProject(paths []domainplace.Project, want domainplace.Project) bool {
-	for _, one := range paths {
-		if one.Compare(want) == domainplace.Same {
-			return true
-		}
-		if env, err := h.act.envAt(one); err == nil && env.ProjectRoot.Compare(want) == domainplace.Same {
-			return true
-		}
-	}
-	return false
+	return listedProject(paths, want, h.act.envAt)
 }
 
 // allowedProjects is every project a screen may read or write: the listed ones,

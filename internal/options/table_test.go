@@ -86,7 +86,10 @@ func TestTableHasEveryDescription(t *testing.T) {
 		for _, a := range s.Args {
 			where := "hergy " + s.Name + ": the argument <" + a.Name["en"] + ">"
 			wantText(t, where+" name", a.Name)
-			wantText(t, where+" description", a.Desc)
+			if !a.Word {
+				// A word typed as it stands has no row of its own in --help.
+				wantText(t, where+" description", a.Desc)
+			}
 			if a.Or != nil && !has(s, a.Or) {
 				t.Errorf("%s stands in for --%s, which the command does not accept", where, a.Or.Name)
 			}

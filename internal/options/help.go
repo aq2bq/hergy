@@ -39,10 +39,7 @@ func flagLabel(f *Flag, lang string) string {
 func argWords(s *Spec, lang string) []string {
 	var words []string
 	for _, a := range s.Args {
-		word := "<" + a.Name[lang] + ">"
-		if a.Optional {
-			word = "[" + a.Name[lang] + "]"
-		}
+		word := argLabel(a, lang)
 		if a.Or != nil {
 			word += "|--" + a.Or.Name
 		}
@@ -52,6 +49,18 @@ func argWords(s *Spec, lang string) []string {
 		words = append(words, word)
 	}
 	return words
+}
+
+// argLabel is how one argument is written on a command line: <name>, [name]
+// when it may be left out, and the bare word when it is typed as it stands.
+func argLabel(a Arg, lang string) string {
+	switch {
+	case a.Word:
+		return a.Name[lang]
+	case a.Optional:
+		return "[" + a.Name[lang] + "]"
+	}
+	return "<" + a.Name[lang] + ">"
 }
 
 // standsIn reports whether the flag takes the place of a positional argument,
@@ -131,11 +140,10 @@ func CommandHelp(kind Kind) string {
 
 	var argRows, flagRows []row
 	for _, a := range s.Args {
-		label := "<" + a.Name[lang] + ">"
-		if a.Optional {
-			label = "[" + a.Name[lang] + "]"
+		if a.Word {
+			continue
 		}
-		argRows = append(argRows, row{label, a.Desc[lang]})
+		argRows = append(argRows, row{argLabel(a, lang), a.Desc[lang]})
 	}
 	for _, list := range [][]Use{s.Flags, common} {
 		for _, u := range list {

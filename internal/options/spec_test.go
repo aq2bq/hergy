@@ -22,7 +22,12 @@ func flagArgs(f *Flag) []string {
 // required flag of the command except skip.
 func argvOf(s *Spec, n int, skip *Flag) []string {
 	argv := []string{s.Name}
-	for range n {
+	for i := range n {
+		// A word the command is typed with (projects add) is that word.
+		if i < len(s.Args) && s.Args[i].Word {
+			argv = append(argv, s.Args[i].Name["en"])
+			continue
+		}
 		argv = append(argv, "arg")
 	}
 	for _, u := range s.Flags {

@@ -2,6 +2,11 @@
 
 ## 0.12.0 - 2026-11-16
 
+### Added
+
+- `hergy projects add <directory>` lists a project in `config.yaml`'s `projects:`, so `hergy serve` shows its teams.
+- `hergy up` in a project that `projects:` leaves out says that `hergy serve` does not show it, with the command that lists it.
+
 ### Fixed
 
 - The teams screen no longer saves a new team definition whose member names a role or a profile that does not exist; the check and the save name the member.

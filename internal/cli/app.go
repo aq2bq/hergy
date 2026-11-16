@@ -180,6 +180,8 @@ func dispatch(ctx context.Context, env ops.Environment, opts *options.Options, s
 		return runValidate(env, stdout)
 	case options.Serve:
 		return runServe(ctx, env, opts, stdout, stderr)
+	case options.Projects:
+		return runProjects(env, opts, stdout)
 	case options.Up:
 		return runUp(ctx, env, opts, stdout, stderr)
 	case options.Down:
@@ -790,6 +792,16 @@ func runUp(ctx context.Context, env ops.Environment, opts *options.Options, stdo
 		return dryPlan(stdout, env, plan.Resolved, plan.Mode, plan.Members, opts, plan.Next)
 	}
 	return operationError(err)
+}
+
+// runProjects lists one directory's project in config.yaml and prints the entry.
+func runProjects(env ops.Environment, opts *options.Options, stdout io.Writer) error {
+	added, err := ops.AddProject(env, opts.Path)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintln(stdout, i18n.Tf("projects.added", added.Entry, added.Config))
+	return nil
 }
 
 func cliEvents(stdout, stderr io.Writer, env ops.Environment) func(ops.Event) {

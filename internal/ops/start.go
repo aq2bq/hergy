@@ -146,6 +146,7 @@ func StartTeam(ctx context.Context, in StartInput) (*Plan, error) {
 		}
 		note := recordReceivedLaunch(in.Env, r, launchlog.CommandUp, r.Starts, l, launchlog.Workspace{Label: label, ID: l.WorkspaceID()}, in.Now)
 		warning(in.Observe, note)
+		warning(in.Observe, unlistedProjectNote(in.Env))
 	}
 	return plan, err
 }

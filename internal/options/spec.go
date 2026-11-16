@@ -22,6 +22,7 @@ type Arg struct {
 	Name     Text // without the brackets: "definition"
 	Desc     Text
 	Optional bool  // written [name] rather than <name>
+	Word     bool  // typed as it is written, without brackets and without a row of its own in --help: projects add
 	Or       *Flag // a flag that stands in for it: refresh <member>|--all
 }
 
@@ -59,6 +60,9 @@ var (
 	descTeam     = words.Sentences("team.selection")
 	descHireTeam = words.Sentences("hire.team-selection")
 )
+
+// projectsAdd is the one word hergy projects takes before its directory.
+const projectsAdd = "add"
 
 // specs is every command, in the order the cheatsheet lists them.
 var specs = []Spec{
@@ -296,6 +300,14 @@ var specs = []Spec{
 			use(flagPort, words.Sentences("flag.port.serve")),
 			use(flagNoOpen, words.Sentences("flag.no-open.serve")),
 			use(flagDir, descDir),
+		},
+	},
+	{
+		Kind: Projects, Name: "projects",
+		Summary: words.Label("projects.summary"),
+		Args: []Arg{
+			{Name: Text{"en": projectsAdd, "ja": projectsAdd}, Word: true},
+			{Name: words.Label("argument.directory"), Desc: words.Label("argument.projects-directory")},
 		},
 	},
 	{

@@ -80,6 +80,9 @@ func TestCommandHelpListsExactlyTheFlags(t *testing.T) {
 				t.Errorf("[%s] hergy %s --help has no usage line %q", lang, s.Name, usageLine(s, lang))
 			}
 			for _, a := range s.Args {
+				if a.Word {
+					continue // typed as it stands: the usage line holds it
+				}
 				if !strings.Contains(long, "  <"+a.Name[lang]+">") && !strings.Contains(long, "  ["+a.Name[lang]+"]") {
 					t.Errorf("[%s] hergy %s --help does not list the argument %q", lang, s.Name, a.Name[lang])
 				}
@@ -375,5 +378,26 @@ func TestHasFindsOnlyTheCommandsOwnFlags(t *testing.T) {
 	}
 	if has(*other, own) {
 		t.Errorf("hergy %s: has() finds a flag it does not take", other.Name)
+	}
+}
+
+// TestAWordArgumentIsWrittenBare: hergy projects is typed with the word add, so
+// the usage line writes the word without brackets and --help gives it no row.
+func TestAWordArgumentIsWrittenBare(t *testing.T) {
+	useLanguage(t, "en")
+	if got, want := Synopsis(Projects, "en"), "hergy projects add <directory>"; got != want {
+		t.Errorf("the synopsis reads %q, want %q", got, want)
+	}
+	help := CommandHelp(Projects)
+	if !strings.Contains(help, "hergy projects add <directory> ") || strings.Contains(help, "\n  add ") {
+		t.Errorf("hergy projects --help:\n%s", help)
+	}
+	if got, err := Parse([]string{"projects", "add", "/x"}); err != nil || got.Path != "/x" {
+		t.Errorf("hergy projects add /x: %+v, %v", got, err)
+	}
+	for _, argv := range [][]string{{"projects"}, {"projects", "add"}, {"projects", "remove", "/x"}, {"projects", "add", "/x", "/y"}} {
+		if _, err := Parse(argv); err == nil {
+			t.Errorf("hergy %v is accepted", argv)
+		}
 	}
 }
