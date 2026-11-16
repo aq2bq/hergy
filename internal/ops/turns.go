@@ -223,11 +223,7 @@ func (w *turnWatcher) draw() {
 }
 
 func (w *turnWatcher) load() error {
-	run, err := readTurnRun(w.team)
-	if err != nil {
-		return err
-	}
-	st, err := loadTurnWithRoster(w.path, w.team.Observation(), turnRoster(w.graph, run), w.clock())
+	st, err := turns.Load(w.path, w.team.Observation())
 	if err != nil {
 		return err
 	}
@@ -270,12 +266,6 @@ func (w *turnWatcher) tick() {
 		fmt.Fprint(w.out, i18n.Tf("turns.read_error", err.Error()))
 		return
 	}
-	roster := turnRoster(w.graph, run)
-	changed := w.state.ForgetAbsent(roster, w.clock())
-	tells = slices.DeleteFunc(tells, func(t turns.Tell) bool {
-		return (t.From != "" && t.From != turns.Human && !roster(t.From)) || (t.To != turns.Human && !roster(t.To))
-	})
-	signals = slices.DeleteFunc(signals, func(s turns.Signal) bool { return !roster(s.Member) })
 	w.hirers, w.names = hirersIn(run)
 	// Retain recipients witnessed in worker tabs or named panes, even when
 	// their agents have ended. These are observations, not reconstructed inputs.
@@ -292,7 +282,7 @@ func (w *turnWatcher) tick() {
 		}
 	}
 	now := w.observe(teamAgents(tabs, agents, w.team.Observation()))
-	now = slices.DeleteFunc(now, func(a turns.Agent) bool { return !roster(a.Name) })
+	changed := w.state.ForgetAbsent(turnRoster(w.graph, run, now...), w.clock())
 	w.band.seen(now)
 	actions := turns.Step(w.state, turns.Input{
 		Team: domainname.RunningNames(w.team.Ref()), Graph: w.graph, Before: w.prev, Now: now, Wrote: w.wrote, At: w.clock(),

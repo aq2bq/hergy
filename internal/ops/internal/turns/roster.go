@@ -6,8 +6,7 @@ import (
 	"time"
 )
 
-// ForgetAbsent removes parties outside the definition's members and the run's
-// workers. The caller supplies that roster, independently of herdr's presence.
+// ForgetAbsent removes parties outside the roster supplied by the caller.
 // A missing holder cannot be asked, so its turn goes to the human.
 func (st *State) ForgetAbsent(roster func(string) bool, at time.Time) bool {
 	keep := func(name string) bool { return name == Human || roster(name) }

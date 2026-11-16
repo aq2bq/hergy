@@ -5,15 +5,13 @@ import (
 
 	"github.com/aq2bq/hergy/internal/definition"
 	domainname "github.com/aq2bq/hergy/internal/domain/name"
-	domainplace "github.com/aq2bq/hergy/internal/domain/place"
 	observedname "github.com/aq2bq/hergy/internal/ops/internal/name"
 	"github.com/aq2bq/hergy/internal/ops/internal/runningstate"
 	"github.com/aq2bq/hergy/internal/ops/internal/screenlog"
 	"github.com/aq2bq/hergy/internal/ops/internal/turns"
-	"github.com/aq2bq/hergy/internal/source"
 )
 
-func turnRoster(graph *definition.Graph, run runningstate.State) func(string) bool {
+func turnRoster(graph *definition.Graph, run runningstate.State, live ...turns.Agent) func(string) bool {
 	names := map[string]bool{}
 	if graph != nil {
 		for _, member := range graph.Members {
@@ -22,6 +20,9 @@ func turnRoster(graph *definition.Graph, run runningstate.State) func(string) bo
 	}
 	for _, worker := range run.Workers() {
 		names[domainname.ShortIn(observedname.Observe(worker.Name), run.Name().Observation()).String()] = true
+	}
+	for _, agent := range live {
+		names[agent.Name] = true
 	}
 	return func(name string) bool { return names[name] }
 }
@@ -48,15 +49,10 @@ func loadTurnWithRoster(path string, name domainname.Seen, roster func(string) b
 	return st, nil
 }
 
-// A broken definition must not prevent closing a worker. Without a readable
-// roster, only that worker is known absent; the other parties are preserved.
-func forgetStoppedWorker(in StopInput, worker *downWorker, run runningstate.State) error {
+// Closing a worker establishes only that worker's absence. The watcher owns
+// the complete roster; other parties may be live before their hire is recorded.
+func forgetStoppedWorker(in StopInput, worker *downWorker) error {
 	roster := func(name string) bool { return name != worker.Short.String() }
-	launch := run.Launch()
-	cat := catalogOfRun(in.Env.Catalog(source.Disk{}), launch)
-	if def, err := cat.Definition(launch.Definition.String(), launch.Layer.String()); err == nil && def.TeamYAML.Project().Compare(launch.TeamYAML) == domainplace.Same {
-		roster = turnRoster(def.Graph, run)
-	}
 	dir, err := screenlog.DefaultDir()
 	if err != nil {
 		return err
