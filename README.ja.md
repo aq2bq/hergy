@@ -94,9 +94,8 @@ profiles:
 - ターンを持っているメンバーの表示（`hergy turn`）
 - メンバーどうしのやりとりの定型化と記録（`hergy pass`、`hergy log`）
 - 決まりの一覧と、外して比べる仕組み（`hergy rules`）
-- 人間への質問の受け取り、ロール名での指示（`hergy ask`、`hergy tell`）
-- 設定の検査（`hergy validate`）
-- 設定の昇格・移行（`hergy promote`、`migrate`）
+- 人間への質問の受け取り（`hergy ask`）
+- 設定の昇格（`hergy promote`）
 - チームの入れ子、TUI
 
 ## 変更を送るとき

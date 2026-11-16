@@ -94,9 +94,8 @@ profiles:
 - Show which member holds the turn (`hergy turn`)
 - A fixed shape and a record for messages between members (`hergy pass`, `hergy log`)
 - List the rules, and take one out to compare (`hergy rules`)
-- Receive questions for the human, give instructions by role name (`hergy ask`, `hergy tell`)
-- Validate the settings (`hergy validate`)
-- Promote and migrate settings (`hergy promote`, `migrate`)
+- Receive questions for the human (`hergy ask`)
+- Promote settings (`hergy promote`)
 - Nested teams, a TUI
 
 ## Contributing
