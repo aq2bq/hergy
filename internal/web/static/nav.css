@@ -183,7 +183,7 @@ button.chev.disclosure[aria-expanded="true"]::before { transform:rotate(45deg); 
 .edit-actions .acts { display: flex; flex-wrap: wrap; gap: 8px; }
 .page-title { font-size: 20px; }
 @media (1100px < width <= 1600px) {
- .bar { grid-template-columns: auto auto minmax(0, 1fr) auto; }
+ .bar { grid-template-columns: auto auto minmax(min-content, 1fr) auto; }
  .bar .crumb .hq-pbtn { white-space: normal; text-wrap: balance; align-items: center; padding-inline: 6px; }
  .bar .scr { padding-inline: 6px; gap: 4px; font-size: 13px; }
  .bar .search-toggle { display: block; grid-area: 1 / 3; justify-self: end; }
