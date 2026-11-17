@@ -91,7 +91,6 @@ export function List() {
   const body = placeGroups().map((g) => {
     const rows = groupRecs(g.key);
     return <>{PlaceHead({ g })}{rows.map((r) => <Row key={r.key.value} r={r} />)}
-      {rowsInGroup(g.key) === 0 ? <div class="hq-empty"><span class="none">{g.name}{` には${term('team-definition')}がありません。`}</span></div> : null}
     </>;
   });
   return <>{missingOpen.value.length ? <p role="status">{`${term('team-definition')} `}{missingOpen.value.join('、')} が見つかりません。<a href="/teams">一覧を見る</a></p> : null}<div class="list hq-grouped">{head}{body}</div></>;

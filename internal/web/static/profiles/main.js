@@ -1909,17 +1909,7 @@ function List() {
                     GroupHead({ group: g }),
                     list.map((row) => /* @__PURE__ */ u(Row, {
                       row
-                    }, row.key)),
-                    list.length === 0 && rows.value.length === 0 ? /* @__PURE__ */ u("div", {
-                      class: "hq-empty",
-                      children: /* @__PURE__ */ u("span", {
-                        class: "none",
-                        children: [
-                          g.name,
-                          ` には${term("profile")}がありません。`
-                        ]
-                      })
-                    }) : null
+                    }, row.key))
                   ]
                 });
               })

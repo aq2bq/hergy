@@ -76,7 +76,7 @@ html { scrollbar-gutter: stable; }
 .crumb .mark:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .crumb .sep { color: var(--faint); }
 .screens {
-  display: flex; border: 1px solid var(--line); border-radius: 5px; overflow: hidden;
+  display: flex; border: 1px solid var(--line); border-radius: 4px; overflow: hidden;
   background: var(--surface);
 }
 .scr {
@@ -96,7 +96,7 @@ html { scrollbar-gutter: stable; }
   background: repeating-linear-gradient(135deg, var(--surface) 0 7px, var(--hatch) 7px 8px);
 }
 .scr.soon:hover { color: var(--faint); }
-.scr .wait { font-size: 12px; line-height: 1.5; padding: 0 6px; border-radius: 3px; background: var(--warn); color: var(--on-warn); font-weight: 500; }
+.scr .wait { font-size: 12px; line-height: 1.5; padding: 0 6px; border-radius: 4px; background: var(--warn); color: var(--on-warn); font-weight: 500; }
 .scr .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--changed); flex: none; align-self: center; }
 .scr.on .dot { background: var(--accent-soft); }
 
@@ -137,12 +137,12 @@ button.chev.disclosure[aria-expanded="true"]::before { transform:rotate(45deg); 
 .theme-control { position: absolute; top: 40px; right: 0; z-index: 10; }
 .theme-control button { font: inherit; cursor: pointer; color: var(--ink); }
 .theme-control svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; flex: none; }
-.theme-trigger { display: grid; place-items: center; width: 34px; height: 34px; padding: 0; border: 1px solid var(--line); border-radius: 5px; background: var(--surface); }
+.theme-trigger { display: grid; place-items: center; width: 34px; height: 34px; padding: 0; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); }
 .theme-trigger:disabled { opacity: .4; cursor: default; }
 .theme-trigger svg { display: none; }
 .theme-trigger[data-mode="light"] [data-icon="light"], .theme-trigger[data-mode="dark"] [data-icon="dark"], .theme-trigger[data-mode="system"] [data-icon="system"] { display: block; }
 .theme-panel { position: absolute; top: 42px; right: 0; width: 220px; max-width: calc(100vw - 32px); box-sizing: border-box; padding: 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); box-shadow: 0 6px 18px #0002; }
-.theme-panel [role="menuitemradio"] { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 36px; padding: 6px 10px; border: 0; border-radius: 3px; background: transparent; text-align: left; font-size: 13px; }
+.theme-panel [role="menuitemradio"] { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 36px; padding: 6px 10px; border: 0; border-radius: 4px; background: transparent; text-align: left; font-size: 13px; }
 .theme-panel [aria-checked="true"] { color: var(--accent); background: var(--accent-soft); }
 .theme-check { margin-left: auto; visibility: hidden; }
 .theme-panel [aria-checked="true"] .theme-check { visibility: visible; }
@@ -183,8 +183,8 @@ button.chev.disclosure[aria-expanded="true"]::before { transform:rotate(45deg); 
 .edit-actions .acts { display: flex; flex-wrap: wrap; gap: 8px; }
 .page-title { font-size: 20px; }
 @media (1100px < width <= 1600px) {
- .bar { grid-template-columns: auto auto minmax(0, 1fr) auto; }
- .bar .crumb .hq-pbtn { max-width: 104px; white-space: normal; padding-inline: 6px; }
+ .bar { grid-template-columns: auto auto minmax(min-content, 1fr) auto; }
+ .bar .crumb .hq-pbtn { white-space: normal; text-wrap: balance; align-items: center; padding-inline: 6px; }
  .bar .scr { padding-inline: 6px; gap: 4px; font-size: 13px; }
  .bar .search-toggle { display: block; grid-area: 1 / 3; justify-self: end; }
  .bar .hq-search { display: none; grid-area: 2 / 1 / 3 / -1; }
@@ -215,7 +215,7 @@ button.chev.disclosure[aria-expanded="true"]::before { transform:rotate(45deg); 
    ダイアログで確かめる。「やめる」に最初のフォーカスを置き、Esc でも閉じる。 */
 .confirm { border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); width: min(560px, 90vw); padding: 20px 22px; }
 .confirm::backdrop { background: rgb(0 0 0 / .45); }
-.confirm h2 { margin: 0 0 10px; font: 600 16px var(--f-body); }
+.confirm h2 { margin: 0 0 10px; font: 500 16px var(--f-body); }
 .confirm-body { font-size: 13px; line-height: 1.7; }
 .confirm-body p { margin: 6px 0; }
 .confirm-body dl { margin: 6px 0; }

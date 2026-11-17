@@ -38,7 +38,7 @@ function Waiting({ team: t }: { team: ActivityTeam }): JSX.Element | null {
       <code>{m.herdr || (t.name + '-' + m.name)}</code>
       <span class="hq-question">{q}</span>
       <span class="hq-where">{whereText(t, m)}</span>
-      <button type="button" class="hq-btn primary" disabled={!!pending} aria-busy={pending === m.herdr} onClick={() => focus(m)}>{pending === m.herdr ? '移動中…' : moved === m.herdr ? 'herdr で移動しました' : 'herdr でペインへ移動'}</button>
+      <button type="button" class="hq-btn" disabled={!!pending} aria-busy={pending === m.herdr} onClick={() => focus(m)}>{pending === m.herdr ? '移動中…' : moved === m.herdr ? 'herdr で移動しました' : 'herdr でペインへ移動'}</button>
     </div>;
   })}{error ? <p role="alert" class="hq-err">{error}</p> : null}</div>;
 }

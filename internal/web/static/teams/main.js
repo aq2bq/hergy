@@ -5193,17 +5193,7 @@ function List() {
         PlaceHead({ g }),
         rows.map((r) => /* @__PURE__ */ u(Row, {
           r
-        }, r.key.value)),
-        rowsInGroup(g.key) === 0 ? /* @__PURE__ */ u("div", {
-          class: "hq-empty",
-          children: /* @__PURE__ */ u("span", {
-            class: "none",
-            children: [
-              g.name,
-              ` には${term("team-definition")}がありません。`
-            ]
-          })
-        }) : null
+        }, r.key.value))
       ]
     });
   });

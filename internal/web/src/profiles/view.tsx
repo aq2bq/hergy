@@ -366,7 +366,6 @@ export function List() {
             {placeGroups().map((g) => {
               const list = visible.filter((row) => (row.group || '') === g.key);
               return <>{GroupHead({ group: g })}{list.map((row) => <Row key={row.key} row={row} />)}
-                {list.length === 0 && rows.value.length === 0 ? <div class="hq-empty"><span class="none">{g.name}{` には${term('profile')}がありません。`}</span></div> : null}
               </>;
             })}
           </div>

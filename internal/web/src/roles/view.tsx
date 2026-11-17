@@ -66,7 +66,6 @@ function rowsHTML() {
   return roleGroups().map((g) => {
     const rows = shown.filter((r) => groupOfRow(r) === g.key);
     return <>{groupHeader(g)}{rows.map((r) => <Role key={r.uid} r={r} />)}
-      {rows.length === 0 && !filtering() && !state.value.q ? <div class="hq-empty"><span class="none">{g.name}{` には${term('role')}がありません。`}</span></div> : null}
     </>;
   });
 }
