@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Added
+
+- The web screens show a hergy icon in the browser tab.
+
 ### Changed
 
 - The activity screen shows waiting members and pane actions in each team card, removes the single list tab and turn selector, and draws all team-definition turns.

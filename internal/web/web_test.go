@@ -389,3 +389,25 @@ func TestTheBandKeyBelongsToItsProject(t *testing.T) {
 		t.Errorf("the band's key is %q, want 12 hex digits", here)
 	}
 }
+
+// Every screen names the same icon, and the icon is served as an SVG image.
+func TestEveryScreenLinksTheFavicon(t *testing.T) {
+	f := newFixture(t)
+	server, err := New(f.catalog(), fakeActivity{list: ActivityList{Herdr: ActivityNote{OK: true}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	const link = `<link rel="icon" type="image/svg+xml" href="/static/favicon.svg">`
+	for _, screen := range []string{"/activity", "/teams", "/roles", "/profiles"} {
+		if _, body := f.get(t, server, screen); !strings.Contains(body, link) {
+			t.Errorf("%s does not hold %s", screen, link)
+		}
+	}
+	resp, icon := f.get(t, server, "/static/favicon.svg")
+	if resp.StatusCode != http.StatusOK || !strings.HasPrefix(resp.Header.Get("Content-Type"), "image/svg+xml") {
+		t.Errorf("the icon answers %d %s", resp.StatusCode, resp.Header.Get("Content-Type"))
+	}
+	if !strings.Contains(icon, "prefers-color-scheme: dark") {
+		t.Errorf("the icon has no dark colours:\n%s", icon)
+	}
+}

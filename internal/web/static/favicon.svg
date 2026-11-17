@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-8 40 54 54" fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="4">
+<style>
+.robot { stroke: #1f1d1a; }
+.antenna { stroke: #c3482b; fill: #c3482b; }
+@media (prefers-color-scheme: dark) {
+  .robot { stroke: #ece8df; }
+  .antenna { stroke: #f38d70; fill: #f38d70; }
+}
+</style>
+<path class="robot" d="M3 68 C3 61 6 59 12 59 L27 58 C33 58 35 61 35 67 L35 84 C35 90 32 92 26 92 L11 92 C5 92 3 89 3 82 L3 72 M19 58 L19 49 M12 70 L12 75 M26 69 L26 74 M12 83 C16 86 22 86 27 82 M3 74 L-2 74 L-2 79 M35 73 L40 73 L40 78"/>
+<path class="antenna" d="M16 45 C16 42 22 42 22 45 C22 48 16 48 16 45"/>
+</svg>
