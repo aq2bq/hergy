@@ -1343,17 +1343,7 @@ function rowsHTML() {
         groupHeader(g),
         rows.map((r) => /* @__PURE__ */ u(Role, {
           r
-        }, r.uid)),
-        rows.length === 0 && !filtering() && !state.value.q ? /* @__PURE__ */ u("div", {
-          class: "hq-empty",
-          children: /* @__PURE__ */ u("span", {
-            class: "none",
-            children: [
-              g.name,
-              ` には${term("role")}がありません。`
-            ]
-          })
-        }) : null
+        }, r.uid))
       ]
     });
   });

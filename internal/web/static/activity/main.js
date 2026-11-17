@@ -251,7 +251,7 @@ function Waiting({ team: t }) {
             }),
             /* @__PURE__ */ u("button", {
               type: "button",
-              class: "hq-btn primary",
+              class: "hq-btn",
               disabled: !!pending,
               "aria-busy": pending === m.herdr,
               onClick: () => focus(m),

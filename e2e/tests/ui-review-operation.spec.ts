@@ -13,7 +13,7 @@ test('moving to a pane announces progress while waiting and says it was done', a
     await route.fulfill({ json: { ok: true } });
   });
   await page.goto(app.base + '/activity'); await ready(page);
-  const button = page.locator('.hq-tile[data-team="migrate"] .hq-wait .hq-btn.primary');
+  const button = page.locator('.hq-tile[data-team="migrate"] .hq-wait .hq-btn');
   await expect(button).toHaveText('herdr でペインへ移動');
   await button.click();
   await expect(button).toHaveText('移動中…');
@@ -27,7 +27,7 @@ test('moving to a pane announces progress while waiting and says it was done', a
 test('missing herdr executable gives an actionable error without exec details', async ({ page, app }) => {
   await page.goto(app.base + '/activity'); await ready(page);
   rmSync(path.join(app.work, 'bin', 'herdr'));
-  await page.locator('.hq-tile[data-team="migrate"] .hq-wait .hq-btn.primary').click();
+  await page.locator('.hq-tile[data-team="migrate"] .hq-wait .hq-btn').click();
   await expect(page.getByRole('alert')).toContainText('herdrのインストール');
   await expect(page.getByRole('alert')).not.toContainText('fork/exec');
 });
@@ -57,7 +57,7 @@ test('390px activity controls fit the viewport', async ({ page, app }, testInfo)
     const style = getComputedStyle(el);
     return el.scrollHeight > el.clientHeight && el.clientHeight <= parseFloat(style.maxHeight) && style.overflowY === 'auto';
   })).toBe(true);
-  const reply = card.locator('.hq-wait .hq-btn.primary');
+  const reply = card.locator('.hq-wait .hq-btn');
   await reply.scrollIntoViewIfNeeded();
   await expect(reply).toBeInViewport();
   await reply.click();

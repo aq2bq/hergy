@@ -7,7 +7,7 @@
 .hq-pbtn {
   display: inline-flex; align-items: baseline; gap: 6px;
   border: 1px solid var(--line); background: var(--surface); color: var(--ink);
-  border-radius: 5px; padding: 4px 10px; min-height: 30px; cursor: pointer;
+  border-radius: 4px; padding: 4px 10px; min-height: 30px; cursor: pointer;
   font: 500 13px var(--f-body); white-space: nowrap;
 }
 .hq-pbtn b { font-family: var(--f-mono); font-weight: 600; font-variant-numeric: tabular-nums; }
@@ -39,7 +39,7 @@
 .hq-sec > .hq-lbl { font-size: 12px; color: var(--muted); letter-spacing: .04em; }
 .hq-li {
   display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px; align-items: center;
-  padding: 8px 10px; border: 1px solid var(--line); border-radius: 5px; background: var(--bg);
+  padding: 8px 10px; border: 1px solid var(--line); border-radius: 4px; background: var(--bg);
 }
 .hq-li .hq-pn { font-family: var(--f-mono); font-weight: 600; font-size: 14px; }
 .hq-li .hq-pp { font-family: var(--f-mono); font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
@@ -59,7 +59,7 @@
 .hq-btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
   border: 1px solid var(--line); background: var(--surface); color: var(--ink);
-  border-radius: 4px; padding: 5px 12px; font: 500 13px var(--f-body); cursor: pointer; white-space: nowrap;
+  border-radius: 4px; padding: 4px 12px; font: 500 13px var(--f-body); cursor: pointer; white-space: nowrap;
   text-decoration: none;
 }
 .hq-btn:hover { border-color: var(--muted); }
@@ -68,16 +68,16 @@
 .hq-btn.danger { color: var(--danger); }
 .hq-btn.danger:hover { border-color: var(--danger); }
 .hq-btn.danger.solid { background: var(--danger); border-color: var(--danger); color: var(--danger-ink, var(--bg)); }
-.hq-btn.sm { padding: 2px 9px; font-size: 13px; }
+.hq-btn.sm { padding: 2px 8px; font-size: 13px; }
 .hq-btn:disabled { opacity: .5; cursor: default; }
 
 /* ワークスペースの選択 */
-.hq-ws { display: grid; gap: 5px; }
+.hq-ws { display: grid; gap: 4px; }
 .hq-wo {
   display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 1px 8px; align-items: start;
-  padding: 7px 10px; border: 1px solid var(--line); border-radius: 5px; background: var(--bg); cursor: pointer;
+  padding: 8px 10px; border: 1px solid var(--line); border-radius: 4px; background: var(--bg); cursor: pointer;
 }
-.hq-wo input { margin-top: 3px; }
+.hq-wo input { margin-top: 4px; }
 .hq-wo .hq-wn { font-family: var(--f-mono); font-weight: 600; font-size: 13px; }
 .hq-wo .hq-wd { grid-column: 2; font-size: 12px; color: var(--muted); }
 .hq-wo.no { cursor: default; opacity: .6; }
@@ -94,20 +94,20 @@
 .hq-err { color: var(--danger); font-size: 13px; margin: 0; }
 
 /* 起動の進み */
-.hq-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; font-size: 13px; }
+.hq-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 13px; }
 .hq-steps li { display: grid; grid-template-columns: 1.1rem minmax(0, 1fr); gap: 6px; }
 .hq-steps li > span { min-width: 0; overflow-wrap: anywhere; }
 .hq-steps li::before { content: "·"; color: var(--faint); text-align: center; }
 .hq-steps li.done::before { content: "✓"; color: var(--ok); }
 .hq-steps li.now::before { content: "…"; color: var(--accent); }
 .hq-wait {
-  border: 1px solid var(--warn); background: var(--sunk); border-radius: 5px;
+  border: 1px solid var(--warn); background: var(--sunk); border-radius: 4px;
   padding: 10px 12px; display: grid; gap: 6px;
 }
 .hq-wait .hq-wh { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
 .hq-wait p { margin: 0; }
 .hq-where { font-family: var(--f-mono); font-size: 13px; }
-.hq-ok { color: var(--ink); font-weight: 600; margin: 0; }
+.hq-ok { color: var(--ink); font-weight: 500; margin: 0; }
 
 /* ---- 一覧の組（プロジェクトごと） ---------------------------------------- */
 .hq-gh {
@@ -118,10 +118,10 @@
 .hq-gh .hq-gp { font-family: var(--f-mono); font-size: 12px; color: var(--muted); }
 .hq-gh .hq-gc { font-size: 12px; color: var(--muted); }
 .hq-gh .hq-gc b { font-family: var(--f-mono); font-weight: 600; color: var(--ink); }
-.hq-gh.global .hq-gn { font-family: var(--f-body); font-weight: 700; }
+.hq-gh.global .hq-gn { font-family: var(--f-body); font-weight: 500; }
 /* 一覧の見出しに置く、その置き場所に足すボタン（r-410c）。 */
-.hq-gh .hq-add { margin-left: auto; }
-.hq-empty { padding: 10px 10px 12px 34px; border-bottom: 1px solid var(--line); }
+.hq-gh .hq-add { margin-left: auto; border-color: transparent; background: transparent; color: var(--muted); }
+.hq-gh .hq-add:hover, .hq-gh .hq-add:focus-visible { border-color: var(--muted); color: var(--ink); }
 .hq-hide { display: none !important; }
 
 .pill.hq-ov { border: 1px dashed var(--muted); color: var(--muted); text-decoration: none; background: none; }
@@ -140,7 +140,7 @@
   .hq-teams .list .sum > .hq-runc { grid-column: 2 / -1; }
 }
 .hq-runc { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; }
-.hq-on { font-size: 12px; line-height: 1.5; padding: 0 7px; border-radius: 3px; background: var(--accent-soft); color: var(--ink); white-space: nowrap; font-weight: 500; }
+.hq-on { font-size: 12px; line-height: 1.5; padding: 0 8px; border-radius: 4px; background: var(--accent-soft); color: var(--ink); white-space: nowrap; font-weight: 500; }
 .hq-on.wait { background: var(--warn); color: var(--on-warn); }
 .hq-wsn { font-family: var(--f-mono); font-size: 12px; color: var(--muted); white-space: nowrap; }
 .hq-tn { font-family: var(--f-mono); font-size: 12px; color: var(--ink); white-space: nowrap; }
@@ -160,7 +160,7 @@
 
 .hq-board { display: grid; gap: 18px; padding-top: 16px; }
 .hq-waiting { display: grid; gap: 8px; padding: 8px 14px; }
-.hq-wait { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; padding: 10px; border: 1px solid var(--warn); border-radius: 6px; }
+.hq-wait { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; padding: 10px; border: 1px solid var(--line); border-radius: 6px; }
 .hq-wait > .hq-btn { justify-self: start; }
 .hq-wait > code { font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
 .hq-question { font-size: 13px; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 18rem; overflow: auto; }
@@ -171,9 +171,6 @@
 .hq-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 25rem), 1fr)); gap: 14px; align-items: start; }
 .hq-tile { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; display: grid; overflow: hidden; }
 .hq-tile.sel { border-color: var(--ink); box-shadow: 0 0 0 1px var(--ink); }
-.hq-tile.answer, .hq-tile.turn { border-top: 3px solid var(--warn); }
-.hq-tile.stalled { border-top: 3px solid var(--ink); }
-.hq-tile.working { border-top: 3px solid var(--accent); }
 .hq-th {
   display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "tn st" "pw tl"; gap: 2px 10px; align-items: baseline;
   border: 0; background: none; color: var(--ink); font: inherit; text-align: left; cursor: pointer; padding: 10px 14px 4px;
@@ -187,10 +184,10 @@
 .hq-fig { width: min(100%, 440px); margin-inline: auto; }
 .hq-turn { margin: 0 14px 6px; font-size: 12px; color: var(--muted); }
 .hq-why { margin: 0 14px 6px; font-size: 13px; color: var(--ink); background: var(--sunk); border-radius: 4px; padding: 6px 8px; }
-.hq-tc { display: grid; gap: 5px; font-size: 12px; color: var(--muted); padding: 6px 14px 10px; border-top: 1px solid var(--line); }
+.hq-tc { display: grid; gap: 4px; font-size: 12px; color: var(--muted); padding: 6px 14px 10px; border-top: 1px solid var(--line); }
 .hq-tgroup { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; }
 .hq-tgroup b { color: var(--ink); white-space: nowrap; }
-.hq-tgroup span { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.hq-tgroup span { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 .hq-tactions { display: flex; flex-wrap: wrap; gap: 6px 8px; padding: 8px 14px 12px; border-top: 1px solid var(--line); }
 
 /* 図の中 */
@@ -202,7 +199,7 @@
 .hq-svg .hq-n text.left { text-anchor: start; }
 .hq-svg .hq-n text.s { font-size: 12px; fill: var(--muted); }
 .hq-svg .human rect { fill: var(--ink); }
-.hq-svg .human text { fill: var(--bg); font-family: var(--f-body); font-size: 12px; font-weight: 700; }
+.hq-svg .human text { fill: var(--bg); font-family: var(--f-body); font-size: 12px; font-weight: 500; }
 .hq-svg .dot { stroke-width: 2; }
 .hq-svg .ring { fill: none; stroke: none; }
 .hq-svg .active .dot { fill: var(--accent); stroke: var(--accent); }
@@ -214,7 +211,7 @@
 .hq-svg .absent .dot { fill: none; stroke: var(--faint); stroke-dasharray: 3 3; }
 .hq-svg .blocked .dot, .hq-svg .handed .dot { fill: var(--warn); stroke: var(--warn); }
 .hq-svg .blocked .ring { stroke: var(--warn); stroke-width: 2; opacity: .7; }
-.hq-svg .bang { fill: var(--on-warn) !important; font-weight: 700; font-family: var(--f-body) !important; }
+.hq-svg .bang { fill: var(--on-warn) !important; font-weight: 500; font-family: var(--f-body) !important; }
 .hq-svg .wkr.active .dot { fill: var(--accent); stroke: var(--accent); opacity: .75; }
 .hq-svg .wkr.idle .dot { fill: var(--surface); stroke: var(--faint); }
 .hq-svg .wkr.blocked .dot { fill: var(--warn); stroke: var(--warn); }
@@ -232,13 +229,13 @@
 /* ---- 帯の探す欄 ---------------------------------------------------------- */
 .hq-search {
   display: inline-flex; align-items: center; gap: 8px; min-height: 34px;
-  border: 1px solid var(--line); background: var(--surface); border-radius: 5px; padding: 0 8px 0 10px;
+  border: 1px solid var(--line); background: var(--surface); border-radius: 4px; padding: 0 8px 0 10px;
   width: min(22rem, 100%);
 }
 .hq-search:focus-within { border-color: var(--accent); outline: 2px solid var(--accent-soft); }
 .hq-search .hq-sk { font-size: 13px; color: var(--muted); white-space: nowrap; }
 .hq-search input { border: 0; background: none; color: var(--ink); font: 13px var(--f-body); min-width: 0; flex: 1; padding: 4px 0; outline: none; }
-.hq-search kbd { font: 12px var(--f-mono); color: var(--faint); border: 1px solid var(--line); border-radius: 3px; padding: 0 5px; }
+.hq-search kbd { font: 12px var(--f-mono); color: var(--faint); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
 .hq-sr {
   position: fixed; z-index: 32; top: calc(var(--stick, 62px) + 2px);
   left: max(16px, env(safe-area-inset-left, 0px)); right: max(16px, env(safe-area-inset-right, 0px));

@@ -12,12 +12,12 @@ input[data-f]:focus, textarea[data-f]:focus { outline: 2px solid var(--accent-so
   display: grid; grid-template-rows: auto minmax(0, 1fr); max-height: calc(100vh - 92px);
   border: 1px solid var(--line); border-radius: 4px; background: var(--bg); overflow: hidden;
 }
-.yph { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 5px 10px; border-bottom: 1px solid var(--line); background: var(--sunk); font-size: 12px; color: var(--muted); min-height: 24px; }
+.yph { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 4px 10px; border-bottom: 1px solid var(--line); background: var(--sunk); font-size: 12px; color: var(--muted); min-height: 24px; }
 .yph .vt { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
 .yph .dirty { font-family: var(--f-mono); }
 .yph .yr { margin-left: auto; display: inline-flex; }
 .yinfo { display: contents; }
-.pkl { font-size: 12px; font-weight: 700; color: var(--ink); }
+.pkl { font-size: 12px; font-weight: 500; color: var(--ink); }
 .ybox { position: relative; overflow: auto; overscroll-behavior: contain; padding: 0 0 6px; font: 13px/20px var(--f-mono); }
 .yl { display: grid; grid-template-columns: 3.2rem minmax(0, 1fr); }
 .yl .lno {
@@ -50,9 +50,9 @@ input[data-f]:focus, textarea[data-f]:focus { outline: 2px solid var(--accent-so
 .prose-column .vm:empty { display: none; }
 .prose-editor { display: flex; flex-direction: column; min-width: 0; min-height: 0; flex: 1; }
 .prose-head { flex: none; min-width: 0; }
-.prose-head h2 { display: flex; align-items: center; gap: 8px; font: 600 16px var(--f-body); margin: 0; height: 22px; }
+.prose-head h2 { display: flex; align-items: center; gap: 8px; font: 500 16px var(--f-body); margin: 0; height: 22px; }
 .prose-head h2 > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.prose-kind { flex: none; font-size: 12px; color: var(--muted); padding: 2px 5px; border: 1px solid var(--line); border-radius: 4px; }
+.prose-kind { flex: none; font-size: 12px; color: var(--muted); padding: 2px 4px; border: 1px solid var(--line); border-radius: 4px; }
 .prose-head .prose-title, .prose-head .path, .prose-readers { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin: 0; height: 18px; line-height: 18px; }
 .prose-title { font-size: 13px; }
 .prose-head .path, .prose-readers, .prose-detail { color: var(--muted); font-size: 12px; }
@@ -132,7 +132,7 @@ input[data-f]:focus, textarea[data-f]:focus { outline: 2px solid var(--accent-so
 .prose-transfer p { margin: 10px 0; font-size: 13px; }
 .prose-transfer fieldset { display: grid; grid-template-columns: 1fr 2fr 2fr; gap: 12px; margin: 0; }
 .prose-transfer fieldset label { display: flex; flex-direction: column; align-items: stretch; gap: 6px; min-width: 0; font-size: 12px; }
-.prose-transfer select { width: 100%; min-width: 0; max-width: 100%; padding: 7px; border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: var(--ink); font: 13px var(--f-body); }
+.prose-transfer select { width: 100%; min-width: 0; max-width: 100%; padding: 8px; border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: var(--ink); font: 13px var(--f-body); }
 .prose-transfer fieldset .transfer-children { grid-column: 1 / -1; flex-direction: row; align-items: center; }
 .prose-transfer input[type="checkbox"] { accent-color: var(--accent); }
 .prose-transfer pre { position: relative; margin: 8px 0 0; max-height: 24vh; font: 12px/1.7 var(--f-body); }
@@ -162,12 +162,12 @@ input[data-f]:focus, textarea[data-f]:focus { outline: 2px solid var(--accent-so
 .prose-drag-hint { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .prose-wheel-hint { color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .prose-scope { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; white-space: nowrap; }
-.scope-place { padding: 1px 4px; border-radius: 3px; background: var(--bg); }
+.scope-place { padding: 1px 4px; border-radius: 4px; background: var(--bg); }
 .prose-column .prose-head:not(:has(.prose-other-teams)) .prose-budget { margin-top: 20px; }
 
 /* Selected documents stay mounted. Their content and save targets never follow selection. */
 .prose-documents { display: flex; flex-wrap: wrap; align-items: stretch; gap: 8px; padding-block: 8px 12px; }
-.prose-choice { display: flex; flex-direction: column; max-width: 100%; border: 1px solid var(--line); border-radius: 5px; background: var(--surface); }
+.prose-choice { display: flex; flex-direction: column; max-width: 100%; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); }
 .prose-choice.on { border-color: var(--accent); }
 .prose-choice .btn { border: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; text-align: left; white-space: normal; }
 .prose-choice small, .prose-choice label { font-size: 12px; color: var(--muted); }
