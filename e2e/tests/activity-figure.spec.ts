@@ -3,22 +3,22 @@
 import { test, expect } from './fixtures';
 
 const members = [
-  { name: 'lead', herdr: 'large-lead', state: 'active', at: '', doing: '設計を読む' },
-  { name: 'webui-design', herdr: 'large-webui-design', state: 'idle', at: '' },
-  { name: 'long-reviewer', herdr: 'large-long-reviewer', state: 'blocked', at: '' },
-  { name: 'qa', herdr: 'large-qa', state: 'absent', at: '' },
+  { name: 'lead', herdr: 'large-lead', state: 'working', at: null, doing: '設計を読む' },
+  { name: 'webui-design', herdr: 'large-webui-design', state: 'idle', at: null },
+  { name: 'long-reviewer', herdr: 'large-long-reviewer', state: 'waiting-for-permission', at: null },
+  { name: 'qa', herdr: 'large-qa', state: 'not-running', at: null },
 ];
 const workers = [
-  { name: 'impl-b', from: 'lead', state: 'active' },
-  { name: 'impl-a', from: 'lead', state: 'active' },
-  { name: 'inv-b', from: 'webui-design', state: 'active' },
+  { name: 'impl-b', from: 'lead', state: 'working' },
+  { name: 'impl-a', from: 'lead', state: 'working' },
+  { name: 'inv-b', from: 'webui-design', state: 'working' },
   { name: 'template-image', from: 'webui-design', state: 'idle' },
-  { name: 'html-mail', from: 'long-reviewer', state: 'active' },
-  { name: 'listing', from: 'long-reviewer', state: 'active' },
-  { name: 'rules-audit', from: 'lead', state: 'active' },
+  { name: 'html-mail', from: 'long-reviewer', state: 'working' },
+  { name: 'listing', from: 'long-reviewer', state: 'working' },
+  { name: 'rules-audit', from: 'lead', state: 'working' },
   { name: 'api-contracts', from: 'lead', state: 'idle' },
-  { name: 'prompt-review', from: 'webui-design', state: 'active' },
-  { name: 'visual-regression', from: 'lead', state: 'active' },
+  { name: 'prompt-review', from: 'webui-design', state: 'working' },
+  { name: 'visual-regression', from: 'lead', state: 'working' },
 ];
 const turns = [['human', 'lead'], ['lead', 'webui-design'], ['webui-design', 'long-reviewer'], ['qa', 'lead']];
 

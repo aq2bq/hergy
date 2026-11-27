@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aq2bq/hergy/internal/i18n"
+
 	"github.com/aq2bq/hergy/internal/ops/internal/protocol"
 )
 
@@ -111,7 +113,7 @@ func TestConfirmShownPrompt(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			pauses := 0
-			err := New(&tc.port).ConfirmShownPrompt(fixtureSeen("demo-dev"), tc.prompt, func(time.Duration) error {
+			err := New(&tc.port).ConfirmShownPrompt(fixtureSeen("demo-dev"), i18n.AgentText(tc.prompt), func(time.Duration) error {
 				pauses++
 				return nil
 			})

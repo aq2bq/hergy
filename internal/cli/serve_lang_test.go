@@ -9,18 +9,21 @@ import (
 	"github.com/aq2bq/hergy/internal/i18n"
 )
 
-// TestServeMakesTheWebUIJapaneseWhateverLangSays: the screens are written in
-// Japanese, so serve makes their pages in Japanese even when --lang says en, and
-// the command line's language comes back when serve stops (r-85b3).
-func TestServeMakesTheWebUIJapaneseWhateverLangSays(t *testing.T) {
+// TestServeKeepsTheHandedLanguageAndAnswersInEnglish is d-8e53: serve no
+// longer picks a language of its own. The screens' pages keep their Japanese
+// labels, the sentences the server answers them with are English, and the
+// language chosen for the text handed to agents is the one the settings chose.
+func TestServeKeepsTheHandedLanguageAndAnswersInEnglish(t *testing.T) {
 	f := newFixture(t)
 	initLocales(t)
-	if err := i18n.Use("en"); err != nil {
+	if err := i18n.Use("ja"); err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() { _ = i18n.Use(i18n.Fallback) })
 	url, stop := startServe(t, f)
-	if got := i18n.Language(); got != screenLanguage {
-		t.Errorf("serve runs the screens in %q, want %q", got, screenLanguage)
+	defer stop()
+	if got := i18n.HandedLanguage(); got != "ja" {
+		t.Errorf("serve changed the handed language to %q, want ja", got)
 	}
 	resp, err := http.Get(url + "/teams")
 	if err != nil {
@@ -29,10 +32,9 @@ func TestServeMakesTheWebUIJapaneseWhateverLangSays(t *testing.T) {
 	body, _ := io.ReadAll(resp.Body)
 	_ = resp.Body.Close()
 	if !strings.Contains(string(body), "チーム定義") {
-		t.Errorf("the teams page is not Japanese:\n%s", body)
+		t.Errorf("the teams page lost its Japanese labels:\n%s", body)
 	}
-	stop()
-	if got := i18n.Language(); got != "en" {
-		t.Errorf("the command line's language after serve is %q, want en", got)
+	if got, want := i18n.T("web.activity.herdr_unavailable"), string(i18n.Text("en", "web.activity.herdr_unavailable")); got != want {
+		t.Errorf("a sentence the screens are answered with reads %q, want the English %q", got, want)
 	}
 }

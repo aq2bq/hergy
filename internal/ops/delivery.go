@@ -118,7 +118,7 @@ func planTeam(one *DeliveryPlan, running RunningTeam, judged activity.Team, byHe
 		}
 		if !planned.CanApply() {
 			planned.Rule = drift.RefusalRule()
-			planned.WhyNot = words.Errorf(planned.Rule, i18n.Language(), start.Short.String()).Error()
+			planned.WhyNot = words.Errorf(planned.Rule, i18n.English, start.Short.String()).Error()
 		}
 		one.Members[start.Name.String()] = planned
 		for _, change := range drift.Changes {
@@ -158,7 +158,7 @@ func planTeam(one *DeliveryPlan, running RunningTeam, judged activity.Team, byHe
 			continue
 		}
 		short := domainname.ShortIn(hired.Herdr, running.Name.Observation()).String()
-		why := words.Errorf("apply.removed", i18n.Language(), short).Error()
+		why := words.Errorf("apply.removed", i18n.English, short).Error()
 		one.Members[hired.Herdr.String()] = PlannedMember{
 			Team: running, State: hired.State.Slug(), Changed: true,
 			How: ApplyCannot, WhyNot: why, Rule: "apply.removed",
@@ -304,7 +304,7 @@ func memberChanges(cat *catalog.Catalog, running RunningTeam, start definition.S
 	}
 	built, err := prompt.Member(running.Built.Team.Definition, &node, run)
 	if err != nil {
-		return true, []Change{{Kind: "prompt", Text: i18n.T("delivery.prompt_changed")}}
+		return true, []Change{{Kind: "prompt", Text: i18n.T("delivery.prompt_changed"), Handed: i18n.Handed("delivery.prompt_changed")}}
 	}
 	if string(old) == built.Text {
 		return false, nil
@@ -314,7 +314,7 @@ func memberChanges(cat *catalog.Catalog, running RunningTeam, start definition.S
 	current.RoleDoc, current.HasRole, current.Read = built.Role, built.HasRole, built.Read
 	changes := readChanges(deliver.Compare(running.Built.ModelTeamName(), recorded.Lang, string(old), oldDocs(recorded), current, deliveryDocs(cat, built.Documents)))
 	if len(changes) == 0 {
-		changes = []Change{{Kind: "prompt", Text: i18n.T("delivery.prompt_changed")}}
+		changes = []Change{{Kind: "prompt", Text: i18n.T("delivery.prompt_changed"), Handed: i18n.Handed("delivery.prompt_changed")}}
 	}
 	return true, changes
 }

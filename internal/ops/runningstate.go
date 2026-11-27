@@ -23,7 +23,7 @@ func operationTime(now func() time.Time) time.Time {
 func beginRunningState(store runningstate.Store, env Environment, r *Resolved, workspace runningstate.Workspace, now func() time.Time) (runningstate.Generation, error) {
 	launch := runningstate.Launch{Definition: r.Team.Definition.Name, Project: env.ProjectRoot,
 		Layer: domainplace.Selection(r.Team.Definition.Layer), TeamYAML: r.Team.Definition.TeamYAML.Project(),
-		Workspace: workspace, StartedAt: operationTime(now), Executable: executable(), Lang: i18n.Language()}
+		Workspace: workspace, StartedAt: operationTime(now), Executable: executable(), Lang: i18n.HandedLanguage()}
 	for _, worker := range r.Team.Definition.Graph.Workers {
 		p, ok := r.Profiles[worker.Profile]
 		if !ok {
@@ -53,7 +53,7 @@ func receiveRunningState(r *Resolved, command string, members []definition.Start
 	for i := range members {
 		member := &members[i]
 		receipt := runningstate.Receipt{Name: member.Name.String(), Short: member.Short.String(),
-			Prompt: member.Prompt, Command: command, Time: at, Executable: executable(), Lang: i18n.Language(),
+			Prompt: member.Prompt, Command: command, Time: at, Executable: executable(), Lang: i18n.HandedLanguage(),
 			Start: runningstate.StartFingerprint(member.Kind, member.Args), Env: runningstate.EnvFingerprint(member.Env)}
 		for _, doc := range member.Documents {
 			receipt.Docs = append(receipt.Docs, runningstate.Doc{Path: doc.Doc.Path, Layer: doc.Doc.Layer, Text: doc.Text})
@@ -116,7 +116,7 @@ func prepareRunningState(l *launcher.Launcher, in StartInput, r *Resolved, works
 			began = stateErr == nil
 		}
 		if stateErr != nil {
-			return words.Errorf("up.state-unavailable", i18n.Language(), stateErr)
+			return words.Errorf("up.state-unavailable", i18n.English, stateErr)
 		}
 		return nil
 	})

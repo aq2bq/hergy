@@ -1124,8 +1124,11 @@ export interface components {
         ActivitySummary: {
             /** @description チームの起動元になったチーム定義名 */
             definition: string;
-            /** @description チームのアクティビティ状態 */
-            state: string;
+            /**
+             * @description チームのアクティビティ状態
+             * @enum {string}
+             */
+            state: "waiting-for-permission" | "handed" | "stalled" | "working";
             /** @description アクティビティ状態が続いている長さと開始時刻。ないときは省略 */
             since?: components["schemas"]["ActivitySince"] | null;
             /** @description ターンの持ち主（hergy の見張りが記録したもの）。見張りが見ていないチームでは省略 */
@@ -1144,10 +1147,16 @@ export interface components {
         };
         /** @description アクティビティ状態が続いている長さと開始時刻 */
         ActivitySince: {
-            /** @description アクティビティ状態が続いている長さ */
-            len: string;
-            /** @description アクティビティ状態が始まった時刻 */
-            at: string;
+            /**
+             * Format: int64
+             * @description アクティビティ状態が続いている長さ
+             */
+            seconds: number;
+            /**
+             * Format: int64
+             * @description アクティビティ状態が始まった時刻
+             */
+            at: number;
             /** @description 時刻が監視を始める前を示すか */
             lower: boolean;
         };
@@ -1187,12 +1196,17 @@ export interface components {
             name: string;
             /** @description メンバーまたはワーカーの herdr 名 */
             herdr: string;
-            /** @description メンバーまたはワーカーの状態 */
-            state: string;
-            /** @description 状態が始まった時刻。動いているか pane がないときは空 */
-            at: string;
-            /** @description 状態が始まった時刻を表示する文 */
-            since_at?: string;
+            /**
+             * @description メンバーまたはワーカーの状態
+             * @enum {string}
+             */
+            state: "waiting-for-permission" | "handed" | "working" | "idle" | "not-running";
+            /**
+             * Format: int64
+             * @description 状態が始まった時刻。動いているか pane がないときは空
+             */
+            at: number | null;
+            lower: boolean;
             /** @description herdr が示す作業名 */
             doing?: string;
             /** @description このワーカーを雇ったメンバー名 */

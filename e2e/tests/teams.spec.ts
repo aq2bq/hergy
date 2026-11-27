@@ -68,9 +68,9 @@ test('the team definition action opens the end sheet', async ({ page, app }) => 
     }],
   } }));
   await page.route('**/api/danger/activity/core*', (route) => route.fulfill({ json: { lines: [
-    'メンバー 1 人（core-lead）のペインを閉じます。',
+    'Close the panes of 1 members (core-lead).',
     'ワークスペース main は閉じません。',
-    '会話は残りません。この操作は取り消せません。',
+    'The conversation does not stay. This cannot be taken back.',
   ] } }));
   await page.goto(`${app.base}/teams`);
   const end = page.locator('.tdef .hq-runc [data-hq="stop"]');
@@ -81,8 +81,8 @@ test('the team definition action opens the end sheet', async ({ page, app }) => 
   // the run button is there, not where the trigger was.
   const ask = page.locator('.confirm');
   await expect(ask.locator('h2')).toHaveText('チーム core を終了しますか');
-  await expect(ask).toContainText('メンバー 1 人（core-lead）のペインを閉じます。');
-  await expect(ask).toContainText('会話は残りません。この操作は取り消せません。');
+  await expect(ask).toContainText('Close the panes of 1 members (core-lead).');
+  await expect(ask).toContainText('The conversation does not stay. This cannot be taken back.');
   await expect(ask.locator('.btn.danger.solid')).toHaveText('終了する');
   await ask.getByRole('button', { name: 'やめる', exact: true }).click();
   await expect(ask).toHaveCount(0);
@@ -615,7 +615,7 @@ test('TEAMS-N1b the starter roles and profile are written only when asked', asyn
   await wait(page, there2(draft, '[data-act=starter-profile]'));
   // The member is told to choose the profile the way it is told to choose the
   // role, not how to write profiles.yaml (d-86b1).
-  await wait(page, `(function(){var want=${JSON.stringify('メンバー lead: プロファイルを選んでください（今あるプロファイルはありません）')};return [...${draft}.querySelectorAll('.vlist .vitem')].some(function(b){return b.textContent.indexOf(want)>=0})})()`);
+  await wait(page, `(function(){var want=${JSON.stringify('member lead: choose a profile (there is no profile yet)')};return [...${draft}.querySelectorAll('.vlist .vitem')].some(function(b){return b.textContent.indexOf(want)>=0})})()`);
   // Pressing the starter roles adds the two role documents to the band, and
   // pressing again takes them away: nothing is written before the press.
   await press(page, `${draft}.querySelector('[data-act=starter-roles]')`);

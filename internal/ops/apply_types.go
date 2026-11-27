@@ -59,6 +59,7 @@ func readChanges(raw []deliver.Change) []Change {
 	}
 	out := make([]Change, len(raw))
 	for i, c := range raw {
+		c.Handed = ""
 		out[i] = Change(c)
 	}
 	return out

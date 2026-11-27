@@ -175,7 +175,7 @@ func TestCopyWithoutItsProjectSaysWhy(t *testing.T) {
 	if err := json.Unmarshal([]byte(said), &refused); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(refused.Text, "元にしたチーム定義の") || !strings.Contains(refused.Text, "もう一度") {
+	if !strings.Contains(refused.Text, "The team definition this one stands on cannot be read") || !strings.Contains(refused.Text, "again") {
 		t.Errorf("the refusal says %q, want what could not be read and how to fix it", refused.Text)
 	}
 	// The file is named once, by its path: the sentence does not say team.yaml
@@ -277,7 +277,7 @@ func TestCopyCarriesOnlyWhatThePersonChose(t *testing.T) {
 	}
 	// The problem says where the profile is, rather than that there is none.
 	text := problemTextOf(got.Problems, "members[0].profile")
-	if !strings.Contains(text, "グローバルにありません") || !strings.Contains(text, ".hergy にあります") {
+	if !strings.Contains(text, "is not in the global settings") || !strings.Contains(text, "other/.hergy") {
 		t.Errorf("the profile's sentence says %q, want the global layer and the project named", text)
 	}
 

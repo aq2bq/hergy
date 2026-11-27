@@ -73,18 +73,18 @@ func TestCommandHelpListsExactlyTheFlags(t *testing.T) {
 					lang, s.Name, strings.Join(listed, " --"), strings.Join(want, " --"), long)
 			}
 
-			if first, _, _ := strings.Cut(long, "\n"); first != "hergy "+s.Name+" - "+s.Summary[lang] {
+			if first, _, _ := strings.Cut(long, "\n"); first != "hergy "+s.Name+" - "+s.Summary[i18n.English] {
 				t.Errorf("[%s] hergy %s --help opens with %q, want its name and summary", lang, s.Name, first)
 			}
-			if !strings.Contains(long, i18n.T("help.usage_label")+" "+usageLine(s, lang)+"\n") {
-				t.Errorf("[%s] hergy %s --help has no usage line %q", lang, s.Name, usageLine(s, lang))
+			if !strings.Contains(long, i18n.T("help.usage_label")+" "+usageLine(s, i18n.English)+"\n") {
+				t.Errorf("[%s] hergy %s --help has no usage line %q", lang, s.Name, usageLine(s, i18n.English))
 			}
 			for _, a := range s.Args {
 				if a.Word {
 					continue // typed as it stands: the usage line holds it
 				}
-				if !strings.Contains(long, "  <"+a.Name[lang]+">") && !strings.Contains(long, "  ["+a.Name[lang]+"]") {
-					t.Errorf("[%s] hergy %s --help does not list the argument %q", lang, s.Name, a.Name[lang])
+				if !strings.Contains(long, "  <"+a.Name[i18n.English]+">") && !strings.Contains(long, "  ["+a.Name[i18n.English]+"]") {
+					t.Errorf("[%s] hergy %s --help does not list the argument %q", lang, s.Name, a.Name[i18n.English])
 				}
 			}
 		}
@@ -274,7 +274,7 @@ func TestOptionErrorsPointAtTheCommandsHelp(t *testing.T) {
 		}
 
 		_, err := Parse([]string{"frobnicate"})
-		wantList := map[string]string{"en": "`hergy help`", "ja": "hergy --help"}[lang]
+		wantList := "`hergy help`"
 		if err == nil || !strings.Contains(err.Error(), wantList) {
 			t.Errorf("[%s] hergy frobnicate: the error is %v, want it to point at %s", lang, err, wantList)
 		}

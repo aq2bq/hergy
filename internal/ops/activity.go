@@ -240,7 +240,7 @@ func (a *Reader) List() ActivityList {
 			workspace:   ActivitySpace{ID: one.WorkspaceID, Label: one.WorkspaceLabel},
 		})
 	}
-	list.Items, list.Running, list.Waiting = orderedRows(rows, now)
+	list.Items, list.Running, list.Waiting = orderedRows(rows)
 	return list
 }
 
@@ -260,7 +260,7 @@ type activityRow struct {
 // waiting for a human first, then the stopped ones, then the working ones) and
 // turns them into the list's items, counting the band's two numbers on the way:
 // the running teams, and the members that are waiting for the human.
-func orderedRows(rows []activityRow, now time.Time) ([]ActivityItem, int, int) {
+func orderedRows(rows []activityRow) ([]ActivityItem, int, int) {
 	judged := make([]activity.Team, len(rows))
 	byName := make(map[string]activityRow, len(rows))
 	for i, row := range rows {
@@ -272,7 +272,7 @@ func orderedRows(rows []activityRow, now time.Time) ([]ActivityItem, int, int) {
 	waiting := 0
 	for _, judged := range judged {
 		row := byName[judged.Name.String()]
-		items = append(items, itemOf(row, now))
+		items = append(items, itemOf(row))
 		waiting += waitingMembers(judged)
 	}
 	return items, len(items), waiting
@@ -295,13 +295,13 @@ func waitingMembers(t activity.Team) int {
 // and workers in it (6 A2, A3). A definition that does not read leaves the live
 // agents as the only members known, as 2.2 says.
 // itemOf is one row of the list as the boundary writes it (spec-activity 3).
-func itemOf(row activityRow, now time.Time) ActivityItem {
+func itemOf(row activityRow) ActivityItem {
 	t := row.team.Team
 	item := ActivityItem{
 		Name: t.Name.String(),
 		Summary: ActivitySummary{
 			Definition: row.definition,
-			State:      t.State.Slug(),
+			State:      t.State.Term(),
 		},
 		Error:       row.broken,
 		Project:     row.project,
@@ -311,7 +311,7 @@ func itemOf(row activityRow, now time.Time) ActivityItem {
 	}
 	// いつから is left out for a working team and for one with no live agent
 	// (2.2): a working node has no moment to read, and there is no last turn.
-	if since := sinceOf(t, now); since != nil {
+	if since := sinceOf(t); since != nil {
 		item.Summary.Since = since
 	}
 	item.Summary.Turn = turnOf(row.team.turn)
@@ -354,18 +354,12 @@ func turnText(st *turns.State) string {
 	return text
 }
 
-// sinceOf is the row's いつから: how long the state has lasted and when it began,
-// in the server's own words (6 A4). It is nil for a working team and for one with
-// no live agent.
-func sinceOf(t activity.Team, now time.Time) *ActivitySince {
-	if t.Last == "" || t.State == activity.Working {
+// sinceOf omits the time for a working team or when the start is unknown.
+func sinceOf(t activity.Team) *ActivitySince {
+	if t.Last == "" || t.State == activity.Working || t.At.IsZero() {
 		return nil
 	}
-	at := activity.SinceAt(now, t.At, t.Lower)
-	if at == "" {
-		return nil
-	}
-	return &ActivitySince{Len: activity.Length(t.Stalled, t.Lower), At: at, Lower: t.Lower}
+	return &ActivitySince{Duration: t.Stalled, At: t.At, Lower: t.Lower}
 }
 
 // StopTargets describes the panes the stop operation would close.
@@ -455,13 +449,13 @@ func (a *Reader) One(name string) (ActivityDoc, bool) {
 		}
 	}
 	doc := ActivityDoc{
-		Nodes:    docNodes(t, now, titles),
-		Hired:    docHired(t, one.Name, now, titles, hireSources(one.state)),
+		Nodes:    docNodes(t, titles),
+		Hired:    docHired(t, one.Name, titles, hireSources(one.state)),
 		Question: question,
 	}
 	for i := range doc.Nodes {
 		node := &doc.Nodes[i]
-		if node.State != "blocked" && node.State != "handed" {
+		if node.State != activity.Blocked.Term() && node.State != activity.HandedOver.Term() {
 			continue
 		}
 		text, err := a.herdrPane(node.Herdr)
@@ -470,7 +464,7 @@ func (a *Reader) One(name string) (ActivityDoc, bool) {
 			continue
 		}
 		node.Question = askingLine(text)
-		if node.State == "blocked" {
+		if node.State == activity.Blocked.Term() {
 			node.Question = permissionQuestion(text)
 		}
 		if node.Question == "" {
@@ -578,14 +572,13 @@ func mainAgent(t activity.Team, agents []activity.Agent) domainname.Seen {
 
 // docNodes is a team's members as the opened part shows them (2.5): the state,
 // when it began, and what the agent's terminal says it is doing (d-b4b9).
-func docNodes(t activity.Team, now time.Time, titles map[string]string) []ActivityNode {
+func docNodes(t activity.Team, titles map[string]string) []ActivityNode {
 	out := make([]ActivityNode, 0, len(t.Nodes))
 	for _, node := range t.Nodes {
-		at := activity.Clock(now, node.At)
 		out = append(out, ActivityNode{
-			Name: node.Name, Herdr: node.Herdr, State: node.State.Slug(), At: at,
-			SinceAt: activity.SinceAt(now, node.At, node.Lower),
-			Doing:   titles[node.Herdr.String()],
+			Name: node.Name, Herdr: node.Herdr, State: node.State.Term(), At: node.At,
+			Lower: node.Lower,
+			Doing: titles[node.Herdr.String()],
 		})
 	}
 	return out
@@ -593,14 +586,15 @@ func docNodes(t activity.Team, now time.Time, titles map[string]string) []Activi
 
 // docHired is a team's workers as the opened part shows them: the name without
 // the team's own prefix (X1, 2.5), the member that added it, and its title.
-func docHired(t activity.Team, teamName domainname.Seen, now time.Time, titles, from map[string]string) []ActivityNode {
+func docHired(t activity.Team, teamName domainname.Seen, titles, from map[string]string) []ActivityNode {
 	out := make([]ActivityNode, 0, len(t.Hired))
 	for _, hired := range t.Hired {
 		out = append(out, ActivityNode{
 			Name:  domainname.ShortIn(hired.Herdr, teamName).String(),
 			Herdr: hired.Herdr,
-			State: hired.State.Slug(),
-			At:    activity.Clock(now, hired.At),
+			State: hired.State.Term(),
+			At:    hired.At,
+			Lower: hired.Lower,
 			Doing: titles[hired.Herdr.String()],
 			From:  from[hired.Herdr.String()],
 		})

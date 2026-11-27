@@ -40,9 +40,9 @@ test.describe('delete: the words and the loss agree', () => {
     const panel = page.locator('.row[data-name="two-a"] .panel[data-file=project]');
     await panel.locator('[data-act="del"]').click();
     await expect(body(page)).toContainText('two-a');
-    await expect(body(page)).toContainText('1 項目');
-    await expect(body(page)).toContainText('ファイルは残ります');
-    await expect(body(page)).toContainText('取り消せません');
+    await expect(body(page)).toContainText('Delete the profile two-a');
+    await expect(body(page)).toContainText('The file stays.');
+    await expect(body(page)).toContainText('This cannot be taken back.');
     await run(page).click();
     await expect(ask(page)).toHaveCount(0);
     await expect(page.locator('.row[data-name="two-a"]')).toHaveCount(0);
@@ -57,8 +57,8 @@ test.describe('delete: the words and the loss agree', () => {
     await page.goto(`${app.base}/profiles?open=solo`); await ready(page);
     const panel = page.locator('.row[data-name="solo"] .panel[data-file=project]');
     await panel.locator('[data-act="del"]').click();
-    await expect(body(page)).toContainText('1 項目 solo');
-    await expect(body(page)).toContainText('ファイルは残ります');
+    await expect(body(page)).toContainText('Delete the profile solo');
+    await expect(body(page)).toContainText('The file stays.');
     await run(page).click();
     await expect(page.locator('.row[data-name="solo"]')).toHaveCount(0);
     expect(existsSync(file), 'the confirmation said the file stays').toBe(true);
@@ -71,8 +71,8 @@ test.describe('delete: the words and the loss agree', () => {
     await page.locator('.tdef[data-name="core"] [data-act="del"]').click();
     await expect(body(page)).toContainText('team.yaml');
     await expect(body(page)).toContainText('agreement.md');
-    await expect(body(page)).toContainText('フォルダも消えます');
-    await expect(body(page)).toContainText('取り消せません');
+    await expect(body(page)).toContainText('The folder goes too.');
+    await expect(body(page)).toContainText('This cannot be taken back.');
     // The body is the server's lines now: the two themes of that look.
     for (const scheme of ['light', 'dark'] as const) {
       await page.emulateMedia({ colorScheme: scheme });
@@ -92,7 +92,7 @@ test.describe('delete: the words and the loss agree', () => {
     await page.locator('.tdef[data-name="bare"] [data-act="del"]').click();
     await expect(body(page)).toContainText('team.yaml');
     await expect(body(page)).not.toContainText('agreement.md');
-    await expect(body(page)).toContainText('フォルダも消えます');
+    await expect(body(page)).toContainText('The folder goes too.');
     await run(page).click();
     await expect(page.locator('.tdef[data-name="bare"]')).toHaveCount(0);
     expect(existsSync(dir), 'the folder the confirmation said goes stayed').toBe(false);
@@ -105,8 +105,8 @@ test.describe('delete: the words and the loss agree', () => {
     await page.locator('.tdef[data-name="core"] [data-act="del"]').click();
     await expect(body(page)).toContainText('team.yaml');
     await expect(body(page)).toContainText('agreement.md');
-    await expect(body(page)).toContainText('フォルダには notes.txt が残ります');
-    await expect(body(page)).not.toContainText('フォルダも消えます');
+    await expect(body(page)).toContainText('notes.txt stays in the folder.');
+    await expect(body(page)).not.toContainText('The folder goes too.');
     await run(page).click();
     // The definition is gone; the folder the words said stays, with its file.
     await expect(page.locator('.tdef[data-name="core"]')).toContainText('問題');
@@ -124,8 +124,8 @@ test.describe('delete: the words and the loss agree', () => {
     const panel = page.locator('.role.open .panel[data-l=project]');
     await panel.locator('[data-act="del"]').click();
     await expect(body(page)).toContainText('builder.md');
-    await expect(body(page)).toContainText('3 人が読んでいます');
-    await expect(body(page)).toContainText('取り消せません');
+    await expect(body(page)).toContainText('3 people read it.');
+    await expect(body(page)).toContainText('This cannot be taken back.');
     await run(page).click();
     await expect(ask(page)).toHaveCount(0);
     // The confirmation closes before the delete is asked for (lib/confirm.tsx),
@@ -347,7 +347,7 @@ test.describe('undo: the headquarters takes a project out of the list', () => {
     await fallback(page).locator('button').click();
     const said = page.locator('.undo-fallback .undo[role="alert"]');
     await expect(said).toContainText('config.yaml');
-    await expect(said).toContainText('読み取れません');
+    await expect(said).toContainText('cannot read');
     expect(text(file), 'a refused restore changed config.yaml').toBe('projects: [\n');
   });
 });

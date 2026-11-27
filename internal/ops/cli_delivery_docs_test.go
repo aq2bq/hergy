@@ -78,7 +78,7 @@ func TestRosterChangeHasNoOtherMembersDocumentsOnEitherDeliveryPath(t *testing.T
 			}
 		}
 		for i, member := range resent {
-			if row.Name == member.Name.String() && member.Prompt != deliver.Preamble(internalChanges(row.Changes))+r.Starts[i].Prompt {
+			if row.Name == member.Name.String() && member.Prompt != string(deliver.Preamble(internalChanges(row.Changes)))+r.Starts[i].Prompt {
 				t.Fatalf("reprompt differs for %s", row.Name)
 			}
 		}

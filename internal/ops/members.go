@@ -88,7 +88,7 @@ func memberPlan(in MemberInput, mode string, dryRead bool) (*Plan, error) {
 
 func requireMemberPane(in MemberInput) error {
 	if in.RequirePane && (!in.ManagedPane || CurrentPane() == "") {
-		return words.Errorf("runtime.managed-pane", i18n.Language())
+		return words.Errorf("runtime.managed-pane", i18n.English)
 	}
 	return nil
 }
@@ -111,7 +111,7 @@ func Refresh(ctx context.Context, in MemberInput) (MemberResult, error) {
 		for _, name := range newPanes.Members {
 			names = append(names, domainname.ShortIn(name.Observation(), r.Team.Name.Observation()).String())
 		}
-		return out, words.Errorf("refresh.no-pane", i18n.Language(), strings.Join(names, i18n.T("list.separator")))
+		return out, words.Errorf("refresh.no-pane", i18n.English, strings.Join(names, i18n.T("list.separator")))
 	}
 	member := in.Member
 	if in.All {
@@ -212,14 +212,15 @@ func Nudge(ctx context.Context, in MemberInput, body string) error {
 	if err != nil {
 		return err
 	}
-	if body == "" {
-		body = i18n.T("nudge.default")
+	message := i18n.AgentText(body)
+	if message == "" {
+		message = i18n.Handed("nudge.default")
 	}
 	var from domainname.Seen
 	if !in.Dry {
 		from = senderName(r, CurrentPane(), in.Port)
 	}
-	text := sendText(from.String(), body)
+	text := sendText(from.String(), message)
 	if in.Dry {
 		emit(in.Observe, Event{Text: i18n.Tf("send.dry", member.Name.String(), text)})
 		return nil
@@ -285,11 +286,12 @@ func Focus(ctx context.Context, input FocusInput) error {
 }
 
 // sendText formats the common sender prefix, including messages sent by tell.
-func sendText(from, body string) string {
-	if from == "" {
-		from = i18n.T("send.who_human")
+func sendText(from string, body i18n.AgentText) i18n.AgentText {
+	sender := i18n.AgentText(from)
+	if sender == "" {
+		sender = i18n.Handed("send.who_human")
 	}
-	return i18n.Tf("send.from", from) + " " + body
+	return i18n.Handedf("send.from", sender) + " " + body
 }
 
 // senderName reads the sender from a pane and matches it against resolved members.
@@ -327,5 +329,5 @@ func focusLive(in FocusInput) error {
 			}
 		}
 	}
-	return refuse("notfound", errors.New("対象のメンバーは起動していません。アクティビティを読み直してください"))
+	return refuse("notfound", errors.New(i18n.T("web.activity.member_not_running")))
 }

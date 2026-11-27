@@ -23,7 +23,7 @@ var keyInSource = regexp.MustCompile(`"(web|label)\.[a-z0-9_.]+"`)
 // screens name is in both locales.
 func TestWebScreensNameKeysTheLocalesHold(t *testing.T) {
 	held := map[string]map[string]bool{}
-	for _, lang := range []string{"en", "ja"} {
+	for _, lang := range []string{"en"} {
 		raw, err := os.ReadFile(filepath.Join("internal", "i18n", "locales", lang+".json"))
 		if err != nil {
 			t.Fatal(err)

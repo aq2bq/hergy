@@ -8,7 +8,6 @@ import (
 	"net/url"
 
 	"github.com/aq2bq/hergy/internal/catalog"
-	"github.com/aq2bq/hergy/internal/i18n"
 )
 
 // This file is the role screen's own answers (r-778c): the page the three tabs
@@ -19,7 +18,6 @@ import (
 
 // r2PageData is one tab's page.
 type r2PageData struct {
-	Lang  string
 	Nav   navData
 	Tab   string
 	Token string
@@ -42,7 +40,7 @@ func (s *Server) r2Page(w http.ResponseWriter, r *http.Request, tab string) {
 		return
 	}
 	data := r2PageData{
-		Lang: i18n.Language(), Nav: s.navOf("roles"), Tab: tab,
+		Nav: s.navOf("roles"), Tab: tab,
 		Token: s.token, Data: template.JS(raw), //nolint:gosec // raw is json.Marshal output, which escapes <, > and &, so it cannot close the script element that carries it
 	}
 	var buf bytes.Buffer

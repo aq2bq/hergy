@@ -214,7 +214,7 @@ func resourcePromptOverlay(cat *catalog.Catalog, in ResourcePromptInput, n strin
 				return nil, &ResourceFailure{Text: err.Error()}
 			}
 			if in.Hash != source.Hash(text) {
-				return nil, &ResourceFailure{Status: 409, Text: "定義が変わりました。ファイルからリロードしてください"}
+				return nil, &ResourceFailure{Status: 409, Text: i18n.T("web.prompt.definition_changed")}
 			}
 			overlay = cat.With(path, text)
 		}

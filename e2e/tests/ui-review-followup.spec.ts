@@ -139,7 +139,7 @@ test.describe('review 1-8: default project', () => {
         await expect(question).toContainText('rm -rf /data');
         await expect(question).toContainText('3. No');
       } else {
-        await expect(question).toContainText('ペインを開いて確認してください');
+        await expect(question).toContainText('Open the pane in herdr to check it.');
       }
       const response = await page.request.get(`${app.base}/api/activity/migrate`);
       const body = await response.text();

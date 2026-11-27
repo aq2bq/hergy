@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -291,7 +290,7 @@ func TestActivityListReadsTheRunningTeams(t *testing.T) {
 	}
 
 	core := list.Items[0]
-	if core.Name != "core" || core.Summary.State != "turn" {
+	if core.Name != "core" || core.Summary.State != "handed" {
 		t.Errorf("the first tile is %+v, want core waiting for the human", core)
 	}
 	if core.Summary.Definition != "core" {
@@ -300,11 +299,11 @@ func TestActivityListReadsTheRunningTeams(t *testing.T) {
 	if core.Summary.Since == nil {
 		t.Fatalf("core's row has no since: %+v", core)
 	}
-	if core.Summary.Since.Len != "2 時間 40 分" || !strings.HasSuffix(core.Summary.Since.At, " から") {
-		t.Errorf("core's since = %+v, want 2 時間 40 分 and a から", core.Summary.Since)
+	if core.Summary.Since.Duration != 160*time.Minute || core.Summary.Since.Lower {
+		t.Errorf("core's since = %+v, want exactly 160 minutes", core.Summary.Since)
 	}
-	if got := activityNow.Add(-160 * time.Minute).Format("15:04"); !strings.Contains(core.Summary.Since.At, got) {
-		t.Errorf("core's since is %q, want the moment %s", core.Summary.Since.At, got)
+	if got := activityNow.Add(-160 * time.Minute); !core.Summary.Since.At.Equal(got) {
+		t.Errorf("core's since is %s, want the moment %s", core.Summary.Since.At, got)
 	}
 	if core.Error != "" {
 		t.Errorf("core's row carries the error %q", core.Error)
@@ -317,11 +316,11 @@ func TestActivityListReadsTheRunningTeams(t *testing.T) {
 	if hotfix.Summary.Definition != "core" {
 		t.Errorf("core-hotfix's definition = %q, want core", hotfix.Summary.Definition)
 	}
-	if hotfix.Summary.Since == nil || hotfix.Summary.Since.Len != "4 時間 5 分以上" || !hotfix.Summary.Since.Lower {
-		t.Errorf("core-hotfix's since = %+v, want 4 時間 5 分以上", hotfix.Summary.Since)
+	if hotfix.Summary.Since == nil || hotfix.Summary.Since.Duration != 245*time.Minute || !hotfix.Summary.Since.Lower {
+		t.Errorf("core-hotfix's since = %+v, want at least 245 minutes", hotfix.Summary.Since)
 	}
-	if hotfix.Summary.Since != nil && !strings.HasSuffix(hotfix.Summary.Since.At, " より前") {
-		t.Errorf("core-hotfix's since is %q, want a より前", hotfix.Summary.Since.At)
+	if hotfix.Summary.Since != nil && !hotfix.Summary.Since.At.Equal(activityNow.Add(-245*time.Minute)) {
+		t.Errorf("core-hotfix's since is %s, want the start of its lower bound", hotfix.Summary.Since.At)
 	}
 }
 
@@ -439,7 +438,7 @@ func TestActivityOneReadsTheTileMembersAndQuestion(t *testing.T) {
 
 	states := map[string]string{}
 	for _, node := range doc.Nodes {
-		states[node.Name] = node.State
+		states[node.Name] = string(node.State)
 	}
 	if states["lead"] != "handed" || states["impl-a"] != "idle" {
 		t.Errorf("the members are %v, want lead handed and impl-a idle", states)
@@ -560,7 +559,7 @@ func TestActivityWatchRemembersAcrossServes(t *testing.T) {
 
 	list := f.reader(t).List()
 	core := list.Items[0]
-	if core.Summary.Since == nil || core.Summary.Since.Len != "2 時間 40 分" {
+	if core.Summary.Since == nil || core.Summary.Since.Duration != 160*time.Minute {
 		t.Errorf("core's since = %+v, want the moment the earlier serve saw", core.Summary.Since)
 	}
 	if core.Summary.Since != nil && core.Summary.Since.Lower {
@@ -605,34 +604,6 @@ func TestActivityStatePath(t *testing.T) {
 	want = filepath.Join(f.cfg, "home", ".local", "state", "hergy", "activity.json")
 	if got := activityStatePath(); got != want {
 		t.Errorf("activityStatePath() = %q, want %q", got, want)
-	}
-}
-
-// TestActivityTimeWordsAreTheServers: every length and every moment the screen
-// writes comes from here, so the script writes none of them (spec-activity 3,
-// V1). The words are spelled out rather than left to a pattern, because they are
-// what a person reads.
-func TestActivityTimeWordsAreTheServers(t *testing.T) {
-	inJapanese(t)
-	cases := []struct {
-		at    time.Duration
-		lower bool
-		len   string
-	}{
-		{25 * time.Minute, false, "25 分"},
-		{time.Hour + 5*time.Minute, false, "1 時間 5 分"},
-		{2 * time.Hour, false, "2 時間"},
-		{30 * time.Second, false, "30 秒"},
-		{0, false, "1 秒"},
-		{4*time.Hour + 5*time.Minute, true, "4 時間 5 分以上"},
-	}
-	for _, one := range cases {
-		if got := activity.Length(one.at, one.lower); got != one.len {
-			t.Errorf("Length(%s, %v) = %q, want %q", one.at, one.lower, got, one.len)
-		}
-	}
-	if got := activity.SinceAt(activityNow, activityNow.Add(-18*time.Minute), false); !regexp.MustCompile(`^\d\d:\d\d から$`).MatchString(got) {
-		t.Errorf("SinceAt = %q, want a clock and から", got)
 	}
 }
 

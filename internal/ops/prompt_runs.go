@@ -5,6 +5,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/aq2bq/hergy/internal/i18n"
+
 	domainname "github.com/aq2bq/hergy/internal/domain/name"
 	domainplace "github.com/aq2bq/hergy/internal/domain/place"
 
@@ -78,7 +80,7 @@ func promptRunsOf(live HQRunning, project domainplace.Project, definition, place
 // team it was asked for. The team is chosen by the web owner now; this reads the
 // record and says whether the member is live.
 func (a *Reader) PromptHistory(_ domainplace.Project, definition, place, member, running string) (PromptHistory, error) {
-	out := PromptHistory{Runs: []PromptRun{}, Status: "missing", Reason: "このメンバーへ渡した本文の記録がありません"}
+	out := PromptHistory{Runs: []PromptRun{}, Status: "missing", Reason: i18n.T("web.prompt.no_record")}
 	live := a.liveRunning()
 	if !live.Herdr.OK {
 		return out, fmt.Errorf("%s", live.Herdr.Text)
@@ -93,7 +95,7 @@ func (a *Reader) PromptHistory(_ domainplace.Project, definition, place, member,
 	}
 	if team == nil {
 		out.Status = "stopped"
-		out.Reason = "動いているチームがないため、今の文だけを表示します"
+		out.Reason = i18n.T("web.prompt.no_running")
 		return out, nil
 	}
 	active := false
@@ -104,7 +106,7 @@ func (a *Reader) PromptHistory(_ domainplace.Project, definition, place, member,
 	}
 	if !active {
 		out.Status = "stopped"
-		out.Reason = "このメンバーは動いていないため、今の文だけを表示します"
+		out.Reason = i18n.T("web.prompt.member_not_running")
 		return out, nil
 	}
 	store, err := runningstate.Open()
@@ -131,7 +133,7 @@ func (a *Reader) PromptHistory(_ domainplace.Project, definition, place, member,
 	entry, ok := lastPromptReceipt(state, team.Project, path, definition, member)
 	if !ok {
 		out.Status = "missing"
-		out.Reason = "このメンバーへ渡した本文を一意に特定できる記録がありません"
+		out.Reason = i18n.T("web.prompt.ambiguous_record")
 		return out, nil
 	}
 	out.Status = "recorded"

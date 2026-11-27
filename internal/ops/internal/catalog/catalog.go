@@ -464,7 +464,7 @@ func (c *Catalog) readDefinition(name, path, layer string, mode readMode) (*defi
 // agreement.yaml is there.
 func (c *Catalog) definitionKey(name, path, layer string, mode readMode, text string) [32]byte {
 	var b strings.Builder
-	fmt.Fprintf(&b, "%s\x00%s\x00%s\x00%d\x00%s\x00%s\x00", name, path, layer, mode, i18n.Language(), text)
+	fmt.Fprintf(&b, "%s\x00%s\x00%s\x00%d\x00%s\x00%s\x00", name, path, layer, mode, i18n.HandedLanguage(), text)
 	for _, dir := range []string{c.globalDir, c.localDir} {
 		profiles := filepath.Join(dir, "profiles.yaml")
 		ptext, ok, err := c.fileText(profiles)

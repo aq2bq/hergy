@@ -161,7 +161,7 @@ func TestOfTurnRemovalMovesOnlyTheMemberThatHandsIt(t *testing.T) {
 	}
 
 	preview := effect.Preview(changes)
-	wantLine := "lead のプロンプトの『ターンを渡す相手』から spec（ロール spec）が消えます"
+	wantLine := "lead's prompt no longer hands the turn to spec (role spec)"
 	if len(preview) != 1 || preview[0] != wantLine {
 		t.Errorf("Preview = %q, want [%q]", preview, wantLine)
 	}
@@ -189,7 +189,7 @@ func TestOfTurnRemovalMovesOnlyTheMemberThatHandsIt(t *testing.T) {
 		}
 	}
 	leadTurns := prompt.TurnsNote("", prompt.TurnsOf(after, "lead", fixtureDemoNaming()))
-	if strings.Contains(leadTurns, "spec") {
+	if strings.Contains(string(leadTurns), "spec") {
 		t.Errorf("lead's turns still name spec: %q", leadTurns)
 	}
 }
@@ -329,28 +329,28 @@ func TestPreviewNamesThePartyTheWorkerAndThePart(t *testing.T) {
 		{
 			name:    "nothing moves",
 			changes: nil,
-			want:    []string{"どのメンバーのプロンプトも変わりません"},
+			want:    []string{"No member's prompt changes"},
 		},
 		{
 			name: "a turn to a member leaves",
 			changes: []effect.Change{{Member: "lead", Parts: []effect.PartChange{{
 				Part: effect.Turns, Removed: []effect.Named{{Name: "spec", Role: "spec"}},
 			}}}},
-			want: []string{"lead のプロンプトの『ターンを渡す相手』から spec（ロール spec）が消えます"},
+			want: []string{"lead's prompt no longer hands the turn to spec (role spec)"},
 		},
 		{
 			name: "the human comes in",
 			changes: []effect.Change{{Member: "lead", Parts: []effect.PartChange{{
 				Part: effect.Turns, Added: []effect.Named{{}},
 			}}}},
-			want: []string{"lead のプロンプトの『ターンを渡す相手』に人間が入ります"},
+			want: []string{"lead's prompt hands the turn to the human"},
 		},
 		{
 			name: "a worker leaves",
 			changes: []effect.Change{{Member: "lead", Parts: []effect.PartChange{{
 				Part: effect.Workers, Removed: []effect.Named{{Name: "試作"}},
 			}}}},
-			want: []string{"lead のプロンプトの『呼べるワーカー』から 試作 が消えます。hergy hire --purpose 試作 は断られます"},
+			want: []string{"lead's prompt no longer offers the worker 試作; hergy hire --purpose 試作 is refused"},
 		},
 	}
 	for _, tc := range cases {
@@ -375,7 +375,7 @@ func TestHandoverSaysWhatToDoPerRunningTeam(t *testing.T) {
 		{
 			name:    "nothing to take up",
 			changes: nil,
-			want:    "動いているチームに渡すものはありません",
+			want:    "A running team takes nothing up",
 		},
 		{
 			name:    "a turn moves",
@@ -395,12 +395,12 @@ func TestHandoverSaysWhatToDoPerRunningTeam(t *testing.T) {
 		{
 			name:    "a launch moves",
 			changes: launchChange("lead"),
-			want:    "hergy refresh lead --team demo（会話は消えます）",
+			want:    "hergy refresh lead --team demo (the conversation is lost)",
 		},
 		{
 			name:    "env moves",
 			changes: envChange("lead"),
-			want:    "hergy down demo のあと、hergy up demo --as demo",
+			want:    "hergy down demo, then hergy up demo --as demo",
 		},
 	}
 	for _, tc := range cases {
@@ -417,7 +417,7 @@ func TestHandoverSaysWhatToDoPerRunningTeam(t *testing.T) {
 // next hergy up uses the change.
 func TestHandoverWithoutARunningTeam(t *testing.T) {
 	got := effect.Handover(turnChange(), nil)
-	want := "動いているチームはありません。次の hergy up から使われます"
+	want := "No team is running. The next hergy up uses this"
 	if len(got) != 1 || got[0] != want {
 		t.Errorf("Handover = %q, want [%q]", got, want)
 	}
@@ -458,7 +458,7 @@ func TestHandoverCommandsAreRealCommands(t *testing.T) {
 func TestCommandsGiveTheCommandAndItsNoteApart(t *testing.T) {
 	got := effect.Commands(launchChange("lead"), []effect.Running{{Team: "demo", Definition: "demo"}})
 	want := []effect.TeamCommands{{Team: "demo", Commands: []effect.Command{
-		{Line: "hergy refresh lead --team demo", Note: "会話は消えます"},
+		{Line: "hergy refresh lead --team demo", Note: "the conversation is lost"},
 	}}}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("Commands = %+v, want %+v", got, want)
@@ -492,12 +492,12 @@ func TestOfLeavesOutAPartTheBuiltPromptDoesNotShow(t *testing.T) {
 		t.Fatalf("Of = %+v, want no change (the prompt text does not move)", changes)
 	}
 	preview := effect.Preview(changes)
-	if len(preview) != 1 || preview[0] != "どのメンバーのプロンプトも変わりません" {
+	if len(preview) != 1 || preview[0] != "No member's prompt changes" {
 		t.Errorf("Preview = %q, want the one line that says nothing moves", preview)
 	}
 	running := []effect.Running{{Team: "demo", Definition: "demo"}}
 	handover := effect.Handover(changes, running)
-	if len(handover) != 1 || handover[0] != "動いているチームに渡すものはありません" {
+	if len(handover) != 1 || handover[0] != "A running team takes nothing up" {
 		t.Errorf("Handover = %q, want the one line that says nothing is handed over", handover)
 	}
 }
@@ -512,7 +512,7 @@ func TestHandoverUsesOnlyTheChangesOfTheTeamsOwnDefinition(t *testing.T) {
 	}
 	want := []string{
 		"hergy reprompt lead --team demo",
-		"動いているチームに渡すものはありません",
+		"A running team takes nothing up",
 	}
 	if got := effect.Handover(changes, running); !reflect.DeepEqual(got, want) {
 		t.Errorf("Handover = %q, want %q", got, want)
@@ -528,7 +528,7 @@ func TestHandoverDoesNotAlsoRefreshWhenEnvMoves(t *testing.T) {
 	}}}
 	running := []effect.Running{{Team: "x2", Definition: "demo"}}
 	got := effect.Handover(changes, running)
-	want := []string{"hergy down x2 のあと、hergy up demo --as x2"}
+	want := []string{"hergy down x2, then hergy up demo --as x2"}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("Handover = %q, want %q", got, want)
 	}
@@ -544,14 +544,14 @@ func TestHandoverRefreshesFirstAndDoesNotRepromptARefreshedMember(t *testing.T) 
 	}}}
 	running := []effect.Running{{Team: "demo", Definition: "demo"}}
 	got := effect.Handover(changes, running)
-	want := []string{"hergy refresh lead --team demo（会話は消えます）"}
+	want := []string{"hergy refresh lead --team demo (the conversation is lost)"}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("Handover = %q, want %q", got, want)
 	}
 
 	both := append(launchChange("spec"), rosterChange("lead")...)
 	got = effect.Handover(both, running)
-	want = []string{"hergy refresh spec --team demo（会話は消えます）、hergy reprompt lead --team demo"}
+	want = []string{"hergy refresh spec --team demo (the conversation is lost), hergy reprompt lead --team demo"}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("Handover = %q, want %q", got, want)
 	}
@@ -566,7 +566,7 @@ func TestHandoverDoesNotRepromptMembersItRefreshed(t *testing.T) {
 		{Member: "lead", Definition: "demo", Parts: []effect.PartChange{{Part: effect.Roster}, {Part: effect.Launch}}},
 		{Member: "spec", Definition: "demo", Parts: []effect.PartChange{{Part: effect.Roster}, {Part: effect.Launch}}},
 	}
-	want := []string{"hergy refresh lead --team demo（会話は消えます）、hergy refresh spec --team demo（会話は消えます）"}
+	want := []string{"hergy refresh lead --team demo (the conversation is lost), hergy refresh spec --team demo (the conversation is lost)"}
 	if got := effect.Handover(everyone, running); !reflect.DeepEqual(got, want) {
 		t.Errorf("Handover = %q, want %q", got, want)
 	}
@@ -574,7 +574,7 @@ func TestHandoverDoesNotRepromptMembersItRefreshed(t *testing.T) {
 		{Member: "lead", Definition: "demo", Parts: []effect.PartChange{{Part: effect.Roster}, {Part: effect.Launch}}},
 		{Member: "spec", Definition: "demo", Parts: []effect.PartChange{{Part: effect.Roster}}},
 	}
-	want = []string{"hergy refresh lead --team demo（会話は消えます）、hergy reprompt spec --team demo"}
+	want = []string{"hergy refresh lead --team demo (the conversation is lost), hergy reprompt spec --team demo"}
 	if got := effect.Handover(some, running); !reflect.DeepEqual(got, want) {
 		t.Errorf("Handover = %q, want %q", got, want)
 	}
@@ -587,7 +587,7 @@ func TestPreviewSaysTheRosterMovedForEveryoneInOneLine(t *testing.T) {
 		{Member: "lead", Definition: "demo", Parts: []effect.PartChange{{Part: effect.Roster}}},
 		{Member: "spec", Definition: "demo", Parts: []effect.PartChange{{Part: effect.RoleDocument}, {Part: effect.Roster}}},
 	}
-	want := []string{"全員のプロンプトの『名簿』が変わります", "spec のプロンプトの『ロールの文書』が変わります"}
+	want := []string{"Every member's prompt's roster changes", "spec reads a different role document"}
 	got := effect.Preview(changes)
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("Preview = %q, want %q", got, want)
@@ -672,7 +672,7 @@ func TestUndeliveredNamesTheMembersWhosePromptMoved(t *testing.T) {
 		t.Fatalf("UndeliveredLines = %q, want one line per member", lines)
 	}
 	for i, line := range lines {
-		want := "起動のあとで変わったもの: " + changes[i].Member + " のプロンプト"
+		want := "changed since the launch: " + changes[i].Member + "'s prompt"
 		if line != want {
 			t.Errorf("line %d = %q, want %q", i, line, want)
 		}
@@ -711,8 +711,8 @@ func TestPreviewSaysWhatAHumanTurnDoes(t *testing.T) {
 		human effect.HumanTurn
 		want  string
 	}{
-		{human: effect.HumanTurn{To: "spec"}, want: "人間が spec にターンを渡せるようになります（プロンプトは変わりません）"},
-		{human: effect.HumanTurn{To: "spec", Remove: true}, want: "人間が spec にターンを渡さなくなります（プロンプトは変わりません）"},
+		{human: effect.HumanTurn{To: "spec"}, want: "The human can hand the turn to spec (no prompt changes)"},
+		{human: effect.HumanTurn{To: "spec", Remove: true}, want: "The human no longer hands the turn to spec (no prompt changes)"},
 	}
 	for _, test := range cases {
 		got := effect.PreviewOf(nil, &test.human)
@@ -721,7 +721,7 @@ func TestPreviewSaysWhatAHumanTurnDoes(t *testing.T) {
 		}
 	}
 	// Without a human turn the line stays the one that says nothing moves.
-	if got := effect.Preview(nil); !reflect.DeepEqual(got, []string{"どのメンバーのプロンプトも変わりません"}) {
+	if got := effect.Preview(nil); !reflect.DeepEqual(got, []string{"No member's prompt changes"}) {
 		t.Errorf("Preview = %q", got)
 	}
 }
@@ -742,7 +742,7 @@ func TestHireLinesSayWhatAWorkerOnlyProfileChangeDoes(t *testing.T) {
 	after.Profiles = l.profiles()
 	after.Profiles["codex-default"] = profile.Profile{Name: testProfileName("codex-default"), Kind: "pi"}
 
-	want := []string{"次の hergy hire --purpose 試作 から使われます"}
+	want := []string{"The next hergy hire --purpose 試作 starts with this profile"}
 	if got := effect.HireLines(before, after); !reflect.DeepEqual(got, want) {
 		t.Errorf("HireLines = %q, want %q", got, want)
 	}

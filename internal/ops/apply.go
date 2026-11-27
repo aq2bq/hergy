@@ -38,7 +38,7 @@ func promptsToResend(cat *catalog.Catalog, project domainplace.Project, r *Resol
 		if len(changes) == 0 {
 			continue
 		}
-		out[i].Prompt = deliver.Preamble(changes) + out[i].Prompt
+		out[i].Prompt = string(deliver.Preamble(changes)) + out[i].Prompt
 	}
 	return out
 }

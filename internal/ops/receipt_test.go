@@ -142,7 +142,7 @@ func TestInitialPromptReceiptOperations(t *testing.T) {
 				if (exit != 0) != tc.failed {
 					t.Fatalf("exit=%d result=%+v stdout=%s stderr=%s", exit, result, &stdout, &stderr)
 				}
-				if !tc.failed && !strings.Contains(stdout.String(), "送りました") && !strings.Contains(stdout.String(), "送り直しました") {
+				if !tc.failed && !strings.Contains(stdout.String(), "submitted:") && !strings.Contains(stdout.String(), "resent:") && !strings.Contains(stdout.String(), "and sent the bootstrap prompt") {
 					t.Fatalf("missing confirmed success: %s", &stdout)
 				}
 				calls := readFile(t, log)
@@ -173,14 +173,14 @@ func TestInitialPromptReceiptOperations(t *testing.T) {
 					if operation == "hire" {
 						pane = "p1"
 					}
-					if !strings.Contains(stderr.String(), "届いていません: "+target) || !strings.Contains(stderr.String(), "ペイン "+pane) {
+					if !strings.Contains(stderr.String(), "not received: "+target) || !strings.Contains(stderr.String(), "pane "+pane) {
 						t.Fatalf("missing recipient/pane: %s", &stderr)
 					}
 					if !strings.Contains(stderr.String(), "hergy ") {
 						t.Fatalf("missing recovery: %s", &stderr)
 					}
 					for line := range strings.SplitSeq(stdout.String(), "\n") {
-						if (strings.Contains(line, target) || strings.HasPrefix(line, "b:")) && (strings.Contains(line, "送りました") || strings.Contains(line, "送り直しました")) {
+						if (strings.Contains(line, target) || strings.HasPrefix(line, "b:")) && (strings.Contains(line, "submitted:") || strings.Contains(line, "resent:")) {
 							t.Fatalf("false success: %s", line)
 						}
 					}

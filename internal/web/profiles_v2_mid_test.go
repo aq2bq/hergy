@@ -292,8 +292,8 @@ func TestPROFILES_V3_ANameThatCannotBeWritten(t *testing.T) {
 		name string
 		want string
 	}{
-		{"", "profiles.: プロファイル名は [a-z][a-z0-9_-]{0,31} の形にしてください"},
-		{"sonnet-5.5", "profiles.sonnet-5.5: プロファイル名は [a-z][a-z0-9_-]{0,31} の形にしてください"},
+		{"", "profiles.: profile names must match [a-z][a-z0-9_-]{0,31}"},
+		{"sonnet-5.5", "profiles.sonnet-5.5: profile names must match [a-z][a-z0-9_-]{0,31}"},
 	}
 	for _, test := range cases {
 		check := pv2CheckBody(t, f, server, map[string]any{

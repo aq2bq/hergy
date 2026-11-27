@@ -4,6 +4,8 @@
 
 ### Changed
 
+- The CLI and API show messages in English. The language setting still selects the text sent to agents and the starter files.
+
 - The web screens use lighter headings and one scale of corner radii and spacing; activity cards drop the colored top band and the filled pane button.
 - The lists of team definitions, roles and profiles show a place with nothing in it as its heading alone, and the add buttons are plain text until hovered or focused.
 - The dark theme's secondary and faint text colors are easier to tell apart.

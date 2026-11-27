@@ -13,22 +13,22 @@ function layout() {
 }
 
 const members = [
-  { name: 'lead', state: 'active', doing: '設計を読む' },
+  { name: 'lead', state: 'working', doing: '設計を読む' },
   { name: 'webui-design', state: 'idle' },
-  { name: 'long-reviewer', state: 'blocked' },
-  { name: 'qa', state: 'absent' },
+  { name: 'long-reviewer', state: 'waiting-for-permission' },
+  { name: 'qa', state: 'not-running' },
 ];
 const workers = [
-  { name: 'impl-b', from: 'lead', state: 'active' },
-  { name: 'impl-a', from: 'lead', state: 'active' },
-  { name: 'inv-b', from: 'webui-design', state: 'active' },
+  { name: 'impl-b', from: 'lead', state: 'working' },
+  { name: 'impl-a', from: 'lead', state: 'working' },
+  { name: 'inv-b', from: 'webui-design', state: 'working' },
   { name: 'template-image', from: 'webui-design', state: 'idle' },
-  { name: 'html-mail', from: 'long-reviewer', state: 'active' },
-  { name: 'listing', from: 'long-reviewer', state: 'active' },
-  { name: 'rules-audit', from: 'lead', state: 'active' },
+  { name: 'html-mail', from: 'long-reviewer', state: 'working' },
+  { name: 'listing', from: 'long-reviewer', state: 'working' },
+  { name: 'rules-audit', from: 'lead', state: 'working' },
   { name: 'api-contracts', from: 'lead', state: 'idle' },
-  { name: 'prompt-review', from: 'webui-design', state: 'active' },
-  { name: 'visual-regression', from: 'lead', state: 'active' },
+  { name: 'prompt-review', from: 'webui-design', state: 'working' },
+  { name: 'visual-regression', from: 'lead', state: 'working' },
 ];
 const turns = [['human', 'lead'], ['lead', 'webui-design'], ['webui-design', 'long-reviewer'], ['qa', 'lead']];
 
@@ -64,7 +64,7 @@ test('AC-6e5b four member columns hold ten workers and keep turns above the memb
     };
     if (url === '/api/activity/large') return {
       doc: {
-        nodes: members.map((member) => ({ ...member, herdr: `large-${member.name}`, at: '' })),
+        nodes: members.map((member) => ({ ...member, herdr: `large-${member.name}`, at: null })),
         hired: workers,
         question: '',
       },

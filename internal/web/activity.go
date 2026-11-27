@@ -77,7 +77,7 @@ type ActivitySummary struct {
 	// Definition is the team definition the team was booted from, which the row
 	// writes under the team's name when the two differ (2.2).
 	Definition string `json:"definition"`
-	// State is answer, turn, stalled or working (activity.State).
+	// State is the vocabulary ID for the team state.
 	State string `json:"state"`
 	// Since is how long the tile has been in this state, and when it began. It is
 	// left out for a working team and for one with no live agent (2.2).
@@ -98,12 +98,11 @@ type ActivityTurn struct {
 	Text string `json:"text"`
 }
 
-// ActivitySince is a length and the moment it began, in the server's own words
-// (6 A4).
+// ActivitySince carries elapsed seconds and the start as Unix milliseconds.
 type ActivitySince struct {
-	Len   string `json:"len"`
-	At    string `json:"at"`
-	Lower bool   `json:"lower"`
+	Seconds int64 `json:"seconds"`
+	At      int64 `json:"at"`
+	Lower   bool  `json:"lower"`
 }
 
 // ActivityNote is one reader that could not be read: whether it could, and the
@@ -137,15 +136,12 @@ type ActivityNode struct {
 	// Herdr is the agent's name as herdr knows it, for the row's own mark of
 	// the member the line is about.
 	Herdr domainname.Seen `json:"herdr"`
-	// State is blocked, handed, active, idle or absent (activity.NodeState).
+	// State is the vocabulary ID for the member or worker state.
 	State string `json:"state"`
-	// At is when the state began, as HH:MM, and empty for a working member and
-	// for one with no agent (2.5).
-	At string `json:"at"`
-	// SinceAt is the same moment as the row's いつから reads it: "15:31 から",
-	// or "15:31 より前" when the watching began after it (d-b4b9 audit 2). Empty
-	// when At is.
-	SinceAt string `json:"since_at,omitempty"`
+	// At is the start as Unix milliseconds, or null when unknown.
+	At *int64 `json:"at"`
+	// Lower means the state began on or before At.
+	Lower bool `json:"lower"`
 	// Doing is what the agent's terminal says it is doing, exactly as herdr
 	// strips its own marks from the title (d-b4b9). It is shown whatever the
 	// state, and left out when the title is empty.

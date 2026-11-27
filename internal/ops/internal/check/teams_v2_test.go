@@ -103,8 +103,8 @@ func TestTEAMS_M2_TheEffectIsThePromptsOwnLine(t *testing.T) {
 	if err != nil {
 		t.Fatalf("core does not read: %v", err)
 	}
-	note := prompt.TurnsNote(i18n.Language(), prompt.TurnsOf(def, "impl-b", fixtureNaming("core")))
-	if !strings.Contains(note, wantRemoved[0]) {
+	note := prompt.TurnsNote(i18n.HandedLanguage(), prompt.TurnsOf(def, "impl-b", fixtureNaming("core")))
+	if !strings.Contains(string(note), wantRemoved[0]) {
 		t.Errorf("impl-b's turn note does not hold %q:\n%s", wantRemoved[0], note)
 	}
 

@@ -21,22 +21,23 @@ const sheet = (nodes, question = '') => ({ doc: { nodes, hired: [], question } }
 test('cards show every waiting member once and keep the pane action states', async () => {
   history.replaceState({}, '', '/activity');
   layout();
+  const at = (minutes) => new Date(2000, 9, 17, 11, minutes).getTime();
   const focused = later();
   let fail = false;
   const asked = serve((method, url) => {
     if (url === '/api/activity') return {
-      items: [team('core', 'turn', { len: '2 分', at: '11:01' }), team('migrate', 'answer', { len: '1 分', at: '11:03' }), team('stalled', 'stalled', null, { holder: 'lead', from: 'human', text: 'turn: lead' })],
+      items: [team('core', 'handed', { seconds: 120, at: at(1), lower: false }), team('migrate', 'waiting-for-permission', { seconds: 60, at: at(3), lower: true }), team('stalled', 'stalled', null, { holder: 'lead', from: 'human', text: 'turn: lead' })],
       herdr: { ok: true }, running: 3, waiting: 3,
     };
     if (url === '/api/activity/core') return sheet([
-      { name: 'lead', herdr: 'core-lead', state: 'handed', since_at: '11:01', question: 'Continue with the change?' },
-      { name: 'reviewer', herdr: 'core-reviewer', state: 'blocked', since_at: '11:02', question: 'Allow this command?' },
-      ...['active', 'idle', 'absent'].map((state) => ({ name: state, herdr: `core-${state}`, state })),
+      { name: 'lead', herdr: 'core-lead', state: 'handed', at: at(1), question: 'Continue with the change?' },
+      { name: 'reviewer', herdr: 'core-reviewer', state: 'waiting-for-permission', at: at(2), question: 'Allow this command?' },
+      ...['working', 'idle', 'not-running'].map((state) => ({ name: state, herdr: `core-${state}`, state })),
     ]);
     if (url === '/api/activity/migrate') return sheet([
-      { name: 'tester', herdr: 'migrate-tester', state: 'blocked', at: '11:03' },
+      { name: 'tester', herdr: 'migrate-tester', state: 'waiting-for-permission', at: at(3) },
     ], 'Trust this folder?');
-    if (url === '/api/activity/stalled') return sheet([{ name: 'lead', herdr: 'stalled-lead', state: 'idle', at: '' }]);
+    if (url === '/api/activity/stalled') return sheet([{ name: 'lead', herdr: 'stalled-lead', state: 'idle', at: null }]);
     if (url === '/api/activity/focus') {
       if (fail) throw new Error('herdr でペインへ移動できませんでした');
       return focused.promise;
@@ -62,8 +63,8 @@ test('cards show every waiting member once and keep the pane action states', asy
     expect(waiting.querySelector('.hq-tl')).toBe(null);
   }
   for (const [name, state, since] of [
-    ['core', '人間の返事待ち', '2 分 11:01'],
-    ['migrate', '許可待ち', '1 分 11:03'],
+    ['core', '人間の返事待ち', '2 分 10/17 11:01 から'],
+    ['migrate', '許可待ち', '1 分以上 10/17 11:03 より前'],
   ]) {
     const tile = document.querySelector(`.hq-tile[data-team="${name}"]`);
     expect(tile.querySelector('.hq-th .st').textContent).toBe(state);

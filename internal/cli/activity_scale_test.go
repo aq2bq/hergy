@@ -249,10 +249,10 @@ type activityListItem struct {
 	Error string `json:"error"`
 }
 
-// activitySince is a length and the moment it began, in the server's words (A4).
+// activitySince is the numeric time returned by the activity API.
 type activitySince struct {
-	Len string `json:"len"`
-	At  string `json:"at"`
+	Seconds int64 `json:"seconds"`
+	At      int64 `json:"at"`
 }
 
 // activityListAnswer is GET /api/activity's answer.
@@ -295,43 +295,6 @@ func activityWrite(t *testing.T, base, method, path string) (*http.Response, str
 		t.Fatal(err)
 	}
 	return resp, string(body)
-}
-
-// activityCode is one script with its comments taken out: what the screen's own
-// code says, rather than what its notes say about it (V1).
-func activityCode(script string) string {
-	code := regexp.MustCompile(`(?s)/\*.*?\*/`).ReplaceAllString(script, "")
-	lines := strings.Split(code, "\n")
-	for i, line := range lines {
-		if before, _, ok := strings.Cut(line, "//"); ok {
-			lines[i] = before
-		}
-	}
-	return strings.Join(lines, "\n")
-}
-
-// activityScript is the activity screen's own source: every module the screen is
-// made of, under internal/web/static/activity. Before the rewrite it was the one
-// classic script static/activity-v2.js (webui-preact-design 6 章).
-func activityScript(t *testing.T, cwd string) string {
-	t.Helper()
-	dir := filepath.Join(cwd, "..", "web", "static", "activity")
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		t.Fatalf("read the activity screen's files: %v", err)
-	}
-	var b strings.Builder
-	for _, e := range entries {
-		if e.IsDir() || !strings.HasSuffix(e.Name(), ".js") {
-			continue
-		}
-		b.WriteString(readFile(t, filepath.Join(dir, e.Name())))
-		b.WriteString("\n")
-	}
-	if b.Len() == 0 {
-		t.Fatalf("the activity screen has no script under %s", dir)
-	}
-	return b.String()
 }
 
 // serveAt is the run's own moment: the serve reads its clock from it, so a walk
@@ -393,11 +356,8 @@ func TestACTIVITY_C4_judgesATeamFromTheAgents(t *testing.T) {
 }
 
 // TestACTIVITY-C5_saysHowLongFromTheFixedClock makes every length and every
-// moment from a fixed "now" and the fixture's stopped moments: core waits
-// 2 時間 40 分 from a clock, and core-hotfix is stopped 4 時間 5 分以上 from a
-// moment that is a lower bound. The moment is placed so every stopped moment falls on the same
-// calendar day as it, so the clock is written without a date; the wall clock is
-// never read, and the screen's own script makes none of these words (V1).
+// moment from a fixed clock and the fixture's stopped moments. The activity
+// API gives exact times and lower bounds to the screen as numbers.
 func TestACTIVITY_C5_saysHowLongFromTheFixedClock(t *testing.T) {
 	useJapanese(t)
 	wasZone := time.Local
@@ -433,11 +393,11 @@ func TestACTIVITY_C5_saysHowLongFromTheFixedClock(t *testing.T) {
 	if coreRow == nil || coreRow.Summary.Since == nil {
 		t.Fatalf("core's tile carries no いつから: %+v", coreRow)
 	}
-	if coreRow.Summary.Since.Len != "2 時間 40 分" {
-		t.Errorf("core has waited %q, want 2 時間 40 分", coreRow.Summary.Since.Len)
+	if coreRow.Summary.Since.Seconds != 160*60 || coreRow.Summary.Since.Lower {
+		t.Errorf("core since = %+v, want exactly 160 minutes", coreRow.Summary.Since)
 	}
-	if want := at.Add(-160*time.Minute).Format("15:04") + " から"; coreRow.Summary.Since.At != want {
-		t.Errorf("core has waited since %q, want %q", coreRow.Summary.Since.At, want)
+	if want := at.Add(-160 * time.Minute).UnixMilli(); coreRow.Summary.Since.At != want {
+		t.Errorf("core has waited since %d, want %d", coreRow.Summary.Since.At, want)
 	}
 
 	coreDoc, ok := r.One("core")
@@ -453,26 +413,20 @@ func TestACTIVITY_C5_saysHowLongFromTheFixedClock(t *testing.T) {
 	if leadNode == nil {
 		t.Fatalf("core has no lead node: %+v", coreDoc.Nodes)
 	}
-	if leadNode.SinceAt != coreRow.Summary.Since.At {
-		t.Errorf("the lead's いつから reads %q, want the tile's %q", leadNode.SinceAt, coreRow.Summary.Since.At)
+	if leadNode.At == nil || *leadNode.At != coreRow.Summary.Since.At || leadNode.Lower != coreRow.Summary.Since.Lower {
+		t.Errorf("lead time = %+v, want the team's since: %+v", leadNode, coreRow.Summary.Since)
 	}
 
 	if hotfixRow == nil || hotfixRow.Summary.Since == nil {
-		t.Fatalf("core-hotfix's tile carries no いつから: %+v", hotfixRow)
+		t.Fatalf("core-hotfix's tile has no since: %+v", hotfixRow)
 	}
-	if hotfixRow.Summary.Since.Len != "4 時間 5 分以上" || !hotfixRow.Summary.Since.Lower {
-		t.Errorf("core-hotfix is stopped %q (lower=%v), want 4 時間 5 分以上", hotfixRow.Summary.Since.Len, hotfixRow.Summary.Since.Lower)
+	if hotfixRow.Summary.Since.Seconds != 245*60 || !hotfixRow.Summary.Since.Lower {
+		t.Errorf("core-hotfix since = %+v, want at least 245 minutes", hotfixRow.Summary.Since)
 	}
-	if want := at.Add(-245*time.Minute).Format("15:04") + " より前"; hotfixRow.Summary.Since.At != want {
-		t.Errorf("core-hotfix is stopped since %q, want %q", hotfixRow.Summary.Since.At, want)
+	if want := at.Add(-245 * time.Minute).UnixMilli(); hotfixRow.Summary.Since.At != want {
+		t.Errorf("core-hotfix has stalled since %d, want %d", hotfixRow.Summary.Since.At, want)
 	}
 
-	script := activityCode(activityScript(t, cwd))
-	for _, word := range []string{"時間", "分", "秒", "から", "以上", "より前", "日", "時"} {
-		if strings.Contains(script, word) {
-			t.Errorf("the screen's own script says %q, which the server is the one to say", word)
-		}
-	}
 }
 
 // TestACTIVITY_S3_listsTheRunningTeams reads GET /api/activity over a real serve:
@@ -508,7 +462,7 @@ func TestACTIVITY_S3_listsTheRunningTeams(t *testing.T) {
 		t.Errorf("the band reads running=%d waiting=%d, want 4 and 1", list.Running, list.Waiting)
 	}
 	want := []struct{ name, state, definition string }{
-		{"migrate", "answer", "migrate"},
+		{"migrate", "waiting-for-permission", "migrate"},
 		{"core-hotfix", "stalled", "core"},
 		{"core", "stalled", "core"},
 		{"research", "working", "research"},

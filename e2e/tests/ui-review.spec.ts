@@ -75,7 +75,7 @@ test.describe('UI review: waiting and editing', () => {
     const trigger = page.locator('.hq-tile[data-team="core"] [data-hq="stop"]');
     await trigger.click();
     const sheet = page.getByRole('dialog');
-    await expect(sheet.getByText('会話は残りません。この操作は取り消せません。')).toBeVisible();
+    await expect(sheet.getByText('The conversation does not stay. This cannot be taken back.')).toBeVisible();
     const buttonRect = (await trigger.boundingBox())!;
     const sheetRect = (await sheet.boundingBox())!;
     expect(Math.abs(buttonRect.x - sheetRect.x)).toBeLessThan(610);

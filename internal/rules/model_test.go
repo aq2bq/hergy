@@ -34,11 +34,11 @@ func TestOldRuleItemsStopWithTheFileAndRule(t *testing.T) {
 	cases := []struct {
 		name, key, advice string
 	}{
-		{"why", "why: 理由", "本文"},
-		{"send_why", "send_why: false", "メモ"},
-		{"origin", "origin:\n          - kind: incident", "メモ"},
-		{"report", "report: 監査.scope", "消して"},
-		{"tests", "tests: [T-1]", "消して"},
+		{"why", "why: 理由", "body"},
+		{"send_why", "send_why: false", "note"},
+		{"origin", "origin:\n          - kind: incident", "note"},
+		{"report", "report: 監査.scope", "take this item out"},
+		{"tests", "tests: [T-1]", "take this item out"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

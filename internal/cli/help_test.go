@@ -19,13 +19,13 @@ func TestCommandHelpNeedsNoHerdrAndPrintsThatCommandsFlags(t *testing.T) {
 		not  []string
 	}{
 		{[]string{"new", "--help", "--lang", "ja"},
-			[]string{"hergy new - チーム定義のひな形を作る", "<チーム定義>"},
+			[]string{"hergy new - Write a starter team definition", "<definition>"},
 			[]string{"--timeout", "--as", "--purpose", "--local", "--global"}},
 		{[]string{"up", "--help"},
 			[]string{"hergy up - Start a team", "--as <team>", "--timeout <ms>"},
 			[]string{"--purpose", "--profile"}},
 		{[]string{"hire", "-h", "--lang", "ja"},
-			[]string{"hergy hire - ワーカーを追加する", "--purpose <目的>", "--task <依頼>", "--from <メンバー>"},
+			[]string{"hergy hire - Add a worker", "--purpose <purpose>", "--task <task>", "--from <member>"},
 			[]string{"--as", "--profile"}},
 		{[]string{"cheat", "--help"},
 			[]string{"hergy cheat - Show the cheatsheet", "--ai"},
@@ -73,10 +73,7 @@ func TestHelpOfNoCommandIsTheFullListAndPointsAtCommandHelp(t *testing.T) {
 		}
 		last := strings.TrimRight(bare, "\n")
 		last = last[strings.LastIndex(last, "\n")+1:]
-		want := map[string]string{
-			"en": "Details of one command: hergy <command> --help",
-			"ja": "コマンドごとの説明は hergy <コマンド> --help",
-		}[lang]
+		want := "Details of one command: hergy <command> --help"
 		if last != want {
 			t.Errorf("[%s] the last line of the full list is %q, want %q", lang, last, want)
 		}
@@ -93,9 +90,9 @@ func TestOptionErrorsPointAtTheCommandsHelpOnStderr(t *testing.T) {
 		want string
 	}{
 		{[]string{"new", "--foo", "--lang", "en"}, "unknown option \"--foo\" (see `hergy new --help`)"},
-		{[]string{"new", "--foo", "--lang", "ja"}, "不明なオプションです: \"--foo\"（hergy new --help を見てください）"},
+		{[]string{"new", "--foo", "--lang", "ja"}, "unknown option \"--foo\" (see `hergy new --help`)"},
 		{[]string{"ls", "--as", "x", "--lang", "en"}, "--as cannot be used with hergy ls (see `hergy ls --help`)"},
-		{[]string{"ls", "--as", "x", "--lang", "ja"}, "--as は hergy ls では使えません（hergy ls --help を見てください）"},
+		{[]string{"ls", "--as", "x", "--lang", "ja"}, "--as cannot be used with hergy ls (see `hergy ls --help`)"},
 		{[]string{"frobnicate", "--lang", "en"}, "unknown command \"frobnicate\" (see `hergy help`)"},
 	}
 	for _, tt := range tests {
@@ -109,7 +106,7 @@ func TestOptionErrorsPointAtTheCommandsHelpOnStderr(t *testing.T) {
 // TestUsagePrintsWithABrokenConfig: the global config.yaml cannot be read, and
 // the usage — hergy, hergy --help, hergy <command> --help, cheat and version —
 // still prints and exits 0, with one line at the end of a help that says the
-// file cannot be read (r-f60a, d-dfdd). The language is --lang, else English.
+// file cannot be read (r-f60a, d-dfdd). The message is English with any language setting.
 func TestUsagePrintsWithABrokenConfig(t *testing.T) {
 	f := newFixture(t)
 	configPath := filepath.Join(f.cfg, "hergy", "config.yaml")
@@ -156,8 +153,8 @@ func TestUsagePrintsWithABrokenConfig(t *testing.T) {
 	}
 
 	stdout, _, code := run("--help", "--lang", "ja")
-	if code != 0 || !strings.Contains(stdout, "設定が読めない: config.yaml: version 9 は読めません") {
-		t.Errorf("hergy --help --lang ja does not say the file is broken in Japanese (exit %d):\n%s", code, stdout)
+	if code != 0 || !strings.Contains(stdout, "the settings cannot be read: config.yaml: cannot read version 9") {
+		t.Errorf("hergy --help --lang ja does not say the file is broken in English (exit %d):\n%s", code, stdout)
 	}
 }
 

@@ -81,11 +81,11 @@ func (s *Server) apiPromptComparison(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if in.Place != "global" && in.Place != "project" {
-		apiAnswer(w, nil, refuse(422, "置き場所を選んでください"))
+		apiAnswer(w, nil, refuse(422, i18n.T("web.prompt.choose_place")))
 		return
 	}
 	if in.Name == "" || in.Name == "." || in.Name == ".." || filepath.Base(in.Name) != in.Name || in.Member == "" {
-		apiAnswer(w, nil, refuse(422, "定義名とメンバー名を確認してください"))
+		apiAnswer(w, nil, refuse(422, i18n.T("web.prompt.check_names")))
 		return
 	}
 	out, refusal := scoped.comparePrompt(in)
@@ -158,7 +158,7 @@ func (s *Server) promptsFor(ask promptAsk) (*promptBuilt, *apiErr) {
 	if bad != nil {
 		return nil, bad
 	}
-	query := ops.ResourcePromptInput{Target: ops.ExistingResource(target), Hash: in.Hash, Ops: body.ops, Pick: in.RunningTeam, Member: in.Member, WithRuns: ask.WithRuns, Catalog: ask.Cat, Definition: ask.Def, Executable: promptExecutable(), Language: i18n.Language()}
+	query := ops.ResourcePromptInput{Target: ops.ExistingResource(target), Hash: in.Hash, Ops: body.ops, Pick: in.RunningTeam, Member: in.Member, WithRuns: ask.WithRuns, Catalog: ask.Cat, Definition: ask.Def, Executable: promptExecutable(), Language: i18n.HandedLanguage()}
 	if in.New || in.Base != nil {
 		row, bad := s.t2DraftRowOf(in.apiIn)
 		if bad != nil {
@@ -221,16 +221,16 @@ func (s *Server) promptRuns(project domainplace.Project, definition, place strin
 func legacyHistory(names promptNames, readerOK, asked bool, history PromptHistory, readErr error) PromptHistory {
 	out := PromptHistory{Runs: names.Runs, Selected: names.Selected}
 	if !readerOK {
-		out.Status, out.Reason = "missing", "このメンバーへ渡した本文の記録がありません"
+		out.Status, out.Reason = "missing", i18n.T("web.prompt.no_record")
 		return out
 	}
 	switch names.Status {
 	case "error":
 		out.Status, out.Reason = "error", names.Reason
 	case "choose":
-		out.Status, out.Reason = "choose", "実行中のチームを選んでください"
+		out.Status, out.Reason = "choose", i18n.T("web.prompt.choose_running")
 	case "none":
-		out.Status, out.Reason = "stopped", "動いているチームがないため、今の文だけを表示します"
+		out.Status, out.Reason = "stopped", i18n.T("web.prompt.no_running")
 	}
 	if asked {
 		if readErr != nil {
@@ -240,7 +240,7 @@ func legacyHistory(names promptNames, readerOK, asked bool, history PromptHistor
 		}
 	}
 	if out.Status == "" {
-		out.Status, out.Reason = "missing", "このメンバーへ渡した本文の記録がありません"
+		out.Status, out.Reason = "missing", i18n.T("web.prompt.no_record")
 	}
 	return out
 }
@@ -254,7 +254,7 @@ func (s *Server) comparePrompt(in promptComparisonIn) (*promptComparison, *apiEr
 		Segments: []definition.PromptSegment{},
 		Problems: []apiProblem{}, Diff: []PromptDiffLine{}, Team: in.Name, Member: in.Member,
 		Draft:      len(body.ops) > 0 || in.New || in.Base != nil,
-		Executable: promptExecutable(), Language: i18n.Language(), Project: s.cat.Base(),
+		Executable: promptExecutable(), Language: i18n.HandedLanguage(), Project: s.cat.Base(),
 	}
 	withRuns := !in.New && in.Base == nil
 	built, refusal := s.promptsFor(promptAsk{In: in, WithRuns: withRuns})
@@ -292,7 +292,7 @@ func (s *Server) comparePrompt(in promptComparisonIn) (*promptComparison, *apiEr
 		if err := built.Errors[in.Member]; err != nil {
 			return nil, refuse(422, err.Error())
 		}
-		return nil, refuse(422, "この定義にメンバーがありません")
+		return nil, refuse(422, i18n.T("web.prompt.no_members"))
 	}
 	text := built.Built[0]
 	out.Current = &text.Text

@@ -1,8 +1,11 @@
 package ops
 
 import (
+	"time"
+
 	domainname "github.com/aq2bq/hergy/internal/domain/name"
 	domainplace "github.com/aq2bq/hergy/internal/domain/place"
+	"github.com/aq2bq/hergy/internal/words"
 )
 
 // HQError is a refusal from the headquarters reading: the status, the sentence a
@@ -309,8 +312,8 @@ type ActivitySummary struct {
 	// Definition is the team definition the team was booted from, which the row
 	// writes under the team's name when the two differ (2.2).
 	Definition string
-	// State is answer, turn, stalled or working (activity.State).
-	State string
+	// State is the vocabulary ID for the team state.
+	State words.TermID
 	// Since is how long the tile has been in this state, and when it began. It is
 	// left out for a working team and for one with no live agent (2.2).
 	Since *ActivitySince
@@ -330,12 +333,11 @@ type ActivityTurn struct {
 	Text string
 }
 
-// ActivitySince is a length and the moment it began, in the server's own words
-// (6 A4).
+// ActivitySince records when the state began and how long it has lasted.
 type ActivitySince struct {
-	Len   string
-	At    string
-	Lower bool
+	Duration time.Duration
+	At       time.Time
+	Lower    bool
 }
 
 // ActivityNote is one reader that could not be read: whether it could, and the
@@ -369,15 +371,12 @@ type ActivityNode struct {
 	// Herdr is the agent's name as herdr knows it, for the row's own mark of
 	// the member the line is about.
 	Herdr domainname.Seen
-	// State is blocked, handed, active, idle or absent (activity.NodeState).
-	State string
-	// At is when the state began, as HH:MM, and empty for a working member and
-	// for one with no agent (2.5).
-	At string
-	// SinceAt is the same moment as the row's いつから reads it: "15:31 から",
-	// or "15:31 より前" when the watching began after it (d-b4b9 audit 2). Empty
-	// when At is.
-	SinceAt string
+	// State is the vocabulary ID for the member or worker state.
+	State words.TermID
+	// At is zero when the member is working or has no agent.
+	At time.Time
+	// Lower means the state began on or before At.
+	Lower bool
 	// Doing is what the agent's terminal says it is doing, exactly as herdr
 	// strips its own marks from the title (d-b4b9). It is shown whatever the
 	// state, and left out when the title is empty.

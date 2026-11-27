@@ -11,7 +11,7 @@ import (
 // lines, a command's synopsis and under it what it does, in the table's order.
 // A command added to the table shows up here without a hand.
 func TestCheatIsEveryCommandsLineAndSummary(t *testing.T) {
-	for _, lang := range []string{"en", "ja"} {
+	for _, lang := range []string{"en"} {
 		want := ""
 		for _, kind := range options.Kinds {
 			if options.Summary(kind, lang) == "" {

@@ -93,7 +93,7 @@ func TestTeamDownCleanupAfterNameWait(t *testing.T) {
 					}
 				}
 				if outcome == "timeout-own" {
-					if strings.Contains(calls(t, log), "pane close p2") || !strings.Contains(stderr.String(), "自分のペインは残しました") {
+					if strings.Contains(calls(t, log), "pane close p2") || !strings.Contains(stderr.String(), "your own pane was kept open") {
 						t.Errorf("own pane was not retained: %s; %s", calls(t, log), &stderr)
 					}
 				}

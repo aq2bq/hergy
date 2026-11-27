@@ -121,7 +121,7 @@ func StopTeam(ctx context.Context, in StopInput) (out StopResult, err error) {
 		stopEvent(in, StopEvent{Text: out.PluginNote})
 	}
 	if !in.Dry && in.RequirePane && (!in.ManagedPane || in.SelfPane == "") {
-		return out, words.Errorf("runtime.managed-pane", i18n.Language())
+		return out, words.Errorf("runtime.managed-pane", i18n.English)
 	}
 	if !out.ShowHeader {
 		out.ShowHeader = true
@@ -239,7 +239,7 @@ func StopWorker(ctx context.Context, in StopInput) (out StopResult, err error) {
 	out.PluginNote = pluginNote()
 	stopEvent(in, StopEvent{Text: out.PluginNote})
 	if !in.Dry && in.RequirePane && (!in.ManagedPane || in.SelfPane == "") {
-		return out, words.Errorf("runtime.managed-pane", i18n.Language())
+		return out, words.Errorf("runtime.managed-pane", i18n.English)
 	}
 	text := &stopText{observe: in.Observe}
 	l := stopLauncher(ctx, in, &out.Plan, text).WithContext(ctx)

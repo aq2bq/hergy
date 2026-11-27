@@ -124,7 +124,7 @@ func (s *Server) dangerLossTeam(place, name string) ([]string, *apiErr) {
 	for _, path := range files {
 		shown = append(shown, s.cat.Display(path))
 	}
-	lines := []string{tf("danger.team_files", strings.Join(shown, "、"))}
+	lines := []string{tf("danger.team_files", strings.Join(shown, ", "))}
 	for _, item := range s.activity().List().Items {
 		if item.Summary.Definition == name {
 			lines = append(lines, tf("danger.team_running", item.Name))
@@ -134,7 +134,7 @@ func (s *Server) dangerLossTeam(place, name string) ([]string, *apiErr) {
 		lines = append(lines, t("danger.team_folder"))
 	}
 	if len(leftovers) > 0 {
-		lines = append(lines, tf("danger.team_left", strings.Join(leftovers, "、")))
+		lines = append(lines, tf("danger.team_left", strings.Join(leftovers, ", ")))
 	}
 	lines = append(lines, t("danger.irreversible"))
 	return lines, nil
@@ -159,7 +159,7 @@ func (s *Server) dangerLossActivity(team string) ([]string, *apiErr) {
 	if !ok {
 		return nil, refuse(http.StatusNotFound, t("web.error.not_found"))
 	}
-	lines := []string{tf("danger.stop_members", len(members), strings.Join(members, "、"))}
+	lines := []string{tf("danger.stop_members", len(members), strings.Join(members, ", "))}
 	if workers > 0 {
 		lines = append(lines, tf("danger.stop_workers", workers))
 	}

@@ -4,7 +4,6 @@
 package prompt
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/aq2bq/hergy/internal/definition"
@@ -13,17 +12,24 @@ import (
 
 // MemberTemplate is the default bootstrap prompt for a team member, in one
 // language; empty is the language in use.
-func MemberTemplate(lang string) string { return i18n.Text(lang, "prompt.member") }
+func MemberTemplate(lang string) i18n.AgentText { return i18n.Text(lang, "prompt.member") }
 
 // WorkerTemplate is the bootstrap prompt for a hired worker.
-func WorkerTemplate() string { return i18n.T("prompt.worker") }
+func WorkerTemplate() i18n.AgentText { return i18n.Handed("prompt.worker") }
 
-// ExpandSegments says where each piece came from. A
+// agentPart holds text in its audience's type until projecting a prompt segment.
+type agentPart struct {
+	kind   string
+	text   i18n.AgentText
+	origin definition.PromptOrigin
+}
+
+// expandSegments says where each piece came from. A
 // placeholder in parts becomes one or more segments of its own; one in simple
 // is written into the template's own text; the text between placeholders is a
 // template segment. Joining every segment's Text in order gives the prompt
 // character for character (r-4cf9).
-func ExpandSegments(template string, origin definition.PromptOrigin, simple map[string]func() string, parts map[string]func() []definition.PromptSegment) (string, []definition.PromptSegment, error) {
+func expandSegments(template i18n.AgentText, origin definition.PromptOrigin, simple map[string]i18n.AgentText, parts map[string]func() []agentPart) (string, []definition.PromptSegment, error) {
 	var literal strings.Builder
 	var segments []definition.PromptSegment
 	flush := func() {
@@ -38,17 +44,19 @@ func ExpandSegments(template string, origin definition.PromptOrigin, simple map[
 	for i := 0; i < len(template); {
 		if template[i] == '%' && i+1 < len(template) && template[i+1] == '{' {
 			rest := template[i+2:]
-			end := strings.IndexByte(rest, '}')
+			end := strings.IndexByte(string(rest), '}')
 			if end > 0 {
-				key := rest[:end]
+				key := string(rest[:end])
 				if build, ok := parts[key]; ok {
 					flush()
-					segments = append(segments, build()...)
+					for _, part := range build() {
+						segments = append(segments, definition.PromptSegment{Kind: part.kind, Text: string(part.text), Origin: part.origin})
+					}
 					i += 2 + end + 1
 					continue
 				}
-				if build, ok := simple[key]; ok {
-					literal.WriteString(build())
+				if value, ok := simple[key]; ok {
+					literal.WriteString(string(value))
 					i += 2 + end + 1
 					continue
 				}
@@ -76,16 +84,16 @@ type RosterEntry struct {
 
 // Roster lists the team, marking the reader. lang is the language the prompt is
 // written in; empty is the language in use.
-func Roster(lang string, members []RosterEntry, me string) string {
+func Roster(lang string, members []RosterEntry, me string) i18n.AgentText {
 	lines := make([]string, 0, len(members))
 	for _, member := range members {
-		mark := ""
+		var mark i18n.AgentText
 		if member.Name == me {
 			mark = i18n.Text(lang, "roster.mark")
 		}
-		lines = append(lines, fmt.Sprintf(i18n.Text(lang, "roster.line"), member.Short, member.Title, member.Role, member.Name, mark))
+		lines = append(lines, string(i18n.Textf(lang, "roster.line", member.Short, member.Title, member.Role, member.Name, mark)))
 	}
-	return strings.Join(lines, "\n")
+	return i18n.AgentText(strings.Join(lines, "\n"))
 }
 
 // HerdrMember is the contact guide: a member writes its result in its own pane
@@ -93,14 +101,14 @@ func Roster(lang string, members []RosterEntry, me string) string {
 // (r-bc26, ac-2d71). A member sends nothing itself. It also names the one way to
 // add a teammate, so a member does not start one with herdr directly and lose it
 // from hergy's roster.
-func HerdrMember(lang string) string {
+func HerdrMember(lang string) i18n.AgentText {
 	return i18n.Text(lang, "herdr.guide_member")
 }
 
 // HerdrWorker is the same contact guide for a hired worker: its pane is handed
 // to the member that hired it, and it adds no teammates of its own.
-func HerdrWorker() string {
-	return i18n.T("herdr.guide_worker")
+func HerdrWorker() i18n.AgentText {
+	return i18n.Handed("herdr.guide_worker")
 }
 
 // WorkerPair is one purpose-to-profile pair a member may hire for.
@@ -113,14 +121,14 @@ type WorkerPair struct {
 // never enforced: a hire outside it only prints a note. It lists the pairs of
 // purpose and profile the member may hire for. `command` is the hire command
 // line shown to the member, with the placeholders it should fill in.
-func WorkersNote(lang, memberName string, workers []WorkerPair, command string) string {
+func WorkersNote(lang, memberName string, workers []WorkerPair, command i18n.AgentText) i18n.AgentText {
 	allowed := make([]string, 0, len(workers))
 	for _, worker := range workers {
-		allowed = append(allowed, fmt.Sprintf(i18n.Text(lang, "workers.allowed_item"), worker.Purpose, worker.Profile))
+		allowed = append(allowed, string(i18n.Textf(lang, "workers.allowed_item", worker.Purpose, worker.Profile)))
 	}
 	separator := i18n.Text(lang, "list.separator")
 	return i18n.Textf(lang, "workers.note",
-		strings.Join(allowed, separator),
+		strings.Join(allowed, string(separator)),
 		command,
 		memberName)
 }
@@ -136,17 +144,17 @@ type TurnPart struct {
 // TurnsNote lists who a member hands the turn to. It is built from the graph's
 // edges out of the member and adds nothing to them (I13): taking one edge away
 // takes that party out of the prompt.
-func TurnsNote(lang string, turns []TurnPart) string {
+func TurnsNote(lang string, turns []TurnPart) i18n.AgentText {
 	if len(turns) == 0 {
 		return ""
 	}
 	lines := make([]string, 0, len(turns))
 	for _, turn := range turns {
 		if turn.Role == "" {
-			lines = append(lines, i18n.Text(lang, "turns.human_item"))
+			lines = append(lines, string(i18n.Text(lang, "turns.human_item")))
 			continue
 		}
-		lines = append(lines, fmt.Sprintf(i18n.Text(lang, "turns.member_item"), turn.Name, turn.Role))
+		lines = append(lines, string(i18n.Textf(lang, "turns.member_item", turn.Name, turn.Role)))
 	}
 	return i18n.Textf(lang, "turns.note", strings.Join(lines, "\n"))
 }

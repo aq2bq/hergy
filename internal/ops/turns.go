@@ -414,8 +414,14 @@ func waitingText(waiting []string) string {
 // human, saying why.
 func (w *turnWatcher) ask(action turns.Action, route string) {
 	target, targetErr := w.target(action.To)
-	cands := append(append([]string(nil), action.Candidates...), i18n.T("send.who_human"), i18n.T("turns.nobody"))
-	text := i18n.Tf("turns.question", waitingText(action.Waiting), strings.Join(cands, i18n.T("turns.or")))
+	// The question is the member's to read, so it is in the handed language; the
+	// line about it below is the person's.
+	cands := append(append([]string(nil), action.Candidates...), string(i18n.Handed("send.who_human")), string(i18n.Handed("turns.nobody")))
+	var waiting i18n.AgentText
+	if len(action.Waiting) > 0 {
+		waiting = i18n.Handedf("turns.waiting_for", strings.Join(action.Waiting, ", "))
+	}
+	text := i18n.Handedf("turns.question", waiting, strings.Join(cands, string(i18n.Handed("turns.or"))))
 	fmt.Fprint(w.out, i18n.Tf("turns.asked", action.To, waitingText(action.Waiting), route))
 	err := targetErr
 	if err == nil {
@@ -457,7 +463,7 @@ func (w *turnWatcher) deliver(action turns.Action, route string) {
 		err = w.herdr.ConfirmPrompt(target, text)
 	}
 	if err == nil {
-		fmt.Fprint(w.out, i18n.Tf("turns.delivered", action.From, action.To, strings.Count(text, "\n")+1, route))
+		fmt.Fprint(w.out, i18n.Tf("turns.delivered", action.From, action.To, strings.Count(string(text), "\n")+1, route))
 		return
 	}
 	w.state.Undelivered(w.clock())
@@ -486,16 +492,16 @@ func (w *turnWatcher) target(short string) (domainname.Target, error) {
 
 // handoffText is the message a recipient gets: one member's text, or everything
 // the box held, each part naming who wrote it and where the whole pane is.
-func (w *turnWatcher) handoffText(msgs []turns.Message) string {
+func (w *turnWatcher) handoffText(msgs []turns.Message) i18n.AgentText {
 	if len(msgs) == 1 {
 		m := msgs[0]
-		return i18n.Tf("turns.handoff", m.From, m.From, lastLines(m.Text, handoffLines), w.names[m.From])
+		return i18n.Handedf("turns.handoff", m.From, m.From, lastLines(m.Text, handoffLines), w.names[m.From])
 	}
 	parts := make([]string, 0, len(msgs))
 	for _, m := range msgs {
-		parts = append(parts, i18n.Tf("turns.handoff_one_of_many", m.From, w.names[m.From], lastLines(m.Text, handoffLines)))
+		parts = append(parts, string(i18n.Handedf("turns.handoff_one_of_many", m.From, w.names[m.From], lastLines(m.Text, handoffLines))))
 	}
-	return i18n.Tf("turns.handoff_many", len(msgs), strings.Join(parts, "\n\n"))
+	return i18n.Handedf("turns.handoff_many", len(msgs), strings.Join(parts, "\n\n"))
 }
 
 // paneDelta is what a pane holds past where it stood before: the lines after

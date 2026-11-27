@@ -21,34 +21,28 @@ type WorkerInput struct {
 // hire gave it, and the contact guide. Joining the segments' texts gives Text
 // exactly (r-4cf9).
 func Worker(in WorkerInput) (*Built, error) {
-	simple := map[string]func() string{
-		"team":      func() string { return in.Team },
-		"lead":      func() string { return in.Lead },
-		"lead_role": func() string { return in.LeadRole },
-		"purpose":   func() string { return in.Purpose },
-		"name":      func() string { return in.Name },
+	simple := map[string]i18n.AgentText{
+		"team":      i18n.AgentText(in.Team),
+		"lead":      i18n.AgentText(in.Lead),
+		"lead_role": i18n.AgentText(in.LeadRole),
+		"purpose":   i18n.AgentText(in.Purpose),
+		"name":      i18n.AgentText(in.Name),
 	}
-	parts := map[string]func() []definition.PromptSegment{
-		"actor": func() []definition.PromptSegment {
-			return []definition.PromptSegment{{
-				Kind: "actor", Text: i18n.Tf("prompt.actor", in.Name),
-				Origin: definition.PromptOrigin{Kind: "hergy"},
+	parts := map[string]func() []agentPart{
+		"actor": func() []agentPart {
+			return oneSegment("actor", i18n.Handedf("prompt.actor", in.Name), definition.PromptOrigin{Kind: "hergy"})
+		},
+		"task": func() []agentPart {
+			return []agentPart{{
+				kind: "task", text: i18n.AgentText(in.Task),
+				origin: definition.PromptOrigin{Kind: "hire", Name: in.Name},
 			}}
 		},
-		"task": func() []definition.PromptSegment {
-			return []definition.PromptSegment{{
-				Kind: "task", Text: in.Task,
-				Origin: definition.PromptOrigin{Kind: "hire", Name: in.Name},
-			}}
-		},
-		"herdr": func() []definition.PromptSegment {
-			return []definition.PromptSegment{{
-				Kind: "herdr", Text: HerdrWorker(),
-				Origin: definition.PromptOrigin{Kind: "hergy"},
-			}}
+		"herdr": func() []agentPart {
+			return oneSegment("herdr", HerdrWorker(), definition.PromptOrigin{Kind: "hergy"})
 		},
 	}
-	text, segments, err := ExpandSegments(WorkerTemplate(), definition.PromptOrigin{Kind: "hergy"}, simple, parts)
+	text, segments, err := expandSegments(WorkerTemplate(), definition.PromptOrigin{Kind: "hergy"}, simple, parts)
 	if err != nil {
 		return nil, err
 	}

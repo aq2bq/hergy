@@ -64,7 +64,7 @@ func TestWatcherConfirmedDelivery(t *testing.T) {
 			if tc.failed && (f.w.state.Holder != turns.Human || f.w.state.Why != turns.WhyUndelivered) {
 				t.Fatalf("state=%+v", f.w.state)
 			}
-			if !tc.failed && !strings.Contains(f.out.String(), "渡しました") {
+			if !tc.failed && !strings.Contains(f.out.String(), "handed on") {
 				t.Fatalf("missing delivery: %s", f.out)
 			}
 		})

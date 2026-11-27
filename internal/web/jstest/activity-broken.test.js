@@ -21,7 +21,7 @@ const reason = '.hergy/teams/core/team.yaml: ロール名「進行管理」は�
 const team = {
   name: 'core', project: '/work/alpha', project_name: '注文 API',
   workspace: { id: 'w1', label: '本体' },
-  summary: { definition: 'core', state: 'stopped' },
+  summary: { definition: 'core', state: 'stalled' },
   error: reason,
 };
 

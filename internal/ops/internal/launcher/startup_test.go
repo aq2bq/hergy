@@ -83,11 +83,11 @@ func TestStartupQuestionIsWaitedOnAndTheBootGoesOn(t *testing.T) {
 	}
 	printed := out.String()
 	for _, want := range []string{
-		"許可待ち: team-lead が、起動の途中で確認に答えを待っています（タブ team（t7）、ペイン p1）",
-		"エージェント（claude）が、このフォルダを信頼するか、などを聞いています。そのペインを開いて答えてください。確認は続けて出ることがあります。",
-		"答え終わると、hergy は team-lead に初期プロンプトを送って続きを進めます。やめるときは Ctrl-C を押してください。",
-		"team-lead が確認を終えて起動しました。続けます",
-		"送りました: team-lead（ペイン p1）",
+		"waiting for permission: team-lead is asking a question while it starts (tab team (t7), pane p1)",
+		"The agent (claude) is asking, for example, whether to trust this folder. Open that pane and answer it. More than one question may come in a row.",
+		"When they are answered, hergy hands team-lead its bootstrap prompt and goes on. Press Ctrl-C to stop.",
+		"team-lead answered and started; going on",
+		"submitted: team-lead (pane p1)",
 	} {
 		if !strings.Contains(printed, want) {
 			t.Fatalf("the boot does not say %q:\n%s", want, printed)
@@ -147,22 +147,22 @@ func TestStartupQuestionThatEndsTheAgentIsAFailure(t *testing.T) {
 		t.Fatal("the refresh went on after the agent ended")
 	}
 	for _, want := range []string{
-		"team-lead のエージェント（claude）が、起動の途中の確認のあとで終わりました",
-		"hergy refresh team-lead を実行して、確認に答えてください",
+		"team-lead's agent (claude) ended after a question while it started",
+		"run hergy refresh team-lead and answer the question",
 	} {
 		if !strings.Contains(err.Error(), want) {
 			t.Fatalf("the error does not say %q: %v", want, err)
 		}
 	}
-	if strings.Contains(out.String(), "送りました") {
+	if strings.Contains(out.String(), "submitted:") {
 		t.Fatalf("hergy submitted a bootstrap prompt to an agent that ended:\n%s", out.String())
 	}
 	var report bytes.Buffer
 	l.ReportFailure(&report)
-	if !strings.Contains(report.String(), "止まったところ: team-lead を起動しています") {
+	if !strings.Contains(report.String(), "stopped: starting team-lead") {
 		t.Fatalf("the report does not say the start stopped:\n%s", report.String())
 	}
-	if strings.Contains(report.String(), "許可待ち（起動の途中") {
+	if strings.Contains(report.String(), "waiting for permission") {
 		t.Fatalf("the report still says the member waits:\n%s", report.String())
 	}
 }
@@ -184,17 +184,17 @@ func TestStartupNextNamesTheWayOnForEachCommand(t *testing.T) {
 	}{
 		{
 			name: "up ja", lang: "ja", next: NextUp("demo", "hergy up demo --as hot"), member: member, tab: "demo（t1）",
-			line:    "続けるには: タブ demo（t1）の demo-lead のペインで確認に答えてから、hergy down demo のあと hergy up demo --as hot を実行してください\n",
-			command: "hergy down demo のあと hergy up demo --as hot",
+			line:    "to go on: answer the question in demo-lead's pane (tab demo（t1）), then run hergy down demo and then hergy up demo --as hot\n",
+			command: "hergy down demo and then hergy up demo --as hot",
 		},
 		{
 			name: "hire ja", lang: "ja", next: NextHire(), member: worker, tab: "worker:demo/w1（t2）",
-			line:    "続けるには: タブ worker:demo/w1（t2）の demo-w1 のペインで確認に答えてから、そのタブを herdr で閉じて、同じ hergy hire をもう一度実行してください\n",
-			command: "そのタブを herdr で閉じたあと、同じ hergy hire",
+			line:    "to go on: answer the question in demo-w1's pane (tab worker:demo/w1（t2）), close that tab in herdr, then run the same hergy hire again\n",
+			command: "the same hergy hire after closing that tab in herdr",
 		},
 		{
 			name: "refresh ja", lang: "ja", next: NextRefresh(), member: member, tab: "demo（t1）",
-			line:    "続けるには: タブ demo（t1）の demo-lead のペインで確認に答えてから、hergy refresh demo-lead をもう一度実行してください\n",
+			line:    "to go on: answer the question in demo-lead's pane (tab demo（t1）), then run hergy refresh demo-lead again\n",
 			command: "hergy refresh demo-lead",
 		},
 		{

@@ -100,10 +100,10 @@ func TestBootstrapReceipt(t *testing.T) {
 					}
 				}
 				if tc.failed {
-					if strings.Contains(out.String(), "送りました") || strings.Contains(out.String(), "送り直しました") {
+					if strings.Contains(out.String(), "submitted:") || strings.Contains(out.String(), "resent:") {
 						t.Fatalf("false success: %s", &out)
 					}
-					if !strings.Contains(fmt.Sprint(err), "届いていません: team-a（ペイン p1）") || !strings.Contains(fmt.Sprint(err), "hergy ") {
+					if !strings.Contains(fmt.Sprint(err), "not received: team-a (pane p1)") || !strings.Contains(fmt.Sprint(err), "hergy ") {
 						t.Fatalf("missing recovery: %v", err)
 					}
 					if len(base.closed) != 0 {
@@ -175,7 +175,7 @@ func TestBootstrapContinuesOnlyAfterMissingReceipt(t *testing.T) {
 						t.Fatalf("missing summary: %v", err)
 					}
 					for line := range strings.SplitSeq(out.String(), "\n") {
-						if strings.Contains(line, "team-b") && (strings.Contains(line, "送りました") || strings.Contains(line, "送り直しました") || strings.Contains(line, "起動し直しました")) {
+						if strings.Contains(line, "team-b") && (strings.Contains(line, "submitted:") || strings.Contains(line, "resent:") || strings.Contains(line, "起動し直しました")) {
 							t.Fatalf("false success: %s", line)
 						}
 					}
@@ -231,10 +231,10 @@ func TestWorkerDownNameReleaseTimeout(t *testing.T) {
 	l.now = func() time.Time { return now }
 	l.pause = func(d time.Duration) { now = now.Add(d) }
 	_, err := l.DownWorker(fixtureSeen("worker:team/worker"), "", false)
-	if err == nil || !strings.Contains(err.Error(), "ワーカーの名前が消えません") || strings.Contains(err.Error(), "refresh") {
+	if err == nil || !strings.Contains(err.Error(), "herdr still knows the worker name") || strings.Contains(err.Error(), "refresh") {
 		t.Fatalf("timeout=%v", err)
 	}
-	if strings.Contains(out.String(), "閉じました:") {
+	if strings.Contains(out.String(), "closed:") {
 		t.Fatalf("false completion: %s", &out)
 	}
 }

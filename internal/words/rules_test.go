@@ -19,7 +19,7 @@ func TestRuleCatalogIsCompleteAndRenderable(t *testing.T) {
 			}
 			keys[rule.ErrorKey] = true
 		}
-		for _, lang := range []string{"en", "ja"} {
+		for _, lang := range []string{"en"} {
 			text := rule.Explain(lang)
 			if text == "" || strings.Contains(text, "{{") || strings.Contains(text, "[[") || strings.Contains(text, "%!") {
 				t.Errorf("%s/%s: incomplete projection: %s", rule.ID, lang, text)
@@ -31,7 +31,7 @@ func TestRuleCatalogIsCompleteAndRenderable(t *testing.T) {
 func TestRefusalAndExplanationUseSameCauseAndRecovery(t *testing.T) {
 	for _, id := range []RuleID{"refresh.no-pane", "refresh.own-pane", "apply.env-changed", "up.name-taken"} {
 		rule := Find(id)
-		for _, lang := range []string{"en", "ja"} {
+		for _, lang := range []string{"en"} {
 			err := Errorf(id, lang, "demo-builder")
 			got := err.Error()
 			want := fmt.Sprintf(rule.Pattern(lang), "demo-builder")

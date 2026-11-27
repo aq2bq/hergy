@@ -35,7 +35,7 @@ func TestBootInterruptedWhileWaitingOnAQuestion(t *testing.T) {
 		done <- runOperation(ctx, &errOut, l.ReportFailure, l.ReportInterrupted, func() error { defer close(finished); return l.Boot("hergy up demo") })
 	}()
 	deadline := time.Now().Add(5 * time.Second)
-	for !strings.Contains(out.String(), "許可待ち: demo-lead") {
+	for !strings.Contains(out.String(), "waiting for permission: demo-lead") {
 		if time.Now().After(deadline) {
 			t.Fatalf("the boot never said it waits for the question:\n%s", out.String())
 		}
@@ -53,11 +53,11 @@ func TestBootInterruptedWhileWaitingOnAQuestion(t *testing.T) {
 	}
 	said := errOut.String()
 	for _, want := range []string{
-		"中断しました\n",
-		"止まったところ: demo-lead が確認に答えてもらうのを待っています",
-		"タブ: t1",
-		"メンバー: demo-lead（ペイン p1、許可待ち（起動の途中の確認に答えを待っている））",
-		"続けるには: タブ demo（t1）の demo-lead のペインで確認に答えてから、hergy down demo のあと hergy up demo を実行してください\n",
+		"interrupted\n",
+		"stopped: waiting for someone to answer demo-lead's question",
+		"tab: t1",
+		"member: demo-lead (pane p1, waiting for permission",
+		"to go on: answer the question in demo-lead's pane (tab demo (t1)), then run hergy down demo and then hergy up demo\n",
 	} {
 		if !strings.Contains(said, want) {
 			t.Fatalf("the interrupt does not say %q:\n%s", want, said)
@@ -68,7 +68,7 @@ func TestBootInterruptedWhileWaitingOnAQuestion(t *testing.T) {
 	if i := strings.LastIndex(last, "\n"); i >= 0 {
 		last = last[i+1:]
 	}
-	if !strings.HasPrefix(last, "続けるには: ") {
+	if !strings.HasPrefix(last, "to go on: ") {
 		t.Fatalf("the interrupt ends with %q, not with the way on:\n%s", last, said)
 	}
 	if strings.Contains(said, "agent_not_ready") {

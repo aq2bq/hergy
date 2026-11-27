@@ -584,7 +584,7 @@ test('COPY-S3 a copy whose name the global layer already holds says why its save
   await readTo<string>(page, `${copy}.querySelector('.in-name').value`, 'the name field holds the name the person typed').toBe('shared');
   await readTo<boolean>(page, `${copy}.querySelector('.detail [data-act=t-save]').disabled`, 'the save is shut while the name is taken').toBe(true);
   // The reason is read whole at a wide window and at a narrow one (ac-456e).
-  await reasonRead(page, copy, '別のチーム定義名を指定してください', 'a copy whose name is taken');
+  await reasonRead(page, copy, 'pass another team definition name', 'a copy whose name is taken');
 });
 
 test('COPY-S4 a copy whose source cannot be read says why its save is shut', async ({ page, app }) => {
@@ -604,7 +604,7 @@ test('COPY-S4 a copy whose source cannot be read says why its save is shut', asy
   await readTo<boolean>(page, `${saveOfCopy('beta-dev')}.disabled`, 'the save of a copy with no base is shut').toBe(true);
   // The reason names what could not be read and what to do, and it is read whole
   // at a wide window and at a narrow one (ac-456e).
-  await reasonRead(page, copy, 'もう一度 複製 か コピー をしてください', 'a copy whose base cannot be read');
+  await reasonRead(page, copy, 'duplicate or copy it again', 'a copy whose base cannot be read');
   expect(existsSync(path.join(app.cfg, 'hergy', 'teams', 'beta-dev', 'team.yaml')), 'a copy whose base was not read wrote nothing').toBe(false);
   writeFileSync(srcFile, kept);
 });
@@ -642,7 +642,7 @@ test('COPY-S6 a copy that grows an error says why its save is shut, and the reas
   // the definition it stands on, so the save shuts (spec-teams X3, d-9abb).
   await set(page, `${copy}.querySelector('.in-description')`, '');
   await readTo<boolean>(page, `${saveOfCopy('beta-dev')}.disabled`, 'the save is shut by the error the copy grew').toBe(true);
-  await reasonRead(page, copy, 'description: を 1 行書いてください', 'a copy that grew an error');
+  await reasonRead(page, copy, 'add a one-line description: to team.yaml', 'a copy that grew an error');
 });
 
 test('COPY-S7 a team definition with its own rules is copied with the rules of its project', async ({ page, app }) => {
@@ -723,9 +723,9 @@ test('COPY-C1 the copy says it brings the definition alone, and names what the g
 
   // The problems say where the name is, rather than that there is none: the team
   // can be started from beta, and not from a project that has no beta-fast.
-  await readTo<string>(page, CARRY_PROBLEMS('beta-dev'), 'the profile problem names the place it is missing from').toContain('グローバルにありません');
-  await readTo<string>(page, CARRY_PROBLEMS('beta-dev'), 'the profile problem names the place it stands in').toContain('~/src/beta/.hergy にあります');
-  await readTo<string>(page, CARRY_PROBLEMS('beta-dev'), 'the role problem names the place it is missing from').toContain('ロール builder の文書はグローバルにありません');
+  await readTo<string>(page, CARRY_PROBLEMS('beta-dev'), 'the profile problem names the place it is missing from').toContain('is not in the global settings');
+  await readTo<string>(page, CARRY_PROBLEMS('beta-dev'), 'the profile problem names the place it stands in').toContain('it is in ~/src/beta/.hergy');
+  await readTo<string>(page, CARRY_PROBLEMS('beta-dev'), 'the role problem names the place it is missing from').toContain('the role builder has no document in the global settings');
 });
 
 test('COPY-C2 a copy with nothing chosen writes the definition alone', async ({ page, app }) => {
@@ -767,7 +767,7 @@ test('COPY-C3 the names a person chooses are written with the copy, as the proje
   await press(page, CARRY_PROFILE('beta-fast'));
   await readTo<string>(page, writesOfCopy('beta-dev'), 'the chosen names go with the definition').toContain('builder.md');
   await readTo<string>(page, writesOfCopy('beta-dev'), 'the chosen profile goes with the definition').toContain('profiles.yaml');
-  await readTo<string>(page, CARRY_PROBLEMS('beta-dev'), 'the sentence about the role is gone once it is chosen').not.toContain('グローバルにありません');
+  await readTo<string>(page, CARRY_PROBLEMS('beta-dev'), 'the sentence about the role is gone once it is chosen').not.toContain('is not in the global settings');
 
   await press(page, saveOfCopy('beta-dev'));
   await wait(page, `!!${rowIn(TEAMS, GLOBAL, 'beta-dev')}.querySelector('.ok')`);
@@ -832,7 +832,7 @@ test('COPY-R1 a copied role whose name is not a role name says why its save is s
   // The name a person types is not one a role goes by.
   await set(page, `${rolePanel()}.querySelector('.in-name')`, 'Builder');
   await readTo<boolean>(page, `${saveOf(rolePanel())}.disabled`, 'the save of the copied role is shut').toBe(true);
-  await sentenceRead(page, footOf(rolePanel()), 'ロール名は英小文字で始め', 'a copied role whose name is not a role name');
+  await sentenceRead(page, footOf(rolePanel()), 'A role name starts with a lowercase letter', 'a copied role whose name is not a role name');
 });
 
 test('COPY-R2 a copied role can save empty prose', async ({ page, app }) => {
@@ -863,8 +863,8 @@ test('COPY-R3 a copied role saved on a name the global layer holds says why it w
   // name another place holds).
   await set(page, `${rolePanel()}.querySelector('.in-name')`, 'lead');
   await press(page, saveOf(rolePanel()));
-  await readTo<string>(page, `${footOf(rolePanel())}.textContent`, 'the foot says the name is taken, and what to do').toContain('別のロール名を指定してください');
-  await sentenceRead(page, footOf(rolePanel()), '別のロール名を指定してください', 'a copied role saved on a name the global layer holds');
+  await readTo<string>(page, `${footOf(rolePanel())}.textContent`, 'the foot says the name is taken, and what to do').toContain('pass another role name');
+  await sentenceRead(page, footOf(rolePanel()), 'pass another role name', 'a copied role saved on a name the global layer holds');
 });
 
 test('COPY-F1 a copied profile whose name is not a profile name says why its save is shut', async ({ page, app }) => {
@@ -876,7 +876,7 @@ test('COPY-F1 a copied profile whose name is not a profile name says why its sav
 
   await set(page, `${profilePanel()}.querySelector('.in-name')`, 'Alpha Fast');
   await readTo<boolean>(page, `${saveOf(profilePanel())}.disabled`, 'the save of the copied profile is shut').toBe(true);
-  await sentenceRead(page, footOf(profilePanel()), 'の形にしてください', 'a copied profile whose name is not a profile name');
+  await sentenceRead(page, footOf(profilePanel()), 'profile names must match [a-z][a-z0-9_-]{0,31}', 'a copied profile whose name is not a profile name');
 });
 
 test('COPY-F2 a copied profile whose name the global layer holds says why its save is shut', async ({ page, app }) => {
@@ -890,7 +890,7 @@ test('COPY-F2 a copied profile whose name the global layer holds says why its sa
   await readTo<boolean>(page, `${saveOf(profilePanel())}.disabled`, 'the save of the copied profile is shut by the name').toBe(true);
   // The sentence says the way to fix it: the name is one the file already holds,
   // so another profile name is what the person picks (ac-456e, r-a028).
-  await sentenceRead(page, footOf(profilePanel()), '別のプロファイル名を指定してください', 'a copied profile whose name the global layer holds');
+  await sentenceRead(page, footOf(profilePanel()), 'pass another profile name', 'a copied profile whose name the global layer holds');
 });
 
 test('COPY-F3 a copied profile whose variable name is not a name says why its save is shut', async ({ page, app }) => {
@@ -906,5 +906,5 @@ test('COPY-F3 a copied profile whose variable name is not a name says why its sa
   await wait(page, `!!${profilePanel()}.querySelector('.envrow [data-f=ek]')`);
   await set(page, `${profilePanel()}.querySelector('.envrow [data-f=ek]')`, '1BAD');
   await readTo<boolean>(page, `${saveOf(profilePanel())}.disabled`, 'the save of the copied profile is shut by its variable').toBe(true);
-  await sentenceRead(page, footOf(profilePanel()), '環境変数の名前として使えません', 'a copied profile whose variable name is not a name');
+  await sentenceRead(page, footOf(profilePanel()), 'is not a variable name', 'a copied profile whose variable name is not a name');
 });

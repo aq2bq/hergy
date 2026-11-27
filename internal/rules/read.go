@@ -99,7 +99,7 @@ type readResult struct {
 // (empty, broken YAML, a version hergy does not read) gives its problems and the
 // document as far as it was read. The first error is the one Parse returns.
 func ReadAll(text, path string) (*Document, []Problem) {
-	key := sha256.Sum256([]byte(i18n.Language() + "\x00" + path + "\x00" + text))
+	key := sha256.Sum256([]byte(path + "\x00" + text))
 	readMu.Lock()
 	held, ok := readCache[key]
 	readMu.Unlock()

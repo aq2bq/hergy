@@ -143,7 +143,7 @@ func TestTurnsRestsATurnThePersonOpened(t *testing.T) {
 	if f.w.state.Holder != turns.Human || f.w.state.From != "builder" || len(f.w.state.Asked) != 0 {
 		t.Errorf("state = %+v, want the human holding it from builder, nothing asked", f.w.state)
 	}
-	if !strings.Contains(f.out.String(), "builder は人間に答えて止まりました") {
+	if !strings.Contains(f.out.String(), "builder answered the human and stopped") {
 		t.Errorf("the strip does not say the reply rested:\n%s", f.out.String())
 	}
 }
@@ -164,7 +164,7 @@ func TestTurnsDoesNotAskAMemberThatToldTheHuman(t *testing.T) {
 	f.later(time.Second)
 	f.tell(t, "builder", turns.Human)
 	f.later(time.Second)
-	if !strings.Contains(f.out.String(), "builder → 人間: hergy tell で渡しました") {
+	if !strings.Contains(f.out.String(), "builder -> the human: handed on with hergy tell") {
 		t.Errorf("the strip does not note the tell to the human:\n%s", f.out.String())
 	}
 	f.port.panes["demo-builder"] = "⏺ 準備できています。\n\n❯ lead より: 報告して\n\n⏺ 人へ: 終わりました。\n❯ "
@@ -176,7 +176,7 @@ func TestTurnsDoesNotAskAMemberThatToldTheHuman(t *testing.T) {
 	if f.w.state.Holder != turns.Human || f.w.state.From != "builder" || len(f.w.state.Asked) != 0 || len(f.w.state.Waits()) != 0 {
 		t.Errorf("state = %+v, want the human holding it from builder, nothing asked, nobody waiting", f.w.state)
 	}
-	if !strings.Contains(f.out.String(), "builder → 人間: ターンは人間へ渡りました") {
+	if !strings.Contains(f.out.String(), "builder -> the human: the turn went to the human") {
 		t.Errorf("the strip does not say the turn went to the human:\n%s", f.out.String())
 	}
 }
@@ -202,7 +202,7 @@ func TestTurnsDrawsTheBandInItsPane(t *testing.T) {
 			t.Errorf("the band lacks %q:\n%q", want, last)
 		}
 	}
-	if strings.Contains(f.scr.String(), "hergy tell で渡しました") || !strings.Contains(f.out.String(), "lead → builder: hergy tell で渡しました") {
+	if strings.Contains(f.scr.String(), "handed on with hergy tell") || !strings.Contains(f.out.String(), "lead -> builder: handed on with hergy tell") {
 		t.Errorf("the sentence belongs in the log, not the pane:\npane %q\nlog %q", f.scr.String(), f.out.String())
 	}
 }
@@ -220,7 +220,7 @@ func TestTurnsAsksAnUnhandedTurnAndDeliversAsAnswered(t *testing.T) {
 	f.w.tick()
 	f.tell(t, "lead", "builder")
 	f.later(time.Second)
-	if !strings.Contains(f.out.String(), "lead → builder: hergy tell で渡しました") {
+	if !strings.Contains(f.out.String(), "lead -> builder: handed on with hergy tell") {
 		t.Errorf("the strip does not note the tell:\n%s", f.out.String())
 	}
 	f.set("demo-builder", "working", 2)
@@ -244,7 +244,7 @@ func TestTurnsAsksAnUnhandedTurnAndDeliversAsAnswered(t *testing.T) {
 			t.Errorf("the question lacks %q:\n%s", want, text)
 		}
 	}
-	if !strings.Contains(f.out.String(), "builder は誰にも渡さずに止まりました。lead が答えを待っています。渡し先を聞いています［herdr の遷移］") {
+	if !strings.Contains(f.out.String(), "builder stopped without handing on. lead waits for the answer. Asking who it is for[herdr saw the stop]") {
 		t.Errorf("the strip does not say builder is asked:\n%s", f.out.String())
 	}
 	if q, ok := f.w.state.Asked["builder"]; !ok || !strings.Contains(q.Text, "テストを 3 件書いた。") {
@@ -274,7 +274,7 @@ func TestTurnsAsksAnUnhandedTurnAndDeliversAsAnswered(t *testing.T) {
 			t.Errorf("the handoff carries %q, which builder did not write that turn:\n%s", bad, text)
 		}
 	}
-	if !strings.Contains(f.out.String(), "builder → lead: 渡しました（") || !strings.Contains(f.out.String(), "［本人の答え］") {
+	if !strings.Contains(f.out.String(), "builder -> lead: handed on (") || !strings.Contains(f.out.String(), "[as answered]") {
 		t.Errorf("the strip does not say the delivery was as answered:\n%s", f.out.String())
 	}
 	if f.w.state.Holder != "lead" || f.w.state.From != "builder" || len(f.w.state.Asked) != 0 {
@@ -314,8 +314,8 @@ func TestTurnsLeavesAMemberThatToldAlone(t *testing.T) {
 // TestTurnsAnswersThatNameNobodyOrNoOneLeaveTheTurnWithTheHuman.
 func TestTurnsAnswersThatNameNobodyOrNoOneLeaveTheTurnWithTheHuman(t *testing.T) {
 	for answer, want := range map[string]struct{ why, line string }{
-		"誰にも":       {turns.WhyNobody, "builder の答えは「誰にも」"},
-		"lead か 人間": {turns.WhyUnclear, "builder の答えから渡し先が決まりません"},
+		"誰にも":       {turns.WhyNobody, "builder answered nobody"},
+		"lead か 人間": {turns.WhyUnclear, "builder's answer names no one party"},
 	} {
 		f := newTurnsFixture(t)
 		f.w.state.Asked = map[string]turns.Question{"builder": {Seq: 3, At: f.now, Text: "結果", Candidates: []string{"lead"}, Waiting: []string{"lead"}}}
@@ -352,7 +352,7 @@ func TestTurnsLeavesASilentUnaskableAndUndeliveredTurnWithTheHuman(t *testing.T)
 	if len(f.port.prompts) != 0 || f.w.state.Holder != turns.Human || f.w.state.Why != turns.WhySilent {
 		t.Fatalf("a silent stop: prompts = %q, state = %+v", f.port.prompts, f.w.state)
 	}
-	if !strings.Contains(f.out.String(), "builder は 1 行も書かずに止まりました。lead が答えを待っています。") {
+	if !strings.Contains(f.out.String(), "builder stopped without writing a line; lead waits for the answer.") {
 		t.Errorf("the strip does not name lead as waiting:\n%s", f.out.String())
 	}
 	// Asked, but the question never lands.
@@ -366,7 +366,7 @@ func TestTurnsLeavesASilentUnaskableAndUndeliveredTurnWithTheHuman(t *testing.T)
 	if f.w.state.Holder != turns.Human || f.w.state.Why != turns.WhyUnanswered || len(f.w.state.Asked) != 0 {
 		t.Errorf("an unaskable member: state = %+v, want the human holding it", f.w.state)
 	}
-	if !strings.Contains(f.out.String(), "builder に聞けませんでした（") || !strings.Contains(f.out.String(), "agent_prompt_stalled") {
+	if !strings.Contains(f.out.String(), "builder could not be asked (") || !strings.Contains(f.out.String(), "agent_prompt_stalled") {
 		t.Errorf("the strip does not say why:\n%s", f.out.String())
 	}
 	// Answered "lead", but the delivery never lands.
@@ -403,7 +403,7 @@ func TestTurnsSeesThePersonStartATurn(t *testing.T) {
 	if f.w.state.Holder != "lead" || f.w.state.From != turns.Human {
 		t.Errorf("state = %+v, want lead holding it from the human", f.w.state)
 	}
-	if !strings.Contains(f.out.String(), "人間が lead のターンを始めました") {
+	if !strings.Contains(f.out.String(), "the human started lead's turn") {
 		t.Errorf("the watcher's pane says nothing:\n%s", f.out.String())
 	}
 }
@@ -431,7 +431,7 @@ func TestTurnsActsOnTheSignalBeforeHerdrSeesTheStop(t *testing.T) {
 	if f.w.state.Asked["builder"].Text != "テストを 3 件書いた。\nすべて緑。" {
 		t.Errorf("state = %+v, want the signal's text waiting", f.w.state)
 	}
-	if !strings.Contains(f.out.String(), "渡し先を聞いています［合図: claude］") {
+	if !strings.Contains(f.out.String(), "Asking who it is for[signal: claude]") {
 		t.Errorf("the strip does not say the signal ended it:\n%s", f.out.String())
 	}
 	// herdr sees the stop a second later: the pane is not read, nothing more is sent.
@@ -470,7 +470,7 @@ func TestTurnsWaitsForAWiredMembersSignalThenReadsThePane(t *testing.T) {
 	if len(f.port.prompts) != 1 || !strings.Contains(f.w.state.Asked["builder"].Text, "ペインから読んだ本文") {
 		t.Fatalf("prompts = %q, state = %+v; want builder asked with the pane's text after the grace", f.port.prompts, f.w.state)
 	}
-	if !strings.Contains(f.out.String(), "［合図が 5 秒来ないので herdr の遷移］") {
+	if !strings.Contains(f.out.String(), "[no signal within 5 seconds; herdr saw the stop]") {
 		t.Errorf("the watcher's pane does not say the signal never came:\n%s", f.out.String())
 	}
 }

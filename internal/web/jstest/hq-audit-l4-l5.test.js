@@ -20,19 +20,19 @@ test('a starting team and an unread question say what they are', async () => {
     if (url === '/api/activity') {
       return {
         items: [
-          { name: 'migrate', project: '/work/alpha', project_name: 'alpha', workspace: { id: 'w1', label: '本体' }, summary: { definition: 'migrate', state: 'answer' } },
-          { name: 'ledger', project: '/work/alpha', project_name: 'alpha', workspace: { id: 'w1', label: '本体' }, summary: { definition: 'ledger', state: 'answer' } },
+          { name: 'migrate', project: '/work/alpha', project_name: 'alpha', workspace: { id: 'w1', label: '本体' }, summary: { definition: 'migrate', state: 'waiting-for-permission' } },
+          { name: 'ledger', project: '/work/alpha', project_name: 'alpha', workspace: { id: 'w1', label: '本体' }, summary: { definition: 'ledger', state: 'waiting-for-permission' } },
         ],
         herdr: { ok: true }, running: 2, waiting: 2,
       };
     }
     if (url === '/api/activity/migrate') {
-      return { doc: { nodes: [{ name: 'builder', herdr: 'migrate-builder', state: 'blocked', at: '' }], hired: [], question: 'Trust this folder?' } };
+      return { doc: { nodes: [{ name: 'builder', herdr: 'migrate-builder', state: 'waiting-for-permission', at: null }], hired: [], question: 'Trust this folder?' } };
     }
     if (url === '/api/activity/ledger') {
       // The server says this when it cannot read the question (r-1db7 L5); the
       // screen draws the words it is given and writes none of its own.
-      return { doc: { nodes: [{ name: 'builder', herdr: 'ledger-builder', state: 'blocked', at: '' }], hired: [], question: '聞いていることは、画面から読めませんでした' } };
+      return { doc: { nodes: [{ name: 'builder', herdr: 'ledger-builder', state: 'waiting-for-permission', at: null }], hired: [], question: '聞いていることは、画面から読めませんでした' } };
     }
     if (url === '/api/hq/running') {
       return {
@@ -40,12 +40,12 @@ test('a starting team and an unread question say what they are', async () => {
         teams: [{
           team: 'migrate', definition: 'migrate', place: 'project', project: '/work/alpha', project_name: 'alpha',
           workspace: { id: 'w1', label: '本体' }, tab: { id: 't1', label: 'migrate' },
-          members: [{ name: 'builder', herdr: 'migrate-builder', live: true, state: 'blocked' }],
+          members: [{ name: 'builder', herdr: 'migrate-builder', live: true, state: 'waiting-for-permission' }],
           workers: [], waiting: ['builder'], starting: true,
         }, {
           team: 'ledger', definition: 'ledger', place: 'project', project: '/work/alpha', project_name: 'alpha',
           workspace: { id: 'w1', label: '本体' }, tab: { id: 't1', label: 'ledger' },
-          members: [{ name: 'builder', herdr: 'ledger-builder', live: true, state: 'blocked' }],
+          members: [{ name: 'builder', herdr: 'ledger-builder', live: true, state: 'waiting-for-permission' }],
           workers: [], waiting: ['builder'], starting: false,
         }],
       };

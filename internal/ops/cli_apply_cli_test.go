@@ -72,7 +72,7 @@ func TestApplyDrySaysThereIsNoChange(t *testing.T) {
 		want string
 	}{
 		{lang: "en", demo: applyDemo, want: "there is no change to apply"},
-		{lang: "ja", demo: japaneseDemo, want: "反映する変更はありません"},
+		{lang: "ja", demo: japaneseDemo, want: "there is no change to apply"},
 	} {
 		t.Run(test.lang, func(t *testing.T) {
 			f := test.demo(t)

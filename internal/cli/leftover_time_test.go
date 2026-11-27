@@ -98,8 +98,8 @@ func TestDownListsTheWorktreesMadeWhileTheTeamRan(t *testing.T) {
 	t.Setenv("HERDR_PANE_ID", "p9")
 
 	got := mustRun(t, "down", "draft", "--dry", "--lang", "ja")
-	if !strings.Contains(got, "draft が動いている間にできたワークツリー（git、閉じたあとに残る予定）:") ||
-		!strings.Contains(got, "ワークツリー: "+mine) || strings.Contains(got, theirs) {
+	if !strings.Contains(got, "Worktrees made while draft was running (git; what stays after the stop):") ||
+		!strings.Contains(got, "worktree: "+mine) || strings.Contains(got, theirs) {
 		t.Errorf("down --dry does not plan the same list:\n%s", got)
 	}
 	before := mustRun(t, "down", "draft", "--dry", "--json")
@@ -111,10 +111,10 @@ func TestDownListsTheWorktreesMadeWhileTheTeamRan(t *testing.T) {
 		t.Fatalf("down plan changed after removing history:\nbefore %s\nafter %s", before, after)
 	}
 	got = mustRun(t, "down", "draft", "--lang", "ja")
-	if !strings.Contains(got, "draft が動いている間にできたワークツリー（git）:") {
+	if !strings.Contains(got, "Worktrees made while draft was running (git):") {
 		t.Errorf("down does not say when the worktrees were made:\n%s", got)
 	}
-	if !strings.Contains(got, "ワークツリー: "+mine) {
+	if !strings.Contains(got, "worktree: "+mine) {
 		t.Errorf("down does not list the worktree made while the team ran:\n%s", got)
 	}
 	if strings.Contains(got, theirs) {
@@ -169,10 +169,10 @@ esac
 		t.Fatalf("down plan changed after removing history:\nbefore %s\nafter %s", before, after)
 	}
 	got := mustRun(t, "down", "bench", "--lang", "ja")
-	if !strings.Contains(got, "draft-bench を雇ったあとにできたワークツリー（git）:") {
+	if !strings.Contains(got, "Worktrees made after draft-bench was hired (git):") {
 		t.Errorf("down does not say when the worktrees were made:\n%s", got)
 	}
-	if !strings.Contains(got, "ワークツリー: "+afterHire) {
+	if !strings.Contains(got, "worktree: "+afterHire) {
 		t.Errorf("down does not list the worktree made after the worker was hired:\n%s", got)
 	}
 	if strings.Contains(got, beforeHire) {

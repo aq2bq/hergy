@@ -862,7 +862,7 @@ func TestTEAMS_N3_DraftSaveWritesTheStarterFolder(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("PUT /api/team/ops answers %d, want 200: %s", resp.StatusCode, body)
 	}
-	files, err := scaffold.Team(i18n.Language())
+	files, err := scaffold.Team(i18n.HandedLanguage())
 	if err != nil {
 		t.Fatal(err)
 	}

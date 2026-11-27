@@ -81,7 +81,7 @@ func Apply(ctx context.Context, in ApplyInput) (ApplyResult, error) {
 		return out, nil
 	}
 	if in.RequirePane && (!in.ManagedPane || CurrentPane() == "") {
-		return out, words.Errorf("runtime.managed-pane", i18n.Language())
+		return out, words.Errorf("runtime.managed-pane", i18n.English)
 	}
 	child, release, err := in.Locks.acquire(ctx, selection.Teams())
 	if err != nil {
@@ -162,7 +162,7 @@ func applyTeamState(planned RunningTeam) (runningstate.State, error) {
 		return runningstate.State{}, err
 	}
 	if !exists || state.Generation() != planned.state.Generation() {
-		return runningstate.State{}, refuse("conflict", words.Errorf("apply.run-changed", i18n.Language(), planned.Name.String()))
+		return runningstate.State{}, refuse("conflict", words.Errorf("apply.run-changed", i18n.English, planned.Name.String()))
 	}
 	return state, nil
 }

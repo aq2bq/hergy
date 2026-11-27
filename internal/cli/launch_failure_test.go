@@ -70,11 +70,11 @@ esac
 // start that stopped on demo-writer: the member, herdr's reason in words, who
 // started, what remains, and the command that goes on, in the project.
 var failedStartWants = []string{
-	"demo-writer の起動が失敗しました: the profile claude-default is not installed",
-	"起動できたメンバー: demo-lead、demo-builder",
-	"残っているもの: タブ demo、ペイン 3 個",
-	"このチームは動いている扱いです",
-	"proj で hergy down demo のあと hergy up demo を実行してください",
+	"demo-writer failed to start: the profile claude-default is not installed",
+	"Started: demo-lead, demo-builder",
+	"Left behind: tab demo and 3 pane(s)",
+	"This team counts as running",
+	"run hergy down demo, then hergy up demo in proj",
 }
 
 func wantFailedStartText(t *testing.T, got string) {

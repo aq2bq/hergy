@@ -73,6 +73,9 @@ type Change struct {
 	Worker   string `json:"worker,omitempty"`
 	Text     string `json:"text"`
 	Diff     string `json:"diff,omitempty"`
+	// Handed is Text in the handed language: the line the member reads in the
+	// preamble of the prompt it is handed again. Text is what a person reads.
+	Handed i18n.AgentText `json:"-"`
 }
 
 // Doc is one rule document as the comparison reads it. Path is the file's own
@@ -90,7 +93,7 @@ type Doc struct {
 // prompt, segments, turns and workers) and docs are the current rule documents.
 func Compare(team domainname.TeamName, lang, oldPrompt string, oldDocs map[string]string, current definition.Start, docs []Doc) []Change {
 	if oldPrompt == "" {
-		return []Change{{Kind: "no_record", Text: i18n.T("delivery.no_record")}}
+		return []Change{{Kind: "no_record", Text: i18n.T("delivery.no_record"), Handed: i18n.Handed("delivery.no_record")}}
 	}
 	if oldPrompt == current.Prompt {
 		return nil
@@ -108,15 +111,15 @@ func Compare(team domainname.TeamName, lang, oldPrompt string, oldDocs map[strin
 		case "workers":
 			out = append(out, workerChanges(current, segment.Text, oldPrompt)...)
 		case "roster":
-			out = append(out, Change{Kind: "roster", Text: i18n.T("delivery.roster_changed")})
+			out = append(out, Change{Kind: "roster", Text: i18n.T("delivery.roster_changed"), Handed: i18n.Handed("delivery.roster_changed")})
 		case "template":
-			out = append(out, Change{Kind: "template", Text: i18n.T("delivery.template_changed")})
+			out = append(out, Change{Kind: "template", Text: i18n.T("delivery.template_changed"), Handed: i18n.Handed("delivery.template_changed")})
 		default:
-			out = append(out, Change{Kind: "prompt", Text: i18n.T("delivery.prompt_changed")})
+			out = append(out, Change{Kind: "prompt", Text: i18n.T("delivery.prompt_changed"), Handed: i18n.Handed("delivery.prompt_changed")})
 		}
 	}
 	if len(out) == 0 {
-		out = append(out, Change{Kind: "prompt", Text: i18n.T("delivery.prompt_changed")})
+		out = append(out, Change{Kind: "prompt", Text: i18n.T("delivery.prompt_changed"), Handed: i18n.Handed("delivery.prompt_changed")})
 	}
 	return dedupe(out)
 }
@@ -140,14 +143,14 @@ func turnChanges(team domainname.Naming, current definition.Start, segment, oldP
 		if !containsLine(old, to) {
 			pair := turnPair(current.Short.String(), to)
 			out = append(out, Change{Kind: "turn", Turn: pair,
-				Text: i18n.Tf("delivery.turn_added", pair)})
+				Text: i18n.Tf("delivery.turn_added", pair), Handed: i18n.Handedf("delivery.turn_added", pair)})
 		}
 	}
 	for _, to := range old {
 		if !containsLine(now, to) {
 			pair := turnPair(current.Short.String(), to)
 			out = append(out, Change{Kind: "turn", Turn: pair,
-				Text: i18n.Tf("delivery.turn_removed", pair)})
+				Text: i18n.Tf("delivery.turn_removed", pair), Handed: i18n.Handedf("delivery.turn_removed", pair)})
 		}
 	}
 	return out
@@ -204,7 +207,7 @@ type turnItem struct {
 
 // turnItemOf is the turns note's item shape in one language.
 func turnItemOf(lang string) turnItem {
-	member := i18n.Text(lang, "turns.member_item")
+	member := string(i18n.Text(lang, "turns.member_item"))
 	_, afterName, _ := strings.Cut(member, "%s")
 	marker, afterRole, _ := strings.Cut(afterName, "%s")
 	return turnItem{marker: marker, suffix: afterRole}
@@ -273,17 +276,17 @@ func workerChanges(current definition.Start, segment, oldPrompt string) []Change
 		purpose := nowPurposes[i]
 		if before, ok := was[purpose]; ok && before != current.Workers[i].Profile {
 			out = append(out, Change{Kind: "worker_profile", Worker: purpose,
-				Text: i18n.Tf("delivery.worker_profile_changed", purpose)})
+				Text: i18n.Tf("delivery.worker_profile_changed", purpose), Handed: i18n.Handedf("delivery.worker_profile_changed", purpose)})
 			continue
 		}
 		out = append(out, Change{Kind: "worker", Worker: purpose,
-			Text: i18n.Tf("delivery.worker_added", purpose)})
+			Text: i18n.Tf("delivery.worker_added", purpose), Handed: i18n.Handedf("delivery.worker_added", purpose)})
 	}
 	for _, pair := range workerPairs(old) {
 		purpose, _, _ := strings.Cut(pair, " → ")
 		if !containsLine(nowPurposes, purpose) {
 			out = append(out, Change{Kind: "worker", Worker: purpose,
-				Text: i18n.Tf("delivery.worker_removed", purpose)})
+				Text: i18n.Tf("delivery.worker_removed", purpose), Handed: i18n.Handedf("delivery.worker_removed", purpose)})
 		}
 	}
 	return out
@@ -379,7 +382,7 @@ func documentChanges(old map[string]string, docs []Doc) []Change {
 				seen[legacy] = true
 				converted, err := migrate.Convert(raw, legacy)
 				if err != nil {
-					out = append(out, Change{Kind: "document", Document: doc.Display, Text: i18n.Tf("delivery.document_unreadable", displayOf(doc))})
+					out = append(out, Change{Kind: "document", Document: doc.Display, Text: i18n.Tf("delivery.document_unreadable", displayOf(doc)), Handed: i18n.Handedf("delivery.document_unreadable", displayOf(doc))})
 					continue
 				}
 				before = converted.Text
@@ -387,7 +390,7 @@ func documentChanges(old map[string]string, docs []Doc) []Change {
 		}
 		seen[key] = true
 		if before != doc.Text {
-			out = append(out, Change{Kind: "document", Document: doc.Display, Text: i18n.Tf("delivery.document_changed", displayOf(doc)), Diff: textDiff(before, doc.Text)})
+			out = append(out, Change{Kind: "document", Document: doc.Display, Text: i18n.Tf("delivery.document_changed", displayOf(doc)), Handed: i18n.Handedf("delivery.document_changed", displayOf(doc)), Diff: textDiff(before, doc.Text)})
 		}
 	}
 	keys := make([]string, 0, len(old))
@@ -409,12 +412,12 @@ func documentChanges(old map[string]string, docs []Doc) []Change {
 			display = strings.TrimSuffix(path, ".yaml") + ".md"
 			converted, err := migrate.Convert(before, path)
 			if err != nil {
-				out = append(out, Change{Kind: "document", Document: display, Text: i18n.Tf("delivery.document_unreadable", filepath.Base(display))})
+				out = append(out, Change{Kind: "document", Document: display, Text: i18n.Tf("delivery.document_unreadable", filepath.Base(display)), Handed: i18n.Handedf("delivery.document_unreadable", filepath.Base(display))})
 				continue
 			}
 			before = converted.Text
 		}
-		out = append(out, Change{Kind: "document", Document: display, Text: i18n.Tf("delivery.document_changed", filepath.Base(display)), Diff: textDiff(before, "")})
+		out = append(out, Change{Kind: "document", Document: display, Text: i18n.Tf("delivery.document_changed", filepath.Base(display)), Handed: i18n.Handedf("delivery.document_changed", filepath.Base(display)), Diff: textDiff(before, "")})
 	}
 	return out
 }

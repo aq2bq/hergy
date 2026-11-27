@@ -24,7 +24,7 @@ type Undelivered struct {
 }
 
 func (e *Undelivered) Error() string {
-	return words.Errorf("prompt.missing-receipt", i18n.Language(), e.Name, e.Pane, protocol.Message(e.Cause), e.Recovery).Error()
+	return words.Errorf("prompt.missing-receipt", i18n.English, e.Name, e.Pane, protocol.Message(e.Cause), e.Recovery).Error()
 }
 
 // RuleID is the shared rule for an initial prompt without a receipt.

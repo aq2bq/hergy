@@ -2285,6 +2285,7 @@ components:
           description: チームの起動元になったチーム定義名
         state:
           type: string
+          enum: [waiting-for-permission, handed, stalled, working]
           description: チームのアクティビティ状態
         since:
           nullable: true
@@ -2318,13 +2319,15 @@ components:
       description: アクティビティ状態が続いている長さと開始時刻
       type: object
       additionalProperties: false
-      required: [len, at, lower]
+      required: [seconds, at, lower]
       properties:
-        len:
-          type: string
+        seconds:
+          type: integer
+          format: int64
           description: アクティビティ状態が続いている長さ
         at:
-          type: string
+          type: integer
+          format: int64
           description: アクティビティ状態が始まった時刻
         lower:
           type: boolean
@@ -2386,7 +2389,7 @@ components:
       description: アクティビティの札にあるメンバーまたはワーカー
       type: object
       additionalProperties: false
-      required: [name, herdr, state, at]
+      required: [name, herdr, state, at, lower]
       properties:
         question:
           type: string
@@ -2400,13 +2403,15 @@ components:
           description: メンバーまたはワーカーの herdr 名
         state:
           type: string
+          enum: [waiting-for-permission, handed, working, idle, not-running]
           description: メンバーまたはワーカーの状態
         at:
-          type: string
+          type: integer
+          format: int64
+          nullable: true
           description: 状態が始まった時刻。動いているか pane がないときは空
-        since_at:
-          type: string
-          description: 状態が始まった時刻を表示する文
+        lower:
+          type: boolean
         doing:
           type: string
           description: herdr が示す作業名
