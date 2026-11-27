@@ -686,8 +686,6 @@ var localeMessages = map[string]Text{
 	"activity.hour":               english("1 hour"),
 	"activity.unknown_length":     english("a while"),
 	"activity.line_no_agent":      english("{{team}} %s has no live {{agent}}"),
-	"activity.since_at":           english("since %s"),
-	"activity.since_before":       english("before %s"),
 	"activity.turn_the_human":     english("the {{human}}"),
 	"activity.turn_holder":        english("{{turn}}: %s (handed by %s)"),
 	"activity.turn_holder_asked":  english("{{turn}}: %s (handed by %s); asked who it is for"),

@@ -433,8 +433,6 @@
   "activity.hour": "1 hour",
   "activity.unknown_length": "a while",
   "activity.line_no_agent": "team %s has no live agent",
-  "activity.since_at": "since %s",
-  "activity.since_before": "before %s",
   "error.edit_yaml": "cannot read %s: %v. The file has not changed. Fix the YAML and save again",
   "error.edit_not_mapping": "%s is not a mapping. The file has not changed. Write it as key: value lines",
   "error.edit_no_member": "team.yaml's members: has no %s; reload the page and try again",

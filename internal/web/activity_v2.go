@@ -22,9 +22,9 @@ type a2PageData struct {
 	// (r-a8fa). The activity page's template writes it as data-token; the page
 	// itself is read-only, but the changed-definition sheet is a write.
 	Token string
-	// Words is the island of the sentences the screen says when there is
-	// nothing to show. Every other word comes with the answer, because the
-	// server writes it (spec-activity 3, V1).
+	// Words holds the empty-list message. The API returns state term IDs and
+	// numeric times. The client turns them into Japanese labels and time text
+	// in state.ts and time.ts.
 	Words template.JS
 }
 
