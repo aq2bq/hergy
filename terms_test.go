@@ -362,7 +362,7 @@ func TestGlossaryBannedWordsStayOut(t *testing.T) {
 		}
 		sort.Strings(keys)
 		for _, key := range keys {
-			if !words.GeneratedLocaleKey(key) {
+			if lang == "ja" || !words.GeneratedLocaleKey(key) {
 				check(path+":"+key, key, lang, messages[key])
 			}
 		}
@@ -373,7 +373,7 @@ func TestGlossaryBannedWordsStayOut(t *testing.T) {
 	// are not read again below, so a banned word is caught here, at the one
 	// place a person writes it, and the hit names the rule (n-42bb).
 	for _, rule := range words.Rules() {
-		for _, lang := range []string{"en", "ja"} {
+		for _, lang := range []string{"en"} {
 			where := "internal/words rule " + string(rule.ID)
 			check(where, "", lang, words.Describe([]words.RuleID{rule.ID}, lang))
 			check(where+" (statement)", "", lang, rule.Statement[lang])
@@ -384,7 +384,7 @@ func TestGlossaryBannedWordsStayOut(t *testing.T) {
 	// The labels: the summaries and the fixed lines of help and the cheatsheets
 	// are written in internal/words too (a command's row in hergy --help).
 	for _, id := range words.Labels() {
-		for _, lang := range []string{"en", "ja"} {
+		for _, lang := range []string{"en"} {
 			check("internal/words label "+id, "", lang, words.Label(id)[lang])
 		}
 	}

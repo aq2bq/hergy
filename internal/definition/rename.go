@@ -1,6 +1,7 @@
 package definition
 
 import (
+	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/yamledit"
 	"go.yaml.in/yaml/v3"
 )
@@ -25,7 +26,7 @@ func RenameYAML(text []byte, path, name string) ([]byte, error) {
 	}
 	value.Value = name
 	out := src.Bytes()
-	if err := yamledit.SameValues(&doc, out, path, yamledit.Bug{Operation: "チーム定義名の変更", Workaround: "team.yaml の team: を確認してください"}); err != nil {
+	if err := yamledit.SameValues(&doc, out, path, yamledit.Bug{Operation: i18n.T("error.rename_definition_operation"), Workaround: i18n.T("error.rename_definition_workaround")}); err != nil {
 		return nil, err
 	}
 	return out, nil

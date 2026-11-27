@@ -74,7 +74,7 @@ func Tell(ctx context.Context, in TellInput) (TellResult, error) {
 	if err != nil {
 		return out, err
 	}
-	text := sendText(out.From.String(), in.Body)
+	text := sendText(out.From.String(), i18n.AgentText(in.Body))
 	if in.Dry {
 		emit(in.Observe, Event{Text: fmt.Sprintf(i18n.T("send.dry"), out.To.String(), text)})
 		return out, nil

@@ -14,13 +14,13 @@ function layout() {
 }
 
 const members = [
-  { name: 'lead', state: 'active' },
+  { name: 'lead', state: 'working' },
   { name: 'qa', state: 'idle' },
 ];
 const workers = [
-  { name: 'impl-a', from: 'lead', state: 'active' },
-  { name: 'stray-review', from: 'gone-member', state: 'active' },
-  { name: 'stray-probe', from: '', state: 'blocked' },
+  { name: 'impl-a', from: 'lead', state: 'working' },
+  { name: 'stray-review', from: 'gone-member', state: 'working' },
+  { name: 'stray-probe', from: '', state: 'waiting-for-permission' },
 ];
 
 test('AC-7f11 the ownerless workers stand in the last column under a 持ち主不明 heading, with no point and no line', async () => {
@@ -35,7 +35,7 @@ test('AC-7f11 the ownerless workers stand in the last column under a 持ち主�
     };
     if (url === '/api/activity/stray') return {
       doc: {
-        nodes: members.map((member) => ({ ...member, herdr: `stray-${member.name}`, at: '' })),
+        nodes: members.map((member) => ({ ...member, herdr: `stray-${member.name}`, at: null })),
         hired: workers,
         question: '',
       },

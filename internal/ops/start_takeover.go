@@ -50,7 +50,7 @@ func takeOverOlderTeam(in StartInput, r *Resolved) (bool, error) {
 		}
 	}
 	if r.generation, err = beginRunningState(store, in.Env, r, workspace, in.Now); err != nil {
-		return false, words.Errorf("up.state-unavailable", i18n.Language(), err)
+		return false, words.Errorf("up.state-unavailable", i18n.English, err)
 	}
 	emit(in.Observe, Event{Text: i18n.Tf("up.took_over", r.Team.Name.String(), tab.ID)})
 	return true, nil

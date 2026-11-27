@@ -147,7 +147,7 @@ func TestActivityAndRunningAgreeAboutTheListedProjects(t *testing.T) {
 	states := map[string]string{}
 	places := map[string]string{}
 	for _, item := range list.Items {
-		states[item.Name] = item.Summary.State
+		states[item.Name] = string(item.Summary.State)
 		places[item.Name] = item.Place
 		if item.Project.String() == "" || item.ProjectName == "" || item.Workspace.Label == "" {
 			t.Errorf("a row does not say its project and workspace: %+v", item)
@@ -176,11 +176,11 @@ func stateMatches(state string, members []HQMember) bool {
 		working = working || member.State == "active"
 	}
 	switch state {
-	case "answer":
+	case "waiting-for-permission":
 		return blocked
 	case "working":
 		return working && !blocked
-	case "stalled", "turn":
+	case "stalled", "handed":
 		return !blocked
 	}
 	return false

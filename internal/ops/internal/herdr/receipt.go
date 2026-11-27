@@ -15,7 +15,7 @@ import (
 // returning the last answer. Callers decide what to do with that answer; the
 // watcher gives the turn to the human, while a launch distinguishes an absent
 // receipt from a failure to send (d-b804).
-func (h *Herdr) ConfirmPrompt(target domainname.Target, text string) error {
+func (h *Herdr) ConfirmPrompt(target domainname.Target, text i18n.AgentText) error {
 	var err error
 	for range 2 {
 		if err = h.PromptWait(target, text, 5000); err == nil {
@@ -55,8 +55,8 @@ const (
 // member that answered in a line) is not taken for this one. pause waits
 // between two readings and may end the wait. A reading that fails shows
 // nothing. A text with no line to look for leaves herdr's own answer standing.
-func (h *Herdr) ConfirmShownPrompt(target domainname.Target, text string, pause func(time.Duration) error) error {
-	probes := promptProbes(text)
+func (h *Herdr) ConfirmShownPrompt(target domainname.Target, text i18n.AgentText, pause func(time.Duration) error) error {
+	probes := promptProbes(string(text))
 	if len(probes) == 0 {
 		return h.ConfirmPrompt(target, text)
 	}

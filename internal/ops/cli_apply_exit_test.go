@@ -11,7 +11,7 @@ import (
 
 func TestApplyDryAndApplyExitOneWhileAMemberIsLeft(t *testing.T) {
 	for _, lang := range []string{"en", "ja"} {
-		dryError := map[string]string{"en": "1 member(s) cannot be applied", "ja": "反映できずに残るメンバーが 1 人います"}[lang]
+		dryError := map[string]string{"en": "1 member(s) cannot be applied", "ja": "1 member(s) cannot be applied"}[lang]
 		for _, scenario := range []string{"left-only", "mixed"} {
 			t.Run(lang+"/"+scenario, func(t *testing.T) {
 				f := applyDemo(t)

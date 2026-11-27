@@ -132,7 +132,11 @@ func TestROLES_P16_TheAssignmentSaveTouchesOneRoleLineAndRefusesTheUndocumented(
 		places = append(places, cat.Display(place))
 	}
 	want := tf("error.no_role_doc", "checker", "nosuch", strings.Join(places, i18n.T("list.separator")))
-	if !strings.Contains(body, want) {
+	var refusal struct{ Text string }
+	if err := json.Unmarshal([]byte(body), &refusal); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(strings.ReplaceAll(refusal.Text, "/private/var/", "/var/"), strings.ReplaceAll(want, "/private/var/", "/var/")) {
 		t.Errorf("the refusal does not say %q:\n%s", want, body)
 	}
 	if got := readFile(t, path); got != after {

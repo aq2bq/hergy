@@ -9,6 +9,7 @@ import { openSheet, teamCount } from '../lib/apply/state.js';
 import { teams, empty, fetchError, note, current, noneText, ST, NS, lastMoment, pick, openedTeam } from './state.js';
 import type { ActivityTeam, CrewMember } from './state.js';
 import { Figure } from './figure.js';
+import { clockText, lengthText, sinceText } from './time.js';
 import { movePage } from '../lib/page-position.js';
 
 // A workspace herdr did not name is left out whole, so no separator stands
@@ -67,8 +68,9 @@ function turnLine(t: ActivityTeam): JSX.Element | '' {
 function Tile({ team: t }: { team: ActivityTeam }): JSX.Element {
   const sel = t.name === current.value?.name;
   const projectWorkspace = [t.projectName, t.workspace].filter(Boolean).join(' · ');
+  const latest = t.state === 'stalled' ? lastMoment(t) : null;
   const stall = t.state === 'stalled'
-    ? <p class="hq-why">最後に動いたのは {lastMoment(t) || (t.since && t.since.at) || ''}。lead に続きを渡すか、<code>hergy nudge</code> でうながす</p>
+    ? <p class="hq-why">最後に動いたのは {latest !== null ? clockText(latest) : t.since && sinceText(t.since.at, t.since.lower)}。lead に続きを渡すか、<code>hergy nudge</code> でうながす</p>
     : '';
   // 定義を組み立てられないチームは、理由も直し方もこの行に出す: 本部の動きの欄と
   // 同じ文で、hergy status が書くもの（r-fc16）。
@@ -79,7 +81,7 @@ function Tile({ team: t }: { team: ActivityTeam }): JSX.Element {
     <button type="button" class="hq-th" data-pick={t.name} aria-pressed={sel ? 'true' : 'false'} onClick={() => pick(t.name)}>
       <span class="hq-tn">{t.name}</span>{projectWorkspace ? <span class="hq-pw">{projectWorkspace}</span> : ''}
       <span class={'st ' + t.state}>{t.starting ? launchWaitingLabel() : (ST[t.state] || '')}</span>
-      <span class="hq-tl">{t.since ? <><b>{t.since.len}</b> {t.since.at}</> : ''}</span>
+      <span class="hq-tl">{t.since ? <><b>{lengthText(t.since.seconds, t.since.lower)}</b> {sinceText(t.since.at, t.since.lower)}</> : ''}</span>
     </button>
     <Figure team={t} />
     {turnLine(t)}

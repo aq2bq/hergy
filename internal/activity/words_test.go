@@ -147,27 +147,20 @@ func TestWatcherWithoutAFileBeginsLower(t *testing.T) {
 	}
 }
 
-// TestWordsReadInJapanese: the words about time are the ones the design writes (6
-// A4), word for word, and the states are the ones the API writes (spec-activity
-// 3).
-func TestWordsReadInJapanese(t *testing.T) {
+// State labels in status are English even when agents receive Japanese.
+func TestStateWordsAndVocabularyIDs(t *testing.T) {
 	t.Cleanup(func() { _ = i18n.Use(i18n.Fallback) })
 	if err := i18n.Use("ja"); err != nil {
 		t.Fatal(err)
 	}
-	noon := time.Date(2026, 10, 17, 12, 0, 0, 0, time.Local)
 	cases := []struct {
 		name string
 		got  string
 		want string
 	}{
-		{"a length", Length(18*time.Minute, false), "18 分"},
-		{"a length that is a lower bound", Length(4*time.Hour+5*time.Minute, true), "4 時間 5 分以上"},
-		{"today's clock", Clock(noon, noon.Add(-2*time.Hour)), "10:00"},
-		{"another day's clock", Clock(noon, noon.Add(-25*time.Hour)), "10/16 11:00"},
-		{"a moment it began", SinceAt(noon, noon.Add(-2*time.Hour), false), "10:00 から"},
-		{"a moment it was already there", SinceAt(noon, noon.Add(-2*time.Hour), true), "10:00 より前"},
-		{"a state", WaitingAnswer.Slug() + "/" + WaitingTurn.Slug() + "/" + Stalled.Slug() + "/" + Working.Slug(), "answer/turn/stalled/working"},
+		{"status state", WaitingAnswer.Text() + "/" + WaitingTurn.Text() + "/" + Stalled.Text() + "/" + Working.Text(), "waiting for permission/waiting for a reply/stalled/working"},
+		{"team term", string(WaitingAnswer.Term()), "waiting-for-permission"},
+		{"member term", string(Active.Term()), "working"},
 		{"a node's state", Blocked.Slug() + "/" + HandedOver.Slug() + "/" + Active.Slug() + "/" + Idle.Slug() + "/" + Absent.Slug(), "blocked/handed/active/idle/absent"},
 	}
 	for _, c := range cases {

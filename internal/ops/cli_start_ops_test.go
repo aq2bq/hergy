@@ -45,7 +45,7 @@ func TestCLIAndScreenStartRejectSameRunningName(t *testing.T) {
 				}
 				message = err.Error()
 			}
-			if !strings.Contains(message, "wave という名前のチームがすでに動いています。別の名前で起動してください") {
+			if !strings.Contains(message, "a team named wave is already running; start it under another name") {
 				t.Fatalf("name rule differs: %q", message)
 			}
 			for _, change := range []string{"tab create", "workspace create", "agent start"} {
@@ -75,7 +75,7 @@ func TestStartTeamTrimsNameAndPreservesWorkspacePolicies(t *testing.T) {
 	useJapanese(t)
 	_, err = newActivityRead(env).StartLaunch(HQLaunchIn{Definition: "demo", Name: "free-name", Place: "project", Workspace: HQWorkspaceIn{ID: "w1"}})
 	refusal, ok := errors.AsType[*HQError](err)
-	if !ok || refusal.Status != 409 || !strings.Contains(err.Error(), "ワークスペース") {
+	if !ok || refusal.Status != 409 || !strings.Contains(err.Error(), "already has occupied running") {
 		t.Fatalf("screen accepted occupied workspace: %v", err)
 	}
 }

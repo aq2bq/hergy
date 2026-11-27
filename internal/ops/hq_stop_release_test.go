@@ -157,7 +157,7 @@ func TestScreenStopWaitsForNameRelease(t *testing.T) {
 					if elapsed != 30*time.Second {
 						t.Fatalf("shared deadline: %s", elapsed)
 					}
-					if outcome == "timeout-own" && (slices.Contains(p.closed, "old-2") || !strings.Contains(err.Error(), "自分のペインは残しました")) {
+					if outcome == "timeout-own" && (slices.Contains(p.closed, "old-2") || !strings.Contains(err.Error(), "your own pane was kept open")) {
 						t.Fatalf("own pane: %v, %v", p.closed, err)
 					}
 					return

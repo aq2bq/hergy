@@ -136,7 +136,7 @@ func CommandHelp(kind Kind) string {
 	if s == nil || s.Bare {
 		return Usage()
 	}
-	lang := i18n.Language()
+	lang := i18n.English
 
 	var argRows, flagRows []row
 	for _, a := range s.Args {

@@ -101,7 +101,7 @@ func TestTeamDownTimeout(t *testing.T) {
 					if slices.Contains(p.closed, self) {
 						t.Fatal("own pane closed on timeout")
 					}
-					for _, want := range []string{"自分のペインは残しました", "hergy down demo"} {
+					for _, want := range []string{"your own pane was kept open", "hergy down demo"} {
 						if !strings.Contains(err.Error(), want) {
 							t.Errorf("%q lacks %q", err, want)
 						}

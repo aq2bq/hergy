@@ -7,7 +7,7 @@ import (
 )
 
 func TestLocaleMessagesExpandVocabularyAndKeepFormatSlots(t *testing.T) {
-	for _, lang := range []string{"en", "ja"} {
+	for _, lang := range []string{"en"} {
 		messages := LocaleMessages(lang)
 		if got := messages["status.worker_suffix"]; !strings.Contains(got, TermWorker.Text(lang)) {
 			t.Fatalf("%s: worker term missing from %q", lang, got)

@@ -33,10 +33,8 @@ func TestAWholeFileProblemNamesTheFile(t *testing.T) {
 	}
 }
 
-// TestAProblemIsReadInTheLanguageInUse: a held reading is a sentence of the
-// language it was read in, so the same text read again in another language is
-// read again rather than answered from the first reading.
-func TestAProblemIsReadInTheLanguageInUse(t *testing.T) {
+// TestProblemStaysEnglishAcrossAgentLanguages: a cached diagnostic is English with either agent language.
+func TestProblemStaysEnglishAcrossAgentLanguages(t *testing.T) {
 	text := "version: 1\ndescription: x\nsections:\n  - rules:\n      - text: a rule\n"
 	_, ja := ReadAll(text, "roles/lead.yaml")
 	if err := i18n.Use("en"); err != nil {
@@ -44,8 +42,8 @@ func TestAProblemIsReadInTheLanguageInUse(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = i18n.Use("ja") })
 	_, en := ReadAll(text, "roles/lead.yaml")
-	if !strings.Contains(ja[0].Text, "このファイル") {
-		t.Errorf("the Japanese reading says %q", ja[0].Text)
+	if !strings.Contains(ja[0].Text, "this file") {
+		t.Errorf("the reading with Japanese configured says %q", ja[0].Text)
 	}
 	if strings.Contains(en[0].Text, "このファイル") || !strings.Contains(en[0].Text, "this file") {
 		t.Errorf("the English reading says %q", en[0].Text)

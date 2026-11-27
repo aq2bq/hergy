@@ -88,10 +88,10 @@ func TestApplyDrySaysTheWayAsAPlan(t *testing.T) {
 			`{"name":"demo-lead","agent":"claude","agent_status":"idle","pane_id":"p1","tab_id":"t1","state_change_seq":1}`)
 
 		out := mustRun(t, "apply", "--dry")
-		if !strings.Contains(out, "送り直し（会話は残る）") {
+		if !strings.Contains(out, "resend (the conversation stays)") {
 			t.Errorf("apply --dry does not say the way as a plan:\n%s", out)
 		}
-		if strings.Contains(out, "送り直しました") {
+		if strings.Contains(out, "resent:") {
 			t.Errorf("apply --dry says the way in the past tense:\n%s", out)
 		}
 	})
@@ -103,10 +103,10 @@ func TestApplyDrySaysTheWayAsAPlan(t *testing.T) {
 			`{"name":"demo-lead","agent":"claude","agent_status":"idle","pane_id":"p1","tab_id":"t1","state_change_seq":1}`)
 
 		out := mustRun(t, "apply", "--dry")
-		if !strings.Contains(out, "起動し直し（会話が消える）") {
+		if !strings.Contains(out, "restart (the conversation goes)") {
 			t.Errorf("apply --dry does not say the way as a plan:\n%s", out)
 		}
-		if strings.Contains(out, "起動し直しました") {
+		if strings.Contains(out, "restarted:") {
 			t.Errorf("apply --dry says the way in the past tense:\n%s", out)
 		}
 	})

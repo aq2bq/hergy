@@ -25,7 +25,7 @@ func TestPROFILES_DangerLossNamesWhatDeleteTakes(t *testing.T) {
 		t.Fatalf("the loss: %+v", refusal)
 	}
 	joined := strings.Join(lines, "\n")
-	if !strings.Contains(joined, "sonnet-fast") || !strings.Contains(joined, "ファイルは残ります。") {
+	if !strings.Contains(joined, "sonnet-fast") || !strings.Contains(joined, "The file stays.") {
 		t.Errorf("the loss does not name the entry and the file: %v", lines)
 	}
 	path := filepath.Join(f.proj, ".hergy", "profiles.yaml")
@@ -68,7 +68,7 @@ func TestROLES_DangerLossNamesWhatDeleteTakes(t *testing.T) {
 	}
 	// The global writer is read by the project definitions, too.
 	unused, _ := server.dangerLossRole(catalog.PlaceGlobal, "writer")
-	if !strings.Contains(strings.Join(unused, "\n"), "2 人が読んでいます") {
+	if !strings.Contains(strings.Join(unused, "\n"), "2 people read it") {
 		t.Errorf("global role must include project readers: %v", unused)
 	}
 }
@@ -124,7 +124,7 @@ func TestSTOP_DangerLossNamesThePanesTheStopCloses(t *testing.T) {
 		t.Fatalf("the loss: %+v", refusal)
 	}
 	joined := strings.Join(lines, "\n")
-	for _, want := range []string{"lead", "builder", "2 人のワーカー"} {
+	for _, want := range []string{"lead", "builder", "2 workers"} {
 		if !strings.Contains(joined, want) {
 			t.Errorf("the loss does not name %q: %v", want, lines)
 		}

@@ -91,7 +91,7 @@ func StartTeam(ctx context.Context, in StartInput) (*Plan, error) {
 	}
 	plan.Resolved, plan.Members = r, r.Starts
 	if in.RequirePane && (!in.ManagedPane || CurrentPane() == "") {
-		return nil, words.Errorf("runtime.managed-pane", i18n.Language())
+		return nil, words.Errorf("runtime.managed-pane", i18n.English)
 	}
 	if took, err := takeOverOlderTeam(in, r); took || err != nil {
 		return plan, err
@@ -214,7 +214,7 @@ func startName(in StartInput, checkRunning bool) (string, error) {
 		return "", &Refusal{Kind: "invalid", At: "name", Err: i18n.Errorf("error.team_name_pattern", name)}
 	}
 	if checkRunning && nameRunning(name, readSession(in.Port)) {
-		return "", &Refusal{Kind: "conflict", At: "name", SuggestedName: in.Definition.String() + "-" + in.ProjectName, Err: words.Errorf("up.name-taken", i18n.Language(), name)}
+		return "", &Refusal{Kind: "conflict", At: "name", SuggestedName: in.Definition.String() + "-" + in.ProjectName, Err: words.Errorf("up.name-taken", i18n.English, name)}
 	}
 	return name, nil
 }
@@ -290,7 +290,7 @@ func startCommand(definition, name string) string {
 	return command
 }
 func watcherCommand(name string, project domainplace.Project) []string {
-	return []string{executable(), "turns", name, "-C", project.String(), "--lang", i18n.Language()}
+	return []string{executable(), "turns", name, "-C", project.String(), "--lang", i18n.HandedLanguage()}
 }
 
 // WorkspaceInfo is the selected workspace as an operation result.

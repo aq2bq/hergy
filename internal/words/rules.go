@@ -18,7 +18,7 @@ type RuleID string
 
 // Rule owns one public fact and its recovery. Slots supply neutral subjects
 // when explaining a precondition; an operation supplies actual subjects on refusal.
-// ErrorKey is only a compatibility key for existing translated presentations.
+// ErrorKey projects the rule as a person-facing locale message.
 type Rule struct {
 	ID        RuleID
 	Statement Text
@@ -26,6 +26,8 @@ type Rule struct {
 	Slots     []TermID
 	ErrorKey  string
 }
+
+func english(en string) Text { return Text{"en": en} }
 
 func bilingual(en, ja string) Text { return Text{"en": en, "ja": ja} }
 
@@ -67,7 +69,7 @@ func Label(id string) Text {
 	if !ok {
 		panic("unknown label: " + id)
 	}
-	return bilingual(text.In("en"), text.In("ja"))
+	return english(text.In("en"))
 }
 
 // Find returns the canonical record, failing on an unknown programmer-supplied ID.

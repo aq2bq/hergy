@@ -63,6 +63,19 @@ import {
 var POLL = 1e4;
 var ST = teamStateWord;
 var NS = memberStateWord;
+var teamStates = {
+  "waiting-for-permission": "answer",
+  handed: "turn",
+  stalled: "stalled",
+  working: "working"
+};
+var nodeStates = {
+  "waiting-for-permission": "blocked",
+  handed: "handed",
+  working: "active",
+  idle: "idle",
+  "not-running": "absent"
+};
 var RANK = { answer: 0, turn: 1, stalled: 2, working: 3 };
 var words = JSON.parse((document.getElementById("activity-words") || {}).textContent || "{}");
 var enc = (s) => encodeURIComponent(String(s == null ? "" : s));
@@ -82,29 +95,46 @@ function memberOrderOf(def, nodes) {
   return named.concat(rest);
 }
 function lastMoment(t) {
-  const at = (t.crew || []).map((m) => m.at).filter(Boolean).sort();
-  return at.length ? at[at.length - 1] : "";
+  const times = t.crew.flatMap((member) => member.at === null ? [] : [member.at]);
+  return times.length ? Math.max(...times) : null;
 }
 function sheetOf(item, docs) {
   const doc = docs.get(item.name);
   const run = exports_hq ? runningTeam2(item.name) : null;
   const defName = item.summary.definition || item.name;
   const def = exports_hq && definitionOf2(item.project, defName, item.place) || null;
-  const nodes = doc ? doc.nodes || [] : (run && run.members || []).map((m) => ({ name: m.name, herdr: m.herdr, state: m.state, at: "" }));
+  const nodes = doc ? (doc.nodes || []).map((n) => ({
+    name: n.name,
+    herdr: n.herdr || item.name + "-" + n.name,
+    state: nodeStates[n.state],
+    at: n.at,
+    doing: n.doing || "",
+    question: n.question
+  })) : (run && run.members || []).map((m) => ({
+    name: m.name,
+    herdr: m.herdr || item.name + "-" + m.name,
+    state: m.state,
+    at: null,
+    doing: ""
+  }));
   const order = memberOrderOf(def, nodes);
   const byName = new Map(nodes.map((n) => [n.name, n]));
-  const crew = order.filter((n) => byName.has(n)).map((name) => {
-    const n = byName.get(name);
-    return { name, herdr: n.herdr || item.name + "-" + name, state: n.state || "idle", at: n.at || "", since: n.since_at || n.at || "", doing: n.doing || "", question: n.question || "" };
+  const crew = order.flatMap((name) => {
+    const member = byName.get(name);
+    return member ? [member] : [];
   });
-  const hired = doc ? doc.hired || [] : (run && run.workers || []).map((w) => ({ name: w.name, state: w.live ? "active" : "idle" }));
-  const workers = hired.map((w) => ({
+  const workers = doc ? (doc.hired || []).map((worker) => ({
+    name: worker.name,
+    state: nodeStates[worker.state],
+    doing: worker.doing || "",
+    from: worker.from || ""
+  })) : (run && run.workers || []).map((w) => ({
     name: w.name,
-    state: w.state || "idle",
-    doing: "doing" in w && typeof w.doing === "string" && w.doing || "",
-    from: "from" in w && typeof w.from === "string" && w.from || ""
+    state: w.live ? "active" : "idle",
+    doing: "",
+    from: ""
   }));
-  const state = item.summary.state || "idle";
+  const state = teamStates[item.summary.state];
   return {
     name: item.name,
     project: item.project,
@@ -199,6 +229,25 @@ function Figure({ team }) {
       }) : null
     ]
   });
+}
+
+// activity/time.ts
+function lengthText(seconds, lower) {
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor(seconds / 60) % 60;
+  const length = hours > 0 ? minutes > 0 ? `${hours} 時間 ${minutes} 分` : `${hours} 時間` : minutes > 0 ? `${minutes} 分` : `${Math.max(1, seconds)} 秒`;
+  return lower ? `${length}以上` : length;
+}
+function clockText(at, now = new Date) {
+  const moment = new Date(at);
+  const hh = String(moment.getHours()).padStart(2, "0");
+  const mm = String(moment.getMinutes()).padStart(2, "0");
+  const clock = `${hh}:${mm}`;
+  const today = moment.getFullYear() === now.getFullYear() && moment.getMonth() === now.getMonth() && moment.getDate() === now.getDate();
+  return today ? clock : `${moment.getMonth() + 1}/${moment.getDate()} ${clock}`;
+}
+function sinceText(at, lower) {
+  return `${clockText(at)} ${lower ? "より前" : "から"}`;
 }
 
 // activity/board.tsx
@@ -320,11 +369,12 @@ function turnLine(t) {
 function Tile({ team: t }) {
   const sel = t.name === current.value?.name;
   const projectWorkspace = [t.projectName, t.workspace].filter(Boolean).join(" · ");
+  const latest = t.state === "stalled" ? lastMoment(t) : null;
   const stall = t.state === "stalled" ? /* @__PURE__ */ u("p", {
     class: "hq-why",
     children: [
       "最後に動いたのは ",
-      lastMoment(t) || t.since && t.since.at || "",
+      latest !== null ? clockText(latest) : t.since && sinceText(t.since.at, t.since.lower),
       "。lead に続きを渡すか、",
       /* @__PURE__ */ u("code", {
         children: "hergy nudge"
@@ -367,10 +417,10 @@ function Tile({ team: t }) {
             children: t.since ? /* @__PURE__ */ u(S, {
               children: [
                 /* @__PURE__ */ u("b", {
-                  children: t.since.len
+                  children: lengthText(t.since.seconds, t.since.lower)
                 }),
                 " ",
-                t.since.at
+                sinceText(t.since.at, t.since.lower)
               ]
             }) : ""
           })

@@ -159,7 +159,7 @@ test('HQ-WRITE-P1 a listed project’s profile is deleted and saved with its own
     page,
     refusalIn(rowIn(ROWS, PROFILES, betaDir, 'beta-new')),
     'a file the page did not read is written over, want the refusal',
-  ).toContain('書き換えられました');
+  ).toContain('was changed somewhere else after this screen read it');
   expect(read(beta.profiles), 'the refused delete took the profile away').toContain('beta-new:');
 });
 

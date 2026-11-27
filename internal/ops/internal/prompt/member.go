@@ -1,7 +1,6 @@
 package prompt
 
 import (
-	"errors"
 	"path/filepath"
 	"strings"
 
@@ -48,19 +47,8 @@ func (r Run) language() string {
 	if r.Lang != "" {
 		return r.Lang
 	}
-	return i18n.Language()
+	return i18n.HandedLanguage()
 }
-
-// text is one of hergy's own words in the language this run's prompt is written
-// in.
-func (r Run) text(key string) string { return i18n.Text(r.Lang, key) }
-
-// textf is text with fmt.Sprintf.
-func (r Run) textf(key string, args ...any) string { return i18n.Textf(r.Lang, key, args...) }
-
-// errorf is one of hergy's sentences, in the language this run's prompt is
-// written in, as an error.
-func (r Run) errorf(key string, args ...any) error { return errors.New(r.textf(key, args...)) }
 
 // shown writes one path the way the environment writes it.
 func (r Run) shown(path string) string {
@@ -156,13 +144,13 @@ func Member(def *definition.Definition, node *definition.MemberNode, run Run) (*
 	templateOrigin := definition.PromptOrigin{Kind: "hergy"}
 	switch {
 	case node.HasPrompt:
-		template = node.Prompt
+		template = i18n.AgentText(node.Prompt)
 		templateOrigin = definition.PromptOrigin{Kind: "member", Name: node.Name.String(), Path: run.shown(def.TeamYAML.String()), Place: promptPlace(def.Layer)}
 	case def.Prompt != "":
-		template = def.Prompt
+		template = i18n.AgentText(def.Prompt)
 		templateOrigin = definition.PromptOrigin{Kind: "team", Name: run.Team.String(), Path: run.shown(def.TeamYAML.String()), Place: promptPlace(def.Layer)}
 	}
-	if err := checkTemplate(run, def, node, template); err != nil {
+	if err := checkTemplate(run, def, node, string(template)); err != nil {
 		return nil, err
 	}
 
@@ -185,21 +173,18 @@ func Member(def *definition.Definition, node *definition.MemberNode, run Run) (*
 
 	memberName := run.Team.Member(node.Name)
 	teamOrigin := definition.PromptOrigin{Kind: "team", Name: run.Team.String(), Path: run.shown(def.TeamYAML.String()), Place: promptPlace(def.Layer)}
-	simple := map[string]func() string{
-		"team": func() string { return run.Team.String() },
-		"role": func() string { return node.Role },
-		"name": func() string { return memberName },
+	simple := map[string]i18n.AgentText{
+		"team": i18n.AgentText(run.Team.String()),
+		"role": i18n.AgentText(node.Role),
+		"name": i18n.AgentText(memberName),
 	}
-	parts := map[string]func() []definition.PromptSegment{
-		"actor": func() []definition.PromptSegment {
+	parts := map[string]func() []agentPart{
+		"actor": func() []agentPart {
 			// The name hergy writes into the pane's env as GY_ACTOR; the member's
 			// herdr name, which follows --as.
-			return []definition.PromptSegment{{
-				Kind: "actor", Text: run.textf("prompt.actor", memberName),
-				Origin: definition.PromptOrigin{Kind: "hergy"},
-			}}
+			return oneSegment("actor", i18n.Textf(run.Lang, "prompt.actor", memberName), definition.PromptOrigin{Kind: "hergy"})
 		},
-		"role_doc": func() []definition.PromptSegment {
+		"role_doc": func() []agentPart {
 			if buildErr != nil {
 				return nil
 			}
@@ -214,18 +199,18 @@ func Member(def *definition.Definition, node *definition.MemberNode, run Run) (*
 			if !ok {
 				return nil
 			}
-			return []definition.PromptSegment{{
-				Kind: "role_doc", Text: text,
-				Origin: definition.PromptOrigin{Kind: "role", Name: node.Role, Path: run.shown(doc.Path), Place: promptPlace(doc.Layer)},
+			return []agentPart{{
+				kind: "role_doc", text: i18n.AgentText(text),
+				origin: definition.PromptOrigin{Kind: "role", Name: node.Role, Path: run.shown(doc.Path), Place: promptPlace(doc.Layer)},
 			}}
 		},
-		"docs": func() []definition.PromptSegment {
+		"docs": func() []agentPart {
 			if buildErr != nil {
 				return nil
 			}
 			docs := documentsOf(def, run)
 			read = append(read, docs...)
-			out := make([]definition.PromptSegment, 0, len(docs))
+			out := make([]agentPart, 0, len(docs))
 			for i, doc := range docs {
 				text, ok := readDoc(doc, WhereFile)
 				if !ok {
@@ -238,26 +223,23 @@ func Member(def *definition.Definition, node *definition.MemberNode, run Run) (*
 				if i == len(docs)-1 {
 					text += "\n"
 				}
-				out = append(out, definition.PromptSegment{
-					Kind: "team_rules", Text: prefix + text,
-					Origin: definition.PromptOrigin{Kind: "team_rules", Name: def.Name.String(), Path: run.shown(doc.Path), Place: promptPlace(doc.Layer)},
+				out = append(out, agentPart{
+					kind: "team_rules", text: i18n.AgentText(prefix + text),
+					origin: definition.PromptOrigin{Kind: "team_rules", Name: def.Name.String(), Path: run.shown(doc.Path), Place: promptPlace(doc.Layer)},
 				})
 			}
 			return out
 		},
-		"roster": func() []definition.PromptSegment {
+		"roster": func() []agentPart {
 			return oneSegment("roster", Roster(run.Lang, RosterOf(def, run.Team, run), memberName), teamOrigin)
 		},
-		"herdr": func() []definition.PromptSegment {
-			return []definition.PromptSegment{{
-				Kind: "herdr", Text: HerdrMember(run.Lang),
-				Origin: definition.PromptOrigin{Kind: "hergy"},
-			}}
+		"herdr": func() []agentPart {
+			return oneSegment("herdr", HerdrMember(run.Lang), definition.PromptOrigin{Kind: "hergy"})
 		},
-		"turns": func() []definition.PromptSegment {
+		"turns": func() []agentPart {
 			return oneSegment("turns", TurnsNote(run.Lang, TurnsOf(def, node.Name.String(), run.Team)), teamOrigin)
 		},
-		"workers": func() []definition.PromptSegment {
+		"workers": func() []agentPart {
 			workers := WorkersOf(def, node.Name.String())
 			if len(workers) == 0 {
 				return nil
@@ -268,7 +250,7 @@ func Member(def *definition.Definition, node *definition.MemberNode, run Run) (*
 			return oneSegment("workers", WorkersNote(run.Lang, memberName, workers, hireCommand(run, node.Name.String())), teamOrigin)
 		},
 	}
-	text, segments, err := ExpandSegments(template, templateOrigin, simple, parts)
+	text, segments, err := expandSegments(template, templateOrigin, simple, parts)
 	if err != nil {
 		return nil, err
 	}
@@ -284,11 +266,11 @@ func Member(def *definition.Definition, node *definition.MemberNode, run Run) (*
 }
 
 // oneSegment is one piece with text, or none when the piece is empty.
-func oneSegment(kind, text string, origin definition.PromptOrigin) []definition.PromptSegment {
+func oneSegment(kind string, text i18n.AgentText, origin definition.PromptOrigin) []agentPart {
 	if text == "" {
 		return nil
 	}
-	return []definition.PromptSegment{{Kind: kind, Text: text, Origin: origin}}
+	return []agentPart{{kind: kind, text: text, origin: origin}}
 }
 
 // promptPlace is a document's layer in the words a screen uses for its place.
@@ -387,12 +369,12 @@ func WorkersOf(def *definition.Definition, member string) []WorkerPair {
 // looked up (段 3). The --from value is the hiring member's short name: the
 // command line takes the short name, and hergy adds the team name to the herdr
 // name itself.
-func hireCommand(run Run, shortName string) string {
+func hireCommand(run Run, shortName string) i18n.AgentText {
 	executable := run.Executable
 	if executable == "" {
 		executable = "hergy"
 	}
-	return run.textf("hire.command",
+	return i18n.Textf(run.Lang, "hire.command",
 		shellQuote(executable), run.Team, run.language(), shellQuote(run.Base.String()), shortName)
 }
 
@@ -411,24 +393,24 @@ func shellQuote(s string) string {
 func checkTemplate(run Run, def *definition.Definition, node *definition.MemberNode, template string) error {
 	old := source.Doc{Path: filepath.Join(filepath.Dir(def.TeamYAML.String()), "agreement.yaml")}
 	if run.Reader.IsFile(old) {
-		return run.errorf("error.legacy_prose", run.shown(old.Path))
+		return i18n.Errorf("error.legacy_prose", run.shown(old.Path))
 	}
 	if run.Sources != nil {
 		if old, ok := run.Sources.LegacyRole(node.Role); ok {
-			return run.errorf("error.legacy_prose", run.shown(old.Path))
+			return i18n.Errorf("error.legacy_prose", run.shown(old.Path))
 		}
 	}
 
-	where := run.text("prompt.template_default")
+	where := i18n.T("prompt.template_default")
 	switch {
 	case node.HasPrompt:
-		where = run.textf("prompt.template_member", node.Name.String())
+		where = i18n.Tf("prompt.template_member", node.Name.String())
 	case def.Prompt != "":
-		where = run.text("prompt.template_team")
+		where = i18n.T("prompt.template_team")
 	}
 	for _, part := range []string{"role_doc", "docs"} {
 		if !strings.Contains(template, "%{"+part+"}") {
-			return withWhere(WhereTemplate, run.errorf("error.prompt_missing_part", run.shown(def.TeamYAML.String()), where, part))
+			return withWhere(WhereTemplate, i18n.Errorf("error.prompt_missing_part", run.shown(def.TeamYAML.String()), where, part))
 		}
 	}
 	return nil
@@ -464,7 +446,7 @@ func memberRole(node *definition.MemberNode, run Run) (source.Doc, error) {
 func missingRole(node *definition.MemberNode, run Run) error {
 	if run.Sources != nil {
 		if doc, ok := run.Sources.LegacyRole(node.Role); ok {
-			return run.errorf("error.role_markdown", node.Role, run.shown(doc.Path))
+			return i18n.Errorf("error.role_markdown", node.Role, run.shown(doc.Path))
 		}
 	}
 	places := []string{run.shown("roles/" + node.Role + ".md")}
@@ -476,5 +458,5 @@ func missingRole(node *definition.MemberNode, run Run) error {
 			}
 		}
 	}
-	return run.errorf("error.no_role_doc", node.Name.String(), node.Role, strings.Join(places, run.text("list.separator")))
+	return i18n.Errorf("error.no_role_doc", node.Name.String(), node.Role, strings.Join(places, i18n.T("list.separator")))
 }

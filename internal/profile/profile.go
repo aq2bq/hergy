@@ -66,7 +66,7 @@ type profileResult struct {
 // ParseProfiles reads one profiles.yaml, checking its version before anything
 // else and then rejecting unknown keys.
 func ParseProfiles(text, path string) (map[string]Profile, error) {
-	key := sha256.Sum256([]byte(i18n.Language() + "\x00" + path + "\x00" + text))
+	key := sha256.Sum256([]byte(path + "\x00" + text))
 	profileMu.Lock()
 	held, ok := profileCache[key]
 	profileMu.Unlock()

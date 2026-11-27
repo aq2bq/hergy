@@ -10,7 +10,6 @@ import (
 	"github.com/aq2bq/hergy/internal/ops"
 
 	"github.com/aq2bq/hergy/internal/catalog"
-	"github.com/aq2bq/hergy/internal/i18n"
 	"github.com/aq2bq/hergy/internal/profile"
 	"github.com/aq2bq/hergy/internal/source"
 )
@@ -73,7 +72,7 @@ func (s *Server) p2RowCount() int {
 func (s *Server) p2Data(tab string, q url.Values) p2Data {
 	project, shared, defs := s.p2Read()
 	data := p2Data{
-		Lang: i18n.Language(), Nav: s.navOf("profiles"), Tab: tab, Token: s.token,
+		Nav: s.navOf("profiles"), Tab: tab, Token: s.token,
 		ProfileCount: s.p2RowCount(), AssignCount: p2People(defs),
 		HashProject: project.hash, HashShared: shared.hash,
 		PathProject: s.cat.Display(s.cat.ProjectProfileFile()),

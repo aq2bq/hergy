@@ -356,9 +356,9 @@ func names(teams []Team) []string {
 	return out
 }
 
-// TestLinesReadInJapanese: the sentences a person reads are the ones the design
+// TestLinesReadInEnglishWithJapaneseAgentText: the sentences a person reads are the ones the design
 // writes (5.2), word for word.
-func TestLinesReadInJapanese(t *testing.T) {
+func TestLinesReadInEnglishWithJapaneseAgentText(t *testing.T) {
 	t.Cleanup(func() { _ = i18n.Use(i18n.Fallback) })
 	if err := i18n.Use("ja"); err != nil {
 		t.Fatal(err)
@@ -380,7 +380,7 @@ func TestLinesReadInJapanese(t *testing.T) {
 				Agents: []Agent{{Herdr: fixtureSeen("demo-lead"), Node: fixtureSeen("lead"), Status: "blocked", Seq: 2}},
 				Seen:   map[string]Watch{"demo-lead": ago(25 * time.Minute)},
 			},
-			want: "lead が 25 分前から止まっています",
+			want: "lead has been stuck for 25 minutes",
 		},
 		{
 			name: "waiting for the human's turn",
@@ -390,7 +390,7 @@ func TestLinesReadInJapanese(t *testing.T) {
 				Agents: []Agent{{Herdr: fixtureSeen("demo-lead"), Node: fixtureSeen("lead"), Status: "idle", Seq: 2}},
 				Seen:   map[string]Watch{"demo-lead": ago(12 * time.Minute)},
 			},
-			want: "lead が 12 分前から人間を待っています",
+			want: "lead has been waiting for the human for 12 minutes",
 		},
 		{
 			name: "stalled",
@@ -399,7 +399,7 @@ func TestLinesReadInJapanese(t *testing.T) {
 				Agents: []Agent{{Herdr: fixtureSeen("demo-spec"), Node: fixtureSeen("spec"), Status: "idle", Seq: 2}},
 				Seen:   map[string]Watch{"demo-spec": ago(4 * time.Minute)},
 			},
-			want: "チームが 4 分前から止まっています。最後のターンは spec",
+			want: "the team has been stuck for 4 minutes; the last turn was spec",
 		},
 		{
 			name: "working",
@@ -410,12 +410,12 @@ func TestLinesReadInJapanese(t *testing.T) {
 					{Herdr: fixtureSeen("demo-spec"), Node: fixtureSeen("spec"), Status: "idle", Seq: 1},
 				},
 			},
-			want: "lead が仕事中・spec が止まっています",
+			want: "lead is working; spec is stopped",
 		},
 		{
 			name: "no live agent",
 			in:   Input{Graph: twoWay},
-			want: "チーム demo のエージェントがいません",
+			want: "team demo has no live agent",
 		},
 	}
 	for _, c := range cases {

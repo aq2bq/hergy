@@ -11,7 +11,7 @@ import (
 func TestTellRefusalsNameMembersAndWorkers(t *testing.T) {
 	for _, lang := range []string{"en", "ja"} {
 		t.Run(lang, func(t *testing.T) {
-			previous := i18n.Language()
+			previous := i18n.HandedLanguage()
 			t.Cleanup(func() { _ = i18n.Use(previous) })
 			f := newFixture(t)
 			mustRun(t, "new", "demo")
@@ -32,7 +32,7 @@ func TestTellRefusalsNameMembersAndWorkers(t *testing.T) {
 					t.Fatal(err)
 				}
 				_, err = Tell(context.Background(), TellInput{MemberInput: MemberInput{Env: serveEnv(t), Team: opts.Team, Member: tc.member}, From: tc.from, Body: tc.body})
-				if err == nil || err.Error() != i18n.Textf(lang, tc.key, tc.args...) {
+				if err == nil || err.Error() != i18n.Tf(tc.key, tc.args...) {
 					t.Fatalf("%s: %v", tc.key, err)
 				}
 			}

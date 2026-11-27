@@ -1,10 +1,9 @@
 // activity/state.ts — アクティビティ画面の state（webui-preact-design 4 章・5 章）。
 //
 // サーバーの答えはここだけに入る（5 章 2）。部品（board.tsx）は signal を読んで
-// 描くだけで、捕まえておいた要素に書き込まない。読むのは /api/activity と
+// 描くだけで、捕まえておいた要素に書き込まない。 /api/activity と
 // /api/activity/{team}、それに本部の読み（/api/hq/running、チーム定義の turns）
-// で、状態の判定はサーバの 1 つをそのまま使う。長さ・時刻の言い方もサーバが
-// 作る（V1）。この画面は文を 1 つも作らない。
+// を読む。サーバーが判定した状態と時刻を、画面のラベルに変換する。
 import { term } from '../lib/terms.generated.js';
 import { memberStateWord, teamStateWord } from '../lib/state-words.js';
 import { signal, computed } from '../lib/preact.js';
@@ -21,6 +20,7 @@ type ActivityNote = components['schemas']['ActivityNote'];
 type ActivityDocument = components['schemas']['ActivityDocument'];
 type ActivityOpened = components['schemas']['ActivityOpened'];
 type ActivityNode = components['schemas']['ActivityNode'];
+type ActivitySummary = components['schemas']['ActivitySummary'];
 type HQRunning = components['schemas']['HQRunning'];
 type HQMember = components['schemas']['HQMember'];
 type HQWorker = components['schemas']['HQWorker'];
@@ -30,8 +30,7 @@ export type CrewMember = {
   name: string;
   herdr: string;
   state: string;
-  at: string;
-  since: string;
+  at: number | null;
   doing: string;
   question?: string;
 };
@@ -67,6 +66,12 @@ export const POLL = 10000;
 // name (answer, idle, …) only; these are the letters a person reads.
 const ST = teamStateWord;
 const NS = memberStateWord;
+const teamStates: Record<ActivitySummary['state'], string> = {
+  'waiting-for-permission': 'answer', handed: 'turn', stalled: 'stalled', working: 'working',
+};
+const nodeStates: Record<ActivityNode['state'], string> = {
+  'waiting-for-permission': 'blocked', handed: 'handed', working: 'active', idle: 'idle', 'not-running': 'absent',
+};
 const RANK: Record<string, number> = { answer: 0, turn: 1, stalled: 2, working: 3 };
 
 const words = JSON.parse((document.getElementById('activity-words') || {}).textContent || '{}') as ActivityWords; // Embedded JSON is typed here at its screen boundary.
@@ -85,14 +90,14 @@ export function openedTeam(): { name: string; group: string } {
 function turnsOf(def: ActivityDefinition | null): [string, string][] {
   return ((def && def.turns) || []).map((t) => [t.from, t.to]);
 }
-function memberOrderOf(def: ActivityDefinition | null, nodes: ActivityNode[]): string[] {
+function memberOrderOf(def: ActivityDefinition | null, nodes: CrewMember[]): string[] {
   const named = ((def && def.members) || []).map((m) => m.name);
   const rest = (nodes || []).map((n) => n.name).filter((n) => named.indexOf(n) < 0);
   return named.concat(rest);
 }
-function lastMoment(t: Pick<ActivityTeam, 'crew'>): string {
-  const at = (t.crew || []).map((m) => m.at).filter(Boolean).sort();
-  return at.length ? at[at.length - 1] : '';
+function lastMoment(t: Pick<ActivityTeam, 'crew'>): number | null {
+  const times = t.crew.flatMap((member) => member.at === null ? [] : [member.at]);
+  return times.length ? Math.max(...times) : null;
 }
 
 // sheetOf reads one team as the board draws it: the members in the definition's
@@ -103,21 +108,24 @@ function sheetOf(item: ActivityItem, docs: Map<string, ActivityDocument>): Activ
   const run = A ? A.runningTeam(item.name) : null;
   const defName = item.summary.definition || item.name;
   const def = (A && A.definitionOf(item.project, defName, item.place)) || null;
-  const nodes: ActivityNode[] = doc ? (doc.nodes || []) : ((run && run.members) || []).map((m: HQMember) => ({ name: m.name, herdr: m.herdr, state: m.state, at: '' }));
-  const order = memberOrderOf(def, nodes);
-  const byName = new Map(nodes.map((n): [string, ActivityNode] => [n.name, n]));
-  const crew = order.filter((n) => byName.has(n)).map((name): CrewMember => {
-    const n = byName.get(name)!;
-    return { name, herdr: n.herdr || (item.name + '-' + name), state: n.state || 'idle', at: n.at || '', since: n.since_at || n.at || '', doing: n.doing || '', question: n.question || '' };
-  });
-  const hired: Pick<ActivityNode, 'name' | 'state'>[] = doc ? (doc.hired || []) : ((run && run.workers) || []).map((w: HQWorker) => ({ name: w.name, state: w.live ? 'active' : 'idle' }));
-  const workers = hired.map((w): Worker => ({
-    name: w.name,
-    state: w.state || 'idle',
-    doing: ('doing' in w && typeof w.doing === 'string' && w.doing) || '',
-    from: ('from' in w && typeof w.from === 'string' && w.from) || '',
+  const nodes: CrewMember[] = doc ? (doc.nodes || []).map((n) => ({
+    name: n.name, herdr: n.herdr || (item.name + '-' + n.name), state: nodeStates[n.state],
+    at: n.at, doing: n.doing || '', question: n.question,
+  })) : ((run && run.members) || []).map((m: HQMember) => ({
+    name: m.name, herdr: m.herdr || (item.name + '-' + m.name), state: m.state, at: null, doing: '',
   }));
-  const state = item.summary.state || 'idle';
+  const order = memberOrderOf(def, nodes);
+  const byName = new Map(nodes.map((n) => [n.name, n] as const));
+  const crew = order.flatMap((name) => {
+    const member = byName.get(name);
+    return member ? [member] : [];
+  });
+  const workers: Worker[] = doc ? (doc.hired || []).map((worker) => ({
+    name: worker.name, state: nodeStates[worker.state], doing: worker.doing || '', from: worker.from || '',
+  })) : ((run && run.workers) || []).map((w: HQWorker) => ({
+    name: w.name, state: w.live ? 'active' : 'idle', doing: '', from: '',
+  }));
+  const state = teamStates[item.summary.state];
   return {
     name: item.name, project: item.project, projectName: item.project_name || (A ? A.projectName(item.project) : ''),
     workspace: (item.workspace && item.workspace.label) || (run && run.workspace && run.workspace.label) || '',

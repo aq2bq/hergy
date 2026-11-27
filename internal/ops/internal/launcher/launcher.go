@@ -591,7 +591,7 @@ func (l *Launcher) Focus(member *definition.Start) error {
 // Nudge sends one member a short push to carry on, only when it is idle or done:
 // a member that is working or blocked is left alone, and the whole command
 // errors. text is the message to send, already carrying who it is from.
-func (l *Launcher) Nudge(member *definition.Start, text string) error {
+func (l *Launcher) Nudge(member *definition.Start, text i18n.AgentText) error {
 	if err := l.herdr.Verify(protocol.ModePrompt); err != nil {
 		return err
 	}
@@ -600,7 +600,7 @@ func (l *Launcher) Nudge(member *definition.Start, text string) error {
 		return err
 	}
 	if agent.Status != "idle" && agent.Status != "done" {
-		return words.Errorf("control.nudge-state", i18n.Language(), member.Name.String(), agent.Status)
+		return words.Errorf("control.nudge-state", i18n.English, member.Name.String(), agent.Status)
 	}
 	if err := l.herdr.Prompt(member.Name, text); err != nil {
 		return err
@@ -631,7 +631,7 @@ func (l *Launcher) Stop(member *definition.Start, selfPane domainname.PaneID) (s
 		return false, err
 	}
 	if selfPane != "" && agent.PaneID == selfPane {
-		return false, words.Errorf("control.stop-self", i18n.Language(), member.Name.String())
+		return false, words.Errorf("control.stop-self", i18n.English, member.Name.String())
 	}
 	if agent.Status != "working" {
 		fmt.Fprintf(l.out, i18n.T("stop.not_working"), member.Name.String(), agent.Status)
@@ -754,7 +754,7 @@ func (l *Launcher) checkTargets(members []definition.Start, selfPane domainname.
 			return nil, teamTab{}, i18n.Errorf("error.missing_pane_id", member.Name.String())
 		}
 		if selfPane != "" && agent.PaneID == selfPane {
-			return nil, teamTab{}, words.Errorf("refresh.own-pane", i18n.Language(), member.Name.String())
+			return nil, teamTab{}, words.Errorf("refresh.own-pane", i18n.English, member.Name.String())
 		}
 		l.place(member.Name.String(), agent.PaneID)
 		targets = append(targets, refreshTarget{member: member, pane: agent.PaneID, live: true})
@@ -786,14 +786,14 @@ func (l *Launcher) deadTarget(member *definition.Start, selfPane domainname.Pane
 		return refreshTarget{member: member}, nil
 	}
 	if selfPane != "" && pane == selfPane {
-		return refreshTarget{}, words.Errorf("refresh.own-pane", i18n.Language(), member.Name.String())
+		return refreshTarget{}, words.Errorf("refresh.own-pane", i18n.English, member.Name.String())
 	}
 	info, err := l.herdr.PaneProcessInfo(pane)
 	if err != nil {
 		return refreshTarget{}, err
 	}
 	if info.Pgid != info.ShellPID {
-		return refreshTarget{}, words.Errorf("refresh.busy-pane", i18n.Language(), member.Name.String(), pane)
+		return refreshTarget{}, words.Errorf("refresh.busy-pane", i18n.English, member.Name.String(), pane)
 	}
 	l.place(member.Name.String(), pane)
 	return refreshTarget{member: member, pane: pane, live: false}, nil
@@ -822,7 +822,7 @@ func (l *Launcher) teamTab(member *definition.Start) (teamTab, error) {
 			}
 		}
 	}
-	return teamTab{}, words.Errorf("refresh.no-team-pane", i18n.Language(), member.Name.String())
+	return teamTab{}, words.Errorf("refresh.no-team-pane", i18n.English, member.Name.String())
 }
 
 // addMember makes one member's pane in the team's tab and starts the member in it,
@@ -1565,7 +1565,7 @@ func (l *Launcher) preflight(members []definition.Start) (string, error) {
 func (l *Launcher) preflightIn(workspace string, members []definition.Start) error {
 	for i := range members {
 		if !isDir(members[i].Cwd) {
-			return words.Errorf("start.cwd-directory", i18n.Language(), members[i].Cwd)
+			return words.Errorf("start.cwd-directory", i18n.English, members[i].Cwd)
 		}
 	}
 	if err := l.herdr.Verify(protocol.ModeBoot); err != nil {
@@ -1579,7 +1579,7 @@ func (l *Launcher) preflightIn(workspace string, members []definition.Start) err
 		return err
 	}
 	if conflicts := intersect(namesOf(members), live); len(conflicts) > 0 {
-		return words.Errorf("start.live-names", i18n.Language(), strings.Join(conflicts, ", "))
+		return words.Errorf("start.live-names", i18n.English, strings.Join(conflicts, ", "))
 	}
 	return nil
 }
@@ -1665,7 +1665,7 @@ func (l *Launcher) start(member *definition.Start, next StartupNext, tabLabel st
 func (l *Launcher) submit(member *definition.Start, target domainname.Target) error {
 	l.stage(i18n.Tf("progress.stage.submitting", member.Name.String()))
 	l.mark(member.Name.String(), i18n.T("progress.mark.prompt_requested"))
-	if err := l.herdr.ConfirmShownPrompt(target, member.Prompt, l.sleeping); err != nil {
+	if err := l.herdr.ConfirmShownPrompt(target, i18n.AgentText(member.Prompt), l.sleeping); err != nil {
 		_, unseen := errors.AsType[*herdr.Unseen](err)
 		switch code := protocol.ErrorCode(err); {
 		case unseen, code == "agent_prompt_stalled", code == "timeout", code == "agent_blocked":

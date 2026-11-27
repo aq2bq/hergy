@@ -53,7 +53,7 @@ func (a Agent) CheckLive(name string) error {
 		return i18n.Errorf("error.live_name_mismatch", name)
 	}
 	if a.Status != "idle" && a.Status != "done" {
-		return words.Errorf("refresh.state", i18n.Language(), name, a.Status)
+		return words.Errorf("refresh.state", i18n.English, name, a.Status)
 	}
 	return nil
 }

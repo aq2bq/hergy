@@ -104,17 +104,17 @@ func TestNewLeavesAnExistingConfigAlone(t *testing.T) {
 	}
 }
 
-// TestLsAfterNewUsesTheCreatedLanguage: once new has written lang: ja, a later
-// command with no --lang reads Japanese.
-func TestLsAfterNewUsesTheCreatedLanguage(t *testing.T) {
+// TestLsReadsInEnglishAfterJapaneseNew: ls reads in English
+// even when new chose Japanese for the starter files.
+func TestLsReadsInEnglishAfterJapaneseNew(t *testing.T) {
 	newFixture(t)
 	mustRun(t, "new", "demo", "--lang", "ja")
 	got := mustRun(t, "ls")
-	if !strings.Contains(got, "チーム定義: demo\n") {
-		t.Fatalf("ls after a Japanese new is not Japanese:\n%s", got)
+	if !strings.Contains(got, "team definition: demo\n") {
+		t.Fatalf("ls after a Japanese new must read in English:\n%s", got)
 	}
-	if !strings.Contains(got, "  パス: .hergy/teams/demo/team.yaml\n") {
-		t.Fatalf("ls after a Japanese new is not Japanese:\n%s", got)
+	if !strings.Contains(got, "  path: .hergy/teams/demo/team.yaml\n") {
+		t.Fatalf("ls after a Japanese new must read in English:\n%s", got)
 	}
 }
 
@@ -510,13 +510,10 @@ func TestSharedAgreementIsNotReadAndStops(t *testing.T) {
 			if code == 0 {
 				t.Fatal("up --dry --lang ja did not stop on the shared agreement")
 			}
-			for _, want := range []string{"<チーム定義名>", "<ロール名>"} {
+			for _, want := range []string{"<definition>", "<role>"} {
 				if !strings.Contains(stderr, want) {
-					t.Errorf("the Japanese sentence does not read %q:\n%s", want, stderr)
+					t.Errorf("the English sentence does not read %q:\n%s", want, stderr)
 				}
-			}
-			if strings.Contains(stderr, "<definition>") || strings.Contains(stderr, "<role>") {
-				t.Errorf("the Japanese sentence carries an English placeholder:\n%s", stderr)
 			}
 
 			stdout, _, code := run("validate")
@@ -589,13 +586,13 @@ func TestShowShape(t *testing.T) {
 		"  reads: .hergy/teams/demo/agreement.md",
 	)
 }
-func TestShowLabelsFollowTheLanguage(t *testing.T) {
+func TestShowLabelsStayEnglish(t *testing.T) {
 	newFixture(t)
 	mustRun(t, "new", "demo")
 	got := mustRun(t, "show", "demo", "--lang", "ja")
-	for _, line := range []string{"チーム定義: demo", "メンバー: demo-lead", "  ロール: lead", "  ロールの文書: .hergy/roles/lead.md"} {
+	for _, line := range []string{"team definition: demo", "member: demo-lead", "  role: lead", "  role document: .hergy/roles/lead.md"} {
 		if !strings.Contains(got, line+"\n") {
-			t.Fatalf("Japanese output is missing %q:\n%s", line, got)
+			t.Fatalf("English output is missing %q:\n%s", line, got)
 		}
 	}
 }
@@ -717,7 +714,7 @@ func TestBootstrapPromptNamesTheActor(t *testing.T) {
 		t.Errorf("the worker's prompt does not name the actor:\n%s", got)
 	}
 
-	if got := mustRun(t, "up", "dev", "--dry", "--lang", "ja"); !strings.Contains(got, i18n.Tf("prompt.actor", "dev-lead")) {
+	if got := mustRun(t, "up", "dev", "--dry", "--lang", "ja"); !strings.Contains(got, string(i18n.Textf("ja", "prompt.actor", "dev-lead"))) {
 		t.Errorf("the Japanese prompt does not name the actor:\n%s", got)
 	}
 }
@@ -1691,8 +1688,8 @@ func TestHirePurposeNobodyHiresFor(t *testing.T) {
 	if code == 0 {
 		t.Fatal("hire for a purpose nobody hires for succeeded (ja)")
 	}
-	if !strings.Contains(stderr, "lead は 実装／spec は 調査") {
-		t.Fatalf("the Japanese refusal does not list who may hire for what:\n%s", stderr)
+	if !strings.Contains(stderr, "lead: 実装 / spec: 調査") {
+		t.Fatalf("the English refusal does not list who may hire for what:\n%s", stderr)
 	}
 }
 
@@ -1769,7 +1766,7 @@ func TestUpDryPromptShowsWorkerPairs(t *testing.T) {
 	}
 
 	shown := mustRun(t, "show", "demo", "--lang", "ja")
-	if !strings.Contains(shown, "ワーカー: 調査 → seeker、実装 → developer\n") {
+	if !strings.Contains(shown, "workers: 調査 → seeker, 実装 → developer\n") {
 		t.Fatalf("show does not list the worker pairs:\n%s", shown)
 	}
 
@@ -1816,23 +1813,23 @@ func TestStatusShapeWaitsOnTheHuman(t *testing.T) {
 	)
 }
 
-// TestStatusLabelsFollowTheLanguage: the header and the judgement follow --lang;
+// TestStatusLabelsStayEnglish: the header and judgement stay English;
 // the agent states are herdr's words, whatever the language.
-func TestStatusLabelsFollowTheLanguage(t *testing.T) {
+func TestStatusLabelsStayEnglish(t *testing.T) {
 	f := newFixture(t)
 	mustRun(t, "new", "demo")
 	seedRunningTeam(t, f.proj, "demo", "demo")
 	f.herdr(t, statusHerdr)
 	got := mustRun(t, "status", "demo", "--lang", "ja")
 	for _, line := range []string{
-		"チーム: demo",
+		"team: demo",
 		"demo-lead: working",
-		"demo-builder: blocked（許可待ち）",
-		"demo-w1: idle（ワーカー）",
-		"許可待ち",
+		"demo-builder: blocked (waiting for permission)",
+		"demo-w1: idle (worker)",
+		"waiting for permission",
 	} {
 		if !strings.Contains(got, line+"\n") {
-			t.Fatalf("Japanese status is missing %q:\n%s", line, got)
+			t.Fatalf("English status is missing %q:\n%s", line, got)
 		}
 	}
 }
@@ -1930,7 +1927,7 @@ func TestCheatPeopleLeadsWithTheFirstSteps(t *testing.T) {
 		steps []string
 	}{
 		{"en", []string{"hergy new myteam", "edit team.yaml", "hergy up myteam"}},
-		{"ja", []string{"hergy new myteam", "team.yaml を編集", "hergy up myteam"}},
+		{"ja", []string{"hergy new myteam", "edit team.yaml", "hergy up myteam"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.lang, func(t *testing.T) {

@@ -593,7 +593,7 @@ func TestEditYAMLRemovesAnItemsCommentWhateverTheLineEnding(t *testing.T) {
 // sits under, so the sentence reads in every language (an English refusal holds
 // no Japanese word where the key goes).
 func TestEditShapeNamesAYAMLKey(t *testing.T) {
-	lang := i18n.Language()
+	lang := i18n.HandedLanguage()
 	defer func() {
 		if err := i18n.Use(lang); err != nil {
 			t.Errorf("cannot put the language back: %v", err)

@@ -44,7 +44,7 @@ func TestRoleNameThatIsNotAnIdentifierIsANameProblem(t *testing.T) {
 			if one.Field != "name" || one.Sev != "err" {
 				t.Errorf("the name problem reads %+v, want an error on the name field", one)
 			}
-			if !strings.Contains(one.Text, "進行役") || !strings.Contains(one.Text, "タイトル") {
+			if !strings.Contains(one.Text, "進行役") || !strings.Contains(one.Text, "title") {
 				t.Errorf("the name problem does not name the name and the title: %q", one.Text)
 			}
 			return

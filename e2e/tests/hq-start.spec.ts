@@ -106,7 +106,7 @@ test('a name the server refuses stays beside the name field, and nothing starts'
 
   await set(page, nameField, 'Dev 2');
   await press(page, `${SHEET}.querySelector('[data-hq=go]')`);
-  await readTo<string>(page, `${SHEET}.querySelector('[data-role=name-error]').textContent`, 'the unreadable name says why beside the field').toContain('チームの名前は');
+  await readTo<string>(page, `${SHEET}.querySelector('[data-role=name-error]').textContent`, 'the unreadable name says why beside the field').toContain('A team name must match');
   await readTo<string>(page, `${SHEET}.querySelector('[data-role=error]').textContent`, 'the sheet keeps no other refusal').toBe('');
 
   await set(page, nameField, 'taken');

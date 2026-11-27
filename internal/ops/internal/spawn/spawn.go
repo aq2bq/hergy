@@ -43,7 +43,7 @@ func Plan(team domainname.TeamName, starts []definition.Start, profiles map[stri
 	// the one that entry pairs it with.
 	chosen, ok := profileFor(lead.Workers, purpose)
 	if !ok {
-		return nil, words.Errorf("hire.purpose-outside", i18n.Language(), lead.Short.String(), purpose, availablePurposes(lead.Workers))
+		return nil, words.Errorf("hire.purpose-outside", i18n.English, lead.Short.String(), purpose, availablePurposes(lead.Workers))
 	}
 	profileValue, ok := profiles[chosen]
 	if !ok {
@@ -107,13 +107,13 @@ func defaultLead(starts []definition.Start, purpose string) (*definition.Start, 
 	case 1:
 		return candidates[0], nil
 	case 0:
-		return nil, words.Errorf("hire.purpose-nobody", i18n.Language(), purpose, hirings(starts))
+		return nil, words.Errorf("hire.purpose-nobody", i18n.English, purpose, hirings(starts))
 	default:
 		names := make([]string, len(candidates))
 		for i, candidate := range candidates {
 			names[i] = candidate.Short.String()
 		}
-		return nil, words.Errorf("hire.from-many", i18n.Language(), strings.Join(names, i18n.T("list.separator")))
+		return nil, words.Errorf("hire.from-many", i18n.English, strings.Join(names, i18n.T("list.separator")))
 	}
 }
 

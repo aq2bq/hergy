@@ -76,7 +76,7 @@ test('the sheet separates what is pressed from what is told, and handed reads on
     const response = await route.fetch();
     const json = await response.json();
     const core = json.items.find((item: { name: string }) => item.name === 'core');
-    core.summary.state = 'turn';
+    core.summary.state = 'handed';
     core.summary.turn = null;
     await route.fulfill({ response, json });
   });

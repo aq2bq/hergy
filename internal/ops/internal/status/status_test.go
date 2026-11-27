@@ -57,19 +57,19 @@ func TestCountsSeparatesMembersAndWorkers(t *testing.T) {
 	}
 }
 
-// TestWordsFollowTheLanguage: row wording follows the selected locale.
-func TestWordsFollowTheLanguage(t *testing.T) {
+// TestStatusWordsStayEnglish: status wording stays English when agents read Japanese.
+func TestStatusWordsStayEnglish(t *testing.T) {
 	t.Cleanup(func() { _ = i18n.Use(i18n.Fallback) })
 	if err := i18n.Use("ja"); err != nil {
 		t.Fatal(err)
 	}
-	if got, want := (Row{Name: "b"}).Text(), "動いていない"; got != want {
-		t.Fatalf("Japanese absent text = %q, want %q", got, want)
+	if got, want := (Row{Name: "b"}).Text(), "not running"; got != want {
+		t.Fatalf("absent text with ja configured = %q, want %q", got, want)
 	}
-	if got, want := (Row{Name: "a", State: "blocked", Live: true}).Text(), "blocked（許可待ち）"; got != want {
-		t.Fatalf("Japanese blocked text = %q, want %q", got, want)
+	if got, want := (Row{Name: "a", State: "blocked", Live: true}).Text(), "blocked (waiting for permission)"; got != want {
+		t.Fatalf("blocked text with ja configured = %q, want %q", got, want)
 	}
-	if got, want := (Row{Name: "a", State: "working", Live: true, UnchangedMinutes: new(9)}).Text(), "仕事中（9 分変化なし）"; got != want {
-		t.Fatalf("Japanese unchanged text = %q, want %q", got, want)
+	if got, want := (Row{Name: "a", State: "working", Live: true, UnchangedMinutes: new(9)}).Text(), "working (unchanged for 9 min)"; got != want {
+		t.Fatalf("unchanged text with ja configured = %q, want %q", got, want)
 	}
 }

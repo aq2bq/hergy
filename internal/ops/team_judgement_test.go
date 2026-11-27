@@ -25,13 +25,13 @@ func TestStatusAndActivityUseTheSameTurnJudgement(t *testing.T) {
 		name, holder, agent, status, api string
 		watching                         bool
 	}{
-		{"permission", turns.Human, "blocked", "許可待ち", "answer", true},
-		{"human turn", turns.Human, "idle", "人間の返事待ち", "turn", true},
-		{"member turn stopped", "a", "idle", "止まっている", "stalled", true},
-		{"no watcher", turns.Human, "idle", "止まっている", "stalled", false},
-		{"no turn state", "", "idle", "止まっている", "stalled", true},
-		{"working", "a", "working", "仕事中", "working", true},
-		{"human before working", turns.Human, "working", "人間の返事待ち", "turn", true},
+		{"permission", turns.Human, "blocked", "waiting for permission", "waiting-for-permission", true},
+		{"human turn", turns.Human, "idle", "waiting for a reply", "handed", true},
+		{"member turn stopped", "a", "idle", "stalled", "stalled", true},
+		{"no watcher", turns.Human, "idle", "stalled", "stalled", false},
+		{"no turn state", "", "idle", "stalled", "stalled", true},
+		{"working", "a", "working", "working", "working", true},
+		{"human before working", turns.Human, "working", "waiting for a reply", "handed", true},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -55,7 +55,7 @@ func TestStatusAndActivityUseTheSameTurnJudgement(t *testing.T) {
 			if len(status) != 1 || len(api.Items) != 1 {
 				t.Fatalf("status=%+v api=%+v", status, api)
 			}
-			if status[0].Judgement != c.status || api.Items[0].Summary.State != c.api {
+			if status[0].Judgement != c.status || string(api.Items[0].Summary.State) != c.api {
 				t.Fatalf("status=%q api=%q; want %q / %q", status[0].Judgement, api.Items[0].Summary.State, c.status, c.api)
 			}
 		})
@@ -77,8 +77,8 @@ func TestActivityBadgeAndTurnLineUseOneStateReading(t *testing.T) {
 	if err := turns.Save(path, st); err != nil {
 		t.Fatal(err)
 	}
-	item := itemOf(activityRow{team: judged}, activityNow)
-	if item.Summary.State != "turn" || item.Summary.Turn == nil || item.Summary.Turn.Holder != turns.Human {
+	item := itemOf(activityRow{team: judged})
+	if item.Summary.State != "handed" || item.Summary.Turn == nil || item.Summary.Turn.Holder != turns.Human {
 		t.Fatalf("badge and turn diverged: %+v", item.Summary)
 	}
 }
@@ -104,7 +104,7 @@ func TestUnwatchedTurnDetailsAreNotPresented(t *testing.T) {
 				t.Fatalf("unwatched CLI details = %+v", result)
 			}
 			judged := judgeOf(runningTeam{Name: fixtureSeen("demo"), Built: r}, readSession(p), activityNow)
-			item := itemOf(activityRow{team: judged}, activityNow)
+			item := itemOf(activityRow{team: judged})
 			if item.Summary.State != "stalled" || item.Summary.Turn != nil {
 				t.Fatalf("unwatched card details = %+v", item.Summary)
 			}

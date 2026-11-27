@@ -241,7 +241,7 @@ func TestTheActivityCountsStandOnEveryBand(t *testing.T) {
 		}
 	}
 	// The opened rows are the page's own state, not a URL of their own (2.3).
-	if !strings.Contains(activity, "動いているチームはありません") {
+	if !strings.Contains(activity, "no teams are running") {
 		t.Errorf("the activity screen does not carry the word for an empty list:\n%s", activity)
 	}
 }

@@ -103,7 +103,7 @@ func (s ResourceScope) checkDefinitionFolder(ref domainplace.Ref, in definitionF
 	if in.Draft.AgreementExists || in.Agreement != nil {
 		files = append(files, scaffold.File{Path: "agreement.md", Data: []byte(agree)})
 	}
-	written := newteam.In{Catalog: s.Catalog, Layer: ref.Place().Layer(), Name: ref.Name(), Lang: i18n.Language(), Files: files, Starter: in.Draft.Starter, StarterRoles: in.Draft.StarterRoles, StarterProfile: in.Draft.StarterProfile, Carry: s.carryIn(in.Input)}
+	written := newteam.In{Catalog: s.Catalog, Layer: ref.Place().Layer(), Name: ref.Name(), Lang: i18n.HandedLanguage(), Files: files, Starter: in.Draft.Starter, StarterRoles: in.Draft.StarterRoles, StarterProfile: in.Draft.StarterProfile, Carry: s.carryIn(in.Input)}
 	// The screen compares the checked starter/copy basis with its edits.
 	// Keep its existing errors, including missing unchosen dependencies;
 	// only a new stopping sentence outside node: closes the save.

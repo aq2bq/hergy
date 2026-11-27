@@ -20,7 +20,7 @@ func TestDownClosesATeamThatStoppedBeforeAnyAgentRan(t *testing.T) {
 	tests := []struct {
 		lang string
 		want string
-	}{{lang: "ja", want: "チーム: turnwalk\n" + "turnwalk-lead: 閉じます（ペイン p1、エージェントは動いていない）\n" + "turnwalk-builder: 閉じます（ペイン p2、エージェントは動いていない）\n" + "閉じた数: 2\n" + "ペインが無かった数: 0\n"}, {lang: "en", want: "team: turnwalk\n" + "turnwalk-lead: closing (pane p1, no agent running)\n" + "turnwalk-builder: closing (pane p2, no agent running)\n" + "closed: 2\n" + "absent: 0\n"}}
+	}{{lang: "ja", want: "team: turnwalk\n" + "turnwalk-lead: closing (pane p1, no agent running)\n" + "turnwalk-builder: closing (pane p2, no agent running)\n" + "closed: 2\n" + "absent: 0\n"}, {lang: "en", want: "team: turnwalk\n" + "turnwalk-lead: closing (pane p1, no agent running)\n" + "turnwalk-builder: closing (pane p2, no agent running)\n" + "closed: 2\n" + "absent: 0\n"}}
 	for _, tc := range tests {
 		t.Run(tc.lang, func(t *testing.T) {
 			f := newFixture(t)
@@ -65,11 +65,11 @@ func TestDownDryOfAStoppedTeamPlansTheSame(t *testing.T) {
 	mustRun(t, "new", "turnwalk")
 	log := f.stoppedTeamHerdr(t)
 
-	want := "チーム: turnwalk\n" +
-		"turnwalk-lead: 閉じる予定（ペイン p1、エージェントは動いていない）\n" +
-		"turnwalk-builder: 閉じる予定（ペイン p2、エージェントは動いていない）\n" +
-		"閉じる予定の数: 2\n" +
-		"閉じない数: 0\n" +
+	want := "team: turnwalk\n" +
+		"turnwalk-lead: would close (pane p1, no agent running)\n" +
+		"turnwalk-builder: would close (pane p2, no agent running)\n" +
+		"would close: 2\n" +
+		"would skip: 0\n" +
 		"next: down turnwalk\n"
 	if got := mustRun(t, "down", "turnwalk", "--dry", "--lang", "ja"); got != want {
 		t.Fatalf("down turnwalk --dry printed:\n%s\nwant:\n%s", got, want)
@@ -110,12 +110,12 @@ func TestDownClosesOneWorkerAndLeavesTheTeamAndTheOtherWorker(t *testing.T) {
 	t.Setenv("HERDR_ENV", "1")
 	t.Setenv("HERDR_PANE_ID", "p9")
 
-	want := "ワーカー: draft-bench\n" +
-		"  チーム: draft\n" +
-		"draft-bench: 閉じます（ペイン p2、ワーカー）\n" +
-		"draft-bench: タブを閉じます（ほかにペインが無いため）\n" +
-		"閉じた数: 1\n" +
-		"ペインが無かった数: 0\n"
+	want := "worker: draft-bench\n" +
+		"  team: draft\n" +
+		"draft-bench: closing (pane p2, worker)\n" +
+		"draft-bench: closing the tab too (no other pane there)\n" +
+		"closed: 1\n" +
+		"absent: 0\n"
 	if got := mustRun(t, "down", "bench", "--lang", "ja"); got != want {
 		t.Fatalf("down bench printed:\n%s\nwant:\n%s", got, want)
 	}
@@ -129,7 +129,7 @@ func TestDownClosesOneWorkerAndLeavesTheTeamAndTheOtherWorker(t *testing.T) {
 		}
 	}
 
-	if got := mustRun(t, "down", "draft-scout", "--lang", "ja"); !strings.Contains(got, "draft-scout: 閉じます（ペイン p3、ワーカー）") {
+	if got := mustRun(t, "down", "draft-scout", "--lang", "ja"); !strings.Contains(got, "draft-scout: closing (pane p3, worker)") {
 		t.Fatalf("down draft-scout printed:\n%s", got)
 	}
 	closes = calls(t, log)
@@ -153,7 +153,7 @@ func TestDownRefusesANameThatIsBothATeamAndAWorker(t *testing.T) {
 	if code == 0 {
 		t.Fatalf("down bench accepted a name that is a team and a worker")
 	}
-	for _, want := range []string{"チーム名にもワーカー名にも当たります", "チーム bench", "ワーカー draft-bench"} {
+	for _, want := range []string{"names both a team", "team (bench)", "worker (draft-bench)"} {
 		if !strings.Contains(stderr, want) {
 			t.Errorf("the refusal does not say %q:\n%s", want, stderr)
 		}
@@ -177,12 +177,12 @@ func TestDownDryOfAWorkerPlansTheWorkerAndItsTab(t *testing.T) {
 	mustRun(t, "new", "draft")
 	log := f.workerHerdr(t, false)
 
-	want := "ワーカー: draft-bench\n" +
-		"  チーム: draft\n" +
-		"draft-bench: 閉じる予定（ペイン p2、ワーカー）\n" +
-		"draft-bench: 閉じる予定のタブ（ほかにペインが無いため）\n" +
-		"閉じる予定の数: 1\n" +
-		"閉じない数: 0\n" +
+	want := "worker: draft-bench\n" +
+		"  team: draft\n" +
+		"draft-bench: would close (pane p2, worker)\n" +
+		"draft-bench: would close the tab too (no other pane there)\n" +
+		"would close: 1\n" +
+		"would skip: 0\n" +
 		"next: down draft-bench\n"
 	if got := mustRun(t, "down", "bench", "--dry", "--lang", "ja"); got != want {
 		t.Fatalf("down bench --dry printed:\n%s\nwant:\n%s", got, want)
@@ -222,7 +222,7 @@ esac
 	if code == 0 {
 		t.Fatalf("down bench guessed between two teams' workers")
 	}
-	for _, want := range []string{"複数のチームにいます", "draft-bench", "ops-bench"} {
+	for _, want := range []string{"is in more than one team", "draft-bench", "ops-bench"} {
 		if !strings.Contains(stderr, want) {
 			t.Errorf("the refusal does not say %q:\n%s", want, stderr)
 		}
@@ -261,7 +261,7 @@ func TestDownListsWhatTheTeamLeftInGit(t *testing.T) {
 	t.Setenv("HERDR_PANE_ID", "p9")
 
 	got := mustRun(t, "down", "draft", "--dry", "--lang", "ja")
-	if !strings.Contains(got, "draft が動いている間にできたワークツリー（git、閉じたあとに残る予定）:") || !strings.Contains(got, "git worktree remove "+worktree) {
+	if !strings.Contains(got, "Worktrees made while draft was running (git; what stays after the stop):") || !strings.Contains(got, "git worktree remove "+worktree) {
 		t.Errorf("down --dry does not plan the leftovers:\n%s", got)
 	}
 
@@ -290,12 +290,12 @@ func TestDownListsWhatTheTeamLeftInGit(t *testing.T) {
 	}
 	got = mustRun(t, "down", "draft", "--lang", "ja")
 	for _, want := range []string{
-		"draft が動いている間にできたワークツリー（git）:",
-		"ワークツリー: " + worktree + "（枝 lane-1、保存していない変更あり、main に入っていないコミット 1 件）（ペインの作業ディレクトリがここにあった）",
-		"消すには: git worktree remove " + worktree,
-		"保存していない変更か、入っていないコミットがあります。消す前に中身を確かめてください",
-		"このプロジェクトの stash: 1 件（git stash list で見る）",
-		"hergy は消しません。",
+		"Worktrees made while draft was running (git):",
+		"worktree: " + worktree + " (branch lane-1, uncommitted changes, 1 commit(s) not in main) (a pane's working directory was here)",
+		"to remove: git worktree remove " + worktree,
+		"it has uncommitted changes or commits not in the base; look at it before removing it",
+		"this project's stashes: 1 (see them with git stash list)",
+		"hergy removes nothing",
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("down does not say %q:\n%s", want, got)

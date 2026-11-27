@@ -73,14 +73,14 @@ func TestPreambleSaysWhatChangedAndWhatToDo(t *testing.T) {
 	if got := Preamble(nil); got != "" {
 		t.Errorf("a send with no change is headed with %q, want nothing", got)
 	}
-	got := Preamble([]Change{{Kind: "rule", Text: "L1 を直した"}, {Kind: "roster", Text: "名簿が変わった"}})
+	got := Preamble([]Change{{Kind: "rule", Handed: "L1 を直した"}, {Kind: "roster", Handed: "名簿が変わった"}})
 	for _, want := range []string{
-		i18n.T("apply.preamble_lead"),
+		string(i18n.Handed("apply.preamble_lead")),
 		"- L1 を直した",
 		"- 名簿が変わった",
-		i18n.T("apply.preamble_close"),
+		string(i18n.Handed("apply.preamble_close")),
 	} {
-		if !strings.Contains(got, want) {
+		if !strings.Contains(string(got), want) {
 			t.Errorf("preamble = %q, want %q", got, want)
 		}
 	}

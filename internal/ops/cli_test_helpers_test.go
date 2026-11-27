@@ -34,6 +34,7 @@ func internalChanges(in []Change) []deliver.Change {
 	out := make([]deliver.Change, len(in))
 	for i, c := range in {
 		out[i] = deliver.Change(c)
+		out[i].Handed = i18n.AgentText(c.Text)
 	}
 	return out
 }

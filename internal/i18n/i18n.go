@@ -1,10 +1,15 @@
-// Package i18n keeps hergy's own words in one file per language and picks the
-// one to use. The files are embedded in the binary; nothing is read at runtime.
+// Package i18n keeps hergy's own words. The files are embedded in the binary;
+// nothing is read at runtime.
 //
-// The language is chosen as --lang, then the global config.yaml's lang, then
-// en. Init
-// loads every language and stops if their key sets differ, so a missing or
-// extra key is caught before the first message is printed.
+// What a person reads — help, the cheatsheet, errors, a command's output, the
+// sentences the screens are answered with — is English, whatever the settings
+// say (d-8e53): T, Tf and Errorf read it. What hergy hands to an agent — the
+// bootstrap prompt and its parts, the lines the watcher and hergy tell put in a
+// pane — is written in the handed language: --lang, then the global
+// config.yaml's lang, then en. Handed, Handedf and Text read that.
+//
+// Init loads every language and checks that each translation has an English
+// message. Only agent text needs translations.
 package i18n
 
 import (
@@ -26,17 +31,22 @@ var files embed.FS
 // the key-set reference and the fallback.
 var Available = []string{"en", "ja"}
 
-// Fallback is the language used when neither --lang nor the settings say one.
+// Fallback is the handed language when neither --lang nor the settings say one.
 const Fallback = "en"
+
+// English is the language of everything a person reads.
+const English = "en"
 
 var (
 	mu       sync.RWMutex
 	catalogs = map[string]map[string]string{}
-	current  map[string]string
-	language = Fallback
+	// current is the English catalog: what T reads.
+	current map[string]string
+	// handed is the language of the text hergy hands to an agent.
+	handed = Fallback
 )
 
-// Init loads every locale and checks that their keys agree, then uses Fallback.
+// Init loads every locale and selects the fallback language for agent text.
 func Init() error {
 	for _, lang := range Available {
 		messages, err := load(lang)
@@ -64,47 +74,28 @@ func load(lang string) (map[string]string, error) {
 	return messages, nil
 }
 
-// checkKeys fails when two languages disagree on their key set, naming each
-// missing or extra key so the fix is obvious.
+// checkKeys rejects translations of unknown messages.
 func checkKeys() error {
-	base := Available[0]
 	for _, lang := range Available[1:] {
-		missing, extra := diffKeys(catalogs[base], catalogs[lang])
-		var parts []string
-		if len(missing) > 0 {
-			parts = append(parts, fmt.Sprintf("missing in %s: %s", lang, strings.Join(missing, ", ")))
+		var extra []string
+		for key := range catalogs[lang] {
+			if _, ok := catalogs[English][key]; !ok {
+				extra = append(extra, key)
+			}
 		}
 		if len(extra) > 0 {
-			parts = append(parts, fmt.Sprintf("extra in %s: %s", lang, strings.Join(extra, ", ")))
-		}
-		if len(parts) > 0 {
-			return fmt.Errorf("locales %s and %s disagree: %s", base, lang, strings.Join(parts, "; "))
+			sort.Strings(extra)
+			return fmt.Errorf("locale %s has unknown keys: %s", lang, strings.Join(extra, ", "))
 		}
 	}
 	return nil
 }
 
-func diffKeys(a, b map[string]string) (missing, extra []string) {
-	for key := range a {
-		if _, ok := b[key]; !ok {
-			missing = append(missing, key)
-		}
-	}
-	for key := range b {
-		if _, ok := a[key]; !ok {
-			extra = append(extra, key)
-		}
-	}
-	sort.Strings(missing)
-	sort.Strings(extra)
-	return missing, extra
-}
-
 func use(lang string) {
 	mu.Lock()
 	defer mu.Unlock()
-	current = catalogs[lang]
-	language = lang
+	current = catalogs[English]
+	handed = lang
 }
 
 // Resolve picks a language from the --lang value and the configured language
@@ -124,7 +115,8 @@ func Resolve(explicit, configured string) (string, error) {
 	return "", fmt.Errorf(T("error.unknown_language"), wanted, strings.Join(Available, ", "))
 }
 
-// Use switches to a language Resolve returned.
+// Use makes a language Resolve returned the handed language. What a person
+// reads stays English.
 func Use(lang string) error {
 	if _, ok := catalogs[lang]; !ok {
 		return fmt.Errorf("locale %s is not loaded", lang)
@@ -133,14 +125,26 @@ func Use(lang string) error {
 	return nil
 }
 
-// Language is the language in use.
-func Language() string {
+// HandedLanguage is the language of the text hergy hands to an agent, and of
+// the starter files hergy new writes.
+func HandedLanguage() string {
 	mu.RLock()
 	defer mu.RUnlock()
-	return language
+	return handed
 }
 
-// T is the message for a key in the language in use. A key with no message
+// AgentText is text composed for an agent. Ordinary person-facing messages do
+// not satisfy an assembly parameter of this type.
+type AgentText string
+
+// Handed is the message for a key in the handed language: a sentence an agent
+// reads in its pane.
+func Handed(key string) AgentText { return Text(HandedLanguage(), key) }
+
+// Handedf is Handed with fmt.Sprintf.
+func Handedf(key string, args ...any) AgentText { return Textf(HandedLanguage(), key, args...) }
+
+// T is the message a person reads for a key, in English. A key with no message
 // shows as [[key]] rather than an empty string.
 func T(key string) string {
 	mu.RLock()
@@ -156,27 +160,29 @@ func T(key string) string {
 func Tf(key string, args ...any) string { return fmt.Sprintf(T(key), args...) }
 
 // Text is the message for a key in one language: the language a prompt is
-// rebuilt in, which is the launch record's, not the one in use now (C9). An
-// empty or unknown language falls back to the language in use, so a caller that
-// knows no language still reads hergy's own words.
-func Text(lang, key string) string {
-	if lang == "" || lang == Language() {
-		return T(key)
+// rebuilt in, which is the launch record's, not the handed one now (C9). An
+// empty language is the handed one; an unknown language or a key that language
+// lacks reads English, so a caller still reads hergy's own words.
+func Text(lang, key string) AgentText {
+	if lang == "" {
+		lang = HandedLanguage()
 	}
 	mu.RLock()
 	messages, known := catalogs[lang]
 	if known {
 		if text, ok := messages[key]; ok {
 			mu.RUnlock()
-			return text
+			return AgentText(text)
 		}
 	}
 	mu.RUnlock()
-	return T(key)
+	return AgentText(T(key))
 }
 
 // Textf is Text with fmt.Sprintf.
-func Textf(lang, key string, args ...any) string { return fmt.Sprintf(Text(lang, key), args...) }
+func Textf(lang, key string, args ...any) AgentText {
+	return AgentText(fmt.Sprintf(string(Text(lang, key)), args...))
+}
 
 // Errorf is fmt.Errorf with the format taken from a key. It exists so callers
 // never pass a non-constant format to fmt.Errorf, which go vet rejects.

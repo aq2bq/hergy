@@ -379,8 +379,8 @@ func StartupBlocked(err error) bool {
 }
 
 // Prompt sends text to a live agent name or a pane id.
-func (h *Herdr) Prompt(target domainname.Target, text string) error {
-	_, err := h.port.JSON("agent", "prompt", target.String(), text)
+func (h *Herdr) Prompt(target domainname.Target, text i18n.AgentText) error {
+	_, err := h.port.JSON("agent", "prompt", target.String(), string(text))
 	return err
 }
 
@@ -388,8 +388,8 @@ func (h *Herdr) Prompt(target domainname.Target, text string) error {
 // up to timeoutMS. ConfirmPrompt uses this for each receipt attempt; the watcher
 // also uses a single attempt when asking a member who its reply is for. An agent that does not start is herdr's
 // agent_prompt_stalled error; one that is blocked is agent_blocked.
-func (h *Herdr) PromptWait(target domainname.Target, text string, timeoutMS int) error {
-	_, err := h.port.JSON("agent", "prompt", target.String(), text, "--wait", "--until", "working", "--timeout", fmt.Sprintf("%d", timeoutMS))
+func (h *Herdr) PromptWait(target domainname.Target, text i18n.AgentText, timeoutMS int) error {
+	_, err := h.port.JSON("agent", "prompt", target.String(), string(text), "--wait", "--until", "working", "--timeout", fmt.Sprintf("%d", timeoutMS))
 	return err
 }
 

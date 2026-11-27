@@ -311,7 +311,7 @@ func dtoActivitySpace(in ops.ActivitySpace) ActivitySpace {
 func dtoActivitySummary(in ops.ActivitySummary) ActivitySummary {
 	out := ActivitySummary{}
 	out.Definition = in.Definition
-	out.State = in.State
+	out.State = string(in.State)
 	if in.Since != nil {
 		v := dtoActivitySince(*in.Since)
 		out.Since = &v
@@ -332,8 +332,8 @@ func dtoActivityTurn(in ops.ActivityTurn) ActivityTurn {
 }
 func dtoActivitySince(in ops.ActivitySince) ActivitySince {
 	out := ActivitySince{}
-	out.Len = in.Len
-	out.At = in.At
+	out.Seconds = int64(in.Duration.Seconds())
+	out.At = in.At.UnixMilli()
 	out.Lower = in.Lower
 	return out
 }
@@ -365,9 +365,12 @@ func dtoActivityNode(in ops.ActivityNode) ActivityNode {
 	out.Question = in.Question
 	out.Name = in.Name
 	out.Herdr = in.Herdr
-	out.State = in.State
-	out.At = in.At
-	out.SinceAt = in.SinceAt
+	out.State = string(in.State)
+	if !in.At.IsZero() {
+		at := in.At.UnixMilli()
+		out.At = &at
+	}
+	out.Lower = in.Lower
 	out.Doing = in.Doing
 	out.From = in.From
 	return out

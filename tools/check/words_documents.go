@@ -14,21 +14,28 @@ import (
 
 func projectedDocuments(root string) (map[string][]byte, error) {
 	outputs := map[string][]byte{}
-	for _, lang := range []string{"en", "ja"} {
-		path := "internal/i18n/locales/" + lang + ".json"
-		raw, err := os.ReadFile(filepath.Join(root, path))
-		if err != nil {
-			return nil, err
-		}
-		generated := words.LocaleMessages(lang)
-		generated["cheat.people"] = cheat.BuildPeople(lang)
-		generated["usage"] = options.BuildUsage(lang)
-		made, err := projectLocale(raw, generated)
-		if err != nil {
-			return nil, err
-		}
-		outputs[path] = made
+	const path = "internal/i18n/locales/en.json"
+	raw, err := os.ReadFile(filepath.Join(root, path))
+	if err != nil {
+		return nil, err
 	}
+	generated := words.LocaleMessages("en")
+	generated["cheat.people"] = cheat.BuildPeople("en")
+	generated["usage"] = options.BuildUsage("en")
+	made, err := projectLocale(raw, generated)
+	if err != nil {
+		return nil, err
+	}
+	outputs[path] = made
+
+	var japanese strings.Builder
+	encoder := json.NewEncoder(&japanese)
+	encoder.SetIndent("", "  ")
+	encoder.SetEscapeHTML(false)
+	if err := encoder.Encode(words.LocaleMessages("ja")); err != nil {
+		return nil, err
+	}
+	outputs["internal/i18n/locales/ja.json"] = []byte(japanese.String())
 	return outputs, nil
 }
 

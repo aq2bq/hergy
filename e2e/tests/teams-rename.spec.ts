@@ -20,7 +20,7 @@ for (const place of ['project', 'global'] as const) {
     const row = page.locator(`.tdef[data-name="${old}"]`);
     await row.getByRole('button', { name: '名前を変更', exact: true }).click();
     await row.getByLabel('新しいチーム定義名').fill('renamed');
-    await expect(row.locator('.team-rename')).toContainText('起動の記録は変更前の名前で残ります');
+    await expect(row.locator('.team-rename')).toContainText('Launch records keep the previous name.');
     await row.getByRole('button', { name: '名前を保存', exact: true }).click();
     const renamed = page.locator('.tdef[data-name="renamed"]');
     await expect(renamed).toHaveClass(/open/);
@@ -28,7 +28,7 @@ for (const place of ['project', 'global'] as const) {
     expect(existsSync(path.join(dir, old))).toBe(false);
     expect(readFileSync(path.join(dir, 'renamed', 'team.yaml'), 'utf8')).toBe(before.replace(`team: '${old}'`, "team: 'renamed'"));
     if (agree !== null) expect(readFileSync(path.join(dir, 'renamed', 'agreement.md'), 'utf8')).toBe(agree);
-    await expect(renamed.locator('.team-rename')).toContainText('起動の記録は変更前の名前で残ります');
+    await expect(renamed.locator('.team-rename')).toContainText('Launch records keep the previous name.');
     await page.goto(`${app.base}/teams?open=${old}`);
     await ready(page);
     await expect(page.getByRole('status')).toContainText('見つかりません');
@@ -50,7 +50,7 @@ test('rename is blocked by unsaved edits and preserves a stale-file refusal', as
   const changed = `${readFileSync(file, 'utf8')}\n# another editor\n`;
   writeFileSync(file, changed);
   await row.getByRole('button', { name: '名前を保存', exact: true }).click();
-  await expect(row.getByRole('alert')).toContainText('画面を読み直して');
+  await expect(row.getByRole('alert')).toContainText('Reload the screen before renaming.');
   await expect(row.getByLabel('新しいチーム定義名')).toHaveValue('renamed');
   expect(readFileSync(file, 'utf8')).toBe(changed);
   expect(existsSync(path.join(app.proj, '.hergy/teams/renamed'))).toBe(false);

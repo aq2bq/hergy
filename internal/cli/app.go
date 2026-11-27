@@ -308,12 +308,12 @@ func runNew(env ops.Environment, opts *options.Options, stdout io.Writer) error 
 	cat := env.Catalog(source.Disk{})
 	dir := cat.NewPlace(catalog.NewTeam, name)
 	checkedName, _ := domainname.NewDefinitionName(name)
-	result, err := ops.CreateStarterDefinition(cat, checkedName, layer, i18n.Language())
+	result, err := ops.CreateStarterDefinition(cat, checkedName, layer, i18n.HandedLanguage())
 	if err != nil {
 		return err
 	}
 	written := result.Written
-	configPath, madeConfig, err := env.EnsureGlobalConfig(i18n.Language())
+	configPath, madeConfig, err := env.EnsureGlobalConfig(i18n.HandedLanguage())
 	if err != nil {
 		return err
 	}

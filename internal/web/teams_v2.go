@@ -11,7 +11,6 @@ import (
 	"path/filepath"
 
 	"github.com/aq2bq/hergy/internal/catalog"
-	"github.com/aq2bq/hergy/internal/i18n"
 )
 
 // This file draws the team-definition screen's two pages (r-0f8c): the list,
@@ -22,7 +21,6 @@ import (
 
 // t2PageData is one tab's page.
 type t2PageData struct {
-	Lang  string
 	Nav   navData
 	Tab   string
 	Token string
@@ -44,7 +42,7 @@ func (s *Server) t2Page(w http.ResponseWriter, r *http.Request, tab string) {
 		return
 	}
 	data := t2PageData{
-		Lang: i18n.Language(), Nav: s.navOf("teams"), Tab: tab,
+		Nav: s.navOf("teams"), Tab: tab,
 		Token: s.token, Data: template.JS(raw), //nolint:gosec // raw is json.Marshal output, which escapes <, > and &, so it cannot close the script element that carries it
 	}
 	var buf bytes.Buffer

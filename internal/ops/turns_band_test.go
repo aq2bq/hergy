@@ -120,7 +120,7 @@ func TestPrintTurnsLogPrintsTheFileOrSaysThereIsNone(t *testing.T) {
 	inJapanese(t)
 	path := t.TempDir() + "/demo.log"
 	var out bytes.Buffer
-	if err := printTurnsLog("demo", path, &out); err != nil || !strings.Contains(out.String(), "見張りのログはまだありません") {
+	if err := printTurnsLog("demo", path, &out); err != nil || !strings.Contains(out.String(), "has no watcher log yet") {
 		t.Fatalf("missing log: %q, %v", out.String(), err)
 	}
 	out.Reset()

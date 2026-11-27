@@ -85,7 +85,7 @@ func (s ResourceScope) t2DraftWrites(row ResourceDraft, in ResourceDraftInput, n
 		files = append(files, scaffold.File{Path: "agreement.md"})
 	}
 	written, err := newteam.Plan(newteam.In{
-		Catalog: s.Catalog, Layer: row.Layer, Name: name, Lang: i18n.Language(),
+		Catalog: s.Catalog, Layer: row.Layer, Name: name, Lang: i18n.HandedLanguage(),
 		Files: files, Starter: row.Starter, StarterRoles: row.StarterRoles, StarterProfile: row.StarterProfile,
 		Carry: s.carryIn(in),
 	})
@@ -403,7 +403,7 @@ func (s ResourceScope) SaveDefinitionDraft(ref domainplace.Ref, in ResourceDraft
 func (s ResourceScope) ReadResourceDraft(in ResourceDraftInput) (ResourceDraft, *ResourceFailure) {
 	out := ResourceDraft{Place: in.Place.API(), Layer: in.Place.Layer(), Starter: in.New, StarterRoles: in.StarterRoles, StarterProfile: in.StarterProfile}
 	if in.New {
-		files, err := scaffold.Team(i18n.Language())
+		files, err := scaffold.Team(i18n.HandedLanguage())
 		if err != nil {
 			return out, &ResourceFailure{Text: err.Error()}
 		}
