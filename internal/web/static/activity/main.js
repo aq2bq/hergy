@@ -323,7 +323,7 @@ function Tile({ team: t }) {
   const stall = t.state === "stalled" ? /* @__PURE__ */ u("p", {
     class: "hq-why",
     children: [
-      `${term("handed")}の${term("member")}はいません。最後に動いたのは `,
+      "最後に動いたのは ",
       lastMoment(t) || t.since && t.since.at || "",
       "。lead に続きを渡すか、",
       /* @__PURE__ */ u("code", {
