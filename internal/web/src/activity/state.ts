@@ -62,8 +62,8 @@ type ActivityWords = { none?: string };
 
 // The headquarters' reading is a module: the screen imports it (5 章 1).
 export const POLL = 10000;
-// The screen's fixed words (2.2, 2.5). The server's answer carries the state's
-// name (answer, idle, …) only; these are the letters a person reads.
+// The API returns state term IDs such as waiting-for-permission and handed.
+// The screen maps them to display classes and uses those classes for the labels.
 const ST = teamStateWord;
 const NS = memberStateWord;
 const teamStates: Record<ActivitySummary['state'], string> = {
