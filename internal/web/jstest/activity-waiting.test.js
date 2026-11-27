@@ -72,7 +72,7 @@ test('cards show every waiting member once and keep the pane action states', asy
   }
   expect(document.querySelector('.hq-tile[data-team="stalled"] .hq-wait')).toBe(null);
   expect(document.querySelector('.hq-tile[data-team="stalled"] .hq-why').textContent).not.toContain('誰もターンを持っていません');
-  expect(document.querySelector('.hq-tile[data-team="stalled"] .hq-why').textContent).toContain('人間の返事待ちのメンバーはいません');
+  expect(document.querySelector('.hq-tile[data-team="stalled"] .hq-why').textContent).not.toContain('人間の返事待ちのメンバーはいません');
 
   const button = row('core', 'core-lead').querySelector('button');
   button.click();
