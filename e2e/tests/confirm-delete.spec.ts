@@ -65,7 +65,7 @@ test('DEL-PLACE-1 the delete asks in a dialog, away from the button', async ({ p
   // word (ac-ddb6).
   await expect(ask.locator('.confirm-body')).toContainText('team.yaml');
   await expect(ask.locator('.confirm-body')).toContainText('agreement.md');
-  await expect(ask).toContainText('取り消せません');
+  await expect(ask).toContainText('This cannot be taken back.');
   await ask.getByRole('button', { name: 'やめる', exact: true }).click();
   await expect(ask).toHaveCount(0);
 
@@ -119,7 +119,7 @@ test('DEL-PLACE-3 a role and a profile are asked for in the same dialog', async 
   await rolePanel.locator('[data-act="del"]').click();
   await opened(page);
   await expect(ask.locator('h2')).toContainText('ロール builder を削除しますか');
-  await expect(ask).toContainText('取り消せません');
+  await expect(ask).toContainText('This cannot be taken back.');
   await page.keyboard.press('Escape');
   await expect(ask).toHaveCount(0);
   await expect(rolePanel).toBeVisible();
@@ -136,7 +136,7 @@ test('DEL-PLACE-3 a role and a profile are asked for in the same dialog', async 
   await expect(ask).toBeVisible();
   await expect(panel).toBeVisible();
   await expect(ask.locator('h2')).toContainText('プロファイル codex-mini を削除しますか');
-  await expect(ask).toContainText('取り消せません');
+  await expect(ask).toContainText('This cannot be taken back.');
   await ask.getByRole('button', { name: 'やめる', exact: true }).click();
   await expect(ask).toHaveCount(0);
   await expect(panel).toBeVisible();

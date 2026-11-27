@@ -7,7 +7,6 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
-	"reflect"
 	"slices"
 	"strconv"
 	"strings"
@@ -641,7 +640,10 @@ func TestActivityNodesCarryTheTerminalTitleAndTheHirer(t *testing.T) {
 		t.Fatal(err)
 	}
 	after, ok := f.reader(t).One("core")
-	if !ok || !reflect.DeepEqual(doc.Hired, after.Hired) {
+	if !ok || !slices.EqualFunc(doc.Hired, after.Hired, func(before, after ActivityNode) bool {
+		before.At, after.At = before.At.UTC(), after.At.UTC()
+		return before == after
+	}) {
 		t.Fatalf("hired nodes changed without history: before=%+v after=%+v", doc.Hired, after.Hired)
 	}
 

@@ -28,7 +28,7 @@ test('missing herdr executable gives an actionable error without exec details', 
   await page.goto(app.base + '/activity'); await ready(page);
   rmSync(path.join(app.work, 'bin', 'herdr'));
   await page.locator('.hq-tile[data-team="migrate"] .hq-wait .hq-btn').click();
-  await expect(page.getByRole('alert')).toContainText('herdrのインストール');
+  await expect(page.getByRole('alert')).toContainText('Check the Herdr installation');
   await expect(page.getByRole('alert')).not.toContainText('fork/exec');
 });
 
@@ -39,7 +39,7 @@ test('390px activity controls fit the viewport', async ({ page, app }, testInfo)
     const body = await response.json();
     const question = body.doc.question + '\n' + 'Long permission command details\n'.repeat(40);
     body.doc.question = question;
-    for (const member of body.doc.nodes) if (member.state === 'blocked') member.question = question;
+    for (const member of body.doc.nodes) if (member.state === 'waiting-for-permission') member.question = question;
     await route.fulfill({ response, json: body });
   });
   await page.goto(app.base + '/activity'); await ready(page);
